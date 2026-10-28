@@ -17,10 +17,30 @@ export interface Snapshot {
   pageUrl: string;
 }
 
-const SEARCH_RADIUS_METERS = 150;
+const SEARCH_RADIUS_METERS = 300;
 // licenses we may adapt and show commercially: no NonCommercial, no NoDerivatives
 const ALLOWED = /^(CC BY(?!-NC)(?!-ND)|CC BY-SA(?!-NC)|CC0|Public domain|PD)/i;
-const CACHE = 'radmaps:snapshot:v1:';
+const CACHE = 'radmaps:snapshot:v2:';
+
+const FILLER = new Set(['the', 'and', 'of', 'at', 'in', 'on', 'a', 'an', 'inc', 'llc', 'ltd', 'co', 'company', 'corp', 'file', 'jpg', 'jpeg', 'png']);
+
+/** The words of a name that tell places apart, lowercased: "Hyatt Regency Boston" becomes hyatt, regency, boston. */
+function words(text: string): string[] {
+  return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !FILLER.has(w));
+}
+
+/**
+ * Does this photo's title (or description) say it is of this place? A photo only counts if most of the place's name appears in it, so the
+ * Commons picture of a shrub that happens to be growing near City Hall Plaza is not offered as City Hall Plaza.
+ */
+export function photoIsOf(placeName: string, photoText: string): boolean {
+  const wanted = words(placeName);
+  if (wanted.length === 0) return false;
+  const have = new Set(words(photoText));
+  const hits = wanted.filter((w) => have.has(w)).length;
+  const hasLongHit = wanted.some((w) => w.length >= 5 && have.has(w));
+  return hits / wanted.length >= 0.75 && hasLongHit;
+}
 
 interface CommonsPage {
   title?: string;
@@ -36,8 +56,8 @@ interface CommonsPage {
 const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 
 /** The best freely licensed photo taken close to this spot, or null. */
-export async function findSnapshot(position: LatLng): Promise<Snapshot | null> {
-  const key = `${CACHE}${position.lat.toFixed(4)},${position.lng.toFixed(4)}`;
+export async function findSnapshot(position: LatLng, placeName: string): Promise<Snapshot | null> {
+  const key = `${CACHE}${position.lat.toFixed(4)},${position.lng.toFixed(4)}:${placeName.toLowerCase()}`;
   try {
     const cached = sessionStorage.getItem(key);
     if (cached) return cached === 'none' ? null : (JSON.parse(cached) as Snapshot);
@@ -45,7 +65,7 @@ export async function findSnapshot(position: LatLng): Promise<Snapshot | null> {
 
   const url = 'https://commons.wikimedia.org/w/api.php?' + new URLSearchParams({
     action: 'query', format: 'json', origin: '*', generator: 'geosearch', ggscoord: `${position.lat}|${position.lng}`,
-    ggsradius: String(SEARCH_RADIUS_METERS), ggslimit: '12', ggsnamespace: '6', prop: 'imageinfo',
+    ggsradius: String(SEARCH_RADIUS_METERS), ggslimit: '30', ggsnamespace: '6', prop: 'imageinfo',
     iiprop: 'url|extmetadata|mime|size', iiurlwidth: '1000',
   });
   let result: Snapshot | null = null;
@@ -60,6 +80,8 @@ export async function findSnapshot(position: LatLng): Promise<Snapshot | null> {
         const meta = info.extmetadata ?? {};
         const license = stripHtml(meta.LicenseShortName?.value ?? '');
         if (!ALLOWED.test(license)) continue;
+        const text = `${page.title ?? ''} ${stripHtml(meta.ImageDescription?.value ?? '')} ${stripHtml(meta.ObjectName?.value ?? '')}`;
+        if (!photoIsOf(placeName, text)) continue;
         result = {
           imageUrl: info.thumburl,
           title: stripHtml((page.title ?? 'Photo').replace(/^File:/, '').replace(/\.[a-z]+$/i, '')),

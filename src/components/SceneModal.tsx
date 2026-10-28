@@ -38,9 +38,9 @@ export default function SceneModal({ spot, regionName, look, visited, onClose }:
 
   // look for a free photo of the place
   useEffect(() => {
-    if (spot.kind === 'vault') return;
+    if (spot.kind === 'vault' || !spot.oldName) return;
     let cancelled = false;
-    findSnapshot(spot.position).then((s) => {
+    findSnapshot(spot.position, spot.oldName).then((s) => {
       if (!cancelled) setFound({ id: spot.id, snapshot: s });
     });
     return () => {

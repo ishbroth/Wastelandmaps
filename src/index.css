@@ -148,6 +148,7 @@ html[data-look='parchment'] .rm-crt {
 .rm-pin-label b { font-family: var(--font-display); font-size: 19px; font-weight: 400; letter-spacing: 1px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }
 .rm-pin-label i { font-style: normal; font-size: 11px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; }
 .rm-zoomed .rm-pin .rm-pin-label, .rm-pin:hover .rm-pin-label, .rm-pin-selected .rm-pin-label, .rm-pin-vault .rm-pin-label, .rm-pin-rad .rm-pin-label { display: flex; }
+.rm-travelling .rm-pin .rm-pin-label { display: none !important; }
 .rm-pin:hover, .rm-pin-selected { z-index: 99; }
 .rm-pin-selected .rm-pin-icon { width: 34px; height: 34px; box-shadow: 0 0 16px var(--glow), 0 0 0 3px color-mix(in srgb, currentColor 35%, transparent); }
 .rm-pin-vault { color: var(--ink); }

@@ -79,3 +79,10 @@ npx tsx _tools/travel.check.ts                           # travel time, radiatio
 VITE_GOOGLE_MAPS_API_KEY=dummy npx vite --port 5174 &    # then:
 node _tools/smoke.mjs                                    # drives Chrome against a fake Google: search, pins, filters, looks, share link, fast travel, scenes, snapshots, phone layout
 ```
+
+## Real-Google check
+
+`node _tools/real.mjs [pipboy|parchment] [city]` opens the running dev server against the real Google (needs the key in `.env.local`) and reports pins, rows,
+tiles and any Google errors; `TRAVEL=1` also fast-travels and takes screenshots. `node _tools/real-snap.mjs [city]` tries the first places of a city for a
+free Commons photo. Snapshots only appear when the photo's title names the place (see `photoIsOf` in `src/lib/snapshot.ts`), so a nearby shrub is never
+offered as a landmark.

@@ -23,7 +23,7 @@ interface Props {
 }
 
 const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
-const LABEL_ZOOM = 14;
+const LABEL_ZOOM = 16;
 
 function pinElement(kind: CategoryId | 'vault' | 'rad', label: string, sub: string, className: string): HTMLElement {
   const el = document.createElement('button');
@@ -181,7 +181,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     const target = selectedId === VAULT_ID ? vault.current?.position : selectedId ? pins.current.get(selectedId)?.position : null;
     if (map && target) {
       map.panTo(target);
-      if ((map.getZoom() ?? 0) < 15) map.setZoom(15);
+      if ((map.getZoom() ?? 0) < LABEL_ZOOM) map.setZoom(LABEL_ZOOM);
     }
   }, [selectedId, locations, hiddenCategories, wasteland]);
 
@@ -211,6 +211,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     const marker = you.current;
     const { from, to, durationMs } = travel;
     marker.el.classList.add('rm-player-moving');
+    holder.current?.classList.add('rm-travelling'); // labels step aside while you walk
 
     const route = new google.maps.Polyline({
       map,
@@ -234,6 +235,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       cancelAnimationFrame(raf);
       route.setMap(null);
       marker.el.classList.remove('rm-player-moving');
+      holder.current?.classList.remove('rm-travelling');
     };
   }, [travel, look]);
 
