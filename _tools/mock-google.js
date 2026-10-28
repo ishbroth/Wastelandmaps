@@ -87,7 +87,7 @@
   // when the app asks for the Google script, hand it the mock instead of loading anything
   const append = HTMLHeadElement.prototype.appendChild;
   HTMLHeadElement.prototype.appendChild = function (node) {
-    if (node.tagName === 'SCRIPT' && /maps\.googleapis\.com/.test(node.src)) { console.log('mock: script intercepted'); setTimeout(() => { console.log('mock: ready fn is ' + typeof window.__radmapsReady); window.__radmapsReady && window.__radmapsReady(); }, 50); return node; }
+    if (node.tagName === 'SCRIPT' && /maps\.googleapis\.com/.test(node.src)) { console.log('mock: script intercepted'); setTimeout(() => { console.log('mock: ready fn is ' + typeof window.__wastelandmapsReady); window.__wastelandmapsReady && window.__wastelandmapsReady(); }, 50); return node; }
     return append.call(this, node);
   };
 })();

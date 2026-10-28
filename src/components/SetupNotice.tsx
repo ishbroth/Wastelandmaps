@@ -6,7 +6,7 @@ export default function SetupNotice({ problem }: { problem: string }) {
       <h2>{noKey ? 'TERMINAL OFFLINE: NO MAP KEY' : `TERMINAL ERROR: ${problem}`}</h2>
       {noKey ? (
         <>
-          <p>RadMaps draws its maps with Google Maps, which needs a key. It takes about five minutes:</p>
+          <p>WastelandMaps draws its maps with Google Maps, which needs a key. It takes about five minutes:</p>
           <ol>
             <li>In Google Cloud Console, open your project and enable <b>Maps JavaScript API</b>, <b>Geocoding API</b> and <b>Places API (New)</b>.</li>
             <li>Under Credentials, create an API key. Restrict it to <b>HTTP referrers</b>: <code>http://localhost:5173/*</code> now, and your .com once it is registered. Limit it to those three APIs.</li>

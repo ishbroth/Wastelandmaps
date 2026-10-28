@@ -110,7 +110,7 @@ export function SharePanel({ query, look, soundOn, onToggleSound }: { query: str
       </div>
       <p className="rm-fine">
         The poster prints exactly what is on screen (use "Save as PDF" in the print window). Map imagery belongs to Google and is for your own
-        use; RadMaps is an unofficial fan project and is not affiliated with Bethesda or Microsoft.
+        use; WastelandMaps is an unofficial fan project and is not affiliated with Bethesda or Microsoft.
       </p>
     </div>
   );

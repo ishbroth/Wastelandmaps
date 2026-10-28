@@ -19,13 +19,13 @@ export function loadGoogle(): Promise<void> {
     const w = window as unknown as Record<string, unknown>;
     // Google calls this when the key is rejected (wrong key, API not enabled, address not allowed)
     w.gm_authFailure = () => reject(new Error('KEY REJECTED'));
-    w.__radmapsReady = () => {
+    w.__wastelandmapsReady = () => {
       Promise.all([google.maps.importLibrary('maps'), google.maps.importLibrary('places'), google.maps.importLibrary('geocoding')])
         .then(() => resolve())
         .catch(() => reject(new Error('GOOGLE LIBRARIES FAILED TO LOAD')));
     };
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(KEY as string)}&v=weekly&loading=async&callback=__radmapsReady`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(KEY as string)}&v=weekly&loading=async&callback=__wastelandmapsReady`;
     script.async = true;
     script.onerror = () => reject(new Error('COULD NOT REACH GOOGLE'));
     document.head.appendChild(script);
@@ -81,7 +81,7 @@ export async function geocodeLatLng(position: LatLng): Promise<Region> {
 
 // ---- what is around a city ----
 
-const CACHE_PREFIX = 'radmaps:places:v1:';
+const CACHE_PREFIX = 'wastelandmaps:places:v1:';
 
 /** Real places around a point, as wasteland locations. A few Places lookups per city, remembered for this browser session. */
 export async function findLocations(center: LatLng, radiusMeters: number): Promise<Location[]> {

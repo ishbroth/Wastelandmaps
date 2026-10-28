@@ -24,5 +24,5 @@ check('no types at all is a Landmark', categorize(null, null).id === 'other');
 const loc = toLocation({ id: 'abc', name: 'Boston Common', position: { lat: 1, lng: 2 }, primaryType: 'park', types: ['park'] });
 check('a park becomes a Wild with its old name kept', loc.category === 'park' && loc.oldName === 'Boston Common' && loc.name !== 'Boston Common');
 check('the same place always gets the same wasteland name', JSON.stringify(loc) === JSON.stringify(toLocation({ id: 'abc', name: 'Boston Common', position: { lat: 1, lng: 2 }, primaryType: 'park', types: ['park'] })));
-check('hash is stable', hashString('radmaps') === hashString('radmaps') && hashString('a') !== hashString('b'));
+check('hash is stable', hashString('wastelandmaps') === hashString('wastelandmaps') && hashString('a') !== hashString('b'));
 process.exit(bad ? 1 : 0);

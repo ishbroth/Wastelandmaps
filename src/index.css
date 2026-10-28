@@ -1,4 +1,4 @@
-/* RadMaps: the page, the device around the map, and the two looks. The glow, scanlines and paper are drawn here, on top of the map. */
+/* WastelandMaps: the page, the device around the map, and the two looks. The glow, scanlines and paper are drawn here, on top of the map. */
 
 :root {
   --font-display: 'VT323', 'Courier New', monospace;

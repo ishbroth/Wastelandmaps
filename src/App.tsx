@@ -280,7 +280,7 @@ export default function App() {
       </main>
 
       <footer className="rm-foot">
-        RadMaps is an unofficial fan project. Fallout is a trademark of Bethesda Softworks LLC; this site is not affiliated with or endorsed by Bethesda or Microsoft.
+        WastelandMaps is an unofficial fan project. Fallout is a trademark of Bethesda Softworks LLC; this site is not affiliated with or endorsed by Bethesda or Microsoft.
         Map data © Google. Snapshots are free-licensed photos from Wikimedia Commons, adapted with credit.
       </footer>
     </div>

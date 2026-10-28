@@ -1,10 +1,10 @@
-# RadMaps
+# WastelandMaps
 
-Turn the city you live in into a wasteland map. Type a city (or press ME for your position) and RadMaps shows it the way a post-apocalyptic
+Turn the city you live in into a wasteland map. Type a city (or press ME for your position) and WastelandMaps shows it the way a post-apocalyptic
 survival game would: roads and buildings in Pip-Boy phosphor green or faded parchment, a vault nearby, irradiated zones, and every school,
 hospital, market and park renamed as a wasteland location.
 
-**An unofficial fan project.** Fallout is a trademark of Bethesda Softworks LLC. RadMaps is not affiliated with or endorsed by Bethesda or
+**An unofficial fan project.** Fallout is a trademark of Bethesda Softworks LLC. WastelandMaps is not affiliated with or endorsed by Bethesda or
 Microsoft, and uses no game artwork: the icons and names are original.
 
 ## Run it
@@ -44,7 +44,7 @@ API key, restrict it to **HTTP referrers** (`http://localhost:5173/*` now, your 
 
 ## About Street View
 
-RadMaps does not use Google Street View. Google's terms do not allow altering its imagery (no filters, restyling or AI over it), so a "Fallout-ified
+WastelandMaps does not use Google Street View. Google's terms do not allow altering its imagery (no filters, restyling or AI over it), so a "Fallout-ified
 Street View" is not something we can build. The drawn scenes use no imagery at all, and snapshots use free-licensed Commons photos that may be adapted.
 Showing Street View unaltered inside a Pip-Boy frame would be allowed if you ever want it.
 
