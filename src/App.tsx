@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
+import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
+import { accountsEnabled, useAccount } from './lib/account';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { DataPanel, LocationsPanel, SharePanel } from './components/Panels';
@@ -54,6 +56,8 @@ export default function App() {
   const [travel, setTravel] = useState<TravelRun | null>(null);
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
+  const account = useAccount();
+  const [accountOpen, setAccountOpen] = useState(false);
   const trip = useRef<Trip | null>(null);
   const tripCount = useRef(0);
   const visitedRef = useRef(visited);
@@ -74,6 +78,23 @@ export default function App() {
 
   const sound = useCallback((kind: 'tick' | 'select' | 'error') => {
     if (soundRef.current) beep(kind);
+  }, []);
+
+  // coming back from Stripe: say so, refresh the balance, and tidy the address bar
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('purchase');
+    if (!result) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    setToast(result === 'success' ? 'PAYMENT RECEIVED: YOUR CREDITS ARE ON THE WAY' : 'CHECKOUT CANCELLED');
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(''), 4500);
+    if (result === 'success') {
+      // the payment confirmation reaches us a moment after the redirect: check a few times
+      [1500, 4000, 8000].forEach((ms) => window.setTimeout(() => void account.refresh(), ms));
+    }
+    // only on arrival
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // the page's colors follow the look
@@ -312,6 +333,11 @@ export default function App() {
           <h1>WASTELAND<span>MAPS</span></h1>
           <p>See where you live after the bombs fell</p>
         </div>
+        {accountsEnabled && (
+          <button type="button" className="rm-account-btn" onClick={() => setAccountOpen(true)}>
+            {account.session ? `${account.credits ?? '…'} CREDITS` : 'SIGN IN'}
+          </button>
+        )}
         <div className="rm-looks" role="group" aria-label="Map look">
           {(Object.keys(LOOKS) as LookId[]).map((id) => (
             <button key={id} type="button" className={look === id ? 'on' : ''} aria-pressed={look === id} onClick={() => chooseLook(id)}>{LOOKS[id].label}</button>
@@ -348,8 +374,12 @@ export default function App() {
             />
           )}
           {sceneSpot && wasteland && (
-            <SceneModal spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)} onClose={() => setSceneId(null)} />
+            <SceneModal
+              spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)}
+              account={account} onAccount={() => setAccountOpen(true)} onClose={() => setSceneId(null)}
+            />
           )}
+          {accountOpen && <AccountModal account={account} onClose={() => setAccountOpen(false)} />}
 
           <div className="rm-status" role="status">
             <span className={busy || travel ? 'rm-blink' : ''}>{message}</span>

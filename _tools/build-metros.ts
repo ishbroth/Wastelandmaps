@@ -215,7 +215,9 @@ for (const metro of metros) {
   };
   fs.writeFileSync(file, JSON.stringify(body));
   index.set(metro.id, { id: metro.id, name: metro.city.name, country: metro.city.country, lat: metro.city.lat, lng: metro.city.lng, pop: metro.pop, radiusKm: Math.round(metro.radiusKm), title: title.name, canon: title.canon, places: places.length });
-  fs.writeFileSync(indexPath, JSON.stringify([...index.values()].sort((a, b) => b.pop - a.pop)));
+  // written to a side file and renamed, so a page loading the index mid-build never sees half a file
+  fs.writeFileSync(`${indexPath}.tmp`, JSON.stringify([...index.values()].sort((a, b) => b.pop - a.pop)));
+  fs.renameSync(`${indexPath}.tmp`, indexPath);
   console.log(`[${done}/${metros.length}] ${metro.city.name}, ${metro.city.country}: ${(metro.pop / 1e6).toFixed(2)}M -> ${places.length}/${n} places, "${title.name}"`);
 }
 console.log('done');

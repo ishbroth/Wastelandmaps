@@ -24,7 +24,14 @@ const loaded = new Map<string, Promise<Location[]>>();
 /** Every metro that has a pre-built map. */
 export function loadIndex(): Promise<MetroEntry[]> {
   if (!index) {
-    index = fetch(`${base}index.json`).then((r) => (r.ok ? (r.json() as Promise<MetroEntry[]>) : [])).catch(() => []);
+    const attempt = async (): Promise<MetroEntry[]> => {
+      const res = await fetch(`${base}index.json`);
+      if (!res.ok) throw new Error('no index');
+      return (await res.json()) as MetroEntry[];
+    };
+    // one more try after a moment, then give up for this visit but do not remember the failure
+    index = attempt()
+      .catch(() => new Promise<MetroEntry[]>((resolve) => setTimeout(() => attempt().then(resolve, () => { index = null; resolve([]); }), 700)));
   }
   return index;
 }

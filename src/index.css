@@ -347,3 +347,19 @@ html[data-look='parchment'] .rm-modal-crt { background: radial-gradient(ellipse 
 
 .rm-modal-view { position: relative; }
 .rm-modal-style { position: absolute; right: 8px; top: 8px; z-index: 3; font-size: 12px; padding: 3px 8px; background: var(--panel); }
+.rm-modal-render { width: 100%; height: auto; max-height: 62vh; object-fit: contain; background: #000; display: block; }
+a.rm-btn { text-decoration: none; display: inline-block; }
+
+/* ---- account, credits and the paid render ---- */
+.rm-account-btn { font: inherit; letter-spacing: 2px; font-size: 14px; padding: 6px 12px; background: transparent; color: var(--ink); border: 1px solid var(--line); cursor: pointer; }
+.rm-account-btn:hover { background: var(--ink); color: var(--on-ink); }
+.rm-account { max-width: 460px; }
+.rm-account-body { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 8px; }
+.rm-account-body input { font: inherit; padding: 8px 10px; background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.rm-account-balance { font-family: var(--font-display); font-size: 44px; margin: 0; }
+.rm-account-balance span { font-size: 16px; letter-spacing: 2px; color: var(--ink-dim); }
+.rm-account-small { font-size: 12px; color: var(--ink-dim); margin: 0; }
+.rm-account-note { color: var(--ink-dim); font-size: 13px; margin: 6px 0 0; }
+.rm-paid { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; margin: 6px 0 2px; }
+.rm-paid p { margin: 0; font-size: 13px; color: var(--ink-dim); }
+.rm-modal-actions { display: flex; gap: 6px; }

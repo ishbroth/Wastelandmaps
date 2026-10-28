@@ -15,6 +15,8 @@ export interface Snapshot {
   author: string;
   license: string;
   pageUrl: string;
+  /** The photo Wikidata lists for the place (as opposed to one found nearby): the paid render can be made from it. */
+  listed?: boolean;
 }
 
 const SEARCH_RADIUS_METERS = 300;
@@ -79,6 +81,7 @@ async function wikidataPhoto(entityId: string): Promise<Snapshot | null> {
       author: stripHtml(meta.Artist?.value ?? 'Unknown photographer'),
       license,
       pageUrl: info.descriptionurl ?? 'https://commons.wikimedia.org',
+      listed: true,
     };
   } catch {
     return null;

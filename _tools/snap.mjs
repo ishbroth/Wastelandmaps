@@ -21,6 +21,7 @@ const target = process.argv[4] || 'Eiffel';
 await send('Page.navigate', { url: `http://localhost:5173/?q=${encodeURIComponent(place)}&look=pipboy` });
 for (let i = 0; i < 60; i++) { await sleep(500); if (await ev("/LOCATIONS MARKED|ERROR/.test(document.querySelector('.rm-status > span')?.textContent || '')")) break; }
 await sleep(1500);
+console.log('status:', await ev("document.querySelector('.rm-status > span')?.textContent"));
 console.log('rows:', await ev("document.querySelectorAll('.rm-row').length"));
 console.log('clicked:', await ev(`(() => { const r=[...document.querySelectorAll('.rm-row')].find(x=>x.textContent.includes('${target}')); if(!r) return false; r.click(); return true; })()`));
 await sleep(1200);
