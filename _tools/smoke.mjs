@@ -34,14 +34,14 @@ check('starts on the Pip-Boy look with its map style applied', (await ev("docume
 
 // search for a city
 await ev("(()=>{const i=document.querySelector('#rm-q');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(i,'Boston');i.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.rm-search form').requestSubmit();})()");
-await waitFor("/LOCATIONS DISCOVERED/.test(document.querySelector('.rm-status').textContent)");
+await waitFor("/LOCATIONS MARKED/.test(document.querySelector('.rm-status > span').textContent)");
 check('geocoding places the map: it flies to the city', (await ev("window.__events.includes('fitBounds')")) === true);
 check('the region is named as a wasteland', (await ev("document.querySelector('.rm-poster-title')?.textContent")) === 'The Boston Wasteland', await ev("document.querySelector('.rm-poster-title')?.textContent"));
 check('the vault and radiation zones are on the map', (await ev("!!document.querySelector('.rm-pin-vault')")) === true && (await ev("document.querySelectorAll('.rm-pin-rad').length")) >= 3 && (await ev("window.__circles.length")) >= 3);
 const pins = await ev("document.querySelectorAll('.rm-pin:not(.rm-pin-vault):not(.rm-pin-rad)').length");
 check('every nearby place becomes a pin', pins === 12, `pins ${pins}`);
 check('five Places lookups for the city', (await ev("window.__nearbyCalls")) === 5, String(await ev("window.__nearbyCalls")));
-check('the status line reports the discovery', /12 LOCATIONS DISCOVERED/.test(await ev("document.querySelector('.rm-status').textContent")), await ev("document.querySelector('.rm-status').textContent"));
+check('the status line reports what was marked', /12 LOCATIONS MARKED/.test(await ev("document.querySelector('.rm-status > span').textContent")), await ev("document.querySelector('.rm-status > span').textContent"));
 check('the address bar became a shareable link', /q=Boston/.test(await ev('location.search')) && /look=pipboy/.test(await ev('location.search')), await ev('location.search'));
 
 // places got wasteland names, and the list is sorted by distance
@@ -95,6 +95,65 @@ const vault1 = await ev("document.querySelector('.rm-pin-vault b').textContent")
 await send('Page.navigate', { url: `${BASE}?q=Boston&look=pipboy` });
 await waitFor("document.querySelectorAll('.rm-row').length > 0");
 check('the vault number is the same on another visit', (await ev("document.querySelector('.rm-pin-vault b').textContent")) === vault1, `${vault1} vs ${await ev("document.querySelector('.rm-pin-vault b').textContent")}`);
+
+// ---- fast travel, scenes and snapshots ----
+await send('Page.navigate', { url: BASE + '?q=Boston&look=pipboy' });
+await waitFor("document.querySelectorAll('.rm-row').length > 0");
+check('you start at the vault: the clock reads day 1, 08:00 and RADS 0', /DAY 1\s+08:00/.test(await ev("document.querySelector('.rm-stats').textContent")) && /RADS 0/.test(await ev("document.querySelector('.rm-stats').textContent")), await ev("document.querySelector('.rm-stats').textContent"));
+check('only the vault is found so far', /1\/13 FOUND/.test(await ev("document.querySelector('.rm-stats').textContent")), await ev("document.querySelector('.rm-stats').textContent"));
+check('your marker is on the map', (await ev("document.querySelectorAll('.rm-player').length")) === 1);
+
+await ev("[...document.querySelectorAll('.rm-row')].find(r=>/formerly Boston Common/.test(r.textContent)).click()");
+await sleep(500);
+check('choosing a place opens its card with the trip cost', (await ev("!!document.querySelector('.rm-card')")) === true && /MIN|HR/.test(await ev("document.querySelector('.rm-card-trip')?.textContent")), await ev("document.querySelector('.rm-card')?.textContent"));
+check('the card offers FAST TRAVEL', (await ev("[...document.querySelectorAll('.rm-card .rm-btn')].some(b=>b.textContent==='FAST TRAVEL' && !b.disabled)")) === true);
+await ev("[...document.querySelectorAll('.rm-card .rm-btn')].find(b=>b.textContent==='FAST TRAVEL').click()");
+await sleep(300);
+check('travelling shows the progress bar, draws the route, and locks the search box', (await ev("!!document.querySelector('.rm-traveling')")) === true && (await ev('(window.__polylines||[]).length')) === 1 && (await ev("document.querySelector('#rm-q').disabled")) === true);
+await waitFor("!!document.querySelector('.rm-modal')", 9000);
+check('arriving shows LOCATION DISCOVERED', /LOCATION DISCOVERED/.test(await ev("document.querySelector('.rm-toast')?.textContent")), await ev("document.querySelector('.rm-toast')?.textContent"));
+check('the route line is removed and the search box is free again', (await ev('window.__polylines[0].removed')) === true && (await ev("document.querySelector('#rm-q').disabled")) === false);
+const clock1 = await ev("document.querySelector('.rm-stats').textContent");
+check('the trip took time on the clock and the place counts as found', !/DAY 1\s+08:00/.test(clock1) && /2\/13 FOUND/.test(clock1), clock1);
+check('the status line reports the arrival with a bit of travel flavor', /ARRIVED AT/.test(await ev("document.querySelector('.rm-status span').textContent")), await ev("document.querySelector('.rm-status span').textContent"));
+check('arriving opens the scene viewer for the place', (await ev("document.querySelector('.rm-modal h2')?.textContent")) !== null && /Formerly Boston Common/.test(await ev("document.querySelector('.rm-modal-text')?.textContent")), await ev("document.querySelector('.rm-modal-text')?.textContent"));
+await sleep(700);
+const variety = "(()=>{const c=document.querySelector('.rm-modal-canvas');const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;const set=new Set();for(let i=0;i<d.length;i+=4*97)set.add((d[i]>>3)+','+(d[i+1]>>3)+','+(d[i+2]>>3));return set.size})()";
+check('the drawn scene is a real picture (many tones, not a blank canvas)', (await ev(variety)) > 40, String(await ev(variety)));
+await waitFor("!document.querySelectorAll('.rm-modal-tabs button')[1].disabled", 4000);
+check('a free photo was found, so the SNAPSHOT tab is on', (await ev("document.querySelectorAll('.rm-modal-tabs button')[1].textContent")) === 'SNAPSHOT');
+await ev("document.querySelectorAll('.rm-modal-tabs button')[1].click()");
+await sleep(900);
+check('the snapshot is drawn in the wasteland look', (await ev(variety)) > 15, String(await ev(variety)));
+const credit = await ev("document.querySelector('.rm-modal-credit')?.textContent");
+check('the photographer, license and Wikimedia Commons are credited', /Jane Photo/.test(credit) && /CC BY-SA/.test(credit) && /Wikimedia Commons/.test(credit), credit);
+const greenCheck = await ev("(()=>{const c=document.querySelector('.rm-modal-canvas');const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let g=0,r=0;for(let i=0;i<d.length;i+=4*50){g+=d[i+1];r+=d[i];}return g>r*1.5})()");
+check('the Pip-Boy snapshot is green', greenCheck === true);
+await ev("window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))");
+await sleep(300);
+check('Escape closes the viewer', (await ev("!document.querySelector('.rm-modal')")) === true);
+check('the visited place is ticked on the map and in the list', (await ev("document.querySelectorAll('.rm-pin-visited').length")) >= 1 && (await ev("[...document.querySelectorAll('.rm-row b')].some(b=>b.textContent.includes('✓'))")) === true);
+
+// a place with no photo
+await ev("document.querySelectorAll('.rm-row')[2].click()");
+await sleep(300);
+await ev("[...document.querySelectorAll('.rm-card .rm-btn')].find(b=>b.textContent==='VIEW').click()");
+await waitFor("!!document.querySelector('.rm-modal')");
+await sleep(900);
+check('a place nobody photographed keeps the drawn scene and says so', (await ev("document.querySelectorAll('.rm-modal-tabs button')[1].textContent")) === 'NO SNAPSHOT' && (await ev("document.querySelectorAll('.rm-modal-tabs button')[1].disabled")) === true);
+await ev("document.querySelector('.rm-modal-head .rm-btn').click()");
+await sleep(200);
+
+// the vault is somewhere you can go too
+await ev("document.querySelector('.rm-pin-vault').click()");
+await sleep(300);
+check('the vault opens a card like any other place', /VAULT \d{3}/.test(await ev("document.querySelector('.rm-card-title b')?.textContent")), await ev("document.querySelector('.rm-card')?.textContent"));
+await ev("[...document.querySelectorAll('.rm-card .rm-btn')].find(b=>b.textContent==='FAST TRAVEL').click()");
+await waitFor("!!document.querySelector('.rm-modal')", 9000);
+check('travelling home shows the vault door scene, and the clock moved on again', /VAULT \d{3}/.test(await ev("document.querySelector('.rm-modal h2')?.textContent")) && (await ev("document.querySelector('.rm-stats').textContent")) !== clock1);
+check('there is no photo search for the made-up vault', (await ev("document.querySelectorAll('.rm-modal-tabs button')[1].textContent")) === 'NO SNAPSHOT', await ev("document.querySelectorAll('.rm-modal-tabs button')[1].textContent"));
+await ev("document.querySelector('.rm-modal-head .rm-btn').click()");
+await sleep(200);
 
 // small screen
 await send('Emulation.setDeviceMetricsOverride', { width: 420, height: 860, deviceScaleFactor: 1, mobile: true });

@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
+import SceneModal from './components/SceneModal';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { DataPanel, LocationsPanel, SharePanel } from './components/Panels';
@@ -7,10 +9,16 @@ import { findLocations, geocodeLatLng, geocodeQuery, loadGoogle, type Region } f
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState, writeShareState } from './lib/share';
 import { beep } from './lib/sound';
-import { generateWasteland, type CategoryId, type Location, type Wasteland } from './lib/wasteland';
+import { START_MINUTES, encounterFor, formatClock, radsAlongRoute, travelMinutes, type TravelRun } from './lib/travel';
+import {
+  VAULT_ID, generateWasteland, spotFromLocation, vaultSpot,
+  type CategoryId, type LatLng, type Location, type Spot, type Wasteland,
+} from './lib/wasteland';
 
 type Tab = 'locations' | 'data' | 'share';
 type Status = 'loading' | 'ready' | 'problem';
+
+interface Trip { spot: Spot; minutes: number; rads: number; note: string }
 
 export default function App() {
   const [initial] = useState(() => readShareState());
@@ -27,14 +35,28 @@ export default function App() {
   const [hidden, setHidden] = useState<Set<CategoryId>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [soundOn, setSoundOn] = useState(false);
+
+  // the survivor: where they stand, what time it is, how irradiated they are, what they have seen
+  const [player, setPlayer] = useState<LatLng | null>(null);
+  const [hereId, setHereId] = useState<string | null>(null);
+  const [clock, setClock] = useState(START_MINUTES);
+  const [rads, setRads] = useState(0);
+  const [visited, setVisited] = useState<Set<string>>(new Set());
+  const [travel, setTravel] = useState<TravelRun | null>(null);
+  const [sceneId, setSceneId] = useState<string | null>(null);
+  const [toast, setToast] = useState('');
+  const trip = useRef<Trip | null>(null);
+  const tripCount = useRef(0);
+  const visitedRef = useRef(visited);
+  const toastTimer = useRef<number | undefined>(undefined);
+
   const soundRef = useRef(false);
-  useEffect(() => {
-    soundRef.current = soundOn;
-  }, [soundOn]);
   const lookRef = useRef(look);
   useEffect(() => {
+    soundRef.current = soundOn;
     lookRef.current = look;
-  }, [look]);
+    visitedRef.current = visited;
+  }, [soundOn, look, visited]);
 
   const sound = useCallback((kind: 'tick' | 'select' | 'error') => {
     if (soundRef.current) beep(kind);
@@ -45,9 +67,20 @@ export default function App() {
     document.documentElement.dataset.look = look;
   }, [look]);
 
+  const spotFor = useCallback((id: string | null): Spot | null => {
+    if (!id) return null;
+    if (id === VAULT_ID) return wasteland ? vaultSpot(wasteland) : null;
+    const loc = locations.find((l) => l.id === id);
+    return loc ? spotFromLocation(loc) : null;
+  }, [wasteland, locations]);
+  const selectedSpot = useMemo(() => spotFor(selectedId), [spotFor, selectedId]);
+  const sceneSpot = useMemo(() => spotFor(sceneId), [spotFor, sceneId]);
+
   const show = useCallback(async (resolveRegion: () => Promise<Region>, label: string) => {
     setBusy(true);
     setSelectedId(null);
+    setSceneId(null);
+    setTravel(null);
     setMessage(`SCANNING ${label.toUpperCase()}…`);
     try {
       const r = await resolveRegion();
@@ -57,12 +90,18 @@ export default function App() {
       setQuery(r.address);
       setHidden(new Set());
       setLocations([]);
-      setMessage(`${w.regionName.toUpperCase()}: SCAN COMPLETE`);
+      // you start where everyone starts: at the vault door
+      setPlayer(w.vault.position);
+      setHereId(VAULT_ID);
+      setClock(START_MINUTES);
+      setRads(0);
+      setVisited(new Set([VAULT_ID]));
+      setMessage(`VAULT ${w.vault.number}: YOU EMERGE INTO ${w.regionName.toUpperCase()}`);
       writeShareState({ query: r.address, look: lookRef.current });
       sound('select');
       const found = await findLocations(r.center, r.radiusMeters);
       setLocations(found);
-      setMessage(`${w.regionName.toUpperCase()}: ${found.length} LOCATIONS DISCOVERED`);
+      setMessage(`${w.regionName.toUpperCase()}: ${found.length} LOCATIONS MARKED. PICK ONE TO FAST TRAVEL`);
     } catch (e) {
       setMessage(`ERROR: ${e instanceof Error ? e.message : 'SCAN FAILED'}`);
       sound('error');
@@ -102,12 +141,47 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [search]);
+  }, [search, initial]);
 
   // the address bar follows the look once there is a place
   useEffect(() => {
     if (region) writeShareState({ query: region.address, look });
   }, [look, region]);
+
+  // ---- fast travel ----
+  const startTravel = useCallback((spot: Spot) => {
+    if (!player || !wasteland || travel || spot.id === hereId) return;
+    const minutes = travelMinutes(player, spot.position);
+    trip.current = {
+      spot,
+      minutes,
+      rads: radsAlongRoute(player, spot.position, wasteland.zones),
+      note: encounterFor(hereId ?? 'start', spot.id),
+    };
+    tripCount.current += 1;
+    setTravel({ id: tripCount.current, from: player, to: spot.position, durationMs: Math.min(4500, Math.max(2000, 1600 + minutes * 25)) });
+    setMessage(`TRAVELING TO ${spot.name.toUpperCase()}…`);
+    sound('tick');
+  }, [player, wasteland, travel, hereId, sound]);
+
+  const arrive = useCallback(() => {
+    const t = trip.current;
+    if (!t) return;
+    trip.current = null;
+    const first = !visitedRef.current.has(t.spot.id);
+    setClock((c) => c + t.minutes);
+    setRads((r) => r + t.rads);
+    setPlayer(t.spot.position);
+    setHereId(t.spot.id);
+    setVisited((prev) => new Set(prev).add(t.spot.id));
+    setTravel(null);
+    setMessage(`ARRIVED AT ${t.spot.name.toUpperCase()}. ${t.note}${t.rads > 0 ? ` +${t.rads} RADS.` : ''}`);
+    setToast(first ? `LOCATION DISCOVERED: ${t.spot.name}` : `ARRIVED: ${t.spot.name}`);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(''), 3200);
+    setSceneId(t.spot.id);
+    sound('select');
+  }, [sound]);
 
   const toggleCategory = (id: CategoryId) =>
     setHidden((prev) => {
@@ -121,6 +195,8 @@ export default function App() {
     setLook(id);
     sound('tick');
   };
+
+  const total = locations.length + (wasteland ? 1 : 0);
 
   return (
     <div className="rm-app">
@@ -141,20 +217,48 @@ export default function App() {
         <div className="rm-screen">
           {wasteland && <div className="rm-poster-title" aria-hidden="true">{wasteland.regionName}</div>}
           {status === 'ready' ? (
-            <MapView look={LOOKS[look]} region={region} wasteland={wasteland} locations={locations} hiddenCategories={hidden} selectedId={selectedId} onSelect={setSelectedId} />
+            <MapView
+              look={LOOKS[look]} region={region} wasteland={wasteland} locations={locations} hiddenCategories={hidden}
+              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} onSelect={setSelectedId}
+            />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
           ) : (
             <div className="rm-setup"><h2>BOOTING…</h2></div>
           )}
           <div className="rm-crt" aria-hidden="true" />
+
+          {toast && <div className="rm-toast" role="status">{toast}</div>}
+          {travel && (
+            <div className="rm-traveling" role="status">
+              <span>FAST TRAVEL</span>
+              <div className="rm-progress"><div style={{ animationDuration: `${travel.durationMs}ms` }} key={travel.id} /></div>
+            </div>
+          )}
+          {selectedSpot && wasteland && !sceneSpot && (
+            <LocationCard
+              spot={selectedSpot} from={player} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)}
+              traveling={!!travel} onTravel={() => startTravel(selectedSpot)} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
+            />
+          )}
+          {sceneSpot && wasteland && (
+            <SceneModal spot={sceneSpot} regionName={wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)} onClose={() => setSceneId(null)} />
+          )}
+
           <div className="rm-status" role="status">
-            <span className={busy ? 'rm-blink' : ''}>{message}</span>
+            <span className={busy || travel ? 'rm-blink' : ''}>{message}</span>
+            {wasteland && (
+              <span className="rm-stats">
+                <b>{formatClock(clock)}</b>
+                <b className={rads >= 300 ? 'rm-hot' : ''}>RADS {rads}</b>
+                <b>{visited.size}/{total} FOUND</b>
+              </span>
+            )}
           </div>
         </div>
 
         <aside className="rm-side">
-          <SearchBar busy={busy} disabled={status !== 'ready'} initial={query} onSearch={search} onLocate={locateMe} />
+          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onLocate={locateMe} />
           <nav className="rm-tabs" role="tablist" aria-label="Pip-Boy menu">
             {(['locations', 'data', 'share'] as Tab[]).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); sound('tick'); }}>
@@ -163,7 +267,12 @@ export default function App() {
             ))}
           </nav>
           <section className="rm-panel" role="tabpanel">
-            {tab === 'locations' && <LocationsPanel region={region} locations={locations} hidden={hidden} onToggleCategory={toggleCategory} selectedId={selectedId} onSelect={(id) => { setSelectedId(id); sound('select'); }} />}
+            {tab === 'locations' && (
+              <LocationsPanel
+                region={region} locations={locations} hidden={hidden} onToggleCategory={toggleCategory} selectedId={selectedId} visited={visited}
+                onSelect={(id) => { setSelectedId(id); sound('select'); }}
+              />
+            )}
             {tab === 'data' && <DataPanel region={region} wasteland={wasteland} locations={locations} />}
             {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} soundOn={soundOn} onToggleSound={() => setSoundOn((s) => !s)} />}
           </section>
@@ -172,7 +281,7 @@ export default function App() {
 
       <footer className="rm-foot">
         RadMaps is an unofficial fan project. Fallout is a trademark of Bethesda Softworks LLC; this site is not affiliated with or endorsed by Bethesda or Microsoft.
-        Map data © Google.
+        Map data © Google. Snapshots are free-licensed photos from Wikimedia Commons, adapted with credit.
       </footer>
     </div>
   );

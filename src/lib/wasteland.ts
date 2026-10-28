@@ -214,3 +214,69 @@ export function formatCoords(p: LatLng): string {
   const f = (v: number, pos: string, neg: string) => `${Math.abs(v).toFixed(4)}° ${v >= 0 ? pos : neg}`;
   return `${f(p.lat, 'N', 'S')}  ${f(p.lng, 'E', 'W')}`;
 }
+
+// ---------------------------------------------------------------------------
+// What a survivor writes in their journal about a place
+// ---------------------------------------------------------------------------
+
+const OPENERS: Record<CategoryId, string[]> = {
+  medical: ['The red cross on the wall is faded to pink, but the doors still hang on their hinges.', 'Rows of gurneys sit where the waiting room used to be. Someone has been here before you, but not recently.', 'A generator hums somewhere below the floor. The place is not as dead as it looks.'],
+  school: ['Desks are stacked against the windows like a barricade. Faded finger-paintings still cling to one wall.', 'The bell tower leans, and the flag it carried is long gone. Chalk equations cover a blackboard nobody can read now.', 'Lockers hang open down a corridor of broken glass. Whatever they taught here, it was not this.'],
+  market: ['Shelves lean into each other like tired drunks. A few cans survived, and so did the people who want them.', 'The sign out front still flickers on the third letter. Carts are strewn across the lot like fallen soldiers.', 'Someone has chalked prices on the walls in bottle caps. The trade here is honest, mostly.'],
+  fuel: ['The pumps are dry and rusted, but the canopy is solid enough to shelter under. Oil stains have turned the ground black.', 'A wrecked sedan sits half-dismantled by the air pump. Scrappers got the good parts years ago.', 'The price sign still advertises a gallon at a number that would buy you a small city today.'],
+  park: ['Nature took the place back first and never gave it up. Mutated ferns grow thick around the benches.', 'The fountain is a nest of weeds now, and the paths have vanished under grass taller than a man.', 'A rope swing sways over a pond that glows faintly at night. Nothing should drink from it.'],
+  guard: ['Sandbags and scrap plating wall in the entrance. Somebody still believes in order here, and keeps a rifle on the roof.', 'The flag out front is stitched from three others. Wanted posters, decades old, still hold the notice board.', 'Cells sit empty in the back. The people who built this place meant to keep something out, not in.'],
+  cantina: ['Light spills from the windows, and so does laughter. Drinks are cheap, and the rumors are free.', 'A mug-shaped sign buzzes over the door. Inside, a card game has been running since before you were born.', 'The bar is made from a pre-war door on two oil drums. The bartender has heard every lie there is.'],
+  chapel: ['The steeple is cracked but standing. Candles burn in the windows, and nobody will say who lights them.', 'Pews are pushed against the walls to make room for cots. The altar is a workbench now, and just as holy.', 'The bell hangs silent, wrapped in wire so raiders cannot steal it. The stained glass is mostly cardboard.'],
+  transit: ['The departure board is dark, but its last message is still scratched into the dust: everything delayed.', 'Rails run off into the dark of a tunnel nobody walks alone. Luggage lies where it fell on the last day.', 'A control tower leans over a runway full of cracks and weeds. The planes will not be flying again.'],
+  arena: ['The stands are half collapsed, but the field is still a good place to settle things. The crowds are smaller now, and louder.', 'Rusted floodlights loom over the pitch like skeletal giants. The scoreboard is frozen on a final score.', 'Fairground rides stand as skeletons against the sky. The carousel horses are still smiling.'],
+  lodging: ['Room keys hang behind the front desk in neat rows. Some of the rooms are still occupied, in a manner of speaking.', 'The hotel stands taller than anything for a mile, which makes it both a landmark and a target.', 'The lobby chandelier lies in pieces across the marble. A bed upstairs is still made.'],
+  other: ['It is not much to look at, but it is on the map, so somebody thought it mattered once.', 'You cannot tell what this place was for. That is not the same as it being empty.', 'The ruins keep their secrets well. Walking in is the only way to find out.'],
+};
+
+const THREAT_LINES: Record<Location['threat'], string> = {
+  Quiet: 'Nothing moves. That is either very good or very bad.',
+  Scavengers: 'Scavengers work the area, and they will trade if you do not look hungry.',
+  Raiders: 'Raiders have claimed the place. Come armed, or come quietly.',
+  'Feral Ghouls': 'Feral ghouls shuffle in the dark. Do not make noise.',
+  'Super Mutants': 'Super mutants hold this ground, and they do not share.',
+  Radiation: 'The Geiger counter will not stop. Bring Rad-Away.',
+};
+
+/** Anything on the map you can select and travel to: a location, or the vault. */
+export interface Spot {
+  id: string;
+  name: string;
+  oldName: string | null;
+  kind: CategoryId | 'vault';
+  position: LatLng;
+  threat: Location['threat'];
+  loot: string;
+  rads: number;
+}
+
+export const VAULT_ID = 'vault';
+
+export const spotFromLocation = (l: Location): Spot => ({ id: l.id, name: l.name, oldName: l.oldName, kind: l.category, position: l.position, threat: l.threat, loot: l.loot, rads: l.rads });
+
+export const vaultSpot = (w: Wasteland): Spot => ({ id: VAULT_ID, name: `VAULT ${w.vault.number}`, oldName: null, kind: 'vault', position: w.vault.position, threat: 'Quiet', loot: 'Clean water, a bed and a very large door', rads: 0 });
+
+const VAULT_LINES = [
+  'The door is sealed from the inside, or from the outside. The sign says nobody has been in or out in a long time.',
+  'A vault door as wide as a house, with a gear on it that has not turned in two centuries. Someone keeps the bolts oiled.',
+  'The hazard stripes are still bright. Behind the door, a hum. Survivors say the lights never went out.',
+];
+
+/** A few lines for a place's journal entry, the same every time for the same place. */
+export function describeSpot(spot: Spot, regionName: string): string[] {
+  const rand = seeded(hashString(`${spot.id}|journal`));
+  if (spot.kind === 'vault') {
+    return [`${spot.name}, ${regionName}.`, VAULT_LINES[Math.floor(rand() * VAULT_LINES.length)], 'Home, for some of us. Safe, for now.'];
+  }
+  const openers = OPENERS[spot.kind] ?? OPENERS.other;
+  return [
+    `${spot.name}, ${regionName}. Formerly ${spot.oldName}.`,
+    openers[Math.floor(rand() * openers.length)],
+    `${THREAT_LINES[spot.threat]} Worth a look for: ${spot.loot.toLowerCase()}.`,
+  ];
+}

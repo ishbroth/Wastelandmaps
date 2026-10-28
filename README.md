@@ -31,8 +31,22 @@ API key, restrict it to **HTTP referrers** (`http://localhost:5173/*` now, your 
   zones and names, and a shared link shows everyone the same map.
 - **Real places become locations.** Five Places lookups per city (hospitals, schools, markets, parks, cantinas and so on) are renamed by
   category, each with the old name kept ("formerly Boston Public Library"), a threat and some loot.
+- **Fast travel.** You start at the vault door. Pick any place (on the map or in the list) for a card showing the distance, the walking time and the
+  radiation on the way, then FAST TRAVEL: your marker walks a dotted route, the Pip-Boy clock advances, you pick up RADS for every irradiated zone the
+  route crosses, a line of travel flavor is logged, and the place is marked discovered. The vault is a destination too.
+- **Scenes.** Arriving (or pressing VIEW) opens a wasteland illustration of the place, drawn from scratch from its category: a hospital with a fallen
+  cross, a gas canopy with dry pumps, a church with a broken steeple, a stadium, a hotel, the vault door. Animated: pulsing sun, flickering signs, drifting
+  ash. A journal entry sits beside it. `?gallery=pipboy` or `?gallery=parchment` shows every scene at once.
+- **Snapshots.** When someone has shared a freely licensed photo of the place on Wikimedia Commons, a SNAPSHOT tab shows it run through the wasteland
+  look (green phosphor print or sepia ink), with the photographer and license credited. Places nobody photographed keep the drawn scene.
 - **Locations panel** with category filters and a list sorted by distance; clicking a row flies to it. **Data panel** with region, coordinates,
   vault, zones. **Share panel** with a link that reopens the same place and look, and a print-ready poster.
+
+## About Street View
+
+RadMaps does not use Google Street View. Google's terms do not allow altering its imagery (no filters, restyling or AI over it), so a "Fallout-ified
+Street View" is not something we can build. The drawn scenes use no imagery at all, and snapshots use free-licensed Commons photos that may be adapted.
+Showing Street View unaltered inside a Pip-Boy frame would be allowed if you ever want it.
 
 ## Cost and Google's rules
 
@@ -50,14 +64,18 @@ src/lib/wasteland.ts   names, categories, vault, radiation zones (pure, determin
 src/lib/htmlMarker.ts  HTML map markers (glow, labels)
 src/lib/icons.ts       original line icons
 src/lib/share.ts       the shareable link
-src/components/        MapView, SearchBar, the three panels, the setup notice
-_tools/                dev checks: smoke.mjs (browser test against a fake Google), wasteland.check.ts
+src/lib/travel.ts      travel time, radiation along a route, the clock
+src/lib/scene.ts       the drawn wasteland scenes
+src/lib/snapshot.ts    free-licensed photos from Wikimedia Commons, and the wasteland filter
+src/components/        MapView, LocationCard, SceneModal, SearchBar, the three panels, the setup notice
+_tools/                dev checks: smoke.mjs (browser test against a fake Google and fake photo archive), wasteland.check.ts, travel.check.ts, shots.mjs
 ```
 
 ## Checks
 
 ```
 npx tsx _tools/wasteland.check.ts                        # generator logic
+npx tsx _tools/travel.check.ts                           # travel time, radiation along a route, the clock, journal text
 VITE_GOOGLE_MAPS_API_KEY=dummy npx vite --port 5174 &    # then:
-node _tools/smoke.mjs                                    # drives Chrome against a fake Google: search, pins, filters, looks, share link, phone layout
+node _tools/smoke.mjs                                    # drives Chrome against a fake Google: search, pins, filters, looks, share link, fast travel, scenes, snapshots, phone layout
 ```

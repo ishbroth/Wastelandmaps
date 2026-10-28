@@ -7,12 +7,13 @@ import type { Region } from '../lib/google';
 
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
-export function LocationsPanel({ region, locations, hidden, onToggleCategory, selectedId, onSelect }: {
+export function LocationsPanel({ region, locations, hidden, onToggleCategory, selectedId, visited, onSelect }: {
   region: Region | null;
   locations: Location[];
   hidden: Set<CategoryId>;
   onToggleCategory: (id: CategoryId) => void;
   selectedId: string | null;
+  visited: Set<string>;
   onSelect: (id: string) => void;
 }) {
   const rows = useMemo(() => {
@@ -52,7 +53,7 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
             <button type="button" className={`rm-row ${l.id === selectedId ? 'rm-row-selected' : ''}`} onClick={() => onSelect(l.id)}>
               <span className="rm-row-icon" dangerouslySetInnerHTML={{ __html: iconFor(l.category) }} />
               <span className="rm-row-text">
-                <b>{l.name}</b>
+                <b>{l.name}{visited.has(l.id) ? ' ✓' : ''}</b>
                 <i>formerly {l.oldName}</i>
                 <small>{l.threat}{l.rads > 60 ? ` · ${l.rads} RADS` : ''} · loot: {l.loot}</small>
               </span>

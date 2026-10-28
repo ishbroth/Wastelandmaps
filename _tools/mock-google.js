@@ -21,6 +21,7 @@
     setOptions(o) { Object.assign(this.opts, o); if (o.backgroundColor) this.el.style.background = o.backgroundColor; if (o.styles) window.__styles = o.styles; window.__events.push('setOptions'); }
     redraw() { overlays.forEach((o) => o.map === this && o.draw()); }
     fitBounds(b) { this.center = { lat: (b.north + b.south) / 2, lng: (b.east + b.west) / 2 }; this.zoom = 12; this.fire('zoom_changed'); this.redraw(); window.__events.push('fitBounds'); }
+    setCenter(p) { this.center = p; this.redraw(); }
     panTo(p) { this.center = p; this.redraw(); window.__events.push('panTo'); }
     setZoom(z) { this.zoom = z; this.fire('zoom_changed'); this.redraw(); }
     getZoom() { return this.zoom; }
@@ -35,6 +36,7 @@
       return { fromLatLngToDivPixel: (ll) => ({ x: (ll.lng() - m.center.lng) * scale + m.el.clientWidth / 2, y: (m.center.lat - ll.lat()) * scale + m.el.clientHeight / 2 }) };
     }
   }
+  class Polyline { constructor(o) { this.o = o; this.removed = false; (window.__polylines ||= []).push(this); } setMap(map) { if (!map) this.removed = true; } }
   class Circle { constructor(o) { this.o = o; (window.__circles ||= []).push(o); } setMap() {} }
   const place = (id, name, type, dlat, dlng) => ({ id, displayName: name, primaryType: type, types: [type], location: new LatLng(42.36 + dlat, -71.06 + dlng) });
   const BY_TYPE = {
@@ -63,7 +65,25 @@
       },
     },
   };
-  window.google = { maps: { Map: MapMock, LatLng, OverlayView, Circle, importLibrary: async (n) => libs[n] } };
+  window.google = { maps: { Map: MapMock, LatLng, OverlayView, Circle, Polyline, importLibrary: async (n) => libs[n] } };
+  // a fake photo archive: only Boston Common has a free photo
+  const realFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : input.url;
+    if (/commons\.wikimedia\.org/.test(url)) {
+      const [lat, lng] = new URL(url).searchParams.get('ggscoord').split('|').map(Number);
+      window.__commonsCalls = (window.__commonsCalls || 0) + 1;
+      if (Math.abs(lat - 42.362) < 0.0005 && Math.abs(lng + 71.056) < 0.0005) {
+        const c = document.createElement('canvas'); c.width = 1000; c.height = 600;
+        const g = c.getContext('2d'); const grad = g.createLinearGradient(0, 0, 1000, 600); grad.addColorStop(0, '#88a'); grad.addColorStop(0.5, '#ccd'); grad.addColorStop(1, '#443'); g.fillStyle = grad; g.fillRect(0, 0, 1000, 600);
+        for (let i = 0; i < 40; i++) { g.fillStyle = 'rgb(' + (i * 6) + ',' + (255 - i * 5) + ',' + (i * 3) + ')'; g.fillRect(i * 25, 100 + (i % 7) * 40, 20, 200); }
+        const body = { query: { pages: { 1: { title: 'File:Boston Common.jpg', imageinfo: [{ thumburl: c.toDataURL('image/png'), descriptionurl: 'https://commons.wikimedia.org/wiki/File:Boston_Common.jpg', mime: 'image/png', thumbwidth: 1000, extmetadata: { LicenseShortName: { value: 'CC BY-SA 4.0' }, Artist: { value: '<a href="x">Jane Photo</a>' } } }] } } } };
+        return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ batchcomplete: '' }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    }
+    return realFetch(input, init);
+  };
   // when the app asks for the Google script, hand it the mock instead of loading anything
   const append = HTMLHeadElement.prototype.appendChild;
   HTMLHeadElement.prototype.appendChild = function (node) {
