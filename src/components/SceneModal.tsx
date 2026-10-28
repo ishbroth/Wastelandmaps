@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sceneFontsReady, startScene } from '../lib/scene';
-import { drawSnapshot, findSnapshot, type Snapshot } from '../lib/snapshot';
+import { drawSnapshot, findSnapshot, type Snapshot, type SnapshotStyle } from '../lib/snapshot';
 import { describeSpot, hashString, type Spot } from '../lib/wasteland';
 import type { LookId } from '../lib/looks';
 
@@ -16,6 +16,7 @@ export default function SceneModal({ spot, regionName, look, visited, onClose }:
   const [found, setFound] = useState<{ id: string; snapshot: Snapshot | null } | null>(null);
   const snapshot: Snapshot | null | 'searching' = spot.kind === 'vault' ? null : found?.id === spot.id ? found.snapshot : 'searching';
   const [snapshotError, setSnapshotError] = useState(false);
+  const [style, setStyle] = useState<SnapshotStyle>('color');
   const sceneCanvas = useRef<HTMLCanvasElement>(null);
   const photoCanvas = useRef<HTMLCanvasElement>(null);
   const seed = useMemo(() => hashString(spot.id), [spot.id]);
@@ -40,7 +41,7 @@ export default function SceneModal({ spot, regionName, look, visited, onClose }:
   useEffect(() => {
     if (spot.kind === 'vault' || !spot.oldName) return;
     let cancelled = false;
-    findSnapshot(spot.position, spot.oldName).then((s) => {
+    findSnapshot(spot.position, spot.oldName, spot.id.startsWith('wd:') ? spot.id.slice(3) : undefined).then((s) => {
       if (!cancelled) setFound({ id: spot.id, snapshot: s });
     });
     return () => {
@@ -53,13 +54,13 @@ export default function SceneModal({ spot, regionName, look, visited, onClose }:
     if (tab !== 'snapshot' || !snapshot || snapshot === 'searching' || !photoCanvas.current) return;
     let cancelled = false;
     setSnapshotError(false);
-    drawSnapshot(photoCanvas.current, snapshot, look, seed).catch(() => {
+    drawSnapshot(photoCanvas.current, snapshot, look, seed, style).catch(() => {
       if (!cancelled) setSnapshotError(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [tab, snapshot, look, seed]);
+  }, [tab, snapshot, look, seed, style]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -97,6 +98,9 @@ export default function SceneModal({ spot, regionName, look, visited, onClose }:
           {tab === 'scene' && <canvas ref={sceneCanvas} className="rm-modal-canvas" aria-label={`Illustration of ${spot.name}`} />}
           {tab === 'snapshot' && hasPhoto && (
             <>
+              <button type="button" className="rm-btn rm-btn-ghost rm-modal-style" onClick={() => setStyle((x) => (x === 'color' ? 'look' : 'color'))}>
+                {style === 'color' ? 'PIP-BOY PRINT' : 'IN COLOR'}
+              </button>
               <canvas ref={photoCanvas} className="rm-modal-canvas" aria-label={`Photo of ${spot.name} in the wasteland look`} />
               {snapshotError && <p className="rm-modal-error">The photo would not load. Try the scene instead.</p>}
             </>

@@ -194,13 +194,35 @@ export function locationFromData(id: string, name: string, position: LatLng, cat
   return locationIn(categoryById(categoryId), { id, name, position });
 }
 
+/** Landmarks get a name that fits what they are, read from their real name in the languages most of them are written in. */
+const LANDMARK_NAMES: [RegExp, string[]][] = [
+  [/\b(?:tower|tour|turm|torre|toren|tårn|wieża)\b/i, ['The Fallen Spire', 'Rusted Needle', 'Leaning Beacon', 'Broken Spire']],
+  [/\b(?:arch|arc|arco|bogen|triumphal)\b/i, ['The Shattered Arch', 'Gate of Ghosts', 'Cracked Archway']],
+  [/\b(?:palace|palais|palazzo|palacio|schloss|château|chateau|castle|castello|castillo|burg|fortress|citadel|fort)\b/i, ['The Ruined Court', 'Warlord Keep', 'Hollow Fortress', 'Raider Citadel']],
+  [/\b(?:cathedral|cathédrale|kathedrale|catedral|duomo|basilica|basilique|abbey|abbaye|monastery)\b/i, ['The Hollow Cathedral', 'Chapel of Ash', 'Broken Sanctuary']],
+  [/\b(?:bridge|pont|brücke|ponte|puente|brug)\b/i, ['The Broken Span', 'Collapsed Crossing', 'Rust Bridge']],
+  [/\b(?:monument|memorial|statue|obelisk|column|colonne|sculpture)\b/i, ['The Toppled Idol', 'Monument to Nothing', 'Fallen Founder']],
+  [/\b(?:avenue|boulevard|promenade|champs|street|rue|strasse|straße|via|calle|plaza|square|place|platz|piazza)\b/i, ['The Dead Mile', 'Ghost Promenade', 'The Long Rubble', 'Ashen Concourse']],
+  [/\b(?:opera|theatre|théâtre|theater|teatro|garnier)\b/i, ['The Silent Stage', 'Gilded Ruin', 'Last Curtain']],
+  [/\b(?:market|bazaar|souk|halle)\b/i, ['The Scrap Bazaar', 'Trader Maze']],
+  [/\b(?:hill|montmartre|mount|mont|berg|bunker)\b/i, ['The High Wreck', 'Overlook of Ruin']],
+  [/\b(?:capitol|parliament|assembly|congress|senate|city hall|hôtel de ville|rathaus)\b/i, ['The Old Assembly', 'Hall of Dead Laws', 'Rusted Senate']],
+  [/\b(?:pyramid|temple|shrine|pagoda|mosque|synagogue)\b/i, ['The Sun-Bleached Temple', 'Hollow Shrine', 'Altar of Ash']],
+  [/\b(?:skyscraper|center|centre|plaza|building|world trade|empire state)\b/i, ['The Broken Giant', 'Skeleton Tower', 'Hollow Skyscraper']],
+];
+
+function landmarkName(realName: string, rand: () => number): string | null {
+  for (const [pattern, names] of LANDMARK_NAMES) if (pattern.test(realName)) return names[Math.floor(rand() * names.length)];
+  return null;
+}
+
 function locationIn(category: Category, place: { id: string; name: string; position: LatLng }): Location {
   const rand = seeded(hashString(place.id || place.name));
   const threat = THREATS[Math.floor(rand() * THREATS.length)];
   return {
     id: place.id,
     oldName: place.name,
-    name: category.names[Math.floor(rand() * category.names.length)],
+    name: (category.id === 'other' ? landmarkName(place.name, rand) : null) ?? category.names[Math.floor(rand() * category.names.length)],
     category: category.id,
     position: place.position,
     loot: category.loot[Math.floor(rand() * category.loot.length)],

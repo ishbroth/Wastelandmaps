@@ -64,7 +64,11 @@ function findMetros(): Metro[] {
 }
 
 // ---- 2. what kind of place a Wikidata class is ----
-const EXCLUDE = /\b(municipality|city|town|village|hamlet|county|borough|district|ward|suburb|neighbou?rhood|settlement|commune|census|township|prefecture|province|state|region|country|river|stream|street|road|avenue|highway|motorway|railway line|line|route|ship|event|company|business|organi[sz]ation|human|disambiguation|constituency|parish|island|peninsula|mountain range|archipelago|metropolitan|urban area|conurbation|locality|quarter|barrio|colonia|hundred|arrondissement|cadastral|subdivision|administrative|historic(?:al)? (?:region|county)|former|rail(?:way)? service|tram line|bus line|route|tunnel|canal|channel|bay|sea|ocean|strait|cape|valley|hill|desert|volcano|community|unincorporated|supercomputer|computer|dataset|newspaper|television|radio|publication|album|film|painting|database|website|software|event|battle|siege|massacre|trials?|incident|riot|protest|disaster|accident|bombings?|attacks?|terror[a-z]*|conflict|occurrence|campaign|expedition|festival|election|murder|disappearance|death|assassination|shooting|crime|scandal|hoax)\b/i;
+const NOT_A_PLACE = /\b(event|battle|siege|massacre|trials?|incident|riot|protest|disaster|accident|bombings?|attacks?|terror[a-z]*|conflict|occurrence|campaign|expedition|festival|election|murder|disappearance|death|assassination|shooting|crime|scandal|hoax|tournament|games|world cup|cup|championship|competition|contest|season|chain|brand|company|corporation|business|enterprise|retailer|dynasty|empire|kingdom|treaty|language|dialect|religion|ethnic|department|republic|county|municipality|commune|province|prefecture|region|country|state|arrondissement|human settlement|census|township|constituency|supercomputer|computer|dataset|newspaper|television|radio|publication|album|film|painting|database|website|software|league|team|political|ideology|term|list)\b/i;
+// what an uncategorized place has to be to count as a landmark: a structure, a monument, a famous square or street
+const LANDMARK = /\b(tower|skyscraper|building|monument|memorial|statue|sculpture|arch|triumphal|gate|bridge|palace|castle|chateau|château|fortress|citadel|ruins?|archaeolog[a-z]*|landmark|attraction|avenue|boulevard|promenade|pier|lighthouse|dam|windmill|theatre|theater|opera|amphitheat[a-z]*|pyramid|obelisk|fountain|mausoleum|tomb|heritage|historic|observation|ferris|mill|prison|pavilion|villa|manor|mansion|house|complex|cross|column|wall|garden|estate|temple|tourist|viewpoint|market hall|hall|walk|bazaar|shopping street|pedestrian|district)\b/i;
+/** How much a kind of place counts toward being picked: the famous and the visitable first, the everyday after. */
+const WEIGHT: Record<string, number> = { other: 1.5, arena: 1.2, guard: 1.2, chapel: 1.2, park: 1.0, school: 0.8, medical: 0.7, cantina: 0.7, transit: 0.6, lodging: 0.6, market: 0.5, fuel: 0.4 };
 const CATEGORY_WORDS: [string, RegExp][] = [
   ['medical', /\b(hospital|clinic|medical|pharmacy|health|sanatorium|dispensary)\b/i],
   ['school', /\b(school|university|college|library|academy|institute|campus|archive|observatory|laborator)/i],
@@ -79,9 +83,9 @@ const CATEGORY_WORDS: [string, RegExp][] = [
   ['lodging', /\b(hotel|motel|resort|hostel|inn\b|lodge)\b/i],
 ];
 function categoryOf(classLabels: string[]): string | null {
-  if (classLabels.some((l) => EXCLUDE.test(l) && !/(station|bridge|park|hall|plaza|square|venue|stadium|arena|building|centre|center|museum|memorial|monument)/i.test(l))) return null;
+  if (classLabels.some((l) => NOT_A_PLACE.test(l))) return null;
   for (const [id, re] of CATEGORY_WORDS) if (classLabels.some((l) => re.test(l))) return id;
-  return 'other';
+  return classLabels.some((l) => LANDMARK.test(l)) ? 'other' : null;
 }
 
 // ---- 3. asking Wikidata ----
@@ -150,7 +154,7 @@ function choose(metro: Metro, rows: Row[]): Place[] {
     if (distanceMeters(metro.city, row) / 1000 > metro.radiusKm) continue;
     const category = categoryOf(classes);
     if (!category) continue;
-    candidates.push({ id: row.item, name: row.label, lat: row.lat, lng: row.lng, category, sl: row.sl });
+    candidates.push({ id: row.item, name: row.label, lat: row.lat, lng: row.lng, category, sl: row.sl * (WEIGHT[category] ?? 1) });
   }
   candidates.sort((a, b) => b.sl - a.sl);
 
