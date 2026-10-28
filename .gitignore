@@ -25,3 +25,6 @@ dist-ssr
 
 # screenshots from dev checks
 _shot*.png
+
+# built-map sources and raw answers (the built files in public/data are kept)
+_data/

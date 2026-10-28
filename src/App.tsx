@@ -5,7 +5,8 @@ import SceneModal from './components/SceneModal';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { DataPanel, LocationsPanel, SharePanel } from './components/Panels';
-import { findLocations, geocodeLatLng, geocodeQuery, loadGoogle, townAt, type Region } from './lib/google';
+import { geocodeLatLng, geocodeQuery, loadGoogle, type Region } from './lib/google';
+import { loadIndex, loadMetro, metroAt } from './lib/metros';
 import { wastelandName } from './lib/lore';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState, writeShareState } from './lib/share';
@@ -18,9 +19,6 @@ import {
 
 type Tab = 'locations' | 'data' | 'share';
 type Status = 'loading' | 'ready' | 'problem';
-
-/** How many new patches of ground one visit may scan in. Each patch is a handful of Google lookups, so this keeps a long session from running up a bill. */
-const MAX_PATCHES = 60;
 
 interface Trip { spot: Spot; minutes: number; rads: number; note: string }
 
@@ -49,9 +47,7 @@ export default function App() {
   const [tracking, setTracking] = useState(false);
   const [liveName, setLiveName] = useState('');
   const scanId = useRef(0);
-  const tilesDone = useRef(new Set<string>());
-  const limitSaid = useRef(false);
-  const townSeen = useRef<{ at: LatLng; key: string; known: Set<string> } | null>(null);
+  const metroSeen = useRef<{ current: string; loaded: Set<string> }>({ current: '', loaded: new Set() });
   const viewTimer = useRef<number | undefined>(undefined);
   const busyRef = useRef(false);
   const travelRef = useRef(false);
@@ -118,11 +114,11 @@ export default function App() {
     try {
       const r = await resolveRegion();
       setRegion(r);
-      const title = wastelandName(r.city, r.state).name;
+      const home = metroAt(await loadIndex(), r.center, 40);
+      const title = home?.title ?? wastelandName(r.city, r.state).name;
       const w = generateWasteland(r.city, r.center, r.radiusMeters * 0.8, title);
       scanId.current += 1;
-      tilesDone.current = new Set();
-      townSeen.current = { at: r.center, key: `${r.city}|${r.state}`, known: new Set([`${r.city}|${r.state}`]) };
+      metroSeen.current = { current: home?.id ?? '', loaded: new Set(home ? [home.id] : []) };
       setLiveName(title);
       setWasteland(w);
       setQuery(r.address);
@@ -140,9 +136,11 @@ export default function App() {
       setMessage(`VAULT ${w.vault.number}: YOU EMERGE INTO ${w.regionName.toUpperCase()}`);
       writeShareState({ query: r.address, look: lookRef.current });
       sound('select');
-      const found = await findLocations(r.center, r.radiusMeters);
+      const found = home ? await loadMetro(home.id) : [];
       setLocations(found);
-      setMessage(`${w.regionName.toUpperCase()}: ${found.length} LOCATIONS MARKED. PICK ONE TO FAST TRAVEL`);
+      setMessage(found.length > 0
+        ? `${w.regionName.toUpperCase()}: ${found.length} LOCATIONS MARKED. PICK ONE TO FAST TRAVEL`
+        : `${w.regionName.toUpperCase()}: NO SURVIVORS ON RECORD HERE. TRY A BIGGER CITY NEARBY`);
     } catch (e) {
       setMessage(`ERROR: ${e instanceof Error ? e.message : 'SCAN FAILED'}`);
       sound('error');
@@ -151,51 +149,29 @@ export default function App() {
     }
   }, [sound]);
 
-  // ---- the map follows you: as it comes to rest somewhere new, the region is renamed and the places around it are scanned in ----
-  const followMap = useCallback(async (center: LatLng, zoom: number) => {
+  // ---- the map follows you: moving it into another metro renames the region and brings in that metro's places (pre-built, no Google) ----
+  const followMap = useCallback(async (center: LatLng) => {
     const scan = scanId.current;
+    const seen = metroSeen.current;
+    const metros = await loadIndex();
+    if (scan !== scanId.current) return;
 
-    // a different town under the middle of the map: a new name at the top, and some fallout of its own
-    const seen = townSeen.current;
-    if (zoom >= 9 && seen && distanceMeters(seen.at, center) > 3000) {
-      seen.at = center;
-      const town = await townAt(center);
-      if (town && scan === scanId.current) {
-        const key = `${town.city}|${town.state}`;
-        if (key !== seen.key) {
-          seen.key = key;
-          const title = wastelandName(town.city, town.state).name;
-          setLiveName(title);
-          setToast(`ENTERING ${title.toUpperCase()}`);
-          window.clearTimeout(toastTimer.current);
-          toastTimer.current = window.setTimeout(() => setToast(''), 3200);
-          if (!seen.known.has(key)) {
-            seen.known.add(key);
-            const extra = generateWasteland(town.city, center, 9000, title).zones;
-            setWasteland((w) => (w ? { ...w, zones: [...w.zones, ...extra] } : w));
-          }
-        }
-      }
+    // the metro under the middle of the map; between metros, the nearest one within reach keeps the title
+    const under = metroAt(metros, center, 0);
+    const near = under ?? metroAt(metros, center, 120);
+    if (near && near.id !== seen.current) {
+      seen.current = near.id;
+      setLiveName(near.title);
+      setToast(`ENTERING ${near.title.toUpperCase()}`);
+      window.clearTimeout(toastTimer.current);
+      toastTimer.current = window.setTimeout(() => setToast(''), 3200);
     }
-
-    // places around the middle of the map, once per patch of ground. Zoomed in, the patches are smaller, so a neighborhood shows more.
-    if (zoom >= 10) {
-      const grid = zoom >= 14 ? 0.02 : zoom >= 12 ? 0.05 : 0.12;
-      const row = Math.floor(center.lat / grid);
-      const col = Math.floor(center.lng / grid);
-      const key = `${grid}:${row}:${col}`;
-      if (tilesDone.current.has(key)) return;
-      if (tilesDone.current.size >= MAX_PATCHES) {
-        if (!limitSaid.current) {
-          limitSaid.current = true;
-          setMessage('SCAVENGER RADIO OUT OF RANGE: RELOAD THE PAGE TO KEEP SCANNING NEW GROUND');
-        }
-        return;
-      }
-      tilesDone.current.add(key);
-      const patchCenter = { lat: (row + 0.5) * grid, lng: (col + 0.5) * grid };
-      const found = await findLocations(patchCenter, Math.min(12_000, grid * 111_320 * 0.75));
+    if (under && !seen.loaded.has(under.id)) {
+      seen.loaded.add(under.id);
+      const found = await loadMetro(under.id);
       if (scan !== scanId.current) return;
+      const extra = generateWasteland(under.name, { lat: under.lat, lng: under.lng }, Math.min(under.radiusKm, 25) * 400, under.title).zones;
+      setWasteland((w) => (w ? { ...w, zones: [...w.zones, ...extra] } : w));
       const known = new Set(locationsRef.current.map((l) => l.id));
       const fresh = found.filter((l) => !known.has(l.id));
       if (fresh.length > 0) {
@@ -208,11 +184,11 @@ export default function App() {
     }
   }, []);
 
-  const onViewport = useCallback((center: LatLng, zoom: number) => {
+  const onViewport = useCallback((center: LatLng) => {
     window.clearTimeout(viewTimer.current);
     viewTimer.current = window.setTimeout(() => {
       if (travelRef.current || busyRef.current) return;
-      void followMap(center, zoom);
+      void followMap(center);
     }, 900);
   }, [followMap]);
 
@@ -411,7 +387,7 @@ export default function App() {
 
       <footer className="rm-foot">
         WastelandMaps is an unofficial fan project. Fallout is a trademark of Bethesda Softworks LLC; this site is not affiliated with or endorsed by Bethesda or Microsoft.
-        Map data © Google. Snapshots are free-licensed photos from Wikimedia Commons, adapted with credit.
+        Map © Google. Places from Wikidata (CC0); city sizes from GeoNames (CC BY 4.0). Snapshots are free-licensed photos from Wikimedia Commons, adapted with credit.
       </footer>
     </div>
   );

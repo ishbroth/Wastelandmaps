@@ -29,8 +29,7 @@ API key, restrict it to **HTTP referrers** (`http://localhost:5173/*` now, your 
 - **Search any city or address**, geocoded by Google. Starting points for Boston, Washington, Las Vegas, Charleston, Seattle and Chicago.
 - **Wasteland generator** (`src/lib/wasteland.ts`): deterministic from the city, so the same city always has the same vault number, radiation
   zones and names, and a shared link shows everyone the same map.
-- **Real places become locations.** Five Places lookups per city (hospitals, schools, markets, parks, cantinas and so on) are renamed by
-  category, each with the old name kept ("formerly Boston Public Library"), a threat and some loot.
+- **Pre-built places, no Google lookups.** Every metro area of 100,000+ people (North America, Europe, Australia, China, Japan, South Korea, New Zealand, Argentina, Uruguay, Brazil) or 500,000+ (everywhere else) has a ready-made map of about 4.5 notable places per 100,000 people (at least 4, at most 600), spread across the metro. Each keeps its real name ("formerly Harvard University") and gets a wasteland name, icon, threat and loot. They come from Wikidata (CC0); metros are found from GeoNames populations (CC BY 4.0). Built by `_tools/build-metros.ts` into `public/data/` and served as plain files, so panning and zooming cost nothing. Google is used only for the map itself and for searching a city.
 - **Fast travel.** You start at the vault door. Pick any place (on the map or in the list) for a card showing the distance, the walking time and the
   radiation on the way, then FAST TRAVEL: your marker walks a dotted route, the Pip-Boy clock advances, you pick up RADS for every irradiated zone the
   route crosses, a line of travel flavor is logged, and the place is marked discovered. The vault is a destination too.
@@ -39,7 +38,7 @@ API key, restrict it to **HTTP referrers** (`http://localhost:5173/*` now, your 
   ash. A journal entry sits beside it. `?gallery=pipboy` or `?gallery=parchment` shows every scene at once.
 - **Snapshots.** When someone has shared a freely licensed photo of the place on Wikimedia Commons, a SNAPSHOT tab shows it run through the wasteland
   look (green phosphor print or sepia ink), with the photographer and license credited. Places nobody photographed keep the drawn scene.
-- **The map follows you.** Moving the map to new ground renames the region at the top (Fallout lore names where they exist, such as The Commonwealth, The Capital Wasteland, New Vegas, The Pitt, Dayglow; our own nicknames and generated names elsewhere, see `src/lib/lore.ts`) and scans in the places around it, which pop in as their real names scramble into wasteland ones. Each visit is capped at 60 patches of ground to keep Google costs bounded.
+- **The map follows you.** Moving the map into another metro renames the region at the top (Fallout lore names where they exist, such as The Commonwealth, The Capital Wasteland, New Vegas, The Pitt, Dayglow; our own nicknames and generated names elsewhere, see `src/lib/lore.ts`) and brings in that metro's places, which pop in as their real names scramble into wasteland ones. Only the places on screen get markers (at most 450).
 - **Discovery.** Places start as dashed outlines and fill in solid when found: by fast travel, the DISCOVER button on a place, or AUTO-DISCOVER (the browser reports your position and anything within about 120 m is found). Found places are remembered in this browser, per city. A sixth lookup adds famous landmarks and monuments.
 - **Locations panel** with category filters and a list sorted by distance; clicking a row flies to it. **Data panel** with region, coordinates,
   vault, zones. **Share panel** with a link that reopens the same place and look, and a print-ready poster.
@@ -52,7 +51,7 @@ Showing Street View unaltered inside a Pip-Boy frame would be allowed if you eve
 
 ## Cost and Google's rules
 
-- A city costs one geocode and five Places lookups. Results are remembered for the browser session, so reopening the same city is free.
+- Places cost nothing: they are files in `public/data/`. A city search is one Google geocode; the map display itself uses Google's free tier of map loads. Refresh the data with `npx tsx _tools/build-metros.ts` (resumable; `REBUILD=1` redoes everything).
 - Google restricts how its map imagery may be used: styled maps and overlays like these are fine, but the map tiles themselves may not be
   copied, recolored as images, stored, or sold. So "Print poster" prints the live page for personal use; selling prints would need a map source
   that allows it (for example OpenStreetMap data), which is a different base layer.
@@ -60,7 +59,9 @@ Showing Street View unaltered inside a Pip-Boy frame would be allowed if you eve
 ## Layout
 
 ```
-src/lib/google.ts      loads Maps; geocoding; Places lookups (cached per session)
+src/lib/google.ts      loads Maps; geocoding (the live Places lookups remain but are no longer used)
+src/lib/metros.ts      the pre-built metro index and map files
+src/lib/lore.ts        regional names from the games' lore, nicknames, generated names
 src/lib/looks.ts       the two map styles and their colors
 src/lib/wasteland.ts   names, categories, vault, radiation zones (pure, deterministic)
 src/lib/htmlMarker.ts  HTML map markers (glow, labels)

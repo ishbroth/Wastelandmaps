@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createHtmlMarker, type HtmlMarkerHandle } from '../lib/htmlMarker';
 import { iconFor } from '../lib/icons';
 import type { Look } from '../lib/looks';
@@ -24,6 +24,8 @@ interface Props {
   onViewport: (center: LatLng, zoom: number) => void;
 }
 
+/** The most markers on the map at once. */
+const MAX_PINS = 450;
 const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
 const LABEL_ZOOM = 16;
 
@@ -72,6 +74,8 @@ const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) /
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
 export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, onSelect, onViewport }: Props) {
   const holder = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<google.maps.LatLngBoundsLiteral | null>(null);
+  const everShown = useRef(new Set<string>());
   const mapRef = useRef<google.maps.Map | null>(null);
   const pins = useRef(new Map<string, { handle: HtmlMarkerHandle; el: HTMLElement; position: google.maps.LatLngLiteral }>());
   const extras = useRef<{ handle?: HtmlMarkerHandle; circle?: google.maps.Circle }[]>([]);
@@ -108,6 +112,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     map.addListener('zoom_changed', markClose);
     map.addListener('click', () => onSelectRef.current(null));
     map.addListener('idle', () => {
+      setView(map.getBounds()?.toJSON() ?? null);
       const c = map.getCenter();
       if (c) onViewportRef.current({ lat: c.lat(), lng: c.lng() }, map.getZoom() ?? 0);
     });
@@ -184,7 +189,18 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     const map = mapRef.current;
     if (!map) return;
     // pins are added and removed one by one, so places that turn up while you travel pop in without the rest flickering
-    const wanted = new Set(locations.filter((l) => !hiddenCategories.has(l.category)).map((l) => l.id));
+    // only what is on (or near) the screen gets a marker, at most MAX_PINS of them, so even a huge metro stays smooth
+    const padLat = view ? (view.north - view.south) * 0.3 : 0;
+    const padLng = view ? (view.east - view.west) * 0.3 : 0;
+    const centerLat = view ? (view.north + view.south) / 2 : 0;
+    const centerLng = view ? (view.east + view.west) / 2 : 0;
+    let inView = locations.filter((l) => !hiddenCategories.has(l.category) && (!view || (
+      l.position.lat <= view.north + padLat && l.position.lat >= view.south - padLat &&
+      l.position.lng <= view.east + padLng && l.position.lng >= view.west - padLng)));
+    if (inView.length > MAX_PINS) {
+      inView = inView.sort((a, b) => Math.hypot(a.position.lat - centerLat, a.position.lng - centerLng) - Math.hypot(b.position.lat - centerLat, b.position.lng - centerLng)).slice(0, MAX_PINS);
+    }
+    const wanted = new Set(inView.map((l) => l.id));
     pins.current.forEach((p, id) => {
       if (wanted.has(id)) return;
       p.handle.setMap(null);
@@ -192,11 +208,13 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     });
     const firstBatch = pins.current.size === 0;
     let morphed = 0;
-    for (const loc of locations) {
-      if (hiddenCategories.has(loc.category) || pins.current.has(loc.id)) continue;
+    for (const loc of inView) {
+      if (pins.current.has(loc.id)) continue;
       const el = pinElement(loc.category, loc.name, loc.oldName, '');
       el.classList.toggle('rm-pin-visited', visitedRef.current.has(loc.id));
-      if (!firstBatch) {
+      const brandNew = !everShown.current.has(loc.id);
+      everShown.current.add(loc.id);
+      if (!firstBatch && brandNew) {
         el.classList.add('rm-pin-new');
         if (morphed++ < 25) {
           // the label shows for a moment while the real name turns into the wasteland one
@@ -213,7 +231,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       handle.setMap(map);
       pins.current.set(loc.id, { handle, el, position: loc.position });
     }
-  }, [locations, hiddenCategories]);
+  }, [locations, hiddenCategories, view]);
 
   // places you have been to are marked
   useEffect(() => {
@@ -225,12 +243,17 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     pins.current.forEach((p, id) => p.el.classList.toggle('rm-pin-selected', id === selectedId));
     vault.current?.el.classList.toggle('rm-pin-selected', selectedId === VAULT_ID);
     const map = mapRef.current;
-    const target = selectedId === VAULT_ID ? vault.current?.position : selectedId ? pins.current.get(selectedId)?.position : null;
+    const target = selectedId === VAULT_ID ? vault.current?.position : selectedId ? (pins.current.get(selectedId)?.position ?? locations.find((l) => l.id === selectedId)?.position) : null;
     if (map && target) {
       map.panTo(target);
       if ((map.getZoom() ?? 0) < LABEL_ZOOM) map.setZoom(LABEL_ZOOM);
     }
   }, [selectedId, locations, hiddenCategories, wasteland]);
+
+  // a marker that scrolls into view while selected is highlighted too
+  useEffect(() => {
+    pins.current.forEach((p, id) => p.el.classList.toggle('rm-pin-selected', id === selectedId));
+  }, [selectedId, view]);
 
   // you: a marker where you stand
   useEffect(() => {

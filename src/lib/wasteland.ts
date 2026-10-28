@@ -186,7 +186,15 @@ const THREATS: Location['threat'][] = ['Quiet', 'Quiet', 'Scavengers', 'Scavenge
 
 /** Gives a real place its wasteland identity. */
 export function toLocation(place: { id: string; name: string; position: LatLng; primaryType?: string | null; types?: string[] | null }): Location {
-  const category = categorize(place.primaryType, place.types);
+  return locationIn(categorize(place.primaryType, place.types), place);
+}
+
+/** The same, for a place whose category is already known (the pre-built maps). */
+export function locationFromData(id: string, name: string, position: LatLng, categoryId: CategoryId): Location {
+  return locationIn(categoryById(categoryId), { id, name, position });
+}
+
+function locationIn(category: Category, place: { id: string; name: string; position: LatLng }): Location {
   const rand = seeded(hashString(place.id || place.name));
   const threat = THREATS[Math.floor(rand() * THREATS.length)];
   return {
