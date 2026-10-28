@@ -39,6 +39,7 @@ API key, restrict it to **HTTP referrers** (`http://localhost:5173/*` now, your 
   ash. A journal entry sits beside it. `?gallery=pipboy` or `?gallery=parchment` shows every scene at once.
 - **Snapshots.** When someone has shared a freely licensed photo of the place on Wikimedia Commons, a SNAPSHOT tab shows it run through the wasteland
   look (green phosphor print or sepia ink), with the photographer and license credited. Places nobody photographed keep the drawn scene.
+- **Discovery.** Places start as dashed outlines and fill in solid when found: by fast travel, the DISCOVER button on a place, or AUTO-DISCOVER (the browser reports your position and anything within about 120 m is found). Found places are remembered in this browser, per city. A sixth lookup adds famous landmarks and monuments.
 - **Locations panel** with category filters and a list sorted by distance; clicking a row flies to it. **Data panel** with region, coordinates,
   vault, zones. **Share panel** with a link that reopens the same place and look, and a print-ready poster.
 

@@ -260,8 +260,13 @@ html[data-look='parchment'] .rm-player { color: #a3401f; }
 .rm-player-moving .rm-player-ring { animation-duration: 0.7s; }
 @keyframes rm-pulse { 0% { transform: scale(0.7); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
 
-.rm-pin-visited .rm-pin-icon::after { content: '✓'; position: absolute; transform: translate(11px, -11px); font-size: 11px; line-height: 1; background: var(--ink); color: var(--on-ink); border-radius: 50%; width: 13px; height: 13px; display: grid; place-items: center; }
+/* like the game's map: a place you have not found yet is an outline; once found, the icon is filled in solid */
 .rm-pin-icon { position: relative; }
+.rm-pin:not(.rm-pin-visited):not(.rm-pin-vault):not(.rm-pin-rad) .rm-pin-icon { background: transparent; border-style: dashed; box-shadow: none; opacity: 0.8; }
+.rm-pin-visited:not(.rm-pin-vault):not(.rm-pin-rad) .rm-pin-icon { background: currentColor; box-shadow: 0 0 10px var(--glow); }
+.rm-pin-visited:not(.rm-pin-vault):not(.rm-pin-rad) .rm-pin-icon svg { color: var(--on-ink); }
+.rm-track { font: inherit; font-size: 12px; letter-spacing: 1px; padding: 2px 8px; background: transparent; color: var(--ink-dim); border: 1px dashed var(--line); cursor: pointer; }
+.rm-track.on { color: var(--ink); border-style: solid; border-color: currentColor; }
 
 /* ---- location card, travel bar and toast on the screen ---- */
 .rm-card {

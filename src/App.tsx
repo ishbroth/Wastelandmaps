@@ -11,7 +11,7 @@ import { readShareState, writeShareState } from './lib/share';
 import { beep } from './lib/sound';
 import { START_MINUTES, encounterFor, formatClock, radsAlongRoute, travelMinutes, type TravelRun } from './lib/travel';
 import {
-  VAULT_ID, generateWasteland, spotFromLocation, vaultSpot,
+  VAULT_ID, distanceMeters, generateWasteland, spotFromLocation, vaultSpot,
   type CategoryId, type LatLng, type Location, type Spot, type Wasteland,
 } from './lib/wasteland';
 
@@ -42,6 +42,7 @@ export default function App() {
   const [clock, setClock] = useState(START_MINUTES);
   const [rads, setRads] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
+  const [tracking, setTracking] = useState(false);
   const [travel, setTravel] = useState<TravelRun | null>(null);
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
@@ -52,11 +53,14 @@ export default function App() {
 
   const soundRef = useRef(false);
   const lookRef = useRef(look);
+  const locationsRef = useRef(locations);
+  const foundKey = useRef('');
   useEffect(() => {
     soundRef.current = soundOn;
     lookRef.current = look;
     visitedRef.current = visited;
-  }, [soundOn, look, visited]);
+    locationsRef.current = locations;
+  }, [soundOn, look, visited, locations]);
 
   const sound = useCallback((kind: 'tick' | 'select' | 'error') => {
     if (soundRef.current) beep(kind);
@@ -66,6 +70,21 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.look = look;
   }, [look]);
+
+  /** Marks places as discovered (filled in on the map) and remembers them in this browser, per city. */
+  const markFound = useCallback((ids: string[], names: string[]) => {
+    const fresh = ids.filter((id) => !visitedRef.current.has(id));
+    if (fresh.length === 0) return;
+    const next = new Set(visitedRef.current);
+    fresh.forEach((id) => next.add(id));
+    visitedRef.current = next;
+    setVisited(next);
+    try { localStorage.setItem(foundKey.current, JSON.stringify([...next])); } catch { /* storage unavailable */ }
+    setToast(`LOCATION DISCOVERED: ${names.join(', ')}`);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(''), 3200);
+    if (soundRef.current) beep('select');
+  }, []);
 
   const spotFor = useCallback((id: string | null): Spot | null => {
     if (!id) return null;
@@ -95,7 +114,10 @@ export default function App() {
       setHereId(VAULT_ID);
       setClock(START_MINUTES);
       setRads(0);
-      setVisited(new Set([VAULT_ID]));
+      foundKey.current = `wastelandmaps:found:v1:${r.address}`;
+      let saved: string[] = [];
+      try { saved = JSON.parse(localStorage.getItem(foundKey.current) ?? '[]') as string[]; } catch { /* nothing saved */ }
+      setVisited(new Set([VAULT_ID, ...saved]));
       setMessage(`VAULT ${w.vault.number}: YOU EMERGE INTO ${w.regionName.toUpperCase()}`);
       writeShareState({ query: r.address, look: lookRef.current });
       sound('select');
@@ -118,7 +140,10 @@ export default function App() {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => void show(() => geocodeLatLng({ lat: pos.coords.latitude, lng: pos.coords.longitude }), 'your position'),
+      (pos) => {
+        void show(() => geocodeLatLng({ lat: pos.coords.latitude, lng: pos.coords.longitude }), 'your position');
+        setTracking(true);
+      },
       () => setMessage('ERROR: LOCATION PERMISSION DENIED'),
       { timeout: 10_000 },
     );
@@ -173,7 +198,12 @@ export default function App() {
     setRads((r) => r + t.rads);
     setPlayer(t.spot.position);
     setHereId(t.spot.id);
-    setVisited((prev) => new Set(prev).add(t.spot.id));
+    if (first) {
+      const next = new Set(visitedRef.current).add(t.spot.id);
+      visitedRef.current = next;
+      setVisited(next);
+      try { localStorage.setItem(foundKey.current, JSON.stringify([...next])); } catch { /* storage unavailable */ }
+    }
     setTravel(null);
     setMessage(`ARRIVED AT ${t.spot.name.toUpperCase()}. ${t.note}${t.rads > 0 ? ` +${t.rads} RADS.` : ''}`);
     setToast(first ? `LOCATION DISCOVERED: ${t.spot.name}` : `ARRIVED: ${t.spot.name}`);
@@ -183,7 +213,23 @@ export default function App() {
     sound('select');
   }, [sound]);
 
-  const toggleCategory = (id: CategoryId) =>
+  // auto-discover: while it is on, walking within about 120 m of a place fills it in on the map
+  useEffect(() => {
+    if (!tracking || !navigator.geolocation) return;
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const reach = Math.max(120, Math.min(pos.coords.accuracy, 250));
+        const near = locationsRef.current.filter((l) => !visitedRef.current.has(l.id) && distanceMeters(here, l.position) <= reach);
+        markFound(near.map((l) => l.id), near.map((l) => l.name));
+      },
+      () => { setTracking(false); setMessage('ERROR: LOCATION PERMISSION DENIED'); },
+      { enableHighAccuracy: true, maximumAge: 10_000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [tracking, markFound]);
+
+  const toggleCategory =(id: CategoryId) =>
     setHidden((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -203,7 +249,7 @@ export default function App() {
       <header className="rm-head">
         <div className="rm-title">
           <span className="rm-title-mark" aria-hidden="true" />
-          <h1>RAD<span>MAPS</span></h1>
+          <h1>WASTELAND<span>MAPS</span></h1>
           <p>See where you live after the bombs fell</p>
         </div>
         <div className="rm-looks" role="group" aria-label="Map look">
@@ -238,7 +284,7 @@ export default function App() {
           {selectedSpot && wasteland && !sceneSpot && (
             <LocationCard
               spot={selectedSpot} from={player} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)}
-              traveling={!!travel} onTravel={() => startTravel(selectedSpot)} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
+              traveling={!!travel} onTravel={() => startTravel(selectedSpot)} onDiscover={() => markFound([selectedSpot.id], [selectedSpot.name])} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
@@ -258,7 +304,7 @@ export default function App() {
         </div>
 
         <aside className="rm-side">
-          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onLocate={locateMe} />
+          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onLocate={locateMe} tracking={tracking} onToggleTracking={() => setTracking((t) => !t)} />
           <nav className="rm-tabs" role="tablist" aria-label="Pip-Boy menu">
             {(['locations', 'data', 'share'] as Tab[]).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); sound('tick'); }}>

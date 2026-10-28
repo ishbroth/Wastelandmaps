@@ -124,6 +124,8 @@ export const SEARCH_GROUPS: string[][] = [
   ['supermarket', 'grocery_store', 'shopping_mall', 'department_store', 'gas_station', 'hotel'],
   ['park', 'church', 'mosque', 'synagogue', 'movie_theater', 'amusement_park'],
   ['restaurant', 'bar', 'cafe', 'convenience_store', 'car_repair', 'city_hall'],
+  // the famous places and neighborhood landmarks: the ones people would name if you asked what the city is known for
+  ['tourist_attraction', 'historical_landmark', 'monument', 'cultural_landmark'],
 ];
 
 export interface Wasteland {
