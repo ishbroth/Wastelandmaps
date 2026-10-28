@@ -20,6 +20,8 @@ interface Props {
   travel: TravelRun | null;
   onArrive: () => void;
   onSelect: (id: string | null) => void;
+  /** The map came to rest somewhere: where, and how far in. */
+  onViewport: (center: LatLng, zoom: number) => void;
 }
 
 const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
@@ -43,10 +45,32 @@ function playerElement(): HTMLElement {
   return el;
 }
 
+/** A place's label first shows the real name, then scrambles letter by letter into its wasteland name. */
+function morphLabel(el: HTMLElement, from: string, to: string) {
+  const title = el.querySelector('b') as HTMLElement | null;
+  if (!title) return;
+  const glyphs = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&';
+  const length = Math.max(from.length, to.length);
+  const started = performance.now();
+  const duration = 1100;
+  title.textContent = from;
+  const timer = window.setInterval(() => {
+    const t = Math.min(1, (performance.now() - started) / duration);
+    const settled = Math.floor(t * length);
+    let out = '';
+    for (let i = 0; i < length; i++) {
+      if (i < settled) out += to[i] ?? '';
+      else out += to[i] === ' ' ? ' ' : glyphs[Math.floor(Math.random() * glyphs.length)];
+    }
+    title.textContent = t >= 1 ? to : out;
+    if (t >= 1) window.clearInterval(timer);
+  }, 45);
+}
+
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
-export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, onSelect }: Props) {
+export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, onSelect, onViewport }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const pins = useRef(new Map<string, { handle: HtmlMarkerHandle; el: HTMLElement; position: google.maps.LatLngLiteral }>());
@@ -55,12 +79,14 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
   const you = useRef<{ handle: HtmlMarkerHandle; el: HTMLElement } | null>(null);
   const onSelectRef = useRef(onSelect);
   const onArriveRef = useRef(onArrive);
+  const onViewportRef = useRef(onViewport);
   const visitedRef = useRef(visited);
   useEffect(() => {
     onSelectRef.current = onSelect;
     onArriveRef.current = onArrive;
+    onViewportRef.current = onViewport;
     visitedRef.current = visited;
-  }, [onSelect, onArrive, visited]);
+  }, [onSelect, onArrive, onViewport, visited]);
 
   // the map itself, once
   useEffect(() => {
@@ -77,9 +103,14 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       minZoom: 3,
     });
     mapRef.current = map;
+    if (import.meta.env.DEV) (window as unknown as { __wlmap?: google.maps.Map }).__wlmap = map; // for the browser checks in _tools
     const markClose = () => holder.current?.classList.toggle('rm-zoomed', (map.getZoom() ?? 0) >= LABEL_ZOOM);
     map.addListener('zoom_changed', markClose);
     map.addListener('click', () => onSelectRef.current(null));
+    map.addListener('idle', () => {
+      const c = map.getCenter();
+      if (c) onViewportRef.current({ lat: c.lat(), lng: c.lng() }, map.getZoom() ?? 0);
+    });
     markClose();
     const currentPins = pins.current;
     return () => {
@@ -152,12 +183,28 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    pins.current.forEach((p) => p.handle.setMap(null));
-    pins.current.clear();
+    // pins are added and removed one by one, so places that turn up while you travel pop in without the rest flickering
+    const wanted = new Set(locations.filter((l) => !hiddenCategories.has(l.category)).map((l) => l.id));
+    pins.current.forEach((p, id) => {
+      if (wanted.has(id)) return;
+      p.handle.setMap(null);
+      pins.current.delete(id);
+    });
+    const firstBatch = pins.current.size === 0;
+    let morphed = 0;
     for (const loc of locations) {
-      if (hiddenCategories.has(loc.category)) continue;
+      if (hiddenCategories.has(loc.category) || pins.current.has(loc.id)) continue;
       const el = pinElement(loc.category, loc.name, loc.oldName, '');
       el.classList.toggle('rm-pin-visited', visitedRef.current.has(loc.id));
+      if (!firstBatch) {
+        el.classList.add('rm-pin-new');
+        if (morphed++ < 25) {
+          // the label shows for a moment while the real name turns into the wasteland one
+          el.classList.add('rm-pin-announce');
+          morphLabel(el.querySelector('.rm-pin-label') as HTMLElement, loc.oldName, loc.name);
+          window.setTimeout(() => el.classList.remove('rm-pin-announce'), 3600);
+        }
+      }
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         onSelectRef.current(loc.id);

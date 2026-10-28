@@ -5,7 +5,8 @@ import SceneModal from './components/SceneModal';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { DataPanel, LocationsPanel, SharePanel } from './components/Panels';
-import { findLocations, geocodeLatLng, geocodeQuery, loadGoogle, type Region } from './lib/google';
+import { findLocations, geocodeLatLng, geocodeQuery, loadGoogle, townAt, type Region } from './lib/google';
+import { wastelandName } from './lib/lore';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState, writeShareState } from './lib/share';
 import { beep } from './lib/sound';
@@ -17,6 +18,9 @@ import {
 
 type Tab = 'locations' | 'data' | 'share';
 type Status = 'loading' | 'ready' | 'problem';
+
+/** How many new patches of ground one visit may scan in. Each patch is a handful of Google lookups, so this keeps a long session from running up a bill. */
+const MAX_PATCHES = 60;
 
 interface Trip { spot: Spot; minutes: number; rads: number; note: string }
 
@@ -43,6 +47,14 @@ export default function App() {
   const [rads, setRads] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const [tracking, setTracking] = useState(false);
+  const [liveName, setLiveName] = useState('');
+  const scanId = useRef(0);
+  const tilesDone = useRef(new Set<string>());
+  const limitSaid = useRef(false);
+  const townSeen = useRef<{ at: LatLng; key: string; known: Set<string> } | null>(null);
+  const viewTimer = useRef<number | undefined>(undefined);
+  const busyRef = useRef(false);
+  const travelRef = useRef(false);
   const [travel, setTravel] = useState<TravelRun | null>(null);
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
@@ -60,7 +72,9 @@ export default function App() {
     lookRef.current = look;
     visitedRef.current = visited;
     locationsRef.current = locations;
-  }, [soundOn, look, visited, locations]);
+    busyRef.current = busy;
+    travelRef.current = !!travel;
+  }, [soundOn, look, visited, locations, busy, travel]);
 
   const sound = useCallback((kind: 'tick' | 'select' | 'error') => {
     if (soundRef.current) beep(kind);
@@ -104,7 +118,12 @@ export default function App() {
     try {
       const r = await resolveRegion();
       setRegion(r);
-      const w = generateWasteland(r.city, r.center, r.radiusMeters * 0.8);
+      const title = wastelandName(r.city, r.state).name;
+      const w = generateWasteland(r.city, r.center, r.radiusMeters * 0.8, title);
+      scanId.current += 1;
+      tilesDone.current = new Set();
+      townSeen.current = { at: r.center, key: `${r.city}|${r.state}`, known: new Set([`${r.city}|${r.state}`]) };
+      setLiveName(title);
       setWasteland(w);
       setQuery(r.address);
       setHidden(new Set());
@@ -131,6 +150,71 @@ export default function App() {
       setBusy(false);
     }
   }, [sound]);
+
+  // ---- the map follows you: as it comes to rest somewhere new, the region is renamed and the places around it are scanned in ----
+  const followMap = useCallback(async (center: LatLng, zoom: number) => {
+    const scan = scanId.current;
+
+    // a different town under the middle of the map: a new name at the top, and some fallout of its own
+    const seen = townSeen.current;
+    if (zoom >= 9 && seen && distanceMeters(seen.at, center) > 3000) {
+      seen.at = center;
+      const town = await townAt(center);
+      if (town && scan === scanId.current) {
+        const key = `${town.city}|${town.state}`;
+        if (key !== seen.key) {
+          seen.key = key;
+          const title = wastelandName(town.city, town.state).name;
+          setLiveName(title);
+          setToast(`ENTERING ${title.toUpperCase()}`);
+          window.clearTimeout(toastTimer.current);
+          toastTimer.current = window.setTimeout(() => setToast(''), 3200);
+          if (!seen.known.has(key)) {
+            seen.known.add(key);
+            const extra = generateWasteland(town.city, center, 9000, title).zones;
+            setWasteland((w) => (w ? { ...w, zones: [...w.zones, ...extra] } : w));
+          }
+        }
+      }
+    }
+
+    // places around the middle of the map, once per patch of ground. Zoomed in, the patches are smaller, so a neighborhood shows more.
+    if (zoom >= 10) {
+      const grid = zoom >= 14 ? 0.02 : zoom >= 12 ? 0.05 : 0.12;
+      const row = Math.floor(center.lat / grid);
+      const col = Math.floor(center.lng / grid);
+      const key = `${grid}:${row}:${col}`;
+      if (tilesDone.current.has(key)) return;
+      if (tilesDone.current.size >= MAX_PATCHES) {
+        if (!limitSaid.current) {
+          limitSaid.current = true;
+          setMessage('SCAVENGER RADIO OUT OF RANGE: RELOAD THE PAGE TO KEEP SCANNING NEW GROUND');
+        }
+        return;
+      }
+      tilesDone.current.add(key);
+      const patchCenter = { lat: (row + 0.5) * grid, lng: (col + 0.5) * grid };
+      const found = await findLocations(patchCenter, Math.min(12_000, grid * 111_320 * 0.75));
+      if (scan !== scanId.current) return;
+      const known = new Set(locationsRef.current.map((l) => l.id));
+      const fresh = found.filter((l) => !known.has(l.id));
+      if (fresh.length > 0) {
+        setLocations((prev) => {
+          const ids = new Set(prev.map((l) => l.id));
+          return [...prev, ...fresh.filter((l) => !ids.has(l.id))];
+        });
+        setMessage(`${fresh.length} NEW LOCATIONS PICKED UP ON THE RADIO`);
+      }
+    }
+  }, []);
+
+  const onViewport = useCallback((center: LatLng, zoom: number) => {
+    window.clearTimeout(viewTimer.current);
+    viewTimer.current = window.setTimeout(() => {
+      if (travelRef.current || busyRef.current) return;
+      void followMap(center, zoom);
+    }, 900);
+  }, [followMap]);
 
   const search = useCallback((q: string) => show(() => geocodeQuery(q), q), [show]);
 
@@ -261,11 +345,11 @@ export default function App() {
 
       <main className="rm-device">
         <div className="rm-screen">
-          {wasteland && <div className="rm-poster-title" aria-hidden="true">{wasteland.regionName}</div>}
+          {wasteland && <div className="rm-poster-title" key={liveName || wasteland.regionName} aria-hidden="true">{liveName || wasteland.regionName}</div>}
           {status === 'ready' ? (
             <MapView
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={locations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} onSelect={setSelectedId}
+              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} onSelect={setSelectedId} onViewport={onViewport}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
@@ -288,7 +372,7 @@ export default function App() {
             />
           )}
           {sceneSpot && wasteland && (
-            <SceneModal spot={sceneSpot} regionName={wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)} onClose={() => setSceneId(null)} />
+            <SceneModal spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)} onClose={() => setSceneId(null)} />
           )}
 
           <div className="rm-status" role="status">

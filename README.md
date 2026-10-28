@@ -39,6 +39,7 @@ API key, restrict it to **HTTP referrers** (`http://localhost:5173/*` now, your 
   ash. A journal entry sits beside it. `?gallery=pipboy` or `?gallery=parchment` shows every scene at once.
 - **Snapshots.** When someone has shared a freely licensed photo of the place on Wikimedia Commons, a SNAPSHOT tab shows it run through the wasteland
   look (green phosphor print or sepia ink), with the photographer and license credited. Places nobody photographed keep the drawn scene.
+- **The map follows you.** Moving the map to new ground renames the region at the top (Fallout lore names where they exist, such as The Commonwealth, The Capital Wasteland, New Vegas, The Pitt, Dayglow; our own nicknames and generated names elsewhere, see `src/lib/lore.ts`) and scans in the places around it, which pop in as their real names scramble into wasteland ones. Each visit is capped at 60 patches of ground to keep Google costs bounded.
 - **Discovery.** Places start as dashed outlines and fill in solid when found: by fast travel, the DISCOVER button on a place, or AUTO-DISCOVER (the browser reports your position and anything within about 120 m is found). Found places are remembered in this browser, per city. A sixth lookup adds famous landmarks and monuments.
 - **Locations panel** with category filters and a list sorted by distance; clicking a row flies to it. **Data panel** with region, coordinates,
   vault, zones. **Share panel** with a link that reopens the same place and look, and a print-ready poster.

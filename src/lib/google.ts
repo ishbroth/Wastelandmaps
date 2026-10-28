@@ -37,6 +37,8 @@ export function loadGoogle(): Promise<void> {
 export interface Region {
   /** The city as the player typed or Google names it: "Seattle". */
   city: string;
+  /** Two-letter state or region code ("WA"), when Google gives one. */
+  state: string;
   /** Full address: "Seattle, WA, USA". */
   address: string;
   center: LatLng;
@@ -59,7 +61,8 @@ function toRegion(result: google.maps.GeocoderResult): Region {
     (bounds.north - bounds.south) * 111_320,
     (bounds.east - bounds.west) * 111_320 * Math.cos((center.lat * Math.PI) / 180),
   );
-  return { city: cityName(result), address: result.formatted_address, center, bounds, radiusMeters: Math.min(25_000, Math.max(3_000, diag / 2)) };
+  const state = result.address_components.find((c) => c.types.includes('administrative_area_level_1'))?.short_name ?? '';
+  return { city: cityName(result), state, address: result.formatted_address, center, bounds, radiusMeters: Math.min(25_000, Math.max(3_000, diag / 2)) };
 }
 
 /** A typed city or address to a place on the map. */
@@ -77,6 +80,20 @@ export async function geocodeLatLng(position: LatLng): Promise<Region> {
   const locality = results?.find((r) => r.types.includes('locality')) ?? results?.[0];
   if (!locality) throw new Error('COULD NOT PLACE YOU');
   return toRegion(locality);
+}
+
+/** The town under a point on the map ("Providence", "RI"), or null. Used to rename the region as the map is moved. */
+export async function townAt(position: LatLng): Promise<{ city: string; state: string } | null> {
+  try {
+    const { Geocoder } = (await google.maps.importLibrary('geocoding')) as google.maps.GeocodingLibrary;
+    const { results } = await new Geocoder().geocode({ location: position });
+    const hit = results?.find((r) => r.types.includes('locality'));
+    if (!hit) return null;
+    const region = toRegion(hit);
+    return { city: region.city, state: region.state };
+  } catch {
+    return null;
+  }
 }
 
 // ---- what is around a city ----

@@ -139,7 +139,7 @@ const metersToDegLat = (m: number) => m / 111_320;
 const metersToDegLng = (m: number, lat: number) => m / (111_320 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)));
 
 /** The wasteland version of a city: its name, a vault, and a few irradiated zones, placed around the center. */
-export function generateWasteland(cityName: string, center: LatLng, spreadMeters: number): Wasteland {
+export function generateWasteland(cityName: string, center: LatLng, spreadMeters: number, regionName?: string): Wasteland {
   const seed = hashString(`${cityName.toLowerCase()}|${center.lat.toFixed(2)},${center.lng.toFixed(2)}`);
   const rand = seeded(seed);
   const place = (minFrac: number, maxFrac: number): LatLng => {
@@ -163,7 +163,7 @@ export function generateWasteland(cityName: string, center: LatLng, spreadMeters
     zones.push({ position: best, radiusMeters: Math.round(spreadMeters * (0.06 + rand() * 0.1)), rads: 40 + Math.floor(rand() * 360) });
   }
   return {
-    regionName: `The ${cityName} Wasteland`,
+    regionName: regionName ?? `The ${cityName} Wasteland`,
     vault: { position: vault, number: String(1 + Math.floor(rand() * 998)).padStart(3, '0') },
     zones,
   };

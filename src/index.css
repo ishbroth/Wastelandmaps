@@ -337,3 +337,10 @@ html[data-look='parchment'] .rm-modal-crt { background: radial-gradient(ellipse 
 @media print {
   .rm-card, .rm-modal, .rm-traveling, .rm-toast { display: none !important; }
 }
+
+/* places that turn up as you travel: pop in, and show their label while the real name turns into the wasteland one */
+.rm-pin-announce .rm-pin-label { display: flex; }
+.rm-pin-new .rm-pin-icon { animation: rm-pop 0.6s ease-out; }
+@keyframes rm-pop { 0% { transform: scale(0.2); opacity: 0; box-shadow: 0 0 22px var(--glow); } 60% { transform: scale(1.35); opacity: 1; } 100% { transform: scale(1); } }
+.rm-poster-title { animation: rm-title-in 0.8s ease-out; }
+@keyframes rm-title-in { 0% { opacity: 0; letter-spacing: 12px; } 100% { opacity: 1; } }
