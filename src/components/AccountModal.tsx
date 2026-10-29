@@ -36,15 +36,15 @@ export default function AccountModal({ account, onClose }: { account: Account; o
 
         {!account.session ? (
           <form onSubmit={signIn} className="rm-account-body">
-            <p>Sign in to unlock game-style renders of places on the map. We email you a link; no password.</p>
+            <p>Sign in to unlock snapshots of places on the map. We email you a link; no password.</p>
             <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
             <button type="submit" className="rm-btn" disabled={busy || !email.trim()}>{busy ? 'SENDING…' : 'EMAIL ME A LINK'}</button>
           </form>
         ) : (
           <div className="rm-account-body">
-            <p className="rm-account-balance">{account.credits === null ? '…' : account.credits} <span>RENDER CREDITS</span></p>
-            <p>Each credit unlocks one place's post-apocalyptic game-style render, to view, download and share. Unlocked renders stay yours.</p>
-            <button type="button" className="rm-btn" disabled={busy} onClick={buy}>BUY {PACK.credits} RENDERS: {PACK.price}</button>
+            <p className="rm-account-balance">{account.credits === null ? '…' : account.credits} <span>SNAPSHOT CREDITS</span></p>
+            <p>Each credit unlocks one place's snapshot: the real photograph blown apart into the wasteland, to view, download and share. Unlocked renders stay yours.</p>
+            <button type="button" className="rm-btn" disabled={busy} onClick={buy}>BUY {PACK.credits} SNAPSHOTS: {PACK.price}</button>
             <p className="rm-account-small">Pay by card, Apple Pay or Google Pay through Stripe. A render that cannot be made gives your credit back.</p>
             <button type="button" className="rm-btn rm-btn-ghost" onClick={() => { void signOut(); onClose(); }}>SIGN OUT</button>
           </div>

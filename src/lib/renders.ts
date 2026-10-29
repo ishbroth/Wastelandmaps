@@ -22,9 +22,9 @@ export const FREE_RENDERS: Record<string, FreeRender> = {
 };
 
 /** The free render for a place on the map, by its id ("wd:Q243"), or undefined. */
-export function freeRenderFor(spotId: string): (FreeRender & { url: string }) | undefined {
+export function freeRenderFor(spotId: string): (FreeRender & { url: string; before: string }) | undefined {
   if (!spotId.startsWith('wd:')) return undefined;
   const id = spotId.slice(3);
   const hit = FREE_RENDERS[id];
-  return hit ? { ...hit, url: `${import.meta.env.BASE_URL}renders/${id}.png` } : undefined;
+  return hit ? { ...hit, url: `${import.meta.env.BASE_URL}renders/${id}.png`, before: `${import.meta.env.BASE_URL}renders/${id}-source.jpg` } : undefined;
 }
