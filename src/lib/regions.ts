@@ -49,10 +49,15 @@ const STATE_NAMES: Record<string, [string, boolean]> = {
   MO: ['The Show-Me Rubble', false], MT: ['The Big Sky Wastes', false], NE: ['The Cornhusker Crater', false], NV: ['The Mojave Wasteland', true], NH: ['The Granite Ghost Towns', false],
   NJ: ['The Garden of Ash', false], NM: ['Breaking Rad Country', false], NY: ['The Empire State of Ruin', false], NC: ['The Tar Heel Wastes', false], ND: ['The Bakken Burn', false],
   OH: ['The Buckeye Badlands', false], OK: ['The Sooner Ashes', false], OR: ['The End of the Oregon Trail', false], PA: ['The Keystone Ruins', false], RI: ['The Rhode Rubble', false],
-  SC: ['The Palmetto Wastes', false], SD: ['The Black Hills Burn', false], TN: ['The Volunteer Wastes', false], TX: ['The Lone Star Fallout', false], UT: ['The Zion Wastes', true],
+  SC: ['The Palmetto Wastes', false], SD: ['The Black Hills Burn', false], TN: ['The Volunteer Wastes', false], TX: ['The Lone Star Fallout', false], UT: ['New Canaan', true],
   VT: ['The Green Mountain Ghost Towns', false], VA: ['The Old Dominion Ruins', false], WA: ['The Evergreen Ashlands', false], WV: ['Appalachia', true], WI: ['The Dairyland Dead Zone', false],
   WY: ['The Cowboy Craters', false],
 };
+
+/** Places in the lore that are too small to be a metro: shown as labels, with the states. */
+const LORE_PLACES: { name: string; at: LatLng }[] = [
+  { name: 'Shady Sands', at: { lat: 33.83, lng: -116.55 } }, // the Palm Springs area
+];
 
 // ---- the outlines ----
 
@@ -111,6 +116,8 @@ export function allLabels(data: RegionsFile): RegionLabel[] {
     const n = stateName(s.code);
     if (n) labels.push({ name: n.name, level: 'state', position: { lat: s.label[0], lng: s.label[1] }, canon: n.canon });
   }
+  // places the stories name that are smaller than any metro on the map
+  for (const place of LORE_PLACES) labels.push({ name: place.name, level: 'state', position: place.at, canon: true });
   return labels;
 }
 

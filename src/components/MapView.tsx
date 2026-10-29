@@ -4,6 +4,7 @@ import { iconFor } from '../lib/icons';
 import type { Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
+import { patchOutline, type FloodPatch } from '../lib/flood';
 import { levelsAt, type RegionLabel } from '../lib/regions';
 import { VAULT_ID, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
 
@@ -25,6 +26,8 @@ interface Props {
   onViewport: (center: LatLng, zoom: number) => void;
   /** Names of continents, countries and states, shown when the map is zoomed out. */
   regionLabels: RegionLabel[];
+  /** Flooded patches near the coast. */
+  flood: FloodPatch[];
 }
 
 /** The most markers on the map at once. */
@@ -75,12 +78,13 @@ function morphLabel(el: HTMLElement, from: string, to: string) {
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
-export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, onSelect, onViewport, regionLabels }: Props) {
+export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, onSelect, onViewport, regionLabels, flood }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<google.maps.LatLngBoundsLiteral | null>(null);
   const everShown = useRef(new Set<string>());
   const [zoomNow, setZoomNow] = useState(4);
   const regionMarkers = useRef(new Map<string, HtmlMarkerHandle>());
+  const floodShapes = useRef(new Map<string, google.maps.Polygon>());
   const mapRef = useRef<google.maps.Map | null>(null);
   const pins = useRef(new Map<string, { handle: HtmlMarkerHandle; el: HTMLElement; position: google.maps.LatLngLiteral }>());
   const extras = useRef<{ handle?: HtmlMarkerHandle; circle?: google.maps.Circle }[]>([]);
@@ -238,6 +242,31 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       pins.current.set(loc.id, { handle, el, position: loc.position });
     }
   }, [locations, hiddenCategories, view]);
+
+  // standing water on the coast: a few flooded patches, in the look's water color
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const shapes = floodShapes.current;
+    const wanted = new Set(flood.map((p) => String(p[5])));
+    shapes.forEach((shape, key) => {
+      if (wanted.has(key)) return;
+      shape.setMap(null);
+      shapes.delete(key);
+    });
+    for (const patch of flood) {
+      const key = String(patch[5]);
+      if (shapes.has(key)) continue;
+      shapes.set(key, new google.maps.Polygon({
+        map, paths: patchOutline(patch), clickable: false, zIndex: 2,
+        fillColor: look.floodFill, fillOpacity: 0.96, strokeColor: look.floodStroke, strokeOpacity: 0.7, strokeWeight: 1,
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flood]);
+  useEffect(() => {
+    floodShapes.current.forEach((shape) => shape.setOptions({ fillColor: look.floodFill, strokeColor: look.floodStroke }));
+  }, [look]);
 
   // the names of the big regions, while zoomed out: continents, then countries, then states
   useEffect(() => {

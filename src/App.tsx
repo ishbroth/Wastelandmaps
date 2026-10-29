@@ -10,6 +10,7 @@ import { DataPanel, LocationsPanel, SharePanel } from './components/Panels';
 import { geocodeLatLng, geocodeQuery, loadGoogle, type Region } from './lib/google';
 import { loadIndex, loadMetro, metroAt } from './lib/metros';
 import { wastelandName } from './lib/lore';
+import { loadFlood, type FloodPatch } from './lib/flood';
 import { allLabels, loadRegions, nameForZoom, type RegionLabel } from './lib/regions';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState, writeShareState } from './lib/share';
@@ -52,6 +53,7 @@ export default function App() {
   // while zoomed out the top of the map names the continent, country or state instead of the city
   const [zoomName, setZoomName] = useState<string | null>(null);
   const [regionLabels, setRegionLabels] = useState<RegionLabel[]>([]);
+  const [flood, setFlood] = useState<FloodPatch[]>([]);
   const scanId = useRef(0);
   const metroSeen = useRef<{ current: string; loaded: Set<string> }>({ current: '', loaded: new Set() });
   const viewTimer = useRef<number | undefined>(undefined);
@@ -166,6 +168,8 @@ export default function App() {
       setMessage(`VAULT ${w.vault.number}: YOU EMERGE INTO ${w.regionName.toUpperCase()}`);
       writeShareState({ query: r.address, look: lookRef.current });
       sound('select');
+      setFlood([]);
+      if (home) void loadFlood().then((all) => setFlood(all[home.id] ?? []));
       const found = home ? await loadMetro(home.id) : [];
       setLocations(found);
       setMessage(found.length > 0
@@ -202,6 +206,10 @@ export default function App() {
     }
     if (under && !seen.loaded.has(under.id)) {
       seen.loaded.add(under.id);
+      void loadFlood().then((all) => {
+        const patches = all[under.id];
+        if (patches) setFlood((prev) => [...prev, ...patches]);
+      });
       const found = await loadMetro(under.id);
       if (scan !== scanId.current) return;
       const extra = generateWasteland(under.name, { lat: under.lat, lng: under.lng }, Math.min(under.radiusKm, 25) * 400, under.title).zones;
@@ -364,7 +372,7 @@ export default function App() {
           {status === 'ready' ? (
             <MapView
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={locations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels}
+              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
