@@ -38,6 +38,34 @@ const MAX_PINS = 450;
 const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
 const LABEL_ZOOM = 16;
 
+/**
+ * Makes a marker respond to a press: a click (mouse, keyboard) and also a tap (touch or pen), which is read from the finger going down and up in
+ * about the same place, because a phone does not always turn a tap on a map marker into a click.
+ */
+let lastPressAt = 0;
+function onPress(el: HTMLElement, action: () => void) {
+  let down: { x: number; y: number; at: number } | null = null;
+  let tappedAt = 0;
+  el.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, at: Date.now() }; });
+  el.addEventListener('pointerup', (e) => {
+    if (e.pointerType === 'mouse' || !down) return;
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+    if (moved < 14 && Date.now() - down.at < 700) {
+      tappedAt = Date.now();
+      lastPressAt = tappedAt;
+      e.stopPropagation();
+      action();
+    }
+    down = null;
+  });
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (Date.now() - tappedAt < 800) return; // the tap above already did it
+    lastPressAt = Date.now();
+    action();
+  });
+}
+
 function pinElement(kind: string, iconHtml: string, label: string, sub: string, className: string): HTMLElement {
   const el = document.createElement('button');
   el.type = 'button';
@@ -123,7 +151,10 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     if (import.meta.env.DEV) (window as unknown as { __wlmap?: google.maps.Map }).__wlmap = map; // for the browser checks in _tools
     const markClose = () => holder.current?.classList.toggle('rm-zoomed', (map.getZoom() ?? 0) >= LABEL_ZOOM);
     map.addListener('zoom_changed', markClose);
-    map.addListener('click', () => onSelectRef.current(null));
+    // a click on empty map clears the choice, but not the same moment a marker was pressed
+    map.addListener('click', () => {
+      if (Date.now() - lastPressAt > 600) onSelectRef.current(null);
+    });
     map.addListener('idle', () => {
       setView(map.getBounds()?.toJSON() ?? null);
       setZoomNow(map.getZoom() ?? 4);
@@ -178,10 +209,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     if (!map || !wasteland) return;
 
     const vaultEl = pinElement('vault', iconFor('vault'), `VAULT ${wasteland.vault.number}`, 'Sealed. Probably.', 'rm-pin-vault');
-    vaultEl.addEventListener('click', (e) => {
-      e.stopPropagation();
-      onSelectRef.current(VAULT_ID);
-    });
+    onPress(vaultEl, () => onSelectRef.current(VAULT_ID));
     const vaultMarker = createHtmlMarker({ position: wasteland.vault.position, element: vaultEl, zIndex: 40 });
     vaultMarker.setMap(map);
     extras.current.push({ handle: vaultMarker });
@@ -248,10 +276,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
           window.setTimeout(() => el.classList.remove('rm-pin-announce'), 3600);
         }
       }
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        onSelectRef.current(loc.id);
-      });
+      onPress(el, () => onSelectRef.current(loc.id));
       const handle = createHtmlMarker({ position: loc.position, element: el, zIndex: 20 });
       handle.setMap(map);
       pins.current.set(loc.id, { handle, el, position: loc.position });

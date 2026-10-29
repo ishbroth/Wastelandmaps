@@ -32,8 +32,6 @@ export function createHtmlMarker(options: HtmlMarkerOptions): HtmlMarkerHandle {
 
       onAdd() {
         this.getPanes()?.overlayMouseTarget.appendChild(this.holder);
-        // on a touch screen, a tap on a marker must reach the marker and not be taken by the map as a tap or a drag
-        google.maps.OverlayView.preventMapHitsAndGesturesFrom(this.holder);
       }
 
       draw() {
