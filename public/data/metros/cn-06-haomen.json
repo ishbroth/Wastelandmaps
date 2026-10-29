@@ -1,1 +1,1 @@
-{"id":"cn-06-haomen","name":"Haomen","country":"CN","center":[37.37575,101.62199],"pop":101366,"radiusKm":20,"title":"The Haomen Ashlands","places":[["Q17061937","Menyuan Ancient City",37.37189,101.63142,"other"],["Q19853945","Menyuan Railway Station",37.42639,101.52617,"transit"]]}
+{"id":"cn-06-haomen","name":"Haomen","country":"CN","center":[37.37575,101.62199],"pop":101366,"radiusKm":20,"title":"Haomen Fields","places":[["Q17061937","Menyuan Ancient City",37.37189,101.63142,"other",1],["Q19853945","Menyuan Railway Station",37.42639,101.52617,"transit",2]]}

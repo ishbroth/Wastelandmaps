@@ -52,8 +52,8 @@ export function loadMetro(id: string): Promise<Location[]> {
   let hit = loaded.get(id);
   if (!hit) {
     hit = fetch(`${base}metros/${id}.json`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string][] }>) : { places: [] }))
-      .then((m) => m.places.map(([pid, name, lat, lng, category]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId)))
+      .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string, number?][] }>) : { places: [] }))
+      .then((m) => m.places.map(([pid, name, lat, lng, category, fame]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0)))
       .catch(() => [] as Location[]);
     loaded.set(id, hit);
   }

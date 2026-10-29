@@ -1,1 +1,1 @@
-{"id":"cn-06-qiaotou","name":"Qiaotou","country":"CN","center":[36.935,101.67361],"pop":114712,"radiusKm":21,"title":"The Qiaotou Dead Zone","places":[["Q2458252","Tsenpo Gon",37.03,101.81,"chapel"],["Q19852271","Datongxi Railway Station",36.96596,101.67181,"transit"]]}
+{"id":"cn-06-qiaotou","name":"Qiaotou","country":"CN","center":[36.935,101.67361],"pop":114712,"radiusKm":21,"title":"Qiaotou Disputed Territories","places":[["Q2458252","Tsenpo Gon",37.03,101.81,"chapel",1],["Q19852271","Datongxi Railway Station",36.96596,101.67181,"transit",1]]}

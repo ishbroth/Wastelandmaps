@@ -1,1 +1,1 @@
-{"id":"cn-33-baojia","name":"Baojia","country":"CN","center":[29.43869,108.31324],"pop":114103,"radiusKm":20,"title":"Greater Baojia Ruins","places":[["Q14629123","Wulingshan Bridge",29.50056,108.50083,"transit"],["Q16690363","Pengshui Railway Station",29.36472,108.23347,"transit"]]}
+{"id":"cn-33-baojia","name":"Baojia","country":"CN","center":[29.43869,108.31324],"pop":114103,"radiusKm":20,"title":"Metro Baojia Ruins","places":[["Q14629123","Wulingshan Bridge",29.50056,108.50083,"transit",4],["Q16690363","Pengshui Railway Station",29.36472,108.23347,"transit",2]]}

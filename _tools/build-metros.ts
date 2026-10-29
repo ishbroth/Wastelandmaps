@@ -136,7 +136,7 @@ async function fetchRows(metro: Metro, minSitelinks: number): Promise<Row[]> {
 }
 
 // ---- 4. choosing the places ----
-interface Place { id: string; name: string; lat: number; lng: number; category: string; sl: number }
+interface Place { id: string; name: string; lat: number; lng: number; category: string; sl: number; fame: number }
 
 /** How many places a metro gets: about 4.5 per 100,000 people, never fewer than 4 and never more than 600 (the biggest metros would otherwise be huge files). */
 const wanted = (pop: number) => Math.min(600, Math.max(4, Math.round((pop / 100_000) * 4.5)));
@@ -154,7 +154,7 @@ function choose(metro: Metro, rows: Row[]): Place[] {
     if (distanceMeters(metro.city, row) / 1000 > metro.radiusKm) continue;
     const category = categoryOf(classes);
     if (!category) continue;
-    candidates.push({ id: row.item, name: row.label, lat: row.lat, lng: row.lng, category, sl: row.sl * (WEIGHT[category] ?? 1) });
+    candidates.push({ id: row.item, name: row.label, lat: row.lat, lng: row.lng, category, sl: row.sl * (WEIGHT[category] ?? 1), fame: row.sl });
   }
   candidates.sort((a, b) => b.sl - a.sl);
 
@@ -199,8 +199,9 @@ for (const metro of metros) {
   try {
     // start with the notable places; if there are not enough, let less famous ones in
     for (const minSl of metro.pop > 5_000_000 ? [12, 8, 5, 3] : metro.pop > 1_000_000 ? [8, 5, 3, 2] : [4, 3, 2, 1]) {
+      const saved = fs.existsSync(path.join(RAW, `${metro.id}.${minSl}.json`));
       const rows = await fetchRows(metro, minSl);
-      await sleep(900);
+      if (!saved) await sleep(900); // be gentle with Wikidata, but only when we actually asked it
       places = choose(metro, rows);
       if (places.length >= n) break;
     }
@@ -208,16 +209,23 @@ for (const metro of metros) {
     console.log(`  ${metro.city.name}: failed (${e instanceof Error ? e.message : e}), will retry next run`);
     continue;
   }
-  const title = wastelandName(metro.city.name, metro.city.admin1);
+  const title = wastelandName(metro.city.name, metro.city.admin1, metro.city.country, metro.pop);
   const body = {
     id: metro.id, name: metro.city.name, country: metro.city.country, center: [metro.city.lat, metro.city.lng], pop: metro.pop, radiusKm: Math.round(metro.radiusKm), title: title.name,
-    places: places.map((p) => [p.id, p.name, Number(p.lat.toFixed(5)), Number(p.lng.toFixed(5)), p.category]),
+    places: places.map((p) => [p.id, p.name, Number(p.lat.toFixed(5)), Number(p.lng.toFixed(5)), p.category, Math.min(999, p.fame)]),
   };
   fs.writeFileSync(file, JSON.stringify(body));
   index.set(metro.id, { id: metro.id, name: metro.city.name, country: metro.city.country, lat: metro.city.lat, lng: metro.city.lng, pop: metro.pop, radiusKm: Math.round(metro.radiusKm), title: title.name, canon: title.canon, places: places.length });
   // written to a side file and renamed, so a page loading the index mid-build never sees half a file
   fs.writeFileSync(`${indexPath}.tmp`, JSON.stringify([...index.values()].sort((a, b) => b.pop - a.pop)));
-  fs.renameSync(`${indexPath}.tmp`, indexPath);
+  // Windows will not replace a file something is reading: try a few times, then write it in place
+  for (let attempt = 1; ; attempt++) {
+    try { fs.renameSync(`${indexPath}.tmp`, indexPath); break; } catch (e) {
+      if (attempt >= 5) { fs.copyFileSync(`${indexPath}.tmp`, indexPath); break; }
+      await sleep(150 * attempt);
+      void e;
+    }
+  }
   console.log(`[${done}/${metros.length}] ${metro.city.name}, ${metro.city.country}: ${(metro.pop / 1e6).toFixed(2)}M -> ${places.length}/${n} places, "${title.name}"`);
 }
 console.log('done');

@@ -1,2 +1,4 @@
-import { locationFromData } from '../src/lib/wasteland.ts';
-for (const [id, n] of [['wd:Q243', 'Eiffel Tower'], ['wd:Q1', 'Arc de Triomphe'], ['wd:Q2', 'avenue des Champs-Élysées'], ['wd:Q3', 'Notre-Dame de Paris']]) console.log(n, '=>', locationFromData(id, n, { lat: 0, lng: 0 }, n.includes('Notre') ? 'chapel' : 'other').name);
+import { wastelandName } from '../src/lib/lore.ts';
+const rows: [string, string, string, number][] = [['Paris','','FR',12e6],['San Francisco','CA','US',4e6],['Saint Louis','MO','US',2e6],['Minneapolis','MN','US',3e6],['Mumbai','','IN',20e6],['Shanghai','','CN',24e6],['Detroit','MI','US',4e6],
+['Lagos','','NG',15e6],['Lahore','','PK',13e6],['Wolverhampton','','GB',3e5],['Harrisburg','PA','US',5e5],['Canterbury','','GB',1.5e5],['Springfield','MO','US',4e5],['Lyon','','FR',2e6],['Valencia','','ES',1.5e6],['Kano','','NG',4e6],['Fort Lauderdale','FL','US',2e5],['Glendale','AZ','US',3e5],['Cebu','','PH',2.5e6],['Lille','','FR',1e6],['Leeds','','GB',8e5],['Dayton','OH','US',8e5],['Shreveport','LA','US',3e5],['Newport News','VA','US',3e5],['Pune','','IN',6e6],['Kharkiv','','UA',1e6],['Hiroshima','','JP',1e6]];
+for (const [c, s, cc, p] of rows) console.log(c.padEnd(16), '=>', wastelandName(c, s, cc, p).name);

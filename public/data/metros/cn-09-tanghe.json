@@ -1,1 +1,1 @@
-{"id":"cn-09-tanghe","name":"Tanghe","country":"CN","center":[32.68545,112.83234],"pop":278055,"radiusKm":24,"title":"The Tanghe Dead Zone","places":[["Q11143864","Sizhou Temple Pagoda",32.6969,112.83667,"other"],["Q28409511","Tanghe railway station",32.66889,112.84528,"transit"]]}
+{"id":"cn-09-tanghe","name":"Tanghe","country":"CN","center":[32.68545,112.83234],"pop":278055,"radiusKm":24,"title":"Old Tanghe Abandonment","places":[["Q11143864","Sizhou Temple Pagoda",32.6969,112.83667,"other",2],["Q28409511","Tanghe railway station",32.66889,112.84528,"transit",1]]}

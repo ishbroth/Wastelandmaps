@@ -1,1 +1,1 @@
-{"id":"cn-13-bole","name":"Bole","country":"CN","center":[44.89334,82.06993],"pop":235585,"radiusKm":24,"title":"Greater Bole Ruins","places":[["Q3886440","Bole Alashankou Airport",44.895,82.29972,"transit"],["Q85876900","Bole Railway Station",44.90157,82.11085,"transit"]]}
+{"id":"cn-13-bole","name":"Bole","country":"CN","center":[44.89334,82.06993],"pop":235585,"radiusKm":24,"title":"The Bole Reclamation Zone","places":[["Q3886440","Bole Alashankou Airport",44.895,82.29972,"transit",13],["Q85876900","Bole Railway Station",44.90157,82.11085,"transit",2]]}

@@ -26,7 +26,7 @@ export default function LocationCard({ spot, from, wasteland, here, visited, tra
         <span className="rm-card-icon" dangerouslySetInnerHTML={{ __html: iconFor(spot.kind) }} />
         <div className="rm-card-title">
           <b>{spot.name}</b>
-          <i>{spot.kind === 'vault' ? 'Your home' : `formerly ${spot.oldName}`}</i>
+          <i>{spot.kind === 'vault' ? 'Your home' : (spot.name === spot.oldName ? 'Old World landmark' : `formerly ${spot.oldName}`)}</i>
         </div>
         <button type="button" className="rm-card-close" onClick={onClose} aria-label="Close">×</button>
       </div>

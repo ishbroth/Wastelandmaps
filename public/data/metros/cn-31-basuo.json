@@ -1,1 +1,1 @@
-{"id":"cn-31-basuo","name":"Basuo","country":"CN","center":[19.10267,108.66565],"pop":444458,"radiusKm":26,"title":"The Glowing Basuo","places":[["Q24837752","Dongfang railway station",19.09006,108.68774,"transit"],["Q17779743","Huaneng Dongfang Power Plant",19.0492,108.6362,"transit"]]}
+{"id":"cn-31-basuo","name":"Basuo","country":"CN","center":[19.10267,108.66565],"pop":444458,"radiusKm":26,"title":"Basuo After Dark","places":[["Q24837752","Dongfang railway station",19.09006,108.68774,"transit",6],["Q17779743","Huaneng Dongfang Power Plant",19.0492,108.6362,"transit",2]]}

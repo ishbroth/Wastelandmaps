@@ -54,7 +54,7 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
               <span className="rm-row-icon" dangerouslySetInnerHTML={{ __html: iconFor(l.category) }} />
               <span className="rm-row-text">
                 <b>{l.name}{visited.has(l.id) ? ' ✓' : ''}</b>
-                <i>formerly {l.oldName}</i>
+                <i>{l.name === l.oldName ? 'Old World landmark' : `formerly ${l.oldName}`}</i>
                 <small>{l.threat}{l.rads > 60 ? ` · ${l.rads} RADS` : ''} · loot: {l.loot}</small>
               </span>
               <span className="rm-row-dist">{miles(d)}</span>

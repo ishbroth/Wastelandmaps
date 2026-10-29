@@ -1,1 +1,1 @@
-{"id":"br-13-caxias","name":"Caxias","country":"BR","center":[-4.85889,-43.35611],"pop":163546,"radiusKm":22,"title":"The Glowing Caxias","places":[["Q56351282","Memorial da Balaiada",-4.86544,-43.36214,"arena"],["Q12692161","Caxias Airport",-4.86695,-43.35055,"transit"]]}
+{"id":"br-13-caxias","name":"Caxias","country":"BR","center":[-4.85889,-43.35611],"pop":163546,"radiusKm":22,"title":"The Caxias Fallout Zone","places":[["Q56351282","Memorial da Balaiada",-4.86544,-43.36214,"arena",2],["Q12692161","Caxias Airport",-4.86695,-43.35055,"transit",2]]}

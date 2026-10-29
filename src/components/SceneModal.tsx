@@ -90,7 +90,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, o
         <div className="rm-modal-head">
           <div>
             <h2>{spot.name}</h2>
-            <p>{spot.kind === 'vault' ? 'A sealed vault' : `Formerly ${spot.oldName}`}{visited ? ' · DISCOVERED' : ''}</p>
+            <p>{spot.kind === 'vault' ? 'A sealed vault' : (spot.name === spot.oldName ? 'Old World landmark' : `Formerly ${spot.oldName}`)}{visited ? ' · DISCOVERED' : ''}</p>
           </div>
           <button type="button" className="rm-btn rm-btn-ghost" onClick={onClose} aria-label="Close">CLOSE</button>
         </div>

@@ -28,6 +28,8 @@ export function seeded(seed: number): () => number {
   };
 }
 
+import { isFamous, wastelandPlaceName } from './placeNames';
+
 export type CategoryId = 'medical' | 'school' | 'market' | 'fuel' | 'park' | 'guard' | 'cantina' | 'chapel' | 'transit' | 'arena' | 'lodging' | 'other';
 
 export interface Category {
@@ -190,8 +192,8 @@ export function toLocation(place: { id: string; name: string; position: LatLng; 
 }
 
 /** The same, for a place whose category is already known (the pre-built maps). */
-export function locationFromData(id: string, name: string, position: LatLng, categoryId: CategoryId): Location {
-  return locationIn(categoryById(categoryId), { id, name, position });
+export function locationFromData(id: string, name: string, position: LatLng, categoryId: CategoryId, fame = 0): Location {
+  return locationIn(categoryById(categoryId), { id, name, position }, fame);
 }
 
 /** Landmarks get a name that fits what they are, read from their real name in the languages most of them are written in. */
@@ -216,13 +218,19 @@ function landmarkName(realName: string, rand: () => number): string | null {
   return null;
 }
 
-function locationIn(category: Category, place: { id: string; name: string; position: LatLng }): Location {
+/** `fame` is given for the pre-built places: famous ones keep their real name, the rest get a made-up one. Without it (the live Google path) names come from the category's short list. */
+function locationIn(category: Category, place: { id: string; name: string; position: LatLng }, fame?: number): Location {
   const rand = seeded(hashString(place.id || place.name));
+  const nameRand = seeded(hashString(`name:${place.id || place.name}`));
   const threat = THREATS[Math.floor(rand() * THREATS.length)];
   return {
     id: place.id,
     oldName: place.name,
-    name: (category.id === 'other' ? landmarkName(place.name, rand) : null) ?? category.names[Math.floor(rand() * category.names.length)],
+    name: fame === undefined
+      ? (category.id === 'other' ? landmarkName(place.name, rand) : null) ?? category.names[Math.floor(rand() * category.names.length)]
+      : isFamous(category.id, fame)
+        ? place.name
+        : (category.id === 'other' ? landmarkName(place.name, nameRand) : null) ?? wastelandPlaceName(place.name, category.id, nameRand),
     category: category.id,
     position: place.position,
     loot: category.loot[Math.floor(rand() * category.loot.length)],
@@ -307,7 +315,7 @@ export function describeSpot(spot: Spot, regionName: string): string[] {
   }
   const openers = OPENERS[spot.kind] ?? OPENERS.other;
   return [
-    `${spot.name}, ${regionName}. Formerly ${spot.oldName}.`,
+    spot.name === spot.oldName ? `${spot.name}, ${regionName}. One of the Old World's great landmarks, or what the years have left of it.` : `${spot.name}, ${regionName}. Formerly ${spot.oldName}.`,
     openers[Math.floor(rand() * openers.length)],
     `${THREAT_LINES[spot.threat]} Worth a look for: ${spot.loot.toLowerCase()}.`,
   ];

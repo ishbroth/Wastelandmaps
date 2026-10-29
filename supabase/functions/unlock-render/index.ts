@@ -6,16 +6,15 @@
 // Calling it again for a place already unlocked costs nothing: that is how the app asks "is it ready yet?" and how it shows an unlocked render
 // the next time. If the render cannot be made, the credit is given back.
 //
-// Secrets: GEMINI_API_KEY.  Optional: GEMINI_MODEL (default gemini-3.1-flash-lite-image), DAILY_RENDER_CAP (default 150 new renders a day).
+// Secrets: GEMINI_API_KEY.  Optional: GEMINI_MODEL (default gemini-3-pro-image), DAILY_RENDER_CAP (default 150 new renders a day).
 // Deploy: supabase functions deploy unlock-render
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
+import { renderPrompt } from '../_shared/renderPrompt.ts';
 
 const UA = { 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' };
 const ALLOWED_LICENSE = /^(CC BY(?!-NC)(?!-ND)|CC BY-SA(?!-NC)|CC0|Public domain|PD)/i;
 const STALE_AFTER_MS = 150_000; // a render "being made" for longer than this is taken to have been abandoned
-
-const PROMPT = (name: string) => `Re-render this photograph as a scene from a modern open-world post-apocalyptic video game, in the visual style of Fallout 4 gameplay: the same landmark${name ? ` (${name})` : ''}, from the same angle and framing, recognizable and in the same position, but two hundred years after a nuclear war. Heavily weathered and partly collapsed: broken windows, rusted and peeling surfaces, fallen debris and rubble, cracked ground with dead weeds and scrub, abandoned rusted cars, overgrown patches of vines. A hazy dusty sky in sickly orange-green with heavy clouds and a low sun, soft volumetric light, warm highlights and teal shadows, slightly desaturated colors, painterly realistic game-engine look, subtle film grain. Remove all modern people, boats, flags, cranes and signs. No text, no logos, no UI.`;
 
 const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 
@@ -51,15 +50,15 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-async function generate(photo: Photo, name: string): Promise<Uint8Array> {
+async function generate(photo: Photo, name: string, entity: string): Promise<Uint8Array> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) throw new Error('image generation is not set up');
-  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.1-flash-lite-image';
+  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: PROMPT(name) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }],
+      contents: [{ parts: [{ text: renderPrompt(name, entity) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     }),
   });
@@ -122,7 +121,7 @@ Deno.serve(async (req) => {
         return reply(req, { error: 'no_photo' }, 404);
       }
       try {
-        const png = await generate(photo, placeName);
+        const png = await generate(photo, placeName, entity);
         const path = `${entity}.png`;
         const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
         if (up.error) throw new Error('could not store the image');

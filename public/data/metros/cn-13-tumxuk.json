@@ -1,1 +1,1 @@
-{"id":"cn-13-tumxuk","name":"Tumxuk","country":"CN","center":[39.86984,79.06118],"pop":135727,"radiusKm":21,"title":"The Tumxuk Fallout Zone","places":[["Q15713051","Tumxuk Tangwangcheng Airport",39.88056,78.99,"transit"],["Q117437378","Tuokuzisalai Ruins",39.97897,79.03325,"other"]]}
+{"id":"cn-13-tumxuk","name":"Tumxuk","country":"CN","center":[39.86984,79.06118],"pop":135727,"radiusKm":21,"title":"Tumxuk Badlands","places":[["Q15713051","Tumxuk Tangwangcheng Airport",39.88056,78.99,"transit",6],["Q117437378","Tuokuzisalai Ruins",39.97897,79.03325,"other",1]]}

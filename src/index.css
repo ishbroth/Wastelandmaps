@@ -363,3 +363,10 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-paid { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; margin: 6px 0 2px; }
 .rm-paid p { margin: 0; font-size: 13px; color: var(--ink-dim); }
 .rm-modal-actions { display: flex; gap: 6px; }
+
+/* ---- names of continents, countries and states, when zoomed out ---- */
+.rm-region { pointer-events: none; position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-family: var(--font-display); text-transform: uppercase; color: var(--ink); text-shadow: 0 0 8px var(--glow), 0 0 2px var(--bg, #000); opacity: 0.85; text-align: center; }
+.rm-region-continent { font-size: 30px; letter-spacing: 6px; opacity: 0.7; }
+.rm-region-country { font-size: 20px; letter-spacing: 4px; opacity: 0.75; }
+.rm-region-state { font-size: 15px; letter-spacing: 3px; }
+.rm-region-canon { text-decoration: underline dotted; text-underline-offset: 4px; }

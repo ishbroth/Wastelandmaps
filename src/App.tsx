@@ -10,6 +10,7 @@ import { DataPanel, LocationsPanel, SharePanel } from './components/Panels';
 import { geocodeLatLng, geocodeQuery, loadGoogle, type Region } from './lib/google';
 import { loadIndex, loadMetro, metroAt } from './lib/metros';
 import { wastelandName } from './lib/lore';
+import { allLabels, loadRegions, nameForZoom, type RegionLabel } from './lib/regions';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState, writeShareState } from './lib/share';
 import { beep } from './lib/sound';
@@ -48,6 +49,9 @@ export default function App() {
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const [tracking, setTracking] = useState(false);
   const [liveName, setLiveName] = useState('');
+  // while zoomed out the top of the map names the continent, country or state instead of the city
+  const [zoomName, setZoomName] = useState<string | null>(null);
+  const [regionLabels, setRegionLabels] = useState<RegionLabel[]>([]);
   const scanId = useRef(0);
   const metroSeen = useRef<{ current: string; loaded: Set<string> }>({ current: '', loaded: new Set() });
   const viewTimer = useRef<number | undefined>(undefined);
@@ -78,6 +82,11 @@ export default function App() {
 
   const sound = useCallback((kind: 'tick' | 'select' | 'error') => {
     if (soundRef.current) beep(kind);
+  }, []);
+
+  // the names of the continents, countries and states
+  useEffect(() => {
+    void loadRegions().then((data) => data && setRegionLabels(allLabels(data)));
   }, []);
 
   // coming back from Stripe: say so, refresh the balance, and tidy the address bar
@@ -171,8 +180,12 @@ export default function App() {
   }, [sound]);
 
   // ---- the map follows you: moving it into another metro renames the region and brings in that metro's places (pre-built, no Google) ----
-  const followMap = useCallback(async (center: LatLng) => {
+  const followMap = useCallback(async (center: LatLng, zoom: number) => {
     const scan = scanId.current;
+    const regions = await loadRegions();
+    if (regions) setZoomName(nameForZoom(regions, center, zoom));
+    if (zoom < 8) return; // far out, the cities are not what is being looked at
+    if (scan !== scanId.current) return;
     const seen = metroSeen.current;
     const metros = await loadIndex();
     if (scan !== scanId.current) return;
@@ -205,11 +218,11 @@ export default function App() {
     }
   }, []);
 
-  const onViewport = useCallback((center: LatLng) => {
+  const onViewport = useCallback((center: LatLng, zoom: number) => {
     window.clearTimeout(viewTimer.current);
     viewTimer.current = window.setTimeout(() => {
       if (travelRef.current || busyRef.current) return;
-      void followMap(center);
+      void followMap(center, zoom);
     }, 900);
   }, [followMap]);
 
@@ -347,11 +360,11 @@ export default function App() {
 
       <main className="rm-device">
         <div className="rm-screen">
-          {wasteland && <div className="rm-poster-title" key={liveName || wasteland.regionName} aria-hidden="true">{liveName || wasteland.regionName}</div>}
+          {wasteland && <div className="rm-poster-title" key={zoomName ?? (liveName || wasteland.regionName)} aria-hidden="true">{zoomName ?? (liveName || wasteland.regionName)}</div>}
           {status === 'ready' ? (
             <MapView
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={locations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} onSelect={setSelectedId} onViewport={onViewport}
+              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />

@@ -1,1 +1,1 @@
-{"id":"cn-15-longnan","name":"Longnan","country":"CN","center":[33.39791,104.91703],"pop":252623,"radiusKm":20,"title":"The Longnan Ashlands","places":[["Q477646","Wudu District",33.38868,104.92733,"other"],["Q28417245","Longnan Railway Station",33.37718,104.95769,"transit"]]}
+{"id":"cn-15-longnan","name":"Longnan","country":"CN","center":[33.39791,104.91703],"pop":252623,"radiusKm":20,"title":"Longnan Ruins","places":[["Q477646","Wudu District",33.38868,104.92733,"other",16],["Q28417245","Longnan Railway Station",33.37718,104.95769,"transit",1]]}

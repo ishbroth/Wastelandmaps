@@ -2,7 +2,8 @@
 //
 //   1. Get a key: https://aistudio.google.com/apikey (sign in with Gmail, "Create API key").
 //   2. Put it in .env.local (this folder, never committed) as a new line:   GEMINI_API_KEY=your-key
-//   3. node _tools/gen-test.mjs [slug ...]          e.g.  node _tools/gen-test.mjs eiffel
+//   3. npx tsx _tools/gen-test.mjs [slug ...]   (REDO=1 makes new ones even where a result exists)
+//      (old line follows) node _tools/gen-test.mjs [slug ...]          e.g.  node _tools/gen-test.mjs eiffel
 //      GEMINI_MODEL=<model name> overrides the model that is picked automatically.
 //
 // Results go to _data/gen/<slug>-fallout.png and a side-by-side page: _data/gen/sheet.html
@@ -22,7 +23,9 @@ if (!KEY) {
   process.exit(1);
 }
 
-const PROMPT = `Re-render this photograph as a scene from a modern open-world post-apocalyptic video game, in the visual style of Fallout 4 gameplay: the same landmark, from the same angle and framing, recognizable and in the same position, but two hundred years after a nuclear war. Heavily weathered and partly collapsed: broken windows, rusted and peeling surfaces, fallen debris and rubble, cracked ground with dead weeds and scrub, abandoned rusted cars, overgrown patches of vines. A hazy dusty sky in sickly orange-green with heavy clouds and a low sun, soft volumetric light, warm highlights and teal shadows, slightly desaturated colors, painterly realistic game-engine look, subtle film grain. Remove all modern people, boats, flags and signs. No text, no logos, no UI.`;
+import { renderPrompt } from '../supabase/functions/_shared/renderPrompt.ts';
+const IDS = { eiffel: 'Q243', liberty: 'Q9202', spaceneedle: 'Q5317', bigben: 'Q41225', opera: 'Q45178', redeemer: 'Q79961', kremlin: 'Q133274' };
+const NAMES = { eiffel: 'Eiffel Tower', liberty: 'Statue of Liberty', spaceneedle: 'Space Needle', bigben: 'Big Ben', opera: 'Sydney Opera House', redeemer: 'Christ the Redeemer', kremlin: 'The Kremlin, Moscow' };
 
 const api = (p) => `https://generativelanguage.googleapis.com/v1beta/${p}`;
 const headers = { 'x-goog-api-key': KEY, 'Content-Type': 'application/json' };
@@ -54,7 +57,7 @@ for (const slug of slugs) {
   const res = await fetch(api(`models/${model}:generateContent`), {
     method: 'POST', headers,
     body: JSON.stringify({
-      contents: [{ parts: [{ text: PROMPT }, { inline_data: { mime_type: 'image/jpeg', data } }] }],
+      contents: [{ parts: [{ text: renderPrompt(NAMES[slug] ?? slug, IDS[slug]) }, { inline_data: { mime_type: 'image/jpeg', data } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     }),
   });

@@ -4,6 +4,7 @@ import { iconFor } from '../lib/icons';
 import type { Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
+import { levelsAt, type RegionLabel } from '../lib/regions';
 import { VAULT_ID, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
 
 interface Props {
@@ -22,6 +23,8 @@ interface Props {
   onSelect: (id: string | null) => void;
   /** The map came to rest somewhere: where, and how far in. */
   onViewport: (center: LatLng, zoom: number) => void;
+  /** Names of continents, countries and states, shown when the map is zoomed out. */
+  regionLabels: RegionLabel[];
 }
 
 /** The most markers on the map at once. */
@@ -72,10 +75,12 @@ function morphLabel(el: HTMLElement, from: string, to: string) {
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
-export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, onSelect, onViewport }: Props) {
+export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, onSelect, onViewport, regionLabels }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<google.maps.LatLngBoundsLiteral | null>(null);
   const everShown = useRef(new Set<string>());
+  const [zoomNow, setZoomNow] = useState(4);
+  const regionMarkers = useRef(new Map<string, HtmlMarkerHandle>());
   const mapRef = useRef<google.maps.Map | null>(null);
   const pins = useRef(new Map<string, { handle: HtmlMarkerHandle; el: HTMLElement; position: google.maps.LatLngLiteral }>());
   const extras = useRef<{ handle?: HtmlMarkerHandle; circle?: google.maps.Circle }[]>([]);
@@ -113,6 +118,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     map.addListener('click', () => onSelectRef.current(null));
     map.addListener('idle', () => {
       setView(map.getBounds()?.toJSON() ?? null);
+      setZoomNow(map.getZoom() ?? 4);
       const c = map.getCenter();
       if (c) onViewportRef.current({ lat: c.lat(), lng: c.lng() }, map.getZoom() ?? 0);
     });
@@ -216,7 +222,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       everShown.current.add(loc.id);
       if (!firstBatch && brandNew) {
         el.classList.add('rm-pin-new');
-        if (morphed++ < 25) {
+        if (loc.name !== loc.oldName && morphed++ < 25) {
           // the label shows for a moment while the real name turns into the wasteland one
           el.classList.add('rm-pin-announce');
           morphLabel(el.querySelector('.rm-pin-label') as HTMLElement, loc.oldName, loc.name);
@@ -232,6 +238,37 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       pins.current.set(loc.id, { handle, el, position: loc.position });
     }
   }, [locations, hiddenCategories, view]);
+
+  // the names of the big regions, while zoomed out: continents, then countries, then states
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const levels = levelsAt(zoomNow);
+    const padLat = view ? (view.north - view.south) * 0.2 : 0;
+    const padLng = view ? (view.east - view.west) * 0.2 : 0;
+    const wanted = new Map<string, RegionLabel>();
+    for (const label of regionLabels) {
+      if (!levels.includes(label.level)) continue;
+      if (label.level === 'country' && zoomNow >= 6 && label.name === 'The Shattered States') continue; // the states take over
+      const { lat, lng } = label.position;
+      if (view && (lat > view.north + padLat || lat < view.south - padLat || lng > view.east + padLng || lng < view.west - padLng)) continue;
+      wanted.set(`${label.level}:${label.name}`, label);
+    }
+    regionMarkers.current.forEach((handle, key) => {
+      if (wanted.has(key)) return;
+      handle.setMap(null);
+      regionMarkers.current.delete(key);
+    });
+    wanted.forEach((label, key) => {
+      if (regionMarkers.current.has(key)) return;
+      const el = document.createElement('div');
+      el.className = `rm-region rm-region-${label.level}${label.canon ? ' rm-region-canon' : ''}`;
+      el.textContent = label.name;
+      const handle = createHtmlMarker({ position: label.position, element: el, zIndex: 5 });
+      handle.setMap(map);
+      regionMarkers.current.set(key, handle);
+    });
+  }, [regionLabels, zoomNow, view]);
 
   // places you have been to are marked
   useEffect(() => {

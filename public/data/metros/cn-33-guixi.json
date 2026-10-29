@@ -1,1 +1,1 @@
-{"id":"cn-33-guixi","name":"Guixi","country":"CN","center":[30.33355,107.34545],"pop":506343,"radiusKm":23,"title":"Guixi Rad-Lands","places":[["Q19852211","Dianjiang Railway Station",30.3071,107.3737,"transit"],["Q21018005","神合張胡氏節孝坊",30.47264,107.19709,"other"]]}
+{"id":"cn-33-guixi","name":"Guixi","country":"CN","center":[30.33355,107.34545],"pop":506343,"radiusKm":23,"title":"Guixi Remnants","places":[["Q19852211","Dianjiang Railway Station",30.3071,107.3737,"transit",3],["Q21018005","神合張胡氏節孝坊",30.47264,107.19709,"other",1]]}
