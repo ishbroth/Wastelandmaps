@@ -39,6 +39,14 @@ interface Metro { id: string; city: City; pop: number; radiusKm: number; members
 /** The big city's pull: bigger cities gather suburbs from farther away. */
 const reachKm = (pop: number) => 20 + 10 * Math.log10(Math.max(pop, 100_000) / 100_000);
 
+/** Places in the games' stories that are smaller than the size line but still get a small metro of their own. */
+const LORE_TOWNS = [
+  { name: 'Atlantic City', country: 'US', admin1: 'NJ' },
+  { name: 'Palm Springs', country: 'US', admin1: 'CA' },
+  { name: 'Klamath Falls', country: 'US', admin1: 'OR' },
+  { name: 'Redding', country: 'US', admin1: 'CA' },
+];
+
 function findMetros(): Metro[] {
   const sorted = [...cities].sort((a, b) => b.pop - a.pop);
   const centers: Metro[] = [];
@@ -54,7 +62,9 @@ function findMetros(): Metro[] {
     centers.push({ id: '', city, pop: city.pop, radiusKm: reachKm(city.pop), members: 1 });
   }
   const used = new Set<string>();
-  return centers.filter((m) => m.pop >= thresholdFor(m.city.country)).map((m) => {
+  return centers.filter((m) => m.pop >= thresholdFor(m.city.country) || LORE_TOWNS.some((t) => t.name === m.city.name && t.country === m.city.country && t.admin1 === m.city.admin1)).map((m0) => {
+    // a lore town counts as the smallest metro there is
+    const m = LORE_TOWNS.some((t) => t.name === m0.city.name && t.country === m0.city.country && t.admin1 === m0.city.admin1) ? { ...m0, pop: Math.max(m0.pop, thresholdFor(m0.city.country)) } : m0;
     const base = `${m.city.country}-${m.city.admin1 || 'x'}-${m.city.name}`.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `m${hashString(m.city.name)}`;
     let id = base;
     for (let i = 2; used.has(id); i++) id = `${base}-${i}`;
@@ -64,7 +74,7 @@ function findMetros(): Metro[] {
 }
 
 // ---- 2. what kind of place a Wikidata class is ----
-const NOT_A_PLACE = /\b(event|battle|siege|massacre|trials?|incident|riot|protest|disaster|accident|bombings?|attacks?|terror[a-z]*|conflict|occurrence|campaign|expedition|festival|election|murder|disappearance|death|assassination|shooting|crime|scandal|hoax|tournament|games|world cup|cup|championship|competition|contest|season|chain|brand|company|corporation|business|enterprise|retailer|dynasty|empire|kingdom|treaty|language|dialect|religion|ethnic|department|republic|county|municipality|commune|province|prefecture|region|country|state|arrondissement|human settlement|census|township|constituency|supercomputer|computer|dataset|newspaper|television|radio|publication|album|film|painting|database|website|software|league|team|political|ideology|term|list)\b/i;
+const NOT_A_PLACE = /\b(congressional|electoral|legislative|numbering|telephone|postal|area code|zip code|time zone|event|battle|siege|massacre|trials?|incident|riot|protest|disaster|accident|bombings?|attacks?|terror[a-z]*|conflict|occurrence|campaign|expedition|festival|election|murder|disappearance|death|assassination|shooting|crime|scandal|hoax|tournament|games|world cup|cup|championship|competition|contest|season|chain|brand|company|corporation|business|enterprise|retailer|dynasty|empire|kingdom|treaty|language|dialect|religion|ethnic|department|republic|county|municipality|commune|province|prefecture|region|country|state|arrondissement|human settlement|census|township|constituency|supercomputer|computer|dataset|newspaper|television|radio|publication|album|film|painting|database|website|software|league|team|political|ideology|term|list)\b/i;
 // what an uncategorized place has to be to count as a landmark: a structure, a monument, a famous square or street
 const LANDMARK = /\b(tower|skyscraper|building|monument|memorial|statue|sculpture|arch|triumphal|gate|bridge|palace|castle|chateau|château|fortress|citadel|ruins?|archaeolog[a-z]*|landmark|attraction|avenue|boulevard|promenade|pier|lighthouse|dam|windmill|theatre|theater|opera|amphitheat[a-z]*|pyramid|obelisk|fountain|mausoleum|tomb|heritage|historic|observation|ferris|mill|prison|pavilion|villa|manor|mansion|house|complex|cross|column|wall|garden|estate|temple|tourist|viewpoint|market hall|hall|walk|bazaar|shopping street|pedestrian|district|neighbou?rhood|quarter|chinatown|little italy|amusement park|theme park|zoo|aquarium|stadium|racecourse|circus|market|shopping|restaurant|diner)\b/i;
 /** How much a kind of place counts toward being picked: the famous and the visitable first, the everyday after. */
@@ -136,7 +146,7 @@ async function fetchRows(metro: Metro, minSitelinks: number): Promise<Row[]> {
 }
 
 /** Bump when the rules for choosing places change, so the next run redoes every metro. */
-const SELECTION_VERSION = 3;
+const SELECTION_VERSION = 4;
 
 // ---- 4. choosing the places ----
 interface Place { id: string; name: string; lat: number; lng: number; category: string; sl: number; fame: number; station: boolean; neighborhood: boolean }
@@ -145,7 +155,7 @@ interface Place { id: string; name: string; lat: number; lng: number; category: 
 const wanted = (pop: number) => Math.min(600, Math.max(4, Math.round((pop / 100_000) * 4.95)));
 
 /** How the places of a metro are shared out among the kinds of place: landmarks, towers and neighborhoods first, shops and restaurants next. */
-const SHARE: Record<string, number> = { other: 0.28, arena: 0.09, market: 0.09, cantina: 0.08, school: 0.09, park: 0.08, chapel: 0.07, guard: 0.06, medical: 0.05, lodging: 0.04, transit: 0.05, fuel: 0.0 };
+const SHARE: Record<string, number> = { other: 0.3, arena: 0.12, market: 0.1, cantina: 0.1, school: 0.08, park: 0.08, chapel: 0.06, guard: 0.05, medical: 0.05, lodging: 0.03, transit: 0.05, fuel: 0.0 };
 /** The most of any one kind (a share of the metro's places): the everyday kinds never crowd out the rest. */
 const CAP: Record<string, number> = { school: 0.13, chapel: 0.09, transit: 0.06, park: 0.11, medical: 0.07, fuel: 0.02, cantina: 0.14, market: 0.14, lodging: 0.07, guard: 0.1, arena: 0.14 };
 
@@ -164,6 +174,32 @@ async function learnImages(ids: string[]): Promise<void> {
   }
 }
 
+// the countries where more is looked for: the Americas north of Mexico, Europe and Australasia (restaurants, stores, theatres, towers, piers)
+const TARGET = new Set(['US', 'CA', 'AU', 'NZ', 'AL', 'AD', 'AT', 'BY', 'BE', 'BA', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IS', 'IE', 'IT', 'XK', 'LV', 'LI', 'LT', 'LU', 'MT', 'MD', 'MC', 'ME', 'NL', 'MK', 'NO', 'PL', 'PT', 'RO', 'RU', 'SM', 'RS', 'SK', 'SI', 'ES', 'SE', 'CH', 'UA', 'GB']);
+/** Not a place on a map: an electoral district, a telephone area code. */
+const NOT_A_PLACE_NAME = /congressional district|legislative district|school district|electoral|area codes?\b|zip codes?|postal code|time zone|telephone|numbering plan/i;
+
+// Wikidata's restaurants, stores, theatres and towers that few have written about: asked for on their own, since the general search stops at the famous ones
+const EXTRA_CLASSES = ['Q11707', 'Q30022', 'Q187456', 'Q212198', 'Q216107', 'Q11315', 'Q31374404', 'Q24354', 'Q41253', 'Q153562', 'Q1060829', 'Q11303', 'Q1021645', 'Q863454', 'Q194195', 'Q180846', 'Q274393', 'Q39715'];
+async function fetchExtraRows(metro: Metro): Promise<Row[]> {
+  if (!TARGET.has(metro.city.country)) return [];
+  const cache = path.join(RAW, metro.id + '.extra.json');
+  if (fs.existsSync(cache)) return JSON.parse(fs.readFileSync(cache, 'utf8')) as Row[];
+  const radius = Math.min(metro.radiusKm, 35);
+  const query = 'SELECT ?item ?itemLabel ?sl ?coord ?classLabel WHERE {\n  SERVICE wikibase:around { ?item wdt:P625 ?coord . bd:serviceParam wikibase:center "Point(' + metro.city.lng + ' ' + metro.city.lat + ')"^^geo:wktLiteral . bd:serviceParam wikibase:radius "' + radius + '" . }\n  ?item wikibase:sitelinks ?sl . FILTER(?sl >= 1)\n  ?item wdt:P31 ?class .\n  VALUES ?class { ' + EXTRA_CLASSES.map((c) => 'wd:' + c).join(' ') + ' }\n  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,mul,fr,de,es,pt,it,nl,ru". }\n} LIMIT 1500';
+  let data;
+  try { data = await sparql(query); } catch { return []; } // not fatal: the general list still works
+  const rows: Row[] = [];
+  for (const b of data.results.bindings) {
+    const m = /Point\(([-\d.e]+) ([-\d.e]+)\)/.exec(b.coord.value);
+    if (!m) continue;
+    rows.push({ item: b.item.value.split('/').pop() as string, label: b.itemLabel.value, sl: Number(b.sl.value), lat: Number(m[2]), lng: Number(m[1]), klass: b.classLabel.value });
+  }
+  fs.writeFileSync(cache, JSON.stringify(rows));
+  await sleep(900);
+  return rows;
+}
+
 function candidatesOf(metro: Metro, rows: Row[]): Place[] {
   const byItem = new Map<string, { row: Row; classes: string[] }>();
   for (const r of rows) {
@@ -174,9 +210,12 @@ function candidatesOf(metro: Metro, rows: Row[]): Place[] {
   const out: Place[] = [];
   for (const { row, classes } of byItem.values()) {
     if (/^Q\d+$/.test(row.label)) continue; // no readable name
+    if (NOT_A_PLACE_NAME.test(row.label)) continue;
     if (distanceMeters(metro.city, row) / 1000 > metro.radiusKm) continue;
     const category = categoryOf(classes);
     if (!category) continue;
+    // mosques: in the Americas north of Mexico, Europe and Australasia only one in five is kept, to make room for other places
+    if (TARGET.has(metro.city.country) && classes.some((l) => /mosque/i.test(l)) && hashString(row.item) % 5 !== 0) continue;
     // a station counts for much less than a bridge or an airport: every stop of a subway line is not a landmark
     const station = category === 'transit' && classes.some((l) => /station|stop|terminal|metro|subway|underground|tram|halt/i.test(l));
     const neighborhood = category === 'other' && classes.some((l) => /neighbou?rhood|quarter|district|chinatown|little italy|village|borough|suburb/i.test(l));
@@ -188,7 +227,7 @@ function candidatesOf(metro: Metro, rows: Row[]): Place[] {
 
 async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
   const n = wanted(metro.pop);
-  const all = candidatesOf(metro, rows);
+  const all = candidatesOf(metro, rows.concat(await fetchExtraRows(metro)));
   // look at the best few times what is needed, and prefer the ones that have a photo to make a snapshot from
   const pool = all.slice(0, Math.min(2600, n * 4 + 20));
   await learnImages(pool.map((c) => c.id));
@@ -261,7 +300,9 @@ for (const metro of metros) {
       const rows = await fetchRows(metro, minSl);
       if (!saved) await sleep(900); // be gentle with Wikidata, but only when we actually asked it
       places = await choose(metro, rows);
-      if (places.length >= n) break;
+      // enough places, and enough of each main kind (schools, churches, parks, theatres...); otherwise let less famous ones in too
+      const short = Object.entries(SHARE).some(([cat, share]) => share >= 0.05 && places.filter((q) => q.category === cat).length < Math.round(n * share * 0.6));
+      if (places.length >= n && !short) break;
     }
   } catch (e) {
     console.log(`  ${metro.city.name}: failed (${e instanceof Error ? e.message : e}), will retry next run`);

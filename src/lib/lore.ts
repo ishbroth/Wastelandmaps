@@ -16,6 +16,8 @@ const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
 
 /** Real cities (and a whole state) with a name in the games and lore. Keys are "city|ST", lowercased city. */
 const CANON: Record<string, string> = {
+  'palm springs|ca': 'Shady Sands',
+  'redding|ca': 'Redding',
   'klamath falls|or': 'Klamath',
   'ontario|ca': 'The Hub',
   'san bernardino|ca': 'The Hub',
@@ -57,7 +59,7 @@ const NICKNAMES: Record<string, string> = {
   // United States: plays on the name
   'detroit|mi': 'The Motor City Wasteland',
   'atlanta|ga': 'Atomlanta',
-  'chicago|il': 'The Windy Wastes',
+  'chicago|il': 'Chicagoland Wastes',
   'new york|ny': 'The Big Rotten Apple',
   'new york city|ny': 'The Big Rotten Apple',
   'seattle|wa': 'The Emerald Ashlands',
@@ -92,7 +94,8 @@ const NICKNAMES: Record<string, string> = {
   'honolulu|hi': 'The Isles of Rad',
   'chattanooga|tn': 'Chattanuke-a',
   // United States: plain
-  'philadelphia|pa': 'Philly',
+  'philadelphia|pa': 'New Philly',
+  'atlantic city|nj': 'Atlantic City Boardwalk Ruins',
   'portland|or': 'The Port',
   'portland|me': 'The Lobster Wastes',
   'jacksonville|fl': 'Jacksonville Remnants',

@@ -19,6 +19,9 @@ export interface MetroEntry {
   places: number;
 }
 
+/** Things on Wikidata with coordinates that are not places on a map: electoral districts, telephone area codes and the like. */
+const NOT_A_PLACE = /congressional district|legislative district|school district|electoral|area codes?|zip codes?|postal code|time zone|telephone|numbering plan/i;
+
 const base = `${import.meta.env.BASE_URL}data/`;
 let index: Promise<MetroEntry[]> | null = null;
 const loaded = new Map<string, Promise<Location[]>>();
@@ -77,6 +80,7 @@ export function loadMetro(metro: MetroEntry): Promise<Location[]> {
     hit = fetch(`${base}metros/${id}.json`)
       .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string, number?, number?][] }>) : { places: [] }))
       .then((m) => m.places.map(([pid, name, lat, lng, category, fame, area]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0, area === 1)))
+      .then((places) => places.filter((p) => !NOT_A_PLACE.test(p.oldName)))
       .then((places) => assignVaults(metro, withFreeLandmarks(metro, places)))
       .catch(() => [] as Location[]);
     loaded.set(id, hit);
