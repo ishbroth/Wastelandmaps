@@ -6,8 +6,9 @@ import type { Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
 import { patchOutline, type FloodPatch } from '../lib/flood';
+import { cloudOutline } from '../lib/zones';
 import { levelsAt, type RegionLabel } from '../lib/regions';
-import { VAULT_ID, subtitle, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
+import { VAULT_ID, hashString, subtitle, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
 
 interface Props {
   look: Look;
@@ -119,7 +120,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
   const floodShapes = useRef(new Map<string, google.maps.Polygon>());
   const mapRef = useRef<google.maps.Map | null>(null);
   const pins = useRef(new Map<string, { handle: HtmlMarkerHandle; el: HTMLElement; position: google.maps.LatLngLiteral }>());
-  const extras = useRef<{ handle?: HtmlMarkerHandle; circle?: google.maps.Circle }[]>([]);
+  const extras = useRef<{ handle?: HtmlMarkerHandle; circle?: google.maps.Circle; clouds?: google.maps.Polygon[] }[]>([]);
   const vault = useRef<{ el: HTMLElement; position: LatLng } | null>(null);
   const you = useRef<{ handle: HtmlMarkerHandle; el: HTMLElement } | null>(null);
   const onSelectRef = useRef(onSelect);
@@ -149,7 +150,12 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     });
     mapRef.current = map;
     if (import.meta.env.DEV) (window as unknown as { __wlmap?: google.maps.Map }).__wlmap = map; // for the browser checks in _tools
-    const markClose = () => holder.current?.classList.toggle('rm-zoomed', (map.getZoom() ?? 0) >= LABEL_ZOOM);
+    const markClose = () => {
+      const zoom = map.getZoom() ?? 0;
+      holder.current?.classList.toggle('rm-zoomed', zoom >= LABEL_ZOOM);
+      // half size at city level, full size from three zoom steps closer
+      holder.current?.style.setProperty('--pin-size', `${Math.round(Math.min(36, Math.max(18, 18 + (zoom - 11) * 6)))}px`);
+    };
     map.addListener('zoom_changed', markClose);
     // a click on empty map clears the choice, but not the same moment a marker was pressed
     map.addListener('click', () => {
@@ -203,6 +209,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     extras.current.forEach((x) => {
       x.handle?.setMap(null);
       x.circle?.setMap(null);
+      x.clouds?.forEach((c) => c.setMap(null));
     });
     extras.current = [];
     vault.current = null;
@@ -216,24 +223,19 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     vault.current = { el: vaultEl, position: wasteland.vault.position };
 
     for (const zone of wasteland.zones) {
-      const circle = new google.maps.Circle({
-        map,
-        center: zone.position,
-        radius: zone.radiusMeters,
-        strokeColor: look.zoneStroke,
-        strokeOpacity: 0.85,
-        strokeWeight: 1.5,
-        fillColor: look.zoneStroke,
-        fillOpacity: 0.16,
-        clickable: false,
-      });
+      // a soft, uneven cloud: three layers, each a different shape, thickest at the middle
+      const seed = zone.seed ?? hashString(`${zone.position.lat.toFixed(4)},${zone.position.lng.toFixed(4)}`);
+      const clouds = [[1, 0.1], [0.72, 0.12], [0.46, 0.16]].map(([scale, opacity], layer) => new google.maps.Polygon({
+        map, clickable: false, zIndex: 3 + layer, paths: cloudOutline(zone.position, zone.radiusMeters * scale, seed, layer),
+        fillColor: look.zoneStroke, fillOpacity: opacity, strokeColor: look.zoneStroke, strokeOpacity: layer === 0 ? 0.28 : 0, strokeWeight: 1,
+      }));
       const marker = createHtmlMarker({
         position: zone.position,
         element: pinElement('rad', iconFor('rad'), 'IRRADIATED', `${zone.rads} RADS`, 'rm-pin-rad'),
         zIndex: 10,
       });
       marker.setMap(map);
-      extras.current.push({ handle: marker, circle });
+      extras.current.push({ handle: marker, clouds });
     }
   }, [wasteland, look]);
 
@@ -316,11 +318,25 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     const padLat = view ? (view.north - view.south) * 0.2 : 0;
     const padLng = view ? (view.east - view.west) * 0.2 : 0;
     const wanted = new Map<string, RegionLabel>();
-    for (const label of regionLabels) {
+    // the biggest places first; a label that would land on top of one already placed (on screen, at this zoom) is left out until you zoom in
+    const world = 256 * 2 ** zoomNow;
+    const toPixels = ({ lat, lng }: LatLng) => {
+      const sin = Math.sin((lat * Math.PI) / 180);
+      return { x: ((lng + 180) / 360) * world, y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * world };
+    };
+    const SIZE = { continent: { px: 30, spacing: 6 }, country: { px: 20, spacing: 4 }, state: { px: 15, spacing: 3 } } as const;
+    const boxes: { x: number; y: number; w: number; h: number }[] = [];
+    const ranked = [...regionLabels].sort((x, y) => y.weight - x.weight);
+    for (const label of ranked) {
       if (!levels.includes(label.level)) continue;
-      if (label.level === 'country' && zoomNow >= 6 && label.name === 'The Shattered States') continue; // the states take over
+      if (label.level === 'country' && zoomNow >= 6 && label.iso === 'US') continue; // the states take over
       const { lat, lng } = label.position;
       if (view && (lat > view.north + padLat || lat < view.south - padLat || lng > view.east + padLng || lng < view.west - padLng)) continue;
+      const at = toPixels(label.position);
+      const font = SIZE[label.level];
+      const box = { x: at.x, y: at.y, w: label.name.length * (font.px * 0.62 + font.spacing) + 16, h: font.px * 1.5 };
+      if (boxes.some((o) => Math.abs(o.x - box.x) < (o.w + box.w) / 2 && Math.abs(o.y - box.y) < (o.h + box.h) / 2)) continue;
+      boxes.push(box);
       wanted.set(`${label.level}:${label.name}`, label);
     }
     regionMarkers.current.forEach((handle, key) => {

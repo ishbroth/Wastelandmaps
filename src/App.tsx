@@ -12,6 +12,7 @@ import { geocodeLatLng, geocodeQuery, loadGoogle, type Region } from './lib/goog
 import { loadIndex, loadMetro, metroAt } from './lib/metros';
 import { wastelandName } from './lib/lore';
 import { loadFlood, type FloodPatch } from './lib/flood';
+import { loadZones, zoneFromEntry } from './lib/zones';
 import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORTH_AMERICA, type RegionLabel } from './lib/regions';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState } from './lib/share';
@@ -179,6 +180,9 @@ export default function App() {
       const home = metroAt(await loadIndex(), r.center, 40);
       const title = home?.title ?? wastelandName(r.city, r.state).name;
       const w = generateWasteland(r.city, r.center, r.radiusMeters * 0.8, title);
+      // the radiation zones come from the sparse parts of the city (made ahead of time); the random ones are only for places with none
+      const madeZones = home ? (await loadZones())[home.id] : undefined;
+      if (madeZones) w.zones = madeZones.map(zoneFromEntry);
       scanId.current += 1;
       metroSeen.current = { current: home?.id ?? '', loaded: new Set(home ? [home.id] : []) };
       setLiveName(title);
@@ -255,7 +259,8 @@ export default function App() {
       });
       const found = await loadMetro(under);
       if (scan !== scanId.current) return;
-      const extra = generateWasteland(under.name, { lat: under.lat, lng: under.lng }, Math.min(under.radiusKm, 25) * 400, under.title).zones;
+      const madeZones = (await loadZones())[under.id];
+      const extra = madeZones ? madeZones.map(zoneFromEntry) : generateWasteland(under.name, { lat: under.lat, lng: under.lng }, Math.min(under.radiusKm, 25) * 400, under.title).zones;
       setWasteland((w) => (w ? { ...w, zones: [...w.zones, ...extra] } : w));
       const known = new Set(locationsRef.current.map((l) => l.id));
       const fresh = found.filter((l) => !known.has(l.id));

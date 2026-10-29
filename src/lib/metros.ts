@@ -1,6 +1,7 @@
 // The pre-built wasteland: for each metro area, a handful of notable real places with their wasteland names and icons, made ahead of time
 // (see _tools/build-metros.ts) from open data. Nothing is asked of Google here; these are plain files served with the site.
 
+import { FREE_RENDERS } from './renders';
 import { assignVaults } from './vaults';
 import { distanceMeters, locationFromData, type CategoryId, type LatLng, type Location } from './wasteland';
 
@@ -48,15 +49,35 @@ export function metroAt(metros: MetroEntry[], point: LatLng, slackKm = 0): Metro
   return best;
 }
 
+/**
+ * The landmarks with a free snapshot always appear on the map of the metro they stand in, even if the pre-built list left them out, and the ones
+ * with a special wasteland name carry it ("F&F Tower" is "Revolution Tower").
+ */
+function withFreeLandmarks(metro: MetroEntry, places: Location[]): Location[] {
+  for (const [id, landmark] of Object.entries(FREE_RENDERS)) {
+    if (landmark.lat === undefined || landmark.lng === undefined) continue;
+    const here = { lat: landmark.lat, lng: landmark.lng };
+    if (distanceMeters({ lat: metro.lat, lng: metro.lng }, here) > metro.radiusKm * 1000 + 8000) continue;
+    const key = `wd:${id}`;
+    let spot = places.find((p) => p.id === key);
+    if (!spot) {
+      spot = locationFromData(key, landmark.real ?? landmark.name, here, 'other', 999);
+      places.push(spot);
+    }
+    if (landmark.postName) spot.name = landmark.postName;
+  }
+  return places;
+}
+
 /** The places of one metro, as wasteland locations. */
 export function loadMetro(metro: MetroEntry): Promise<Location[]> {
   const id = metro.id;
   let hit = loaded.get(id);
   if (!hit) {
     hit = fetch(`${base}metros/${id}.json`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string, number?][] }>) : { places: [] }))
-      .then((m) => m.places.map(([pid, name, lat, lng, category, fame]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0)))
-      .then((places) => assignVaults(metro, places))
+      .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string, number?, number?][] }>) : { places: [] }))
+      .then((m) => m.places.map(([pid, name, lat, lng, category, fame, area]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0, area === 1)))
+      .then((places) => assignVaults(metro, withFreeLandmarks(metro, places)))
       .catch(() => [] as Location[]);
     loaded.set(id, hit);
   }

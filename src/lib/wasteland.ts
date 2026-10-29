@@ -87,12 +87,12 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: 'transit', label: 'Transit', types: ['airport', 'train_station', 'subway_station', 'transit_station', 'bus_station', 'light_rail_station'],
-    names: ['Old World Airfield', 'Derelict Rail Depot', 'Tunnel Junction', 'Collapsed Terminal', 'Ghost Platform'],
+    names: ['Old World Airfield', 'Derelict Rail Depot', 'Tunnel Junction', 'Collapsed Terminal', 'Burnt Platform'],
     loot: ['Rail tokens', 'Luggage caches', 'Fast-travel point', 'Raider camps', 'Maps'],
   },
   {
     id: 'arena', label: 'Arenas', types: ['stadium', 'amusement_park', 'movie_theater', 'zoo', 'museum', 'bowling_alley'],
-    names: ['The Broken Arena', 'Fairground Wreck', 'Cinema of Ghosts', 'Rollercoaster Skeleton', 'Hall of Relics'],
+    names: ['The Broken Arena', 'Fairground Wreck', 'Looted Cinema', 'Wrecked Rollercoaster', 'Hall of Relics'],
     loot: ['Collectibles', 'Raider fights', 'Ticket stubs', 'Scrap steel', 'A great view'],
   },
   {
@@ -135,7 +135,7 @@ export interface Wasteland {
   /** "The Seattle Wasteland" */
   regionName: string;
   vault: { position: LatLng; number: string };
-  zones: { position: LatLng; radiusMeters: number; rads: number }[];
+  zones: { position: LatLng; radiusMeters: number; rads: number; seed?: number }[];
 }
 
 const metersToDegLat = (m: number) => m / 111_320;
@@ -199,25 +199,27 @@ export function toLocation(place: { id: string; name: string; position: LatLng; 
 }
 
 /** The same, for a place whose category is already known (the pre-built maps). */
-export function locationFromData(id: string, name: string, position: LatLng, categoryId: CategoryId, fame = 0): Location {
-  return locationIn(categoryById(categoryId), { id, name, position }, fame);
+export function locationFromData(id: string, name: string, position: LatLng, categoryId: CategoryId, fame = 0, neighborhood = false): Location {
+  const loc = locationIn(categoryById(categoryId), { id, name, position }, fame);
+  if (neighborhood) loc.icon = 'cluster'; // a district of the city, drawn as a few buildings together
+  return loc;
 }
 
 /** Landmarks get a name that fits what they are, read from their real name in the languages most of them are written in. */
 const LANDMARK_NAMES: [RegExp, string[]][] = [
   [/\b(?:tower|tour|turm|torre|toren|tårn|wieża)\b/i, ['The Fallen Spire', 'Rusted Needle', 'Leaning Beacon', 'Broken Spire']],
-  [/\b(?:arch|arc|arco|bogen|triumphal)\b/i, ['The Shattered Arch', 'Gate of Ghosts', 'Cracked Archway']],
+  [/\b(?:arch|arc|arco|bogen|triumphal)\b/i, ['The Shattered Arch', 'Bombed Gateway', 'Cracked Archway']],
   [/\b(?:palace|palais|palazzo|palacio|schloss|château|chateau|castle|castello|castillo|burg|fortress|citadel|fort)\b/i, ['The Ruined Court', 'Warlord Keep', 'Hollow Fortress', 'Raider Citadel']],
   [/\b(?:cathedral|cathédrale|kathedrale|catedral|duomo|basilica|basilique|abbey|abbaye|monastery)\b/i, ['The Hollow Cathedral', 'Chapel of Ash', 'Broken Sanctuary']],
   [/\b(?:bridge|pont|brücke|ponte|puente|brug)\b/i, ['The Broken Span', 'Collapsed Crossing', 'Rust Bridge']],
   [/\b(?:monument|memorial|statue|obelisk|column|colonne|sculpture)\b/i, ['The Toppled Idol', 'Monument to Nothing', 'Fallen Founder']],
-  [/\b(?:avenue|boulevard|promenade|champs|street|rue|strasse|straße|via|calle|plaza|square|place|platz|piazza)\b/i, ['The Dead Mile', 'Ghost Promenade', 'The Long Rubble', 'Ashen Concourse']],
+  [/\b(?:avenue|boulevard|promenade|champs|street|rue|strasse|straße|via|calle|plaza|square|place|platz|piazza)\b/i, ['The Dead Mile', 'Looted Promenade', 'The Long Rubble', 'Ashen Concourse']],
   [/\b(?:opera|theatre|théâtre|theater|teatro|garnier)\b/i, ['The Silent Stage', 'Gilded Ruin', 'Last Curtain']],
   [/\b(?:market|bazaar|souk|halle)\b/i, ['The Scrap Bazaar', 'Trader Maze']],
   [/\b(?:hill|montmartre|mount|mont|berg|bunker)\b/i, ['The High Wreck', 'Overlook of Ruin']],
   [/\b(?:capitol|parliament|assembly|congress|senate|city hall|hôtel de ville|rathaus)\b/i, ['The Old Assembly', 'Hall of Dead Laws', 'Rusted Senate']],
   [/\b(?:pyramid|temple|shrine|pagoda|mosque|synagogue)\b/i, ['The Sun-Bleached Temple', 'Hollow Shrine', 'Altar of Ash']],
-  [/\b(?:skyscraper|center|centre|plaza|building|world trade|empire state)\b/i, ['The Broken Giant', 'Skeleton Tower', 'Hollow Skyscraper']],
+  [/\b(?:skyscraper|center|centre|plaza|building|world trade|empire state)\b/i, ['The Broken Giant', 'Gutted Tower', 'Hollow Skyscraper']],
 ];
 
 function landmarkName(realName: string, rand: () => number): string | null {
@@ -278,7 +280,7 @@ const OPENERS: Record<CategoryId, string[]> = {
   cantina: ['Light spills from the windows, and so does laughter. Drinks are cheap, and the rumors are free.', 'A mug-shaped sign buzzes over the door. Inside, a card game has been running since before you were born.', 'The bar is made from a pre-war door on two oil drums. The bartender has heard every lie there is.'],
   chapel: ['The steeple is cracked but standing. Candles burn in the windows, and nobody will say who lights them.', 'Pews are pushed against the walls to make room for cots. The altar is a workbench now, and just as holy.', 'The bell hangs silent, wrapped in wire so raiders cannot steal it. The stained glass is mostly cardboard.'],
   transit: ['The departure board is dark, but its last message is still scratched into the dust: everything delayed.', 'Rails run off into the dark of a tunnel nobody walks alone. Luggage lies where it fell on the last day.', 'A control tower leans over a runway full of cracks and weeds. The planes will not be flying again.'],
-  arena: ['The stands are half collapsed, but the field is still a good place to settle things. The crowds are smaller now, and louder.', 'Rusted floodlights loom over the pitch like skeletal giants. The scoreboard is frozen on a final score.', 'Fairground rides stand as skeletons against the sky. The carousel horses are still smiling.'],
+  arena: ['The stands are half collapsed, but the field is still a good place to settle things. The crowds are smaller now, and louder.', 'Rusted floodlights loom over the pitch like skeletal giants. The scoreboard is frozen on a final score.', 'Fairground rides stand bent and rusted against the sky. The carousel horses are still smiling.'],
   lodging: ['Room keys hang behind the front desk in neat rows. Some of the rooms are still occupied, in a manner of speaking.', 'The hotel stands taller than anything for a mile, which makes it both a landmark and a target.', 'The lobby chandelier lies in pieces across the marble. A bed upstairs is still made.'],
   other: ['It is not much to look at, but it is on the map, so somebody thought it mattered once.', 'You cannot tell what this place was for. That is not the same as it being empty.', 'The ruins keep their secrets well. Walking in is the only way to find out.'],
 };

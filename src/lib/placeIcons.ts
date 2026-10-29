@@ -71,6 +71,11 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (test(/christ the redeemer|cristo redentor/, n)) return 'redeemer';
   if (test(/\bkremlin\b/, n)) return 'kremlin';
   if (test(/arc de triomphe|arch of triumph|triumphal arch|brandenburg gate|gateway arch|arco de|arc du|porte de|wellington arch|india gate/, n)) return 'arch';
+  if (test(/tokyo tower|oriental pearl|cn tower|hillbrow|coit tower|leaning tower|torre de pisa/, n)) return 'tower';
+  if (test(/taj mahal|independence hall/, n)) return 'capitol';
+  if (test(/superdome/, n)) return 'stadium';
+  if (test(/rock and roll hall of fame/, n)) return 'museum';
+  if (test(/hollywood sign|washington monument|obelisco/, n)) return 'monument';
   if (test(/big ben|elizabeth tower|clock tower|clocktower|tour de l.horloge|uhrturm|torre del reloj|torre dell.orologio|zytglogge/, n)) return 'clocktower';
 
   // what the name says it is

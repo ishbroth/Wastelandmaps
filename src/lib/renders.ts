@@ -2,6 +2,8 @@
 // licensed Wikimedia Commons photo by an image model (see _tools/gen-test.mjs). Keyed by Wikidata id. Every other place's render is a paid extra.
 // The photo's author and license stay with the render: most are CC BY-SA, so the render is shared under the same license.
 
+import { MORE_RENDERS } from './rendersMore';
+
 export interface FreeRender {
   name: string;
   /** The photo it was made from. */
@@ -9,9 +11,16 @@ export interface FreeRender {
   author: string;
   license: string;
   page: string;
+  /** Where it stands, for the landmarks added later (so they always show on the map of their metro). */
+  lat?: number;
+  lng?: number;
+  /** The real name, when it differs from `name`. */
+  real?: string;
+  /** The name the wasteland gives it, when it should not simply keep its real one. */
+  postName?: string;
 }
 
-export const FREE_RENDERS: Record<string, FreeRender> = {
+const ORIGINAL_RENDERS: Record<string, FreeRender> = {
   Q243: { name: "Eiffel Tower", photo: "Tour Eiffel Wikimedia Commons", author: "Benh LIEU SONG", license: "Public domain", page: "https://commons.wikimedia.org/wiki/File:Tour_Eiffel_Wikimedia_Commons.jpg" },
   Q9202: { name: "Statue of Liberty", photo: "Statue of Liberty and a sightseeing boat, Liberty Island, New York", author: "Christian David", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Statue_of_Liberty_and_a_sightseeing_boat,_Liberty_Island,_New_York.jpg" },
   Q5317: { name: "Space Needle", photo: "Seattle, October 6, 2023 - 60", author: "Another Believer", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Seattle,_October_6,_2023_-_60.jpg" },
@@ -20,6 +29,9 @@ export const FREE_RENDERS: Record<string, FreeRender> = {
   Q79961: { name: "Christ the Redeemer", photo: "Christ the Redeemer - Cristo Redentor", author: "Arne Müseler", license: "CC BY-SA 3.0 de", page: "https://commons.wikimedia.org/wiki/File:Christ_the_Redeemer_-_Cristo_Redentor.jpg" },
   Q133274: { name: "The Kremlin, Moscow", photo: "Moscow 05-2012 Kremlin 22", author: "A.Savin", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Moscow_05-2012_Kremlin_22.jpg" },
 };
+
+/** Every landmark with a free snapshot: the first seven, then the ones added since (rendersMore.ts, made by _tools/add-landmarks.mjs). */
+export const FREE_RENDERS: Record<string, FreeRender> = { ...ORIGINAL_RENDERS, ...MORE_RENDERS };
 
 /** The free render for a place on the map, by its id ("wd:Q243"), or undefined. */
 export function freeRenderFor(spotId: string): (FreeRender & { url: string; before: string }) | undefined {

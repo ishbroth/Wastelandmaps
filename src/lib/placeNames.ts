@@ -17,22 +17,22 @@ export const isFamous = (category: CategoryId, fame: number): boolean => fame >=
 
 // ---- words ----
 const ADJECTIVES = [
-  'Rusted', 'Broken', 'Hollow', 'Sunken', 'Burnt', 'Ashen', 'Silent', 'Forgotten', 'Gutted', 'Shattered', 'Bleak', 'Crooked', 'Scorched',
-  'Dusty', 'Withered', 'Hungry', 'Cursed', 'Drowned', 'Feral', 'Lost', 'Last', 'Dead', 'Twisted', 'Salted', 'Black', 'Gray', 'Rotten',
-  'Splintered', 'Sagging', 'Blasted', 'Cracked', 'Pitted', 'Weeping', 'Skeleton', 'Glowing', 'Sour', 'Bitter', 'Faded', 'Sullen', 'Wretched',
-  'Lonesome', 'Tattered', 'Frayed', 'Ragged', 'Smoldering', 'Frozen', 'Leaning', 'Vacant', 'Plundered', 'Haunted', 'Brittle', 'Rancid',
-  'Smoke-Stained', 'Bone-Dry', 'Half-Buried', 'Wind-Scoured', 'Rat-Run', 'Ghost', 'Widow\'s', 'Raider', 'Scavenger\'s', 'Survivor\'s',
+  'Abandoned', 'Dilapidated', 'Rusty', 'Ramshackle', 'Bombed-Out', 'Gutted', 'Pitted', 'Destroyed', 'Infested', 'Feral', 'Raided', 'Looted',
+  'Condemned', 'Gory', 'Bloody', 'Ruined', 'Burnt', 'Charred', 'Collapsed', 'Crumbling', 'Derelict', 'Wrecked', 'Blasted', 'Shattered', 'Scorched',
+  'Sagging', 'Cracked', 'Splintered', 'Rotten', 'Rancid', 'Smoldering', 'Leaning', 'Plundered', 'Overrun', 'Fortified', 'Barricaded', 'Half-Buried',
+  'Wind-Scoured', 'Rat-Run', 'Raider', 'Scavenger\'s', 'Mutant-Held', 'Broken', 'Hollow', 'Sunken', 'Dusty', 'Bullet-Riddled', 'Blood-Stained',
+  'Smoke-Stained', 'Boarded-Up', 'Picked-Over', 'Stripped', 'Torn-Up', 'Sacked', 'Burned-Out', 'Shot-Up', 'Roach-Infested', 'Rad-Soaked',
 ] as const;
 
 const NOUNS: Record<CategoryId, readonly string[]> = {
   medical: ['Clinic', 'Surgery', 'Ward', 'Dispensary', 'Infirmary', 'Med Center', 'Sickbay', 'Pharmacy', 'Triage Hall', 'Stimpak Stash', 'Sanatorium'],
-  school: ['Schoolhouse', 'Classrooms', 'Lecture Hall', 'Archive', 'Stacks', 'Quad', 'Study Hall', 'Reading Room', 'Academy', 'Playground', 'Lab Wing', 'Library'],
+  school: ['Schoolhouse', 'Classrooms', 'Lecture Hall', 'Archive', 'Stacks', 'Campus', 'Study Hall', 'Academy', 'Playground', 'Lab', 'Library'],
   market: ['Market', 'Ration Depot', 'Grocery', 'Mall', 'Bazaar', 'Trader Row', 'Supply Shop', 'Cannery', 'Pantry', 'Trading Post', 'Checkout Lanes'],
   fuel: ['Pump Station', 'Gas Stop', 'Garage', 'Scrapyard', 'Chassis Lot', 'Tire Heap', 'Fuel Depot', 'Mechanic\'s Pit', 'Oil Sump', 'Wreck Yard'],
   park: ['Meadow', 'Grove', 'Green', 'Thicket', 'Pasture', 'Commons', 'Copse', 'Fen', 'Overgrowth', 'Clearing', 'Glade', 'Weed Field', 'Hollow'],
   guard: ['Guard Post', 'Watch Station', 'Precinct', 'Bunker', 'Stronghold', 'Barracks', 'Outpost', 'Garrison', 'Lockup', 'Keep', 'Checkpoint'],
   cantina: ['Cantina', 'Tavern', 'Saloon', 'Diner', 'Bar', 'Mess Hall', 'Brewhouse', 'Watering Hole', 'Cookhouse', 'Drinking Den', 'Canteen'],
-  chapel: ['Chapel', 'Sanctuary', 'Shrine', 'Pilgrim Hall', 'Bell Tower', 'Cloister', 'Altar', 'Abbey', 'Meeting House', 'Prayer Hall'],
+  chapel: ['Chapel', 'Sanctuary', 'Shrine', 'Steeple', 'Bell Tower', 'Altar', 'Nave', 'Meeting House', 'Prayer Hall', 'Mission'],
   transit: ['Depot', 'Platform', 'Junction', 'Terminus', 'Switchyard', 'Signal House', 'Tunnel Mouth', 'Crossing', 'Terminal', 'Waystation', 'Rail Yard'],
   arena: ['Arena', 'Pit', 'Coliseum', 'Fairground', 'Theater', 'Hall of Relics', 'Gallery', 'Big Top', 'Fight Pit', 'Showhouse', 'Stage', 'Dome'],
   lodging: ['Inn', 'Hotel', 'Bunkhouse', 'Rest Stop', 'Lodge', 'Boarding House', 'Penthouse', 'Motel', 'Sleeping Quarters', 'Guest House'],
@@ -43,17 +43,17 @@ const NOUNS: Record<CategoryId, readonly string[]> = {
 const SUBTYPES: [CategoryId, RegExp, readonly string[]][] = [
   ['transit', /\b(?:airport|airfield|aerodrome|airbase|air base|flughafen|a[eé]roport|aeropuerto|aeroporto|heliport|runway)\b/i, ['Runway', 'Tarmac', 'Hangar', 'Crash Field', 'Airstrip', 'Control Tower', 'Wreck Strip', 'Landing Field', 'Flight Line']],
   ['transit', /\b(?:bridge|pont|br[uü]cke|ponte|puente|viaduct|overpass)\b/i, ['Span', 'Crossing', 'Overpass', 'Broken Bridge', 'Girder Walk']],
-  ['transit', /\b(?:port|harbou?r|ferry|pier|dock|wharf)\b/i, ['Docks', 'Wharf', 'Drowned Pier', 'Quay', 'Rust Harbor', 'Ship Graveyard']],
+  ['transit', /\b(?:port|harbou?r|ferry|pier|dock|wharf)\b/i, ['Docks', 'Wharf', 'Wrecked Pier', 'Quay', 'Rust Harbor', 'Sunken Docks']],
   ['transit', /\b(?:station|gare|bahnhof|estaci[oó]n|stazione|terminal|metro|subway|underground|tram)\b/i, ['Platform', 'Depot', 'Junction', 'Terminus', 'Last Stop', 'Signal House', 'Tunnel Mouth', 'Turnstiles', 'Track Bed']],
-  ['park', /\b(?:cemetery|graveyard|necropolis|friedhof|cimeti[eè]re)\b/i, ['Boneyard', 'Grave Field', 'Quiet Rows', 'Headstone Hill', 'Tomb Garden']],
+  ['park', /\b(?:cemetery|graveyard|necropolis|friedhof|cimeti[eè]re)\b/i, ['Burial Ground', 'Raided Plots', 'Overgrown Graves', 'Cemetery Ruins', 'Looted Crypts']],
   ['park', /\b(?:garden|botanical|arboretum|jardin|garten|giardino)\b/i, ['Overgrowth', 'Thicket', 'Greenhouse Ruin', 'Wild Garden', 'Vine Maze']],
   ['park', /\b(?:zoo|safari|aquarium)\b/i, ['Menagerie', 'Cages', 'Beast Pens', 'Monkey House', 'Empty Enclosures']],
   ['park', /\b(?:beach|lake|pond|river|bay|coast|shore|lago|see)\b/i, ['Shore', 'Slick', 'Sink', 'Tidal Flats', 'Drowned Shore', 'Black Water']],
-  ['school', /\b(?:university|college|institute|universit[eéà]|universidad|universit[aä]t|polytechni[a-z]*|campus)\b/i, ['Hall of Learning', 'Quad', 'Lecture Halls', 'Lab Wing', 'Campus Ruins', 'Dormitories', 'Cloisters']],
-  ['school', /\b(?:library|biblioth[eè]que|biblioteca|archive|archiv)\b/i, ['Archive', 'Stacks', 'Reading Room', 'Book Vault', 'Card Catalog']],
+  ['school', /\b(?:university|college|institute|universit[eéà]|universidad|universit[aä]t|polytechni[a-z]*|campus)\b/i, ['Hall of Learning', 'Lecture Halls', 'Lab Block', 'Campus Ruins', 'Dormitories', 'Raided Halls']],
+  ['school', /\b(?:library|biblioth[eè]que|biblioteca|archive|archiv)\b/i, ['Archive', 'Stacks', 'Reading Room', 'Book Vault', 'Looted Stacks']],
   ['arena', /\b(?:stadium|stade|stadion|estadio|arena|ballpark|ground)\b/i, ['Pit', 'Arena', 'Coliseum', 'Bleachers', 'Fight Pit', 'The Bowl']],
-  ['arena', /\b(?:museum|mus[eé]e|museo|gallery|galerie)\b/i, ['Hall of Relics', 'Gallery', 'Vault of Artifacts', 'Curio Hall', 'Cabinet of Wonders']],
-  ['arena', /\b(?:theatre|theater|th[eé][aâ]tre|opera|cinema)\b/i, ['Silent Stage', 'Cinema of Ghosts', 'Last Curtain', 'Gilded Ruin', 'Showhouse']],
+  ['arena', /\b(?:museum|mus[eé]e|museo|gallery|galerie)\b/i, ['Hall of Relics', 'Gallery', 'Vault of Artifacts', 'Curio Hall', 'Looted Gallery']],
+  ['arena', /\b(?:theatre|theater|th[eé][aâ]tre|opera|cinema)\b/i, ['Gutted Stage', 'Looted Cinema', 'Burnt Curtain', 'Gilded Ruin', 'Showhouse']],
 ];
 
 // words in a real name that say nothing about the place itself, so they are not borrowed

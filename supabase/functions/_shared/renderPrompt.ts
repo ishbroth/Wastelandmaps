@@ -13,6 +13,36 @@ const SPECIFIC: Record<string, string> = {
   Q133274: 'Every tower spire of the Kremlin is badly damaged: several are snapped in half with the tops missing, the rest are riddled with large gaping holes showing their bare brick and framing. Long stretches of the red wall have collapsed into piles of bricks, the golden onion domes are caved in, dented and blackened, and the great palace has a collapsed roof and a missing corner of its front wall.',
 };
 
+/** Damage for well-known landmarks, matched by name (so the same text works for the image in any language the place is listed in). */
+const NAMED: [RegExp, string][] = [
+  [/hollywood sign/i, 'Half of the giant white letters have fallen off the hillside and lie smashed and tumbled down the slope; the letters still standing are bent, leaning and full of holes.'],
+  [/golden gate/i, 'The bridge has collapsed in the middle: the main span has fallen into the water, leaving the two red towers standing with cables snapped and trailing, and twisted roadway hanging from each side.'],
+  [/superdome/i, 'The huge domed roof has caved in and half of it is gone, with steel ribs hanging down, big sections of the outer wall have collapsed, and the stadium is open to the sky and flooded.'],
+  [/coit tower/i, 'The fluted tower has snapped near the top and its crown lies in pieces on the hillside, the concrete is cracked open with rebar showing, and the surrounding trees are dead.'],
+  [/rock and roll hall/i, 'The glass pyramid is shattered and partly collapsed, the angled concrete wing has crashed down on one side, and twisted steel and broken glass spill out onto the waterfront.'],
+  [/gateway arch/i, 'The arch has broken: one leg still stands and curves up, but the top section has fallen and lies in two broken pieces on the ground, the steel skin buckled and torn open.'],
+  [/alamo/i, 'The famous front wall has collapsed, the curved gable is broken and half gone, the stone walls are full of holes and rubble, and the old mission roof has fallen in.'],
+  [/independence hall/i, 'The clock tower and steeple have collapsed into the building, the brick walls are cracked open with large holes, the roof has fallen in, and the front is blackened and gutted.'],
+  [/washington monument/i, 'The obelisk has snapped in half: the top section lies broken in pieces across the ground and the reflecting pool, and the stump that still stands is cracked and jagged.'],
+  [/willis tower/i, 'The upper third of the black tower has collapsed and a huge gash is torn down one side, steel beams hang out, the antennas are bent or gone, and the debris has crushed the buildings below.'],
+  [/leveque/i, 'The Art Deco spire has snapped off and lies crushed in the street, the stepped upper floors have collapsed, and the limestone walls are blackened and torn open.'],
+  [/peachtree/i, 'The tall cylindrical glass tower has partly collapsed: the glass is blown out in huge sections, the revolving crown at the top has fallen and lies crushed below, one side is torn open showing bare floors and twisted steel, and the base is buried in rubble.'],
+  [/epcot|spaceship earth/i, 'The giant geodesic sphere has been torn open, most of its silver panels are gone leaving the bare frame, one side has caved in, and the sphere is tilting and sinking into rubble.'],
+  [/empire state/i, 'The top third of the skyscraper, with the spire, has broken off and fallen into the street below; what remains is jagged, blackened and torn open down one side.'],
+  [/leaning tower|pisa/i, 'The tower has finally fallen: it lies toppled and broken into several huge sections across the grass and the cathedral square, its stone arcades cracked and scattered.'],
+  [/cologne cathedral/i, 'One of the two great spires has snapped off and crashed through the roof of the nave, the other is broken and full of holes, the stained glass is gone, and the stone walls are blackened and collapsed in places.'],
+  [/taj mahal/i, 'The central dome has caved in, the four minarets have fallen or are leaning and broken, the marble is cracked and stained, and the reflecting pool is choked with rubble and dead weeds.'],
+  [/tokyo tower/i, 'The orange and white lattice tower has buckled and bent over at the middle, its upper half crumpled and lying across the streets below, the antenna broken off.'],
+  [/oriental pearl/i, 'The great pink spheres have broken: the top spheres have fallen off and lie smashed in the street, the remaining ones are cracked open, and the legs are bent and leaning.'],
+  [/cn tower/i, 'The concrete shaft has snapped partway up: the pod and the antenna have fallen and lie crushed across the buildings below, and the broken stump is jagged and leaning.'],
+  [/gran torre/i, 'The glass skyscraper has lost its top third, which lies crushed in the streets, the facade is shattered and hanging in sheets, and the lower floors are blackened and gutted.'],
+  [/obelisco/i, 'The white obelisk has snapped in two and the top lies cracked on the ground of the avenue, the stump is jagged, and the wide avenue is wrecked and overgrown.'],
+  [/f.?&.?f tower|revolution/i, 'The twisting glass tower has collapsed from the top, the spiral facade is torn open and hanging, the upper floors are gone, and the street below is buried in broken glass and rubble.'],
+  [/hillbrow|telkom/i, 'The slender concrete tower has snapped below the pod, the revolving pod and the antenna have fallen and lie crushed in the streets of Hillbrow, and the shaft is cracked and leaning.'],
+  [/burj khalifa/i, 'The tallest tower in the world has broken in two: the whole upper half has fallen across the city and lies in huge pieces, the stepped glass facade is shattered, and the remaining stump is jagged and burning.'],
+  [/petronas/i, 'One of the twin towers has collapsed halfway, its top lying crushed in the street; the other leans badly, the sky bridge between them has fallen, and both are scarred, blackened and torn open.'],
+];
+
 /** Damage chosen from what the place is, for everything else. */
 function generic(name: string): string {
   const n = name.toLowerCase();
@@ -27,6 +57,6 @@ function generic(name: string): string {
 }
 
 export function renderPrompt(name: string, entityId?: string): string {
-  const damage = (entityId && SPECIFIC[entityId]) || generic(name);
+  const damage = (entityId && SPECIFIC[entityId]) || NAMED.find(([re]) => re.test(name))?.[1] || generic(name);
   return `Re-render this photograph as a scene from a modern open-world post-apocalyptic video game, in the visual style of Fallout 4 gameplay: the same landmark${name ? ` (${name})` : ''}, from the same angle and framing, still clearly recognizable and in the same place, but two hundred years after a nuclear war, and DESTROYED. The destruction must be dramatic and obvious, not just rust or dirt: ${damage} The rest of the scene is ruined too: fallen debris and heavy rubble, broken and burnt buildings, cracked ground with dead weeds and scrub, abandoned rusted cars, patches of vines. A hazy dusty sky in sickly orange-green with heavy clouds and a low sun, soft volumetric light, warm highlights and teal shadows, slightly desaturated colors, painterly realistic game-engine look, subtle film grain. Remove all modern people, boats, flags, cranes and signs. No text, no logos, no UI.`;
 }
