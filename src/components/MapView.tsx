@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { createHtmlMarker, type HtmlMarkerHandle } from '../lib/htmlMarker';
 import { iconFor } from '../lib/icons';
+import { placeIcon } from '../lib/placeIcons';
 import type { Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
 import { patchOutline, type FloodPatch } from '../lib/flood';
 import { levelsAt, type RegionLabel } from '../lib/regions';
-import { VAULT_ID, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
+import { VAULT_ID, subtitle, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
 
 interface Props {
   look: Look;
@@ -37,12 +38,12 @@ const MAX_PINS = 450;
 const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
 const LABEL_ZOOM = 16;
 
-function pinElement(kind: CategoryId | 'vault' | 'rad', label: string, sub: string, className: string): HTMLElement {
+function pinElement(kind: string, iconHtml: string, label: string, sub: string, className: string): HTMLElement {
   const el = document.createElement('button');
   el.type = 'button';
   el.className = `rm-pin ${className}`;
   el.dataset.kind = kind;
-  el.innerHTML = `<span class="rm-pin-icon">${iconFor(kind)}</span><span class="rm-pin-label"><b></b><i></i></span>`;
+  el.innerHTML = `<span class="rm-pin-icon">${iconHtml}</span><span class="rm-pin-label"><b></b><i></i></span>`;
   (el.querySelector('b') as HTMLElement).textContent = label;
   (el.querySelector('i') as HTMLElement).textContent = sub;
   return el;
@@ -176,7 +177,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     vault.current = null;
     if (!map || !wasteland) return;
 
-    const vaultEl = pinElement('vault', `VAULT ${wasteland.vault.number}`, 'Sealed. Probably.', 'rm-pin-vault');
+    const vaultEl = pinElement('vault', iconFor('vault'), `VAULT ${wasteland.vault.number}`, 'Sealed. Probably.', 'rm-pin-vault');
     vaultEl.addEventListener('click', (e) => {
       e.stopPropagation();
       onSelectRef.current(VAULT_ID);
@@ -200,7 +201,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       });
       const marker = createHtmlMarker({
         position: zone.position,
-        element: pinElement('rad', 'IRRADIATED', `${zone.rads} RADS`, 'rm-pin-rad'),
+        element: pinElement('rad', iconFor('rad'), 'IRRADIATED', `${zone.rads} RADS`, 'rm-pin-rad'),
         zIndex: 10,
       });
       marker.setMap(map);
@@ -234,7 +235,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     let morphed = 0;
     for (const loc of inView) {
       if (pins.current.has(loc.id)) continue;
-      const el = pinElement(loc.category, loc.name, loc.oldName, '');
+      const el = pinElement(loc.category, placeIcon(loc.icon), loc.name, subtitle(loc), loc.vault ? 'rm-pin-vaultentrance' : '');
       el.classList.toggle('rm-pin-visited', visitedRef.current.has(loc.id));
       const brandNew = !everShown.current.has(loc.id);
       everShown.current.add(loc.id);

@@ -1,6 +1,6 @@
-import { iconFor } from '../lib/icons';
+import { placeIcon } from '../lib/placeIcons';
 import { formatDuration, radsAlongRoute, travelMinutes } from '../lib/travel';
-import { distanceMeters, type LatLng, type Spot, type Wasteland } from '../lib/wasteland';
+import { distanceMeters, subtitle, type LatLng, type Spot, type Wasteland } from '../lib/wasteland';
 
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
@@ -23,10 +23,10 @@ export default function LocationCard({ spot, from, wasteland, here, visited, tra
   return (
     <div className="rm-card" role="region" aria-label={spot.name}>
       <div className="rm-card-top">
-        <span className="rm-card-icon" dangerouslySetInnerHTML={{ __html: iconFor(spot.kind) }} />
+        <span className="rm-card-icon" dangerouslySetInnerHTML={{ __html: placeIcon(spot.icon) }} />
         <div className="rm-card-title">
           <b>{spot.name}</b>
-          <i>{spot.kind === 'vault' ? 'Your home' : (spot.name === spot.oldName ? 'Old World landmark' : `formerly ${spot.oldName}`)}</i>
+          <i>{spot.kind === 'vault' ? 'Your home' : subtitle(spot)}</i>
         </div>
         <button type="button" className="rm-card-close" onClick={onClose} aria-label="Close">×</button>
       </div>

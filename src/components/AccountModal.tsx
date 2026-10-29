@@ -43,6 +43,7 @@ export default function AccountModal({ account, onClose }: { account: Account; o
         ) : (
           <div className="rm-account-body">
             <p className="rm-account-balance">{account.credits === null ? '…' : account.credits} <span>SNAPSHOT CREDITS</span></p>
+            <p className="rm-account-small">{account.discoveries} places reached on foot. {10 - (account.discoveries % 10)} more earns a free snapshot (turn on AUTO-DISCOVER and go for a walk).</p>
             <p>Each credit unlocks one place's snapshot: the real photograph blown apart into the wasteland, to view, download and share. Unlocked renders stay yours.</p>
             <button type="button" className="rm-btn" disabled={busy} onClick={buy}>BUY {PACK.credits} SNAPSHOTS: {PACK.price}</button>
             <p className="rm-account-small">Pay by card, Apple Pay or Google Pay through Stripe. A render that cannot be made gives your credit back.</p>

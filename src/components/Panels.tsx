@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CATEGORIES, categoryById, distanceMeters, formatCoords, type CategoryId, type Location, type Wasteland } from '../lib/wasteland';
-import { iconFor } from '../lib/icons';
+import { CATEGORIES, categoryById, distanceMeters, formatCoords, subtitle, type CategoryId, type Location, type Wasteland } from '../lib/wasteland';
+
+import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
 import { buildShareUrl } from '../lib/share';
 import type { LookId } from '../lib/looks';
 import type { Region } from '../lib/google';
@@ -42,7 +43,7 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
       <div className="rm-chips" role="group" aria-label="Filter locations">
         {CATEGORIES.filter((c) => counts.has(c.id)).map((c) => (
           <button key={c.id} type="button" className={`rm-chip ${hidden.has(c.id) ? 'rm-chip-off' : ''}`} onClick={() => onToggleCategory(c.id)} aria-pressed={!hidden.has(c.id)}>
-            <span className="rm-chip-icon" dangerouslySetInnerHTML={{ __html: iconFor(c.id) }} />
+            <span className="rm-chip-icon" dangerouslySetInnerHTML={{ __html: placeIcon(CATEGORY_ICON[c.id]) }} />
             {c.label} <small>{counts.get(c.id)}</small>
           </button>
         ))}
@@ -51,10 +52,10 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
         {rows.map(({ l, d }) => (
           <li key={l.id} ref={l.id === selectedId ? selectedRow : null}>
             <button type="button" className={`rm-row ${l.id === selectedId ? 'rm-row-selected' : ''}`} onClick={() => onSelect(l.id)}>
-              <span className="rm-row-icon" dangerouslySetInnerHTML={{ __html: iconFor(l.category) }} />
+              <span className="rm-row-icon" dangerouslySetInnerHTML={{ __html: placeIcon(l.icon) }} />
               <span className="rm-row-text">
                 <b>{l.name}{visited.has(l.id) ? ' ✓' : ''}</b>
-                <i>{l.name === l.oldName ? 'Old World landmark' : `formerly ${l.oldName}`}</i>
+                <i>{subtitle(l)}</i>
                 <small>{l.threat}{l.rads > 60 ? ` · ${l.rads} RADS` : ''} · loot: {l.loot}</small>
               </span>
               <span className="rm-row-dist">{miles(d)}</span>

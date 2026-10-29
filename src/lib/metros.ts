@@ -1,6 +1,7 @@
 // The pre-built wasteland: for each metro area, a handful of notable real places with their wasteland names and icons, made ahead of time
 // (see _tools/build-metros.ts) from open data. Nothing is asked of Google here; these are plain files served with the site.
 
+import { assignVaults } from './vaults';
 import { distanceMeters, locationFromData, type CategoryId, type LatLng, type Location } from './wasteland';
 
 export interface MetroEntry {
@@ -48,12 +49,14 @@ export function metroAt(metros: MetroEntry[], point: LatLng, slackKm = 0): Metro
 }
 
 /** The places of one metro, as wasteland locations. */
-export function loadMetro(id: string): Promise<Location[]> {
+export function loadMetro(metro: MetroEntry): Promise<Location[]> {
+  const id = metro.id;
   let hit = loaded.get(id);
   if (!hit) {
     hit = fetch(`${base}metros/${id}.json`)
       .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string, number?][] }>) : { places: [] }))
       .then((m) => m.places.map(([pid, name, lat, lng, category, fame]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0)))
+      .then((places) => assignVaults(metro, places))
       .catch(() => [] as Location[]);
     loaded.set(id, hit);
   }

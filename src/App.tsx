@@ -3,7 +3,8 @@ import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
-import { accountsEnabled, loadMapPosition, saveMapPosition, useAccount } from './lib/account';
+import { accountsEnabled, loadMapPosition, reportDiscovery, saveMapPosition, useAccount } from './lib/account';
+import { enableNotifications, pushNotice } from './lib/notify';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { DataPanel, LocationsPanel, SharePanel } from './components/Panels';
@@ -118,18 +119,40 @@ export default function App() {
   }, [look]);
 
   /** Marks places as discovered (filled in on the map) and remembers them in this browser, per city. */
-  const markFound = useCallback((ids: string[], names: string[]) => {
-    const fresh = ids.filter((id) => !visitedRef.current.has(id));
+  const markFound = useCallback((places: Location[], onFoot?: LatLng) => {
+    const fresh = places.filter((p) => !visitedRef.current.has(p.id));
     if (fresh.length === 0) return;
     const next = new Set(visitedRef.current);
-    fresh.forEach((id) => next.add(id));
+    fresh.forEach((p) => next.add(p.id));
     visitedRef.current = next;
     setVisited(next);
     try { localStorage.setItem(foundKey.current, JSON.stringify([...next])); } catch { /* storage unavailable */ }
-    setToast(`LOCATION DISCOVERED: ${names.join(', ')}`);
+    // "Discovered: <new name>, formerly <old name>", in the page and, if allowed, as a notification
+    const said = fresh.map((p) => (p.oldName && p.oldName !== p.name ? `${p.name}, formerly ${p.oldName}` : p.name));
+    setToast(`DISCOVERED: ${said.join(' | ')}`);
     window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(''), 3200);
+    toastTimer.current = window.setTimeout(() => setToast(''), 4200);
+    void pushNotice('Discovered', said.join('\n'));
     if (soundRef.current) beep('select');
+    // reaching places on foot counts toward free snapshots: every 10 is one credit
+    const who = accountRef.current?.session;
+    if (onFoot && who) {
+      void (async () => {
+        let earned = 0;
+        for (const p of fresh) {
+          if (!/^(wd:Q\d+|vault:\d+)$/.test(p.id)) continue;
+          const result = await reportDiscovery(p.id, p.position, onFoot);
+          if (result?.bonus) earned += result.given;
+        }
+        if (earned > 0) {
+          setToast(`10 PLACES REACHED: ${earned} FREE SNAPSHOT CREDIT${earned > 1 ? 'S' : ''} EARNED`);
+          window.clearTimeout(toastTimer.current);
+          toastTimer.current = window.setTimeout(() => setToast(''), 5200);
+          void pushNotice('Free snapshot earned', 'Every 10 places you reach on foot unlocks a snapshot.');
+        }
+        void accountRef.current?.refresh();
+      })();
+    }
   }, []);
 
   const spotFor = useCallback((id: string | null): Spot | null => {
@@ -173,7 +196,7 @@ export default function App() {
       sound('select');
       setFlood([]);
       if (home) void loadFlood().then((all) => setFlood(all[home.id] ?? []));
-      const found = home ? await loadMetro(home.id) : [];
+      const found = home ? await loadMetro(home) : [];
       setLocations(found);
       setMessage(found.length > 0
         ? `${w.regionName.toUpperCase()}: ${found.length} LOCATIONS MARKED. PICK ONE TO FAST TRAVEL`
@@ -213,7 +236,7 @@ export default function App() {
         const patches = all[under.id];
         if (patches) setFlood((prev) => [...prev, ...patches]);
       });
-      const found = await loadMetro(under.id);
+      const found = await loadMetro(under);
       if (scan !== scanId.current) return;
       const extra = generateWasteland(under.name, { lat: under.lat, lng: under.lng }, Math.min(under.radiusKm, 25) * 400, under.title).zones;
       setWasteland((w) => (w ? { ...w, zones: [...w.zones, ...extra] } : w));
@@ -269,6 +292,7 @@ export default function App() {
   const search = useCallback((q: string) => show(() => geocodeQuery(q), q), [show]);
 
   const locateMe = useCallback(() => {
+    void enableNotifications();
     if (!navigator.geolocation) {
       setMessage('ERROR: THIS DEVICE CANNOT FIND ITSELF');
       return;
@@ -356,7 +380,7 @@ export default function App() {
         const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         const reach = Math.max(120, Math.min(pos.coords.accuracy, 250));
         const near = locationsRef.current.filter((l) => !visitedRef.current.has(l.id) && distanceMeters(here, l.position) <= reach);
-        markFound(near.map((l) => l.id), near.map((l) => l.name));
+        markFound(near, here);
       },
       () => { setTracking(false); setMessage('ERROR: LOCATION PERMISSION DENIED'); },
       { enableHighAccuracy: true, maximumAge: 10_000 },
@@ -424,7 +448,7 @@ export default function App() {
           {selectedSpot && wasteland && !sceneSpot && (
             <LocationCard
               spot={selectedSpot} from={player} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)}
-              traveling={!!travel} onTravel={() => startTravel(selectedSpot)} onDiscover={() => markFound([selectedSpot.id], [selectedSpot.name])} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
+              traveling={!!travel} onTravel={() => startTravel(selectedSpot)} onDiscover={() => { const place = locations.find((l) => l.id === selectedSpot.id); if (place) markFound([place]); }} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
@@ -448,7 +472,7 @@ export default function App() {
         </div>
 
         <aside className="rm-side">
-          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onLocate={locateMe} tracking={tracking} onToggleTracking={() => setTracking((t) => !t)} />
+          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onLocate={locateMe} tracking={tracking} onToggleTracking={() => { if (!tracking) void enableNotifications(); setTracking(!tracking); }} />
           <nav className="rm-tabs" role="tablist" aria-label="Pip-Boy menu">
             {(['locations', 'data', 'share'] as Tab[]).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); sound('tick'); }}>

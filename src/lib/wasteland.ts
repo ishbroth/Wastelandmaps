@@ -29,6 +29,7 @@ export function seeded(seed: number): () => number {
 }
 
 import { isFamous, wastelandPlaceName } from './placeNames';
+import { pickIcon, type IconId } from './placeIcons';
 
 export type CategoryId = 'medical' | 'school' | 'market' | 'fuel' | 'park' | 'guard' | 'cantina' | 'chapel' | 'transit' | 'arena' | 'lodging' | 'other';
 
@@ -182,6 +183,12 @@ export interface Location {
   loot: string;
   threat: 'Quiet' | 'Scavengers' | 'Raiders' | 'Feral Ghouls' | 'Super Mutants' | 'Radiation';
   rads: number;
+  /** The picture on the map: what the place actually is. */
+  icon: IconId;
+  /** How widely known the real place is (Wikipedia languages), when known. */
+  fame?: number;
+  /** This place is the entrance to a vault. `lore` is a line from the games' story when it is one of theirs. */
+  vault?: { number: number; lore?: string };
 }
 
 const THREATS: Location['threat'][] = ['Quiet', 'Quiet', 'Scavengers', 'Scavengers', 'Raiders', 'Feral Ghouls', 'Super Mutants', 'Radiation'];
@@ -236,6 +243,8 @@ function locationIn(category: Category, place: { id: string; name: string; posit
     loot: category.loot[Math.floor(rand() * category.loot.length)],
     threat,
     rads: threat === 'Radiation' ? 80 + Math.floor(rand() * 300) : Math.floor(rand() * 40),
+    icon: pickIcon(category.id, place.name),
+    ...(fame !== undefined ? { fame } : {}),
   };
 }
 
@@ -293,13 +302,22 @@ export interface Spot {
   threat: Location['threat'];
   loot: string;
   rads: number;
+  icon: IconId;
+  vault?: Location['vault'];
 }
 
 export const VAULT_ID = 'vault';
 
-export const spotFromLocation = (l: Location): Spot => ({ id: l.id, name: l.name, oldName: l.oldName, kind: l.category, position: l.position, threat: l.threat, loot: l.loot, rads: l.rads });
+export const spotFromLocation = (l: Location): Spot => ({ id: l.id, name: l.name, oldName: l.oldName, kind: l.category, position: l.position, threat: l.threat, loot: l.loot, rads: l.rads, icon: l.icon, vault: l.vault });
 
-export const vaultSpot = (w: Wasteland): Spot => ({ id: VAULT_ID, name: `VAULT ${w.vault.number}`, oldName: null, kind: 'vault', position: w.vault.position, threat: 'Quiet', loot: 'Clean water, a bed and a very large door', rads: 0 });
+/** The line under a place's name: what it used to be, or what it is. */
+export function subtitle(p: { name: string; oldName: string | null; vault?: { number: number } }): string {
+  if (p.vault) return p.oldName ? `Entrance to Vault ${String(p.vault.number).padStart(3, '0')}. Formerly ${p.oldName}` : 'A Vault-Tec facility';
+  if (!p.oldName) return '';
+  return p.name === p.oldName ? 'Old World landmark' : `Formerly ${p.oldName}`;
+}
+
+export const vaultSpot = (w: Wasteland): Spot => ({ id: VAULT_ID, name: `VAULT ${w.vault.number}`, oldName: null, kind: 'vault', position: w.vault.position, threat: 'Quiet', loot: 'Clean water, a bed and a very large door', rads: 0, icon: 'vault' });
 
 const VAULT_LINES = [
   'The door is sealed from the inside, or from the outside. The sign says nobody has been in or out in a long time.',
@@ -310,6 +328,14 @@ const VAULT_LINES = [
 /** A few lines for a place's journal entry, the same every time for the same place. */
 export function describeSpot(spot: Spot, regionName: string): string[] {
   const rand = seeded(hashString(`${spot.id}|journal`));
+  if (spot.vault) {
+    const number = String(spot.vault.number).padStart(3, '0');
+    return [
+      spot.oldName ? `Entrance to Vault ${number}, ${regionName}. Formerly ${spot.oldName}.` : `Vault ${number}, ${regionName}.`,
+      VAULT_LINES[Math.floor(rand() * VAULT_LINES.length)],
+      spot.vault.lore ?? 'Whether anyone is still down there is a question for braver survivors.',
+    ];
+  }
   if (spot.kind === 'vault') {
     return [`${spot.name}, ${regionName}.`, VAULT_LINES[Math.floor(rand() * VAULT_LINES.length)], 'Home, for some of us. Safe, for now.'];
   }

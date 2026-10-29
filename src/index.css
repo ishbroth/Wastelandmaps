@@ -141,8 +141,8 @@ html[data-look='parchment'] .rm-crt {
   background: none; border: none; padding: 0; color: var(--ink); cursor: pointer; font: inherit; white-space: nowrap;
 }
 .rm-pin-icon {
-  display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 4px; border-radius: 50%; flex: none;
-  background: var(--panel); border: 1.5px solid currentColor; box-shadow: 0 0 8px var(--glow);
+  display: inline-grid; place-items: center; width: 36px; height: 36px; flex: none; position: relative; background: none; border: none; padding: 0;
+  filter: drop-shadow(0 0 1.5px #000) drop-shadow(0 0 5px var(--glow));
 }
 .rm-pin-label { display: none; flex-direction: column; text-align: left; padding: 3px 8px; background: var(--panel); border: 1px solid var(--line); line-height: 1.15; max-width: 240px; }
 .rm-pin-label b { font-family: var(--font-display); font-size: 19px; font-weight: 400; letter-spacing: 1px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }
@@ -150,11 +150,11 @@ html[data-look='parchment'] .rm-crt {
 .rm-zoomed .rm-pin .rm-pin-label, .rm-pin:hover .rm-pin-label, .rm-pin-selected .rm-pin-label, .rm-pin-vault .rm-pin-label, .rm-pin-rad .rm-pin-label { display: flex; }
 .rm-travelling .rm-pin .rm-pin-label { display: none !important; }
 .rm-pin:hover, .rm-pin-selected { z-index: 99; }
-.rm-pin-selected .rm-pin-icon { width: 34px; height: 34px; box-shadow: 0 0 16px var(--glow), 0 0 0 3px color-mix(in srgb, currentColor 35%, transparent); }
+.rm-pin-selected .rm-pin-icon { width: 42px; height: 42px; filter: drop-shadow(0 0 2px #000) drop-shadow(0 0 10px var(--glow)) drop-shadow(0 0 3px currentColor); }
 .rm-pin-vault { color: var(--ink); }
 html[data-look='pipboy'] .rm-pin-vault { color: #d8ff6a; }
 html[data-look='parchment'] .rm-pin-vault { color: #1f5f8a; }
-.rm-pin-vault .rm-pin-icon { width: 34px; height: 34px; border-width: 2px; }
+.rm-pin-vault .rm-pin-icon { width: 40px; height: 40px; }
 .rm-pin-rad { color: #a6ff3d; }
 html[data-look='parchment'] .rm-pin-rad { color: #a3401f; }
 .rm-pin-rad .rm-pin-icon { background: transparent; border: none; box-shadow: none; width: 30px; height: 30px; }
@@ -261,10 +261,11 @@ html[data-look='parchment'] .rm-player { color: #a3401f; }
 @keyframes rm-pulse { 0% { transform: scale(0.7); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
 
 /* like the game's map: a place you have not found yet is an outline; once found, the icon is filled in solid */
-.rm-pin-icon { position: relative; }
-.rm-pin:not(.rm-pin-visited):not(.rm-pin-vault):not(.rm-pin-rad) .rm-pin-icon { background: transparent; border-style: dashed; box-shadow: none; opacity: 0.8; }
-.rm-pin-visited:not(.rm-pin-vault):not(.rm-pin-rad) .rm-pin-icon { background: currentColor; box-shadow: 0 0 10px var(--glow); }
-.rm-pin-visited:not(.rm-pin-vault):not(.rm-pin-rad) .rm-pin-icon svg { color: var(--on-ink); }
+.rm-pin-icon svg .f, .rm-pin-icon svg .d, .rm-pin-icon svg .s { fill: none; }
+.rm-pin-visited .rm-pin-icon svg .f { fill: currentColor; }
+.rm-pin-visited .rm-pin-icon svg .d { stroke: var(--on-ink); stroke-width: 1.9; }
+.rm-pin-vaultentrance { color: #d8ff6a; }
+html[data-look='parchment'] .rm-pin-vaultentrance { color: #1f5f8a; }
 .rm-track { font: inherit; font-size: 12px; letter-spacing: 1px; padding: 2px 8px; background: transparent; color: var(--ink-dim); border: 1px dashed var(--line); cursor: pointer; }
 .rm-track.on { color: var(--ink); border-style: solid; border-color: currentColor; }
 
