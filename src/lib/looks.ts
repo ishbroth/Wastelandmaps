@@ -33,6 +33,8 @@ const pipboyStyles: google.maps.MapTypeStyle[] = [
   { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#021308' }, { weight: 0.4 }] },
   { featureType: 'road.highway', elementType: 'geometry.fill', stylers: [{ color: '#1fe070' }] },
   { featureType: 'road.arterial', elementType: 'geometry.fill', stylers: [{ color: '#12983f' }] },
+  // the side streets and alleys are buried in rubble: only the main roads that show when the map is zoomed out survive, however close you get
+  { featureType: 'road.local', stylers: hide },
   { featureType: 'transit', stylers: hide },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#000a04' }] },
 ];
@@ -50,6 +52,7 @@ const parchmentStyles: google.maps.MapTypeStyle[] = [
   { featureType: 'road', elementType: 'geometry.fill', stylers: [{ color: '#b69456' }] },
   { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#8a6b34' }, { weight: 0.5 }] },
   { featureType: 'road.highway', elementType: 'geometry.fill', stylers: [{ color: '#9a7330' }] },
+  { featureType: 'road.local', stylers: hide },
   { featureType: 'transit', stylers: hide },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#a5b49b' }] },
 ];
