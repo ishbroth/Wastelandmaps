@@ -63,6 +63,8 @@ export default function App() {
   const metroSeen = useRef<{ current: string; loaded: Set<string> }>({ current: '', loaded: new Set() });
   const viewTimer = useRef<number | undefined>(undefined);
   const busyRef = useRef(false);
+  const wastelandRef = useRef<Wasteland | null>(null);
+  const autoStarted = useRef(false);
   const travelRef = useRef(false);
   const [travel, setTravel] = useState<TravelRun | null>(null);
   const [sceneId, setSceneId] = useState<string | null>(null);
@@ -84,8 +86,9 @@ export default function App() {
     visitedRef.current = visited;
     locationsRef.current = locations;
     busyRef.current = busy;
+    wastelandRef.current = wasteland;
     travelRef.current = !!travel;
-  }, [soundOn, look, visited, locations, busy, travel]);
+  }, [soundOn, look, visited, locations, busy, travel, wasteland]);
 
   const sound = useCallback((kind: 'tick' | 'select' | 'error') => {
     if (soundRef.current) beep(kind);
@@ -222,6 +225,20 @@ export default function App() {
 
     // the metro under the middle of the map; between metros, the nearest one within reach keeps the title
     const under = metroAt(metros, center, 0);
+
+    // arrived in a metro by moving the map, with no city searched: set up the wasteland here (the vault, the zones, you at the vault door), so
+    // the places can be opened and travelled to just as after a search. The map stays where it is.
+    if (under && !wastelandRef.current && !autoStarted.current) {
+      autoStarted.current = true;
+      const dLat = under.radiusKm / 111.32;
+      const dLng = under.radiusKm / (111.32 * Math.max(0.2, Math.cos((under.lat * Math.PI) / 180)));
+      const here: Region = {
+        city: under.name, state: '', address: under.name, center: { lat: under.lat, lng: under.lng }, radiusMeters: under.radiusKm * 1000, keepView: true,
+        bounds: { north: under.lat + dLat, south: under.lat - dLat, east: under.lng + dLng, west: under.lng - dLng },
+      };
+      await show(async () => here, under.name);
+      return;
+    }
     const near = under ?? metroAt(metros, center, 120);
     if (near && near.id !== seen.current) {
       seen.current = near.id;
@@ -250,7 +267,7 @@ export default function App() {
         setMessage(`${fresh.length} NEW LOCATIONS PICKED UP ON THE RADIO`);
       }
     }
-  }, []);
+  }, [show]);
 
   const onViewport = useCallback((center: LatLng, zoom: number) => {
     window.clearTimeout(viewTimer.current);
