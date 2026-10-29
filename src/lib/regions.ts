@@ -182,9 +182,21 @@ export function countryName(iso: string, realName: string): string {
 }
 
 /** The name for the middle of the map at this zoom: a continent when far out, a country, then a US state; null when close in (cities name themselves). */
+/** When the middle of the map is out at sea, the nearest country however far, so a zoomed-out view is never left without a name (or named for the last city). */
+function nearestWhere(data: RegionsFile, p: LatLng): Where | null {
+  let best: CountryData | null = null;
+  let bestKm = Infinity;
+  for (const c of data.countries) {
+    const km = Math.hypot((c.label[0] - p.lat) * 111.32, (c.label[1] - p.lng) * 111.32 * Math.cos((p.lat * Math.PI) / 180));
+    if (km < bestKm) { bestKm = km; best = c; }
+  }
+  if (!best) return null;
+  return { continent: best.continent, region: superOf(best.iso, { lat: best.label[0], lng: best.label[1] }, best.continent), country: best.iso, countryName: best.name, state: null };
+}
+
 export function nameForZoom(data: RegionsFile, p: LatLng, zoom: number): string | null {
   if (zoom >= 9) return null;
-  const where = whereIs(data, p);
+  const where = whereIs(data, p) ?? nearestWhere(data, p);
   if (!where) return null;
   if (zoom < 4) return regionName(where.region);
   if (zoom >= 6 && where.state) return stateName(where.state)?.name ?? null;
