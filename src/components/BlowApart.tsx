@@ -356,7 +356,7 @@ export default function BlowApart({ beforeUrl, afterUrl, name, file, seed }: { b
     Promise.all([load(beforeUrl), load(afterUrl)])
       .then(([before, after]) => {
         if (cancelled || !canvas.current) return;
-        const width = Math.min(1000, after.naturalWidth);
+        const width = Math.min(1400, after.naturalWidth);
         const height = Math.round((width * after.naturalHeight) / after.naturalWidth);
         canvas.current.width = width;
         canvas.current.height = height;

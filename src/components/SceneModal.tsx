@@ -84,7 +84,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, o
 
   return (
     <div className="rm-modal" role="dialog" aria-modal="true" aria-label={spot.name} onClick={onClose}>
-      <div className="rm-modal-card" onClick={(e) => e.stopPropagation()}>
+      <div className={`rm-modal-card${tab === 'snapshot' ? ' rm-modal-wide' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="rm-modal-head">
           <div>
             <h2>{spot.name}</h2>
@@ -135,6 +135,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, o
           </p>
         )}
 
+        {tab === 'scene' && (
         <div className="rm-modal-text">
           {journal.map((line, i) => <p key={i}>{line}</p>)}
           <dl>
@@ -143,6 +144,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, o
             <div><dt>LOOT</dt><dd>{spot.loot}</dd></div>
           </dl>
         </div>
+        )}
       </div>
     </div>
   );

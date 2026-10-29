@@ -392,3 +392,9 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-pin-rad .rm-pin-icon { width: 30px; height: 30px; }
 .rm-pin-landmark .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.3); height: calc(var(--pin-size, 36px) * 1.3); }
 .rm-pin-landmark.rm-pin-selected .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.5); height: calc(var(--pin-size, 36px) * 1.5); }
+
+/* the SNAPSHOT tab: no text column, the whole sequence (photo, blast, destroyed render) gets the full width */
+.rm-modal-card.rm-modal-wide { width: min(1240px, 100%); grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "tabs" "view" "credit"; gap: 6px; }
+.rm-modal-wide .rm-modal-render { max-height: 78vh; }
+.rm-modal-wide .rm-modal-credit { font-size: 10px; line-height: 1.3; }
+@media (max-width: 700px) { .rm-modal { padding: 6px; } .rm-modal-card { padding: 8px 8px; } .rm-modal-head h2 { font-size: 24px; } }
