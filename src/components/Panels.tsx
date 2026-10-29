@@ -33,7 +33,17 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
 
   const selectedRow = useRef<HTMLLIElement | null>(null);
   useEffect(() => {
-    selectedRow.current?.scrollIntoView({ block: 'nearest' });
+    // keep the chosen row in view inside the list itself. (scrollIntoView would also scroll the whole page: on a phone, where the list sits below
+    // the map, tapping a place on the map threw the page down to the list and the card on the map was left out of sight.)
+    const row = selectedRow.current;
+    if (!row) return;
+    let box: HTMLElement | null = row.parentElement;
+    while (box && !(box.scrollHeight > box.clientHeight && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) box = box.parentElement;
+    if (!box) return;
+    const r = row.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    if (r.top < b.top) box.scrollTop -= b.top - r.top;
+    else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom;
   }, [selectedId]);
 
   if (!region) return <p className="rm-empty">No locations discovered. Pick a place to scan the wasteland.</p>;

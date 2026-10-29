@@ -283,7 +283,7 @@ html[data-look='parchment'] .rm-pin-vaultentrance { color: #1f5f8a; }
 .rm-card-meta { margin: 8px 0 0; font-size: 12px; letter-spacing: 1.5px; color: var(--ink-dim); }
 .rm-card-trip { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-family: var(--font-display); font-size: 19px; letter-spacing: 1px; color: var(--ink); }
 .rm-hot { color: var(--danger); }
-.rm-card-actions { display: flex; gap: 8px; margin-top: 10px; }
+.rm-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
 .rm-traveling { position: absolute; left: 50%; top: 66px; transform: translateX(-50%); z-index: 12; min-width: 280px; padding: 8px 16px; text-align: center; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 16px var(--glow); font-family: var(--font-display); font-size: 24px; letter-spacing: 4px; color: var(--ink); }
 .rm-progress { height: 8px; margin-top: 6px; border: 1px solid var(--line); }
