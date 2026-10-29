@@ -86,6 +86,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
   const everShown = useRef(new Set<string>());
   const [zoomNow, setZoomNow] = useState(4);
   const regionMarkers = useRef(new Map<string, HtmlMarkerHandle>());
+  const lastPanned = useRef<string | null>(null);
   const floodShapes = useRef(new Map<string, google.maps.Polygon>());
   const mapRef = useRef<google.maps.Map | null>(null);
   const pins = useRef(new Map<string, { handle: HtmlMarkerHandle; el: HTMLElement; position: google.maps.LatLngLiteral }>());
@@ -321,6 +322,9 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
   useEffect(() => {
     pins.current.forEach((p, id) => p.el.classList.toggle('rm-pin-selected', id === selectedId));
     vault.current?.el.classList.toggle('rm-pin-selected', selectedId === VAULT_ID);
+    // move to the place only when the choice changes: new places arriving as you travel must not drag the map back to it
+    if (selectedId === lastPanned.current) return;
+    lastPanned.current = selectedId;
     const map = mapRef.current;
     const target = selectedId === VAULT_ID ? vault.current?.position : selectedId ? (pins.current.get(selectedId)?.position ?? locations.find((l) => l.id === selectedId)?.position) : null;
     if (map && target) {

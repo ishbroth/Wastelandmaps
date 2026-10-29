@@ -370,3 +370,11 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-region-country { font-size: 20px; letter-spacing: 4px; opacity: 0.75; }
 .rm-region-state { font-size: 15px; letter-spacing: 3px; }
 .rm-region-canon { text-decoration: underline dotted; text-underline-offset: 4px; }
+
+/* the GAME RENDER tab and the offer to unlock it */
+.rm-tab-render { color: var(--glow-hot, var(--ink)); }
+.rm-tab-render:not(.on) { text-shadow: 0 0 8px var(--glow); }
+.rm-dimmed { filter: brightness(0.45) saturate(0.8); }
+.rm-paid-overlay { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 18px; text-align: center; background: rgba(0, 8, 3, 0.45); }
+.rm-paid-overlay b { font-family: var(--font-display); font-size: 28px; letter-spacing: 4px; text-shadow: 0 0 10px var(--glow); }
+.rm-paid-overlay p { margin: 0; max-width: 460px; font-size: 14px; }

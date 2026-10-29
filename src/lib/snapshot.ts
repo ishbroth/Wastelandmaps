@@ -22,7 +22,7 @@ export interface Snapshot {
 const SEARCH_RADIUS_METERS = 300;
 // licenses we may adapt and show commercially: no NonCommercial, no NoDerivatives
 const ALLOWED = /^(CC BY(?!-NC)(?!-ND)|CC BY-SA(?!-NC)|CC0|Public domain|PD)/i;
-const CACHE = 'wastelandmaps:snapshot:v2:';
+const CACHE = 'wastelandmaps:snapshot:v3:';
 
 const FILLER = new Set(['the', 'and', 'of', 'at', 'in', 'on', 'a', 'an', 'inc', 'llc', 'ltd', 'co', 'company', 'corp', 'file', 'jpg', 'jpeg', 'png']);
 
