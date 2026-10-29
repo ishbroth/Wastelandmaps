@@ -187,6 +187,8 @@ export interface Location {
   icon: IconId;
   /** How widely known the real place is (Wikipedia languages), when known. */
   fame?: number;
+  /** A place from the games' stories (not a real building): the town it belongs to and what the story says. */
+  lore?: { town: string; text: string };
   /** This place is the entrance to a vault. `lore` is a line from the games' story when it is one of theirs. */
   vault?: { number: number; lore?: string };
 }
@@ -306,14 +308,16 @@ export interface Spot {
   rads: number;
   icon: IconId;
   vault?: Location['vault'];
+  lore?: Location['lore'];
 }
 
 export const VAULT_ID = 'vault';
 
-export const spotFromLocation = (l: Location): Spot => ({ id: l.id, name: l.name, oldName: l.oldName, kind: l.category, position: l.position, threat: l.threat, loot: l.loot, rads: l.rads, icon: l.icon, vault: l.vault });
+export const spotFromLocation = (l: Location): Spot => ({ id: l.id, name: l.name, oldName: l.oldName, kind: l.category, position: l.position, threat: l.threat, loot: l.loot, rads: l.rads, icon: l.icon, vault: l.vault, lore: l.lore });
 
 /** The line under a place's name: what it used to be, or what it is. */
-export function subtitle(p: { name: string; oldName: string | null; vault?: { number: number } }): string {
+export function subtitle(p: { name: string; oldName: string | null; vault?: { number: number }; lore?: { town: string } }): string {
+  if (p.lore && !p.vault) return p.lore.town;
   if (p.vault) return p.oldName ? `Entrance to Vault ${String(p.vault.number).padStart(3, '0')}. Formerly ${p.oldName}` : 'A Vault-Tec facility';
   if (!p.oldName) return '';
   return p.name === p.oldName ? 'Old World landmark' : `Formerly ${p.oldName}`;
@@ -330,6 +334,9 @@ const VAULT_LINES = [
 /** A few lines for a place's journal entry, the same every time for the same place. */
 export function describeSpot(spot: Spot, regionName: string): string[] {
   const rand = seeded(hashString(`${spot.id}|journal`));
+  if (spot.lore && !spot.vault) {
+    return [`${spot.name}, ${regionName}. ${spot.lore.town}.`, spot.lore.text, 'The ruins keep it quieter than the stories do.'];
+  }
   if (spot.vault) {
     const number = String(spot.vault.number).padStart(3, '0');
     return [

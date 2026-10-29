@@ -15,6 +15,8 @@ export interface LoreVault {
 }
 
 export const LORE_VAULTS: LoreVault[] = [
+  // Fallout: the Necropolis ghouls' vault, under Bakersfield
+  { number: 12, game: 'Fallout', lat: 35.3733, lng: -119.0187, approximate: true, lore: 'Beneath Necropolis. Sold as a well-equipped shelter, it was built to study radiation on its people, and its door was made never to close. Its people became ghouls.' },
   // Fallout 4: the Commonwealth (Boston)
   { number: 111, game: 'Fallout 4', lat: 42.47, lng: -71.37, approximate: true, lore: 'Overlooking Sanctuary Hills. Its people were told it was a shelter and were frozen instead: a Vault-Tec experiment in cryogenics. One of them walked out, two hundred years later.' },
   { number: 81, game: 'Fallout 4', lat: 42.346, lng: -71.17, approximate: true, lore: 'West of the Fens. Built to test a universal cure; the Overseer sabotaged the experiments, and the research wing went to the mole rats.' },

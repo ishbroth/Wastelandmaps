@@ -1,6 +1,7 @@
 // The pre-built wasteland: for each metro area, a handful of notable real places with their wasteland names and icons, made ahead of time
 // (see _tools/build-metros.ts) from open data. Nothing is asked of Google here; these are plain files served with the site.
 
+import { LORE_TOWNS } from './loreSites';
 import { FREE_RENDERS } from './renders';
 import { assignVaults } from './vaults';
 import { distanceMeters, locationFromData, type CategoryId, type LatLng, type Location } from './wasteland';
@@ -72,6 +73,24 @@ function withFreeLandmarks(metro: MetroEntry, places: Location[]): Location[] {
   return places;
 }
 
+/** The buildings and landmarks the games' stories name, around the lore towns that fall inside this metro. */
+function withLoreSites(metro: MetroEntry, places: Location[]): Location[] {
+  for (const town of LORE_TOWNS) {
+    if (distanceMeters({ lat: metro.lat, lng: metro.lng }, town.anchor) > metro.radiusKm * 1000 + 4000) continue;
+    for (const site of town.sites) {
+      const id = `lore:${site.slug}`;
+      if (places.some((p) => p.id === id)) continue;
+      const lat = town.anchor.lat + site.dy / 111_320;
+      const lng = town.anchor.lng + site.dx / (111_320 * Math.max(0.2, Math.cos((town.anchor.lat * Math.PI) / 180)));
+      places.push({
+        id, oldName: '', name: site.name, category: 'other', position: { lat, lng }, loot: 'A story or two', threat: 'Quiet', rads: 0,
+        icon: site.icon, lore: { town: town.town, text: site.text },
+      });
+    }
+  }
+  return places;
+}
+
 /** The places of one metro, as wasteland locations. */
 export function loadMetro(metro: MetroEntry): Promise<Location[]> {
   const id = metro.id;
@@ -81,7 +100,7 @@ export function loadMetro(metro: MetroEntry): Promise<Location[]> {
       .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string, number?, number?][] }>) : { places: [] }))
       .then((m) => m.places.map(([pid, name, lat, lng, category, fame, area]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0, area === 1)))
       .then((places) => places.filter((p) => !NOT_A_PLACE.test(p.oldName)))
-      .then((places) => assignVaults(metro, withFreeLandmarks(metro, places)))
+      .then((places) => assignVaults(metro, withLoreSites(metro, withFreeLandmarks(metro, places))))
       .catch(() => [] as Location[]);
     loaded.set(id, hit);
   }

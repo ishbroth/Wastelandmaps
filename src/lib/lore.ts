@@ -16,6 +16,8 @@ const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
 
 /** Real cities (and a whole state) with a name in the games and lore. Keys are "city|ST", lowercased city. */
 const CANON: Record<string, string> = {
+  'cathedral city|ca': 'Shady Sands', // Palm Springs and its neighbors: the metro's biggest town
+  'mira mesa|ca': 'Dayglow', // the northern half of San Diego (the rest of the city is counted with Tijuana)
   'palm springs|ca': 'Shady Sands',
   'redding|ca': 'Redding',
   'klamath falls|or': 'Klamath',
