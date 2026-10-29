@@ -390,3 +390,5 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-pin-selected .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.2); height: calc(var(--pin-size, 36px) * 1.2); }
 .rm-pin-vault .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.1); height: calc(var(--pin-size, 36px) * 1.1); }
 .rm-pin-rad .rm-pin-icon { width: 30px; height: 30px; }
+.rm-pin-landmark .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.3); height: calc(var(--pin-size, 36px) * 1.3); }
+.rm-pin-landmark.rm-pin-selected .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.5); height: calc(var(--pin-size, 36px) * 1.5); }

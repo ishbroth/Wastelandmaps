@@ -10,10 +10,10 @@ export type IconId =
   | 'anchor' | 'stadium' | 'tree' | 'shield' | 'capitol' | 'castle' | 'bed' | 'vault' | 'tower' | 'monument' | 'arch'
   | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
 
-const f = (d: string) => `<path class="f" d="${d}"/>`;
-const d = (p: string) => `<path class="d" d="${p}"/>`;
-const s = (p: string) => `<path class="s" d="${p}"/>`;
-const svg = (inner: string) =>
+export const f = (d: string) => `<path class="f" d="${d}"/>`;
+export const d = (p: string) => `<path class="d" d="${p}"/>`;
+export const s = (p: string) => `<path class="s" d="${p}"/>`;
+export const svg = (inner: string) =>
   `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 
 const ICONS: Record<IconId, string> = {

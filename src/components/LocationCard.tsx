@@ -1,4 +1,5 @@
 import { placeIcon } from '../lib/placeIcons';
+import { iconHtmlFor } from '../lib/landmarkIcons';
 import { formatDuration, radsAlongRoute, travelMinutes } from '../lib/travel';
 import { distanceMeters, subtitle, type LatLng, type Spot, type Wasteland } from '../lib/wasteland';
 
@@ -23,7 +24,7 @@ export default function LocationCard({ spot, from, wasteland, here, visited, tra
   return (
     <div className="rm-card" role="region" aria-label={spot.name}>
       <div className="rm-card-top">
-        <span className="rm-card-icon" dangerouslySetInnerHTML={{ __html: placeIcon(spot.icon) }} />
+        <span className="rm-card-icon" dangerouslySetInnerHTML={{ __html: iconHtmlFor(spot.id, placeIcon(spot.icon)) }} />
         <div className="rm-card-title">
           <b>{spot.name}</b>
           <i>{spot.kind === 'vault' ? 'Your home' : subtitle(spot)}</i>

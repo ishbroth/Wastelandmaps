@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createHtmlMarker, type HtmlMarkerHandle } from '../lib/htmlMarker';
 import { iconFor } from '../lib/icons';
 import { placeIcon } from '../lib/placeIcons';
+import { landmarkIcon } from '../lib/landmarkIcons';
+import { freeRenderFor } from '../lib/renders';
 import type { Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
@@ -265,7 +267,8 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     let morphed = 0;
     for (const loc of inView) {
       if (pins.current.has(loc.id)) continue;
-      const el = pinElement(loc.category, placeIcon(loc.icon), loc.name, subtitle(loc), loc.vault ? 'rm-pin-vaultentrance' : '');
+      const free = freeRenderFor(loc.id); // the always-free landmarks: drawn as themselves, and a little larger
+      const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free ? 'rm-pin-landmark' : ''].filter(Boolean).join(' '));
       el.classList.toggle('rm-pin-visited', visitedRef.current.has(loc.id));
       const brandNew = !everShown.current.has(loc.id);
       everShown.current.add(loc.id);

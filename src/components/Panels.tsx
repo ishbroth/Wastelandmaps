@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, categoryById, distanceMeters, formatCoords, subtitle, type CategoryId, type Location, type Wasteland } from '../lib/wasteland';
 
 import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
+import { iconHtmlFor } from '../lib/landmarkIcons';
 import { buildShareUrl } from '../lib/share';
 import type { LookId } from '../lib/looks';
 import type { Region } from '../lib/google';
@@ -62,7 +63,7 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
         {rows.map(({ l, d }) => (
           <li key={l.id} ref={l.id === selectedId ? selectedRow : null}>
             <button type="button" className={`rm-row ${l.id === selectedId ? 'rm-row-selected' : ''}`} onClick={() => onSelect(l.id)}>
-              <span className="rm-row-icon" dangerouslySetInnerHTML={{ __html: placeIcon(l.icon) }} />
+              <span className="rm-row-icon" dangerouslySetInnerHTML={{ __html: iconHtmlFor(l.id, placeIcon(l.icon)) }} />
               <span className="rm-row-text">
                 <b>{l.name}{visited.has(l.id) ? ' ✓' : ''}</b>
                 <i>{subtitle(l)}</i>
