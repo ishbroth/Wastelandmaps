@@ -86,7 +86,15 @@ export interface Where { continent: string; country: string | null; countryName:
 
 /** Which continent, country and US state a point is in; null where the map is open sea. */
 export function whereIs(data: RegionsFile, p: LatLng): Where | null {
-  const country = data.countries.find((c) => contains(c, p)) ?? null;
+  let country = data.countries.find((c) => contains(c, p)) ?? null;
+  if (!country) {
+    // the outlines are coarse, so a coast or an island can fall just outside: take the nearest country within a few hundred km
+    let nearest = 600;
+    for (const c of data.countries) {
+      const km = Math.hypot((c.label[0] - p.lat) * 111.32, (c.label[1] - p.lng) * 111.32 * Math.cos((p.lat * Math.PI) / 180));
+      if (km < nearest) { nearest = km; country = c; }
+    }
+  }
   if (!country) return null;
   const state = country.iso === 'US' ? data.states.find((s) => contains(s, p)) ?? null : null;
   return { continent: country.continent, country: country.iso, countryName: country.name, state: state?.code ?? null };
@@ -119,6 +127,47 @@ export function allLabels(data: RegionsFile): RegionLabel[] {
   // places the stories name that are smaller than any metro on the map
   for (const place of LORE_PLACES) labels.push({ name: place.name, level: 'state', position: place.at, canon: true });
   return labels;
+}
+
+/** The country this device is probably in, from its language setting (en-GB) or time zone; null when it cannot tell. */
+export function deviceCountry(): string | null {
+  try {
+    const tag = (navigator.languages?.[0] ?? navigator.language ?? '').trim();
+    const region = /[-_]([A-Za-z]{2})$/.exec(tag);
+    if (region) return region[1].toUpperCase();
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+    const byZone: [RegExp, string][] = [
+      [/^Europe\/London/, 'GB'], [/^Europe\/Paris/, 'FR'], [/^Europe\/Berlin/, 'DE'], [/^Europe\/Madrid/, 'ES'], [/^Europe\/Rome/, 'IT'], [/^Europe\/Moscow/, 'RU'],
+      [/^Asia\/Tokyo/, 'JP'], [/^Asia\/Seoul/, 'KR'], [/^Asia\/Shanghai/, 'CN'], [/^Asia\/Kolkata|^Asia\/Calcutta/, 'IN'], [/^Australia\//, 'AU'], [/^Pacific\/Auckland/, 'NZ'],
+      [/^America\/(Toronto|Vancouver|Edmonton|Winnipeg|Halifax)/, 'CA'], [/^America\/Mexico_City/, 'MX'], [/^America\/(Sao_Paulo|Bahia|Fortaleza)/, 'BR'],
+      [/^America\/Argentina|^America\/Buenos_Aires/, 'AR'], [/^America\//, 'US'],
+    ];
+    return byZone.find(([re]) => re.test(zone))?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** North America: where the map starts when nothing says otherwise. */
+export const NORTH_AMERICA: google.maps.LatLngBoundsLiteral = { north: 58, south: 14, west: -135, east: -58 };
+
+/** A frame around a country's mainland (its largest piece), with a little room. Null if we have no outline for it. */
+export function countryBounds(data: RegionsFile, iso: string | null): google.maps.LatLngBoundsLiteral | null {
+  const country = iso ? data.countries.find((c) => c.iso === iso) : null;
+  if (!country) return null;
+  let best: number[] | null = null;
+  let bestArea = -1;
+  for (const ring of country.rings) {
+    let area = 0;
+    for (let i = 0; i < ring.length - 2; i += 2) area += ring[i] * ring[i + 3] - ring[i + 2] * ring[i + 1];
+    if (Math.abs(area) > bestArea) { bestArea = Math.abs(area); best = ring; }
+  }
+  if (!best) return null;
+  let [west, east, south, north] = [Infinity, -Infinity, Infinity, -Infinity];
+  for (let i = 0; i < best.length; i += 2) { west = Math.min(west, best[i]); east = Math.max(east, best[i]); south = Math.min(south, best[i + 1]); north = Math.max(north, best[i + 1]); }
+  const padLng = (east - west) * 0.08;
+  const padLat = (north - south) * 0.08;
+  return { north: north + padLat, south: south - padLat, east: east + padLng, west: west - padLng };
 }
 
 /** Which levels show at a zoom. */

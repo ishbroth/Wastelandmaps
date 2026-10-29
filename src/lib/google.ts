@@ -45,6 +45,8 @@ export interface Region {
   bounds: google.maps.LatLngBoundsLiteral;
   /** Roughly how far the city reaches from its center, in meters. */
   radiusMeters: number;
+  /** Leave the map where it is instead of flying to this place (used when reopening where someone left off). */
+  keepView?: boolean;
 }
 
 function cityName(result: google.maps.GeocoderResult): string {

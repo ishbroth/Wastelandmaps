@@ -23,6 +23,8 @@ export interface Account {
   email: string | null;
   /** Credits left, or null while it is being fetched. */
   credits: number | null;
+  /** False until we know whether someone is signed in. */
+  loaded: boolean;
   /** Places this person has unlocked ("wd:Q243"). */
   unlocked: Set<string>;
   refresh: () => Promise<void>;
@@ -32,6 +34,7 @@ export interface Account {
 export function useAccount(): Account {
   const [session, setSession] = useState<Session | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(!accountsEnabled);
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
 
   const load = async (s: Session | null) => {
@@ -52,6 +55,7 @@ export function useAccount(): Account {
     if (!accountsEnabled) return;
     void db().auth.getSession().then(({ data }) => {
       setSession(data.session);
+      setLoaded(true);
       void load(data.session);
     });
     const { data } = db().auth.onAuthStateChange((_event, next) => {
@@ -66,7 +70,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, refresh };
+  return { session, email: session?.user.email ?? null, credits, unlocked, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -109,4 +113,15 @@ export async function unlockRender(placeId: string, name: string): Promise<Unloc
   if (data?.status === 'ready') return { kind: 'ready', render: { url: data.url as string, credit: data.credit as Unlocked['credit'] } };
   if (data?.status === 'working') return { kind: 'working' };
   return { kind: 'error', reason: 'server' };
+}
+
+/** Where this person last left the map, or null. */
+export async function loadMapPosition(userId: string): Promise<{ lat: number; lng: number; zoom: number } | null> {
+  const { data } = await db().from('map_positions').select('lat,lng,zoom').eq('user_id', userId).maybeSingle();
+  return data ? { lat: data.lat as number, lng: data.lng as number, zoom: data.zoom as number } : null;
+}
+
+/** Remembers where the map is. */
+export async function saveMapPosition(userId: string, lat: number, lng: number, zoom: number): Promise<void> {
+  await db().from('map_positions').upsert({ user_id: userId, lat, lng, zoom, updated_at: new Date().toISOString() });
 }

@@ -28,6 +28,8 @@ interface Props {
   regionLabels: RegionLabel[];
   /** Flooded patches near the coast. */
   flood: FloodPatch[];
+  /** Where to put the map when the page opens: a country frame, or exactly where someone left off. Applied each time it changes. */
+  startView: { kind: 'bounds'; bounds: google.maps.LatLngBoundsLiteral } | { kind: 'view'; center: LatLng; zoom: number } | null;
 }
 
 /** The most markers on the map at once. */
@@ -78,7 +80,7 @@ function morphLabel(el: HTMLElement, from: string, to: string) {
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
-export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, onSelect, onViewport, regionLabels, flood }: Props) {
+export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, onSelect, onViewport, regionLabels, flood, startView }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<google.maps.LatLngBoundsLiteral | null>(null);
   const everShown = useRef(new Set<string>());
@@ -147,9 +149,20 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
   // a new city: fly there
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !region) return;
+    if (!map || !region || region.keepView) return;
     map.fitBounds(region.bounds, 24);
   }, [region]);
+
+  // the page opens at a country, or where the person left off
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !startView) return;
+    if (startView.kind === 'bounds') map.fitBounds(startView.bounds, 0);
+    else {
+      map.setCenter(startView.center);
+      map.setZoom(startView.zoom);
+    }
+  }, [startView]);
 
   // the vault and the radiation zones
   useEffect(() => {

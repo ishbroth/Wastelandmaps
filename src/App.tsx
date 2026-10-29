@@ -3,7 +3,7 @@ import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
-import { accountsEnabled, useAccount } from './lib/account';
+import { accountsEnabled, loadMapPosition, saveMapPosition, useAccount } from './lib/account';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { DataPanel, LocationsPanel, SharePanel } from './components/Panels';
@@ -11,9 +11,9 @@ import { geocodeLatLng, geocodeQuery, loadGoogle, type Region } from './lib/goog
 import { loadIndex, loadMetro, metroAt } from './lib/metros';
 import { wastelandName } from './lib/lore';
 import { loadFlood, type FloodPatch } from './lib/flood';
-import { allLabels, loadRegions, nameForZoom, type RegionLabel } from './lib/regions';
+import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORTH_AMERICA, type RegionLabel } from './lib/regions';
 import { LOOKS, type LookId } from './lib/looks';
-import { readShareState, writeShareState } from './lib/share';
+import { readShareState } from './lib/share';
 import { beep } from './lib/sound';
 import { START_MINUTES, encounterFor, formatClock, radsAlongRoute, travelMinutes, type TravelRun } from './lib/travel';
 import {
@@ -54,6 +54,10 @@ export default function App() {
   const [zoomName, setZoomName] = useState<string | null>(null);
   const [regionLabels, setRegionLabels] = useState<RegionLabel[]>([]);
   const [flood, setFlood] = useState<FloodPatch[]>([]);
+  const [startView, setStartView] = useState<React.ComponentProps<typeof MapView>['startView']>(null);
+  const started = useRef(false);
+  const lastSaved = useRef(0);
+  const accountRef = useRef<ReturnType<typeof useAccount> | null>(null);
   const scanId = useRef(0);
   const metroSeen = useRef<{ current: string; loaded: Set<string> }>({ current: '', loaded: new Set() });
   const viewTimer = useRef<number | undefined>(undefined);
@@ -166,7 +170,6 @@ export default function App() {
       try { saved = JSON.parse(localStorage.getItem(foundKey.current) ?? '[]') as string[]; } catch { /* nothing saved */ }
       setVisited(new Set([VAULT_ID, ...saved]));
       setMessage(`VAULT ${w.vault.number}: YOU EMERGE INTO ${w.regionName.toUpperCase()}`);
-      writeShareState({ query: r.address, look: lookRef.current });
       sound('select');
       setFlood([]);
       if (home) void loadFlood().then((all) => setFlood(all[home.id] ?? []));
@@ -232,7 +235,36 @@ export default function App() {
       if (travelRef.current || busyRef.current) return;
       void followMap(center, zoom);
     }, 900);
+    // signed in: remember where the map is, at most every few seconds
+    const who = accountRef.current?.session;
+    if (who && started.current && Date.now() - lastSaved.current > 4000) {
+      lastSaved.current = Date.now();
+      void saveMapPosition(who.user.id, center.lat, center.lng, zoom);
+    }
   }, [followMap]);
+
+  // opening the page: the country this device is in (North America if unknown), or, signed in, exactly where the map was left
+  useEffect(() => {
+    accountRef.current = account;
+  }, [account]);
+  useEffect(() => {
+    if (started.current || status !== 'ready' || !account.loaded) return;
+    started.current = true;
+    void (async () => {
+      const regions = await loadRegions();
+      if (account.session) {
+        const saved = await loadMapPosition(account.session.user.id);
+        if (saved) {
+          const center = { lat: saved.lat, lng: saved.lng };
+          setStartView({ kind: 'view', center, zoom: saved.zoom });
+          // close in: set up the wasteland around that spot too, without moving the map
+          if (saved.zoom >= 9) void show(async () => ({ ...(await geocodeLatLng(center)), keepView: true }), 'your last position');
+          return;
+        }
+      }
+      setStartView({ kind: 'bounds', bounds: (regions && countryBounds(regions, deviceCountry())) || NORTH_AMERICA });
+    })();
+  }, [status, account, show]);
 
   const search = useCallback((q: string) => show(() => geocodeQuery(q), q), [show]);
 
@@ -258,7 +290,12 @@ export default function App() {
       .then(() => {
         if (cancelled) return;
         setStatus('ready');
-        if (initial.query) void search(initial.query);
+        if (initial.query) {
+          started.current = true;
+          // a shared link opens its place once; the address bar goes back to plain so a reload does not snap back to it
+          window.history.replaceState(null, '', window.location.pathname);
+          void search(initial.query);
+        }
       })
       .catch((e: Error) => {
         if (cancelled) return;
@@ -270,10 +307,6 @@ export default function App() {
     };
   }, [search, initial]);
 
-  // the address bar follows the look once there is a place
-  useEffect(() => {
-    if (region) writeShareState({ query: region.address, look });
-  }, [look, region]);
 
   // ---- fast travel ----
   const startTravel = useCallback((spot: Spot) => {
@@ -368,11 +401,11 @@ export default function App() {
 
       <main className="rm-device">
         <div className="rm-screen">
-          {wasteland && <div className="rm-poster-title" key={zoomName ?? (liveName || wasteland.regionName)} aria-hidden="true">{zoomName ?? (liveName || wasteland.regionName)}</div>}
+          {(wasteland || zoomName) && <div className="rm-poster-title" key={zoomName ?? (liveName || wasteland?.regionName)} aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}</div>}
           {status === 'ready' ? (
             <MapView
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={locations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood}
+              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
