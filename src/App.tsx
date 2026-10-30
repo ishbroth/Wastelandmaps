@@ -61,6 +61,9 @@ export default function App() {
   const navRef = useRef(nav);
   const lastReroute = useRef(0);
   const [flash, setFlash] = useState(false);
+  // the "+50 XP" that flashes on the map when a place is discovered
+  const [xpFlash, setXpFlash] = useState<{ text: string; id: number } | null>(null);
+  const xpTimer = useRef<number | undefined>(undefined);
   const [flightLink, setFlightLink] = useState<{ url: string; place: string } | null>(null);
   // everything this survivor has found (kept on the account when signed in)
   const [found, setFound] = useState<FoundPlace[]>([]);
@@ -175,10 +178,11 @@ export default function App() {
     setToast(`DISCOVERED: ${said.join(' | ')}`);
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(''), 4200);
-    void pushNotice('Discovered', said.join('\n'));
     if (soundRef.current) beep('select');
-    // reaching places on foot earns points; every level reached gives a free snapshot credit
+    // reaching places on foot earns XP; every level reached gives a free snapshot credit
     const who = accountRef.current?.session;
+    // signed in and on foot: the notification waits for the XP, so it can say "+50 XP" too
+    if (!(onFoot && who)) void pushNotice('Discovered', said.join('\n'));
     if (onFoot && who) {
       void (async () => {
         let added = 0;
@@ -190,16 +194,20 @@ export default function App() {
           added += result?.added ?? 0;
           if (result?.bonus) { credits += result.given; level = result.level ?? level; }
         }
-        if (credits > 0) {
-          setToast(`LEVEL UP${level ? ` (LEVEL ${level})` : ''}: ${credits} FREE SNAPSHOT CREDIT${credits > 1 ? 'S' : ''} EARNED`);
-          window.clearTimeout(toastTimer.current);
-          toastTimer.current = window.setTimeout(() => setToast(''), 5200);
-          void pushNotice('Level up', 'You earned a free snapshot credit.');
-        } else if (added > 0) {
-          setToast(`+${added} POINTS`);
-          window.clearTimeout(toastTimer.current);
-          toastTimer.current = window.setTimeout(() => setToast(''), 3200);
+        if (added > 0) {
+          // on the map if it is in front of them, as a notification if the page is in the background
+          setXpFlash({ text: `+${added} XP`, id: Date.now() });
+          window.clearTimeout(xpTimer.current);
+          xpTimer.current = window.setTimeout(() => setXpFlash(null), 2600);
         }
+        if (credits > 0) {
+          window.setTimeout(() => {
+            setToast(`LEVEL UP${level ? `: LEVEL ${level}` : ''}. ${credits} FREE SNAPSHOT CREDIT${credits > 1 ? 'S' : ''} EARNED`);
+            window.clearTimeout(toastTimer.current);
+            toastTimer.current = window.setTimeout(() => setToast(''), 5200);
+          }, 1400);
+        }
+        void pushNotice(credits > 0 ? 'Level up' : 'Discovered', [...said, added > 0 ? `+${added} XP` : '', credits > 0 ? `Level up: ${credits} free snapshot credit${credits > 1 ? 's' : ''}` : ''].filter(Boolean).join('\n'));
         void accountRef.current?.refresh();
       })();
     }
@@ -666,6 +674,7 @@ export default function App() {
           )}
           <div className="rm-crt" aria-hidden="true" />
 
+          {xpFlash && <div className="rm-xp" key={xpFlash.id} role="status">{xpFlash.text}</div>}
           {toast && <div className={`rm-toast${flash ? ' rm-toast-flash' : ''}`} role="status">{toast}</div>}
           {flightLink && (
             <div className="rm-flights" role="status">

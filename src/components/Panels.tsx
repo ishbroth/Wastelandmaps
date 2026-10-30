@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
 import { freeRenderFor } from '../lib/renders';
 import { PACK, type Account, type FoundPlace } from '../lib/account';
-import { POINT_TIERS, levelInfo } from '../lib/points';
+import { levelInfo } from '../lib/points';
 
 import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
 import { iconHtmlFor } from '../lib/landmarkIcons';
@@ -137,21 +137,16 @@ export function AccountPanel({ account, found, onAccount, onGoTo, onSnapshot }: 
   return (
     <div className="rm-acct">
       <div className="rm-level">
-        <div className="rm-level-head"><b>LEVEL {level.level}</b><span>{level.into} / {level.needed} PTS</span></div>
+        <div className="rm-level-head"><b>LEVEL {level.level}</b><span>{level.into} / {level.needed} XP</span></div>
         <div className="rm-level-bar" role="progressbar" aria-valuemin={0} aria-valuemax={level.needed} aria-valuenow={level.into} aria-label={`Progress to level ${level.level + 1}`}>
           <div style={{ width: `${Math.min(100, Math.round((level.into / level.needed) * 100))}%` }} />
         </div>
-        <p className="rm-fine">{level.toGo} points to level {level.level + 1}, and every level gives a free snapshot credit. Points come from places you reach on foot.</p>
-        <details className="rm-points-guide">
-          <summary>WHAT PLACES ARE WORTH</summary>
-          <ul>{POINT_TIERS.map((t) => <li key={t.points}><b>{t.points}</b> {t.label}</li>)}</ul>
-        </details>
+        <p className="rm-fine">{level.toGo} XP to level {level.level + 1}</p>
       </div>
       <div className="rm-acct-credits">
         <div><b>{account.credits === null ? '…' : account.credits}</b> <span>SNAPSHOT CREDITS</span></div>
         <button type="button" className="rm-btn rm-btn-ghost" onClick={onAccount} title={`${PACK.credits} snapshots for ${PACK.price}`}>BUY MORE</button>
       </div>
-      <p className="rm-fine">{account.discoveries} places reached on foot, {account.points} points in all.</p>
 
       <h3>PLACES YOU HAVE FOUND ({found.length})</h3>
       {groups.length === 0 && <p className="rm-empty">Nothing found yet. Fast travel to a place, or turn on AUTO-DISCOVER and go for a walk.</p>}

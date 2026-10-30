@@ -31,7 +31,7 @@ export default function LocationCard({ spot, points, from, here, visited, travel
         <button type="button" className="rm-card-close" onClick={onClose} aria-label="Close">×</button>
       </div>
       <p className="rm-card-meta">
-        {visited ? 'DISCOVERED' : 'UNDISCOVERED'}{points > 0 ? ` · ${points} POINTS` : ''} · {spot.threat}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}
+        {visited ? 'DISCOVERED' : 'UNDISCOVERED'}{points > 0 ? ` · ${points} XP` : ''} · {spot.threat}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}
       </p>
       {!here && from && (
         <p className="rm-card-trip">

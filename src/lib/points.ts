@@ -9,16 +9,6 @@ export const FIRST_LEVEL_POINTS = 80;
 /** Each level needs this many times the points of the one before. */
 export const LEVEL_GROWTH = 1.05;
 
-/** What each kind of place is worth, top to bottom, for the explanation in the Data tab. */
-export const POINT_TIERS: { points: number; label: string }[] = [
-  { points: 75, label: 'Landmarks with a permanent snapshot' },
-  { points: 50, label: 'Other world-famous landmarks' },
-  { points: 30, label: 'Government buildings, museums, skyscrapers, places from the stories' },
-  { points: 20, label: 'Libraries, office plazas, arenas, restaurants, stores' },
-  { points: 15, label: 'Bridges, schools, labs, universities, hospitals' },
-  { points: 10, label: 'Transit, parks, neighborhoods and everything else' },
-];
-
 const GOVERNMENT = /capitol|city hall|town hall|courthouse|court house|parliament|congress|legislat|state house|statehouse|government|council|rathaus|ayuntamiento|mairie|senate|assembly|palace|castle|embassy|consulate|county (?:building|hall)/i;
 const MUSEUM = /museum|mus[eé]e|museo|gallery|galerie|aquarium|planetarium/i;
 const SKYSCRAPER = /skyscraper|\btower\b(?! bridge)|\bwtc\b|world trade|one \w+ (?:plaza|center)|hochhaus|rascacielos/i;

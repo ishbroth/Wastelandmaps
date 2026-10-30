@@ -488,7 +488,8 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-level-head span { color: var(--ink-dim); font-size: 13px; letter-spacing: 2px; }
 .rm-level-bar { height: 14px; margin: 6px 0 8px; border: 2px solid var(--ink); border-radius: 3px; background: transparent; overflow: hidden; }
 .rm-level-bar > div { height: 100%; background: var(--ink); box-shadow: 0 0 10px var(--glow); transition: width 0.6s ease; }
-.rm-points-guide { margin-top: 6px; font-size: 12px; color: var(--ink-dim); }
-.rm-points-guide summary { cursor: pointer; letter-spacing: 2px; color: var(--ink); }
-.rm-points-guide ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; }
-.rm-points-guide li b { display: inline-block; min-width: 34px; color: var(--ink); font-family: var(--font-display); font-weight: 400; font-size: 16px; }
+
+/* "+50 XP": flashes over the map when a place is discovered, like in the games */
+.rm-xp { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 15; pointer-events: none; font-family: var(--font-display); font-size: 64px; letter-spacing: 6px; color: var(--ink); text-shadow: 0 0 14px var(--glow), 0 0 32px var(--glow), 0 2px 0 #000; animation: rm-xp-pop 2.6s ease-out forwards; white-space: nowrap; }
+@keyframes rm-xp-pop { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 22%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -90%) scale(1); } }
+@media (max-width: 960px) { .rm-xp { font-size: 44px; } }
