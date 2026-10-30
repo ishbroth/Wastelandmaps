@@ -30,6 +30,9 @@ export function seeded(seed: number): () => number {
 
 import { isFamous, wastelandPlaceName } from './placeNames';
 import { neighborhoodIcon, pickIcon, type IconId } from './placeIcons';
+import { backstoryFor } from './backstories';
+import { enemyById, type BossId, type EnemyId } from './raid/enemies';
+import { lootName, type LootId } from './raid/loot';
 
 export type CategoryId = 'medical' | 'school' | 'market' | 'fuel' | 'park' | 'guard' | 'cantina' | 'chapel' | 'transit' | 'arena' | 'lodging' | 'other';
 
@@ -339,7 +342,18 @@ const VAULT_LINES = [
 ];
 
 /** A few lines for a place's journal entry, the same every time for the same place. */
-export function describeSpot(spot: Spot, regionName: string): string[] {
+/** What is living in a place now and what can be looted there: the last lines of its journal entry. */
+export interface PlaceInhabitants { enemies: EnemyId[]; boss: BossId | null; lootTypes: LootId[] }
+
+function presentDay(plan: PlaceInhabitants): string {
+  const who = plan.enemies.map((e) => enemyById(e).now).join(' ');
+  const boss = plan.boss ? ` ${enemyById(plan.boss).now}` : '';
+  const names = plan.lootTypes.map((l) => lootName(l).toLowerCase());
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+  return `${who}${boss} Scavengers say it is worth the risk for ${list}.`;
+}
+
+export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabitants): string[] {
   const rand = seeded(hashString(`${spot.id}|journal`));
   if (spot.lore && !spot.vault) {
     return [`${spot.name}, ${regionName}. ${spot.lore.town}.`, spot.lore.text, 'The ruins keep it quieter than the stories do.'];
@@ -356,9 +370,10 @@ export function describeSpot(spot: Spot, regionName: string): string[] {
     return [`${spot.name}, ${regionName}.`, VAULT_LINES[Math.floor(rand() * VAULT_LINES.length)], 'Home, for some of us. Safe, for now.'];
   }
   const openers = OPENERS[spot.kind] ?? OPENERS.other;
+  const story = backstoryFor(spot.id, spot.oldName);
   return [
     spot.name === spot.oldName ? `${spot.name}, ${regionName}. One of the Old World's great landmarks, or what the years have left of it.` : `${spot.name}, ${regionName}. Formerly ${spot.oldName}.`,
-    openers[Math.floor(rand() * openers.length)],
-    `${THREAT_LINES[spot.threat]} Worth a look for: ${spot.loot.toLowerCase()}.`,
+    story ?? openers[Math.floor(rand() * openers.length)],
+    plan ? presentDay(plan) : `${THREAT_LINES[spot.threat]} Worth a look for: ${spot.loot.toLowerCase()}.`,
   ];
 }

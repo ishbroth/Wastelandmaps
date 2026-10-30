@@ -3,6 +3,8 @@
 
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
+import { STARTING_ARSENAL, type Arsenal, type WeaponClass } from './raid/weapons';
+import type { LootBag, LootId } from './raid/loot';
 
 const URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? 'https://tdwikatzogfwfssyzmlw.supabase.co';
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -31,6 +33,9 @@ export interface Account {
   discoveries: number;
   /** Points earned by reaching places on foot (see points.ts): they fill the level bar, and every level gives a free snapshot. */
   points: number;
+  /** What they have looted, and the highest tier of each class of gun they have built. */
+  loot: LootBag;
+  arsenal: Arsenal;
   refresh: () => Promise<void>;
 }
 
@@ -42,6 +47,8 @@ export function useAccount(): Account {
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
   const [discoveries, setDiscoveries] = useState(0);
   const [points, setPoints] = useState(0);
+  const [loot, setLoot] = useState<LootBag>({});
+  const [arsenal, setArsenal] = useState<Arsenal>(STARTING_ARSENAL);
 
   const load = async (s: Session | null) => {
     if (!accountsEnabled || !s) {
@@ -49,8 +56,22 @@ export function useAccount(): Account {
       setUnlocked(new Set());
       setDiscoveries(0);
       setPoints(0);
+      setLoot({});
+      setArsenal(STARTING_ARSENAL);
       return;
     }
+    // loot and guns (empty if the raids migration has not been run)
+    void Promise.all([
+      db().from('player_loot').select('loot,qty').eq('user_id', s.user.id),
+      db().from('player_weapons').select('weapon_class,tier').eq('user_id', s.user.id),
+    ]).then(([l, w]) => {
+      const bag: LootBag = {};
+      for (const r of (l.data ?? []) as { loot: LootId; qty: number }[]) bag[r.loot] = r.qty;
+      const guns: Arsenal = { ...STARTING_ARSENAL };
+      for (const r of (w.data ?? []) as { weapon_class: WeaponClass; tier: 1 | 2 | 3 | 4 }[]) guns[r.weapon_class] = r.tier;
+      setLoot(bag);
+      setArsenal(guns);
+    });
     const [bal, owned, found] = await Promise.all([
       db().from('credits').select('balance').eq('user_id', s.user.id).maybeSingle(),
       db().from('unlocks').select('place_id').eq('user_id', s.user.id),
@@ -89,7 +110,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, arsenal, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -194,4 +215,30 @@ export async function loadAutoDiscover(userId: string): Promise<boolean> {
 
 export async function saveAutoDiscover(userId: string, on: boolean): Promise<void> {
   await db().from('map_positions').upsert({ user_id: userId, auto_discover: on, updated_at: new Date().toISOString() });
+}
+
+// ---- looting and guns ----
+
+/** Builds or upgrades the next gun in a class from loot. */
+export async function craftWeapon(weaponClass: WeaponClass): Promise<{ ok: boolean; tier?: number; reason?: string }> {
+  const { data, error } = await db().functions.invoke('craft', { body: { class: weaponClass } });
+  return error || !data ? { ok: false, reason: 'server' } : (data as { ok: boolean; tier?: number; reason?: string });
+}
+
+/** Starts a raid on a place (the server checks the snapshot is theirs and decides the loot). Returns the run to finish, or the reason it cannot start. */
+export async function startRaid(placeId: string, worth: number, enemies: number, lootTypes: LootId[]): Promise<{ runId: string } | { error: string }> {
+  const { data, error } = await db().functions.invoke('raid', { body: { action: 'start', placeId, worth, enemies, lootTypes } });
+  if (error || !data?.runId) {
+    let reason = 'server';
+    const response = (error as { context?: Response } | null)?.context;
+    if (response) { try { reason = ((await response.json()) as { error?: string }).error ?? 'server'; } catch { /* no body */ } }
+    return { error: reason };
+  }
+  return { runId: data.runId as string };
+}
+
+/** Ends a raid. A win pays the loot the server decided at the start. */
+export async function finishRaid(runId: string, won: boolean): Promise<{ won: boolean; loot?: LootBag }> {
+  const { data, error } = await db().functions.invoke('raid', { body: { action: 'finish', runId, won } });
+  return error || !data?.ok ? { won: false } : { won: data.won === true, loot: data.loot as LootBag | undefined };
 }

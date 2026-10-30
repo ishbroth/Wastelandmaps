@@ -493,3 +493,13 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-xp { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 15; pointer-events: none; font-family: var(--font-display); font-size: 64px; letter-spacing: 6px; color: var(--ink); text-shadow: 0 0 14px var(--glow), 0 0 32px var(--glow), 0 2px 0 #000; animation: rm-xp-pop 2.6s ease-out forwards; white-space: nowrap; }
 @keyframes rm-xp-pop { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 22%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -90%) scale(1); } }
 @media (max-width: 960px) { .rm-xp { font-size: 44px; } }
+
+/* loot and guns in the Data tab */
+.rm-loot { display: flex; flex-wrap: wrap; gap: 6px; }
+.rm-loot-item { border: 1px solid var(--line); border-radius: 12px; padding: 2px 10px; font-size: 13px; letter-spacing: 1px; }
+.rm-loot-item b { font-family: var(--font-display); font-weight: 400; font-size: 18px; margin-right: 4px; }
+.rm-loot-none { opacity: 0.45; }
+.rm-arsenal { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rm-arsenal-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font-size: 12px; letter-spacing: 2px; color: var(--ink-dim); }
+.rm-arsenal-head b { font-family: var(--font-display); font-weight: 400; font-size: 17px; letter-spacing: 1px; color: var(--ink); text-align: right; }
+.rm-arsenal-buy { width: 100%; margin-top: 4px; font-size: 13px; letter-spacing: 1px; white-space: normal; text-align: left; padding: 4px 8px; }

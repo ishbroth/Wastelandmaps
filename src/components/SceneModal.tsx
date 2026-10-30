@@ -4,7 +4,7 @@ import { accountsEnabled, PACK, type Account } from '../lib/account';
 import { freeRenderFor } from '../lib/renders';
 import { usePaidRender } from '../lib/usePaidRender';
 import { findSnapshot, type Snapshot } from '../lib/snapshot';
-import { describeSpot, hashString, subtitle, type Spot } from '../lib/wasteland';
+import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } from '../lib/wasteland';
 import type { LookId } from '../lib/looks';
 import BlowApart from './BlowApart';
 
@@ -15,8 +15,8 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ spot, regionName, look, visited, account, onAccount, onClose }: {
-  spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; onAccount: () => void; onClose: () => void;
+export default function SceneModal({ spot, regionName, look, visited, account, plan, onAccount, onClose }: {
+  spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; onAccount: () => void; onClose: () => void;
 }) {
   const render = useMemo(() => freeRenderFor(spot.id), [spot.id]);
   const [tab, setTab] = useState<Tab>(render ? 'snapshot' : 'scene');
@@ -26,7 +26,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, o
   const photo = snapshot !== null && snapshot !== 'searching' ? snapshot : null;
   const sceneCanvas = useRef<HTMLCanvasElement>(null);
   const seed = useMemo(() => hashString(spot.id), [spot.id]);
-  const journal = useMemo(() => describeSpot(spot, regionName), [spot, regionName]);
+  const journal = useMemo(() => describeSpot(spot, regionName, plan), [spot, regionName, plan]);
 
   // the paid snapshot: for places with a freely licensed photo listed on Wikidata that are not among the free few
   const canPay = accountsEnabled && !render && spot.id.startsWith('wd:') && !!photo?.listed;

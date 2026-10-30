@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
 import { freeRenderFor } from '../lib/renders';
-import { PACK, type Account, type FoundPlace } from '../lib/account';
+import { PACK, craftWeapon, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
+import { LOOT_TYPES, canAfford, describeBag } from '../lib/raid/loot';
+import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt } from '../lib/raid/weapons';
 
 import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
 import { iconHtmlFor } from '../lib/landmarkIcons';
@@ -147,6 +149,37 @@ export function AccountPanel({ account, found, onAccount, onGoTo, onSnapshot }: 
         <div><b>{account.credits === null ? '…' : account.credits}</b> <span>SNAPSHOT CREDITS</span></div>
         <button type="button" className="rm-btn rm-btn-ghost" onClick={onAccount} title={`${PACK.credits} snapshots for ${PACK.price}`}>BUY MORE</button>
       </div>
+
+      <h3>LOOT</h3>
+      <div className="rm-loot">
+        {LOOT_TYPES.map((l) => (
+          <span key={l.id} className={`rm-loot-item${(account.loot[l.id] ?? 0) === 0 ? ' rm-loot-none' : ''}`}><b>{account.loot[l.id] ?? 0}</b> {l.name}</span>
+        ))}
+      </div>
+      <h3>GUNS</h3>
+      <ul className="rm-arsenal">
+        {WEAPON_CLASS_IDS.map((cls) => {
+          const tier = account.arsenal[cls];
+          const next = nextWeapon(account.arsenal, cls);
+          const owned = tier > 0 ? weaponAt(cls, tier as 1 | 2 | 3 | 4) : null;
+          return (
+            <li key={cls}>
+              <div className="rm-arsenal-head"><span>{WEAPON_CLASSES[cls].label.toUpperCase()}</span><b>{owned ? `${owned.name} (TIER ${tier})` : 'NONE'}</b></div>
+              {next && (
+                <button
+                  type="button"
+                  className="rm-btn rm-btn-ghost rm-arsenal-buy"
+                  disabled={!canAfford(account.loot, next.recipe)}
+                  onClick={() => { void craftWeapon(cls).then(() => account.refresh()); }}
+                  title={next.real}
+                >
+                  {tier === 0 ? 'UNLOCK' : 'UPGRADE TO'} {next.name.toUpperCase()}: {describeBag(next.recipe)}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
       <h3>PLACES YOU HAVE FOUND ({found.length})</h3>
       {groups.length === 0 && <p className="rm-empty">Nothing found yet. Fast travel to a place, or turn on AUTO-DISCOVER and go for a walk.</p>}

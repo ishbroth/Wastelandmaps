@@ -1,0 +1,89 @@
+// The guns. Four classes on the fighting screen's weapon wheel (pistol left, automatic right, sniper bottom, explosives top), four tiers each, every
+// tier a real gun. The survivor starts with the tier 1 pistol only. Tier 1 of another class costs 4 pieces of loot, tier 2 costs 7 more, tier 3 costs 10
+// more, tier 4 costs 15 more, and tiers cannot be skipped. Every gun has its own mix of loot.
+
+import type { LootBag } from './loot';
+
+export type WeaponClass = 'pistol' | 'automatic' | 'sniper' | 'explosive';
+
+export interface Weapon {
+  id: string;
+  name: string;
+  /** What it is in the real world. */
+  real: string;
+  tier: 1 | 2 | 3 | 4;
+  /** Damage of one shot (one tick for the flamethrower). */
+  damage: number;
+  /** Shots per second. */
+  rate: number;
+  /** Holding the screen keeps firing. */
+  auto?: boolean;
+  /** Blast radius in screen units (a share of the picture's width); everything inside is hurt. */
+  splash?: number;
+  /** A bullet that goes through everything in line. */
+  pierce?: boolean;
+  /** Shots per fight, for the weapons that cannot fire forever. */
+  ammo?: number;
+  /** What it costs to build or upgrade to (nothing for the starting pistol). */
+  recipe: LootBag;
+}
+
+/** Cost of each tier in pieces of loot: 4, then 7, 10 and 15 more. */
+export const TIER_COST: Record<1 | 2 | 3 | 4, number> = { 1: 4, 2: 7, 3: 10, 4: 15 };
+
+export const WEAPON_CLASSES: Record<WeaponClass, { label: string; /** Where it sits on the weapon wheel. */ slot: 'left' | 'right' | 'bottom' | 'top'; tiers: [Weapon, Weapon, Weapon, Weapon] }> = {
+  pistol: {
+    label: 'Pistols',
+    slot: 'left',
+    tiers: [
+      { id: 'm1911', name: 'Colt M1911', real: 'Colt M1911, .45 ACP semi-automatic pistol', tier: 1, damage: 14, rate: 3, recipe: {} },
+      { id: 'sw29', name: 'Smith & Wesson Model 29', real: 'Smith & Wesson Model 29, .44 Magnum revolver', tier: 2, damage: 26, rate: 2.2, recipe: { steel: 3, springs: 2, screws: 2 } },
+      { id: 'deagle', name: 'Desert Eagle', real: 'IMI Desert Eagle, .50 Action Express pistol', tier: 3, damage: 40, rate: 2, recipe: { steel: 4, springs: 3, screws: 2, adhesive: 1 } },
+      { id: 'sw500', name: 'Smith & Wesson Model 500', real: 'Smith & Wesson Model 500, .500 S&W Magnum revolver', tier: 4, damage: 65, rate: 1.5, recipe: { steel: 5, springs: 3, gears: 3, screws: 2, oil: 2 } },
+    ],
+  },
+  automatic: {
+    label: 'Automatics',
+    slot: 'right',
+    tiers: [
+      { id: 'uzi', name: 'Uzi', real: 'IMI Uzi, 9mm submachine gun', tier: 1, damage: 7, rate: 10, auto: true, recipe: { steel: 2, springs: 1, plastic: 1 } },
+      { id: 'mp5', name: 'Heckler & Koch MP5', real: 'Heckler & Koch MP5, 9mm submachine gun', tier: 2, damage: 10, rate: 11, auto: true, recipe: { steel: 3, springs: 2, gears: 1, plastic: 1 } },
+      { id: 'ak47', name: 'AK-47', real: 'Kalashnikov AK-47, 7.62mm assault rifle', tier: 3, damage: 16, rate: 9, auto: true, recipe: { steel: 4, gears: 2, springs: 2, plastic: 1, oil: 1 } },
+      { id: 'm249', name: 'M249 SAW', real: 'FN M249 SAW, 5.56mm light machine gun', tier: 4, damage: 20, rate: 12, auto: true, recipe: { steel: 5, gears: 3, springs: 2, plastic: 2, oil: 2, screws: 1 } },
+    ],
+  },
+  sniper: {
+    label: 'Sniper Rifles',
+    slot: 'bottom',
+    tiers: [
+      { id: 'model70', name: 'Winchester Model 70', real: 'Winchester Model 70, .30-06 bolt-action hunting rifle', tier: 1, damage: 70, rate: 0.9, recipe: { wood: 2, steel: 1, glass: 1 } },
+      { id: 'rem700', name: 'Remington 700', real: 'Remington 700, .308 bolt-action sniper rifle', tier: 2, damage: 110, rate: 0.8, recipe: { wood: 2, steel: 2, glass: 2, screws: 1 } },
+      { id: 'svd', name: 'Dragunov SVD', real: 'Dragunov SVD, 7.62x54mmR semi-automatic sniper rifle', tier: 3, damage: 150, rate: 1.4, recipe: { steel: 3, glass: 3, fiberoptics: 1, screws: 2, wood: 1 } },
+      { id: 'm82', name: 'Barrett M82', real: 'Barrett M82, .50 BMG anti-materiel rifle', tier: 4, damage: 300, rate: 0.7, pierce: true, recipe: { steel: 4, glass: 3, fiberoptics: 3, circuitry: 2, screws: 2, oil: 1 } },
+    ],
+  },
+  explosive: {
+    label: 'Heavy Weapons',
+    slot: 'top',
+    tiers: [
+      { id: 'flamethrower', name: 'M2 Flamethrower', real: 'M2 flamethrower, napalm backpack flamethrower', tier: 1, damage: 7, rate: 12, auto: true, splash: 0.07, ammo: 360, recipe: { oil: 2, steel: 1, adhesive: 1 } },
+      { id: 'm79', name: 'M79 Grenade Launcher', real: 'M79 "Blooper", 40mm single-shot grenade launcher', tier: 2, damage: 120, rate: 0.7, splash: 0.09, ammo: 12, recipe: { steel: 3, springs: 1, oil: 1, adhesive: 1, screws: 1 } },
+      { id: 'missile', name: 'M72 Missile Launcher', real: 'M72 LAW, 66mm shoulder-fired rocket launcher', tier: 3, damage: 260, rate: 0.5, splash: 0.13, ammo: 8, recipe: { steel: 3, circuitry: 2, fiberoptics: 1, oil: 2, gears: 1, adhesive: 1 } },
+      { id: 'fatman', name: 'Fat Man', real: 'Davy Crockett recoilless launcher firing the Fat Man mini-nuke', tier: 4, damage: 800, rate: 0.25, splash: 0.26, ammo: 3, recipe: { steel: 4, circuitry: 3, fiberoptics: 2, gears: 2, oil: 2, plastic: 1, glass: 1 } },
+    ],
+  },
+};
+
+export const WEAPON_CLASS_IDS: WeaponClass[] = ['pistol', 'automatic', 'sniper', 'explosive'];
+
+/** The weapons a survivor owns: the highest tier reached in each class (0 = none). A new survivor has the tier 1 pistol. */
+export type Arsenal = Record<WeaponClass, 0 | 1 | 2 | 3 | 4>;
+export const STARTING_ARSENAL: Arsenal = { pistol: 1, automatic: 0, sniper: 0, explosive: 0 };
+
+export const weaponAt = (cls: WeaponClass, tier: 1 | 2 | 3 | 4): Weapon => WEAPON_CLASSES[cls].tiers[tier - 1];
+
+/** The next weapon the survivor can build in a class (the first one, or an upgrade), or null when it is fully upgraded. */
+export function nextWeapon(arsenal: Arsenal, cls: WeaponClass): Weapon | null {
+  const next = arsenal[cls] + 1;
+  return next <= 4 ? weaponAt(cls, next as 1 | 2 | 3 | 4) : null;
+}

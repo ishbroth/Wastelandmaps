@@ -6,6 +6,7 @@ import SceneModal from './components/SceneModal';
 import { accountsEnabled, loadAutoDiscover, loadFoundPlaces, loadMapPosition, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveMapPosition, useAccount, type FoundPlace } from './lib/account';
 import { enableNotifications, pushNotice } from './lib/notify';
 import { pointsFor } from './lib/points';
+import { raidFor } from './lib/raid/raid';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { AccountPanel, LocationsPanel, SharePanel } from './components/Panels';
@@ -709,7 +710,7 @@ export default function App() {
           {sceneSpot && wasteland && (
             <SceneModal
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)}
-              account={account} onAccount={() => setAccountOpen(true)} onClose={() => setSceneId(null)}
+              account={account} plan={(() => { const place = locations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault ? raidFor(place) : undefined; })()} onAccount={() => setAccountOpen(true)} onClose={() => setSceneId(null)}
             />
           )}
           {accountOpen && <AccountModal account={account} onClose={() => setAccountOpen(false)} />}
