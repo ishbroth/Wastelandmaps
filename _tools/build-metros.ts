@@ -36,6 +36,62 @@ const cities: City[] = fs.readFileSync(path.join(ROOT, '_data', 'cities15000.txt
 }).filter((c) => c.pop > 0);
 
 interface Metro { id: string; city: City; pop: number; radiusKm: number; members: number }
+
+// ---- the real size of a metro: the metropolitan area (suburbs and small towns), not just the cities of 15,000 or more ----
+// Cincinnati's cities of 15,000+ add up to about half a million; the metro area is over two million. Every town of 1,000 or more is added to the nearest
+// metro that reaches it (in the same country), so the places a metro gets follow the people who live in it.
+interface Town { lat: number; lng: number; country: string; pop: number }
+const smallTowns: Town[] = fs.readFileSync(path.join(ROOT, '_data', 'cities1000.txt'), 'utf8').split('\n').filter(Boolean).map((line) => {
+  const f = line.split('\t');
+  return { lat: Number(f[4]), lng: Number(f[5]), country: f[8], pop: Number(f[14]) };
+}).filter((t) => t.pop > 0);
+/** How far a metro area reaches from its center, in km (the suburbs), by the size of its core. */
+const metroReachKm = (pop: number) => Math.min(80, 26 + 25 * Math.log10(Math.max(pop, 100_000) / 100_000));
+
+// The published metropolitan areas (Wikidata: US metropolitan statistical areas, metropolitan areas, functional urban areas; see fetch-metro-areas.mjs).
+// GeoNames has no unincorporated suburbs, so the sum of its towns undercounts sprawling metros (Atlanta: about one million against six million).
+// Each published area goes to the nearest metro center (of 100,000 or more) within 60 km of its coordinates.
+const areasFile = path.join(ROOT, '_data', 'metro-areas.json');
+const publishedAreas: [string, number, number, number][] = fs.existsSync(areasFile) ? (JSON.parse(fs.readFileSync(areasFile, 'utf8')) as [string, number, number, number][]) : [];
+function publishedAreaPopulations(centers: Metro[]): Map<Metro, number> {
+  const out = new Map<Metro, number>();
+  for (const [, lat, lng, pop] of publishedAreas) {
+    let home: Metro | null = null;
+    let best = Infinity;
+    for (const m of centers) {
+      if (m.pop < 100_000 || Math.abs(m.city.lat - lat) > 0.6) continue;
+      const d = distanceMeters(m.city, { lat, lng }) / 1000;
+      if (d <= 60 && d < best) { best = d; home = m; }
+    }
+    if (home) out.set(home, Math.max(out.get(home) ?? 0, pop));
+  }
+  return out;
+}
+
+function metroAreaPopulations(centers: Metro[]): Map<Metro, number> {
+  const byBand = new Map<number, Metro[]>();
+  for (const m of centers) {
+    const band = Math.floor(m.city.lat);
+    if (!byBand.has(band)) byBand.set(band, []);
+    byBand.get(band)!.push(m);
+  }
+  const totals = new Map<Metro, number>();
+  for (const t of smallTowns) {
+    let home: Metro | null = null;
+    let bestPull = Infinity;
+    for (let band = Math.floor(t.lat) - 2; band <= Math.floor(t.lat) + 2; band++) {
+      for (const m of byBand.get(band) ?? []) {
+        if (m.city.country !== t.country) continue;
+        const reach = metroReachKm(m.pop);
+        if (Math.abs(m.city.lat - t.lat) > reach / 111 + 0.01) continue;
+        const d = distanceMeters(m.city, t) / 1000;
+        if (d <= reach && d / reach < bestPull) { bestPull = d / reach; home = m; }
+      }
+    }
+    if (home) totals.set(home, (totals.get(home) ?? 0) + t.pop);
+  }
+  return totals;
+}
 /** The big city's pull: bigger cities gather suburbs from farther away. */
 const reachKm = (pop: number) => 20 + 10 * Math.log10(Math.max(pop, 100_000) / 100_000);
 
@@ -61,6 +117,15 @@ function findMetros(): Metro[] {
     }
     if (home) { home.pop += city.pop; home.members += 1; continue; }
     centers.push({ id: '', city, pop: city.pop, radiusKm: reachKm(city.pop), members: 1 });
+  }
+  const areaPop = metroAreaPopulations(centers);
+  const published = publishedAreaPopulations(centers);
+  for (const m of centers) {
+    // the published metropolitan area when there is one, else the sum of the towns around it
+    const wide = published.get(m) ?? areaPop.get(m) ?? 0;
+    // the places of a metro are looked for over the whole metro area in the countries with the lower size line; elsewhere the old, tighter reach stands
+    m.pop = Math.max(m.pop, wide);
+    if (LOW_LINE.has(m.city.country)) m.radiusKm = Math.min(55, metroReachKm(m.pop));
   }
   const used = new Set<string>();
   return centers.filter((m) => m.pop >= thresholdFor(m.city.country) || LORE_TOWNS.some((t) => t.name === m.city.name && t.country === m.city.country && t.admin1 === m.city.admin1)).map((m0) => {
@@ -125,10 +190,11 @@ async function sparql(query: string, tries = 5): Promise<{ results: { bindings: 
   throw new Error('unreachable');
 }
 
+const rowsCache = (metro: Metro, minSitelinks: number) => path.join(RAW, LOW_LINE.has(metro.city.country) ? `${metro.id}.${minSitelinks}.r${Math.round(metro.radiusKm)}.json` : `${metro.id}.${minSitelinks}.json`);
 async function fetchRows(metro: Metro, minSitelinks: number): Promise<Row[]> {
-  const cache = path.join(RAW, `${metro.id}.${minSitelinks}.json`);
+  const cache = rowsCache(metro, minSitelinks);
   if (fs.existsSync(cache)) return JSON.parse(fs.readFileSync(cache, 'utf8')) as Row[];
-  const radius = Math.min(metro.radiusKm, 45);
+  const radius = Math.min(metro.radiusKm, 55);
   const query = `SELECT ?item ?itemLabel ?sl ?coord ?classLabel WHERE {
   SERVICE wikibase:around { ?item wdt:P625 ?coord . bd:serviceParam wikibase:center "Point(${metro.city.lng} ${metro.city.lat})"^^geo:wktLiteral . bd:serviceParam wikibase:radius "${radius}" . }
   ?item wikibase:sitelinks ?sl . FILTER(?sl >= ${minSitelinks})
@@ -147,7 +213,7 @@ async function fetchRows(metro: Metro, minSitelinks: number): Promise<Row[]> {
 }
 
 /** Bump when the rules for choosing places change, so the next run redoes every metro. */
-const SELECTION_VERSION = 5;
+const SELECTION_VERSION = 6;
 
 // ---- 4. choosing the places ----
 interface Place { id: string; name: string; lat: number; lng: number; category: string; sl: number; fame: number; station: boolean; neighborhood: boolean; gov: boolean; downtown: boolean }
@@ -269,7 +335,7 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
   for (const c of pool) if (!hasImage[c.id]) c.sl *= 0.3;
   pool.sort((x, y) => y.sl - x.sl);
 
-  const area = Math.PI * Math.min(metro.radiusKm, 45) ** 2;
+  const area = Math.PI * Math.min(metro.radiusKm, 55) ** 2;
   const baseGap = 0.42 * Math.sqrt(area / n);
   const picked: Place[] = [];
   const count = (cat: string) => picked.filter((p) => p.category === cat).length;
@@ -329,6 +395,11 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
 const only = process.argv[2]?.toLowerCase();
 const metros = findMetros().filter((m) => !only || m.city.name.toLowerCase().includes(only));
 console.log(`${metros.length} metros`);
+if (process.env.LIST) {
+  // a look at the metros and how many places each would get, without building anything
+  for (const m of metros.filter((x) => !only || x.city.name.toLowerCase().includes(only)).slice(0, Number(process.env.LIST) || 40)) console.log(m.city.name.padEnd(22), m.city.country, (m.pop / 1e6).toFixed(2) + 'M', 'radius', Math.round(m.radiusKm), 'km ->', wanted(m.pop), 'places');
+  process.exit(0);
+}
 
 interface IndexEntry { id: string; name: string; country: string; lat: number; lng: number; pop: number; radiusKm: number; title: string; canon: boolean; places: number; v?: number }
 const indexPath = path.join(OUT, 'index.json');
@@ -346,7 +417,7 @@ for (const metro of metros) {
   try {
     // start with the notable places; if there are not enough, let less famous ones in
     for (const minSl of metro.pop > 5_000_000 ? [12, 8, 5, 3] : metro.pop > 1_000_000 ? [8, 5, 3, 2] : [4, 3, 2, 1]) {
-      const saved = fs.existsSync(path.join(RAW, `${metro.id}.${minSl}.json`));
+      const saved = fs.existsSync(rowsCache(metro, minSl));
       const rows = await fetchRows(metro, minSl);
       if (!saved) await sleep(900); // be gentle with Wikidata, but only when we actually asked it
       places = await choose(metro, rows);
@@ -376,5 +447,20 @@ for (const metro of metros) {
     }
   }
   console.log(`[${done}/${metros.length}] ${metro.city.name}, ${metro.city.country}: ${(metro.pop / 1e6).toFixed(2)}M -> ${places.length}/${n} places, "${title.name}"`);
+}
+// metros that no longer exist (merged or split by the rules above) are removed, with their files
+if (!only && !process.env.NOPRUNE) {
+  const keep = new Set(metros.map((m) => m.id));
+  let removed = 0;
+  for (const id of [...index.keys()]) {
+    if (keep.has(id)) continue;
+    index.delete(id);
+    try { fs.unlinkSync(path.join(OUT, 'metros', id + '.json')); } catch { /* already gone */ }
+    removed++;
+  }
+  if (removed > 0) {
+    fs.writeFileSync(indexPath, JSON.stringify([...index.values()].sort((a, b) => b.pop - a.pop)));
+    console.log('removed', removed, 'metros that no longer exist');
+  }
 }
 console.log('done');

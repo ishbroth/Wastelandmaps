@@ -15,7 +15,7 @@ const SPECIFIC: Record<string, string> = {
 
 /** Damage for well-known landmarks, matched by name (so the same text works for the image in any language the place is listed in). */
 const NAMED: [RegExp, string][] = [
-  [/hollywood sign/i, 'Half of the giant white letters have fallen off the hillside and lie smashed and tumbled down the slope; the letters still standing are bent, leaning and full of holes.'],
+  [/hollywood sign/i, 'The sign spells exactly H-O-L-L-Y-W-O-O-D: nine letters, and there is NO letter S anywhere in it or anywhere in the picture. It is far more destroyed than a few missing letters: most of the giant white letters have snapped off their frames and collapsed down the hillside, and only two or three (for example the H and one O) still stand, bent, leaning and full of holes. The rest lie smashed and tumbled on the slope below. Every fragment lying on the ground must be a recognizable broken piece of one of those nine letters (the legs of an H, a cracked ring of an O, the bent bar of an L, the arms of a Y or a W, the curve of a D); never an S, never any other letter, and no new text or extra letters anywhere.'],
   [/golden gate/i, 'The bridge has collapsed in the middle: the main span has fallen into the water, leaving the two red towers standing with cables snapped and trailing, and twisted roadway hanging from each side.'],
   [/superdome/i, 'The huge domed roof has caved in and half of it is gone, with steel ribs hanging down, big sections of the outer wall have collapsed, and the stadium is open to the sky and flooded.'],
   [/coit tower/i, 'The fluted tower has snapped near the top and its crown lies in pieces on the hillside, the concrete is cracked open with rebar showing, and the surrounding trees are dead.'],

@@ -1,0 +1,13 @@
+project_id = "wastelandmaps"
+
+[auth]
+site_url = "https://wastelandmaps.com"
+additional_redirect_urls = ["https://wastelandmaps.com", "https://wastelandmaps.com/", "https://www.wastelandmaps.com", "https://www.wastelandmaps.com/"]
+
+[auth.email.template.magic_link]
+subject = "Your WastelandMaps sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.confirmation]
+subject = "Welcome to WastelandMaps: confirm your email"
+content_path = "./supabase/templates/confirmation.html"
