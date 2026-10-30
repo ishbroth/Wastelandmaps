@@ -29,7 +29,7 @@ export function seeded(seed: number): () => number {
 }
 
 import { isFamous, wastelandPlaceName } from './placeNames';
-import { pickIcon, type IconId } from './placeIcons';
+import { neighborhoodIcon, pickIcon, type IconId } from './placeIcons';
 
 export type CategoryId = 'medical' | 'school' | 'market' | 'fuel' | 'park' | 'guard' | 'cantina' | 'chapel' | 'transit' | 'arena' | 'lodging' | 'other';
 
@@ -203,7 +203,7 @@ export function toLocation(place: { id: string; name: string; position: LatLng; 
 /** The same, for a place whose category is already known (the pre-built maps). */
 export function locationFromData(id: string, name: string, position: LatLng, categoryId: CategoryId, fame = 0, neighborhood = false): Location {
   const loc = locationIn(categoryById(categoryId), { id, name, position }, fame);
-  if (neighborhood) loc.icon = 'cluster'; // a district of the city, drawn as a few buildings together
+  if (neighborhood) loc.icon = neighborhoodIcon(name); // a district of the city: a few buildings, or a cluster of small houses
   return loc;
 }
 
