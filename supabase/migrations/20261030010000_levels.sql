@@ -1,4 +1,4 @@
--- Points and levels. A place reached on foot is worth points (landmarks with a permanent snapshot 100, other world-famous ones 50, government
+-- Points and levels. A place reached on foot is worth points (landmarks with a permanent snapshot 75, other world-famous ones 50, government
 -- buildings, museums and skyscrapers 30, ... everything else 10). Level 1 is 80 points (eight of the least valuable places); each level after that
 -- asks for 5% more than the one before. Every level reached gives a free snapshot credit (at most 2 a day; the rest follow on the next discovery).
 

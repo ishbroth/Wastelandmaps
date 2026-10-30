@@ -1,5 +1,6 @@
 // Points and levels. Reaching a place earns points by how famous or important it is; points fill a level bar, and every level reached gives a free
-// snapshot credit. Level 1 is eight of the least valuable places (8 x 10 = 80 points); every level after that asks for 5% more points than the one before.
+// snapshot credit. Level 1 is eight of the least valuable places (8 x 10 = 80 points), so even the best landmark (75) cannot do it alone; every level
+// after that asks for 5% more points than the one before.
 
 import { freeRenderFor } from './renders';
 import type { Location } from './wasteland';
@@ -10,7 +11,7 @@ export const LEVEL_GROWTH = 1.05;
 
 /** What each kind of place is worth, top to bottom, for the explanation in the Data tab. */
 export const POINT_TIERS: { points: number; label: string }[] = [
-  { points: 100, label: 'Landmarks with a permanent snapshot' },
+  { points: 75, label: 'Landmarks with a permanent snapshot' },
   { points: 50, label: 'Other world-famous landmarks' },
   { points: 30, label: 'Government buildings, museums, skyscrapers, places from the stories' },
   { points: 20, label: 'Libraries, office plazas, arenas, restaurants, stores' },
@@ -26,7 +27,7 @@ const TIER_15 = /bridge|pont\b|school|college|university|universit|institute|aca
 
 /** Points for reaching a place. */
 export function pointsFor(loc: Location): number {
-  if (freeRenderFor(loc.id)) return 100;
+  if (freeRenderFor(loc.id)) return 75;
   if (loc.famous) return 50;
   if (loc.lore || loc.vault) return 30;
   if (loc.neighborhood) return 10;

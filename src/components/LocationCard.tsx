@@ -5,7 +5,7 @@ import { distanceMeters, subtitle, type LatLng, type Spot, type Wasteland } from
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
 /** The card that opens on the map when a place is selected: what it is, what it would cost to get there, and the two things to do about it. */
-export default function LocationCard({ spot, points, from, here, visited, traveling, onTravel, onDiscover, onScene, onClose }: {
+export default function LocationCard({ spot, points, from, here, visited, traveling, onTravel, onScene, onClose }: {
   spot: Spot;
   /** What reaching this place is worth, in points. */
   points: number;
@@ -16,7 +16,6 @@ export default function LocationCard({ spot, points, from, here, visited, travel
   visited: boolean;
   traveling: boolean;
   onTravel: () => void;
-  onDiscover: () => void;
   onScene: () => void;
   onClose: () => void;
 }) {
@@ -42,7 +41,6 @@ export default function LocationCard({ spot, points, from, here, visited, travel
       <div className="rm-card-actions">
         <button type="button" className="rm-btn" disabled={traveling || here} onClick={onTravel}>{here ? 'YOU ARE HERE' : traveling ? 'NAVIGATING…' : 'FAST TRAVEL'}</button>
         <button type="button" className="rm-btn rm-btn-ghost" onClick={onScene}>VIEW</button>
-        {!visited && <button type="button" className="rm-btn rm-btn-ghost" onClick={onDiscover}>DISCOVER</button>}
       </div>
     </div>
   );
