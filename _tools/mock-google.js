@@ -37,6 +37,7 @@
     }
   }
   class Polyline { constructor(o) { this.o = o; this.removed = false; (window.__polylines ||= []).push(this); } setMap(map) { if (!map) this.removed = true; } }
+  class Polygon { constructor(o) { this.o = o; this.removed = false; (window.__polygons ||= []).push(this); } setMap(map) { if (!map) this.removed = true; } setOptions(o) { Object.assign(this.o, o); } }
   class Circle { constructor(o) { this.o = o; (window.__circles ||= []).push(o); } setMap() {} }
   const place = (id, name, type, dlat, dlng) => ({ id, displayName: name, primaryType: type, types: [type], location: new LatLng(42.36 + dlat, -71.06 + dlng) });
   const BY_TYPE = {
@@ -60,12 +61,13 @@
       Geocoder: class {
         async geocode(req) {
           if (req.address && /nowhere/i.test(req.address)) return { results: [] };
+          if (req.address && /chicago/i.test(req.address)) return { results: [{ formatted_address: 'Chicago, IL, USA', types: ['locality'], address_components: [{ long_name: 'Chicago', types: ['locality'] }, { long_name: 'IL', short_name: 'IL', types: ['administrative_area_level_1'] }], geometry: { location: new LatLng(41.8781, -87.6298), viewport: { toJSON: () => ({ north: 42.02, south: 41.64, east: -87.52, west: -87.94 }) } } }] };
           return { results: [{ formatted_address: 'Boston, MA, USA', types: ['locality'], address_components: [{ long_name: 'Boston', types: ['locality'] }], geometry: { location: new LatLng(42.36, -71.06), viewport: { toJSON: () => ({ north: 42.40, south: 42.32, east: -71.0, west: -71.13 }) } } }] };
         }
       },
     },
   };
-  window.google = { maps: { Map: MapMock, LatLng, OverlayView, Circle, Polyline, importLibrary: async (n) => libs[n] } };
+  window.google = { maps: { Map: MapMock, LatLng, OverlayView, Circle, Polyline, Polygon, importLibrary: async (n) => libs[n] } };
   // a fake photo archive: only Boston Common has a free photo
   const realFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {

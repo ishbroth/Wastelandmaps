@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CATEGORIES, categoryById, distanceMeters, formatCoords, subtitle, type CategoryId, type Location, type Wasteland } from '../lib/wasteland';
+import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
+import { freeRenderFor } from '../lib/renders';
+import { PACK, type Account, type FoundPlace } from '../lib/account';
 
 import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
 import { iconHtmlFor } from '../lib/landmarkIcons';
@@ -51,6 +53,7 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
 
   return (
     <div>
+      <p className="rm-foundline"><span>LOCATIONS FOUND</span> <b>{locations.length}</b></p>
       <div className="rm-chips" role="group" aria-label="Filter locations">
         {CATEGORIES.filter((c) => counts.has(c.id)).map((c) => (
           <button key={c.id} type="button" className={`rm-chip ${hidden.has(c.id) ? 'rm-chip-off' : ''}`} onClick={() => onToggleCategory(c.id)} aria-pressed={!hidden.has(c.id)}>
@@ -79,23 +82,100 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
   );
 }
 
-export function DataPanel({ region, wasteland, locations }: { region: Region | null; wasteland: Wasteland | null; locations: Location[] }) {
-  if (!region || !wasteland) return <p className="rm-empty">No data. Pick a place to begin.</p>;
-  const hot = wasteland.zones.reduce((n, z) => Math.max(n, z.rads), 0);
-  const byCat = new Map<CategoryId, number>();
-  locations.forEach((l) => byCat.set(l.category, (byCat.get(l.category) ?? 0) + 1));
+/** A camera with a mushroom cloud in it: this place's snapshot is unlocked. */
+function SnapshotIcon() {
   return (
-    <dl className="rm-data">
-      <dt>REGION</dt><dd>{wasteland.regionName}</dd>
-      <dt>OLD WORLD NAME</dt><dd>{region.address}</dd>
-      <dt>COORDINATES</dt><dd>{formatCoords(region.center)}</dd>
-      <dt>NEAREST VAULT</dt><dd>VAULT {wasteland.vault.number}</dd>
-      <dt>IRRADIATED ZONES</dt><dd>{wasteland.zones.length} (worst: {hot} RADS)</dd>
-      <dt>LOCATIONS FOUND</dt><dd>{locations.length}</dd>
-      <dt>BREAKDOWN</dt>
-      <dd>{[...byCat.entries()].sort((a, b) => b[1] - a[1]).map(([id, n]) => `${categoryById(id).label} ${n}`).join(' · ') || 'none'}</dd>
-      <dt>YEAR</dt><dd>2287. The bombs fell 210 years ago.</dd>
-    </dl>
+    <svg viewBox="0 0 40 34" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="8" width="36" height="24" rx="4" />
+      <path d="M13 8 15 3h10l2 5" />
+      <ellipse cx="20" cy="16.5" rx="8" ry="4.6" fill="currentColor" />
+      <circle cx="13.6" cy="18" r="3" fill="currentColor" />
+      <circle cx="26.4" cy="18" r="3" fill="currentColor" />
+      <path d="M17.2 21c0 5-1 7-3 8.2h11.6c-2-1.2-3-3.2-3-8.2Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+const countryName = (iso: string | null) => {
+  if (!iso) return '';
+  try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(iso) ?? iso; } catch { return iso; }
+};
+
+/** The Data tab: credits, and every place found, grouped by city; a place opens on the map, and an unlocked snapshot opens ready to play. */
+export function AccountPanel({ account, found, onAccount, onGoTo, onSnapshot }: {
+  account: Account;
+  found: FoundPlace[];
+  onAccount: () => void;
+  onGoTo: (place: FoundPlace) => void;
+  onSnapshot: (place: FoundPlace) => void;
+}) {
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const groups = useMemo(() => {
+    const byCity = new Map<string, { key: string; title: string; places: FoundPlace[]; latest: string }>();
+    for (const p of found) {
+      const key = p.metroId ?? `${p.city ?? 'unknown'}|${p.country ?? ''}`;
+      const title = [p.city ?? 'Somewhere in the wasteland', p.state, countryName(p.country)].filter(Boolean).join(', ');
+      const g = byCity.get(key) ?? { key, title, places: [], latest: '' };
+      g.places.push(p);
+      if (p.foundAt > g.latest) g.latest = p.foundAt;
+      byCity.set(key, g);
+    }
+    return [...byCity.values()].sort((x, y) => (y.latest > x.latest ? 1 : -1));
+  }, [found]);
+
+  if (!account.session) {
+    return (
+      <div className="rm-acct">
+        <p>Sign in to keep your record: the places you have found, the snapshots you have unlocked, your credits and where you left the map. It follows you to any device.</p>
+        <button type="button" className="rm-btn" onClick={onAccount}>SIGN IN</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rm-acct">
+      <div className="rm-acct-credits">
+        <div><b>{account.credits === null ? '…' : account.credits}</b> <span>SNAPSHOT CREDITS</span></div>
+        <button type="button" className="rm-btn rm-btn-ghost" onClick={onAccount} title={`${PACK.credits} snapshots for ${PACK.price}`}>BUY MORE</button>
+      </div>
+      <p className="rm-fine">{account.discoveries} places reached on foot. {10 - (account.discoveries % 10)} more earns a free snapshot.</p>
+
+      <h3>PLACES YOU HAVE FOUND ({found.length})</h3>
+      {groups.length === 0 && <p className="rm-empty">Nothing found yet. Fast travel to a place, or turn on AUTO-DISCOVER and go for a walk.</p>}
+      {groups.map((g) => {
+        const isOpen = open.has(g.key);
+        return (
+          <div key={g.key} className="rm-found-city">
+            <button
+              type="button"
+              className="rm-found-head"
+              aria-expanded={isOpen}
+              onClick={() => setOpen((prev) => { const next = new Set(prev); if (next.has(g.key)) next.delete(g.key); else next.add(g.key); return next; })}
+            >
+              <span><b>{g.title}</b><small>{g.places.length} found</small></span>
+              <span aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
+            </button>
+            {isOpen && (
+              <ul className="rm-found-places">
+                {g.places.map((p) => (
+                  <li key={p.id} className="rm-found-place">
+                    <button type="button" className="rm-found-go" onClick={() => onGoTo(p)}>
+                      <b>{p.name}</b>
+                      {p.oldName && p.oldName !== p.name && <i>formerly {p.oldName}</i>}
+                    </button>
+                    {(account.unlocked.has(p.id) || freeRenderFor(p.id)) && (
+                      <button type="button" className="rm-found-snap" onClick={() => onSnapshot(p)} title="Open the snapshot" aria-label={`Open the snapshot of ${p.name}`}>
+                        <SnapshotIcon />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

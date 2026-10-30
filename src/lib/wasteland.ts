@@ -135,7 +135,7 @@ export interface Wasteland {
   /** "The Seattle Wasteland" */
   regionName: string;
   vault: { position: LatLng; number: string };
-  zones: { position: LatLng; radiusMeters: number; rads: number; seed?: number }[];
+  zones: { position: LatLng; radiusMeters: number; rads: number; seed?: number; /** The neighborhood or suburb it sits over. */ name?: string }[];
 }
 
 const metersToDegLat = (m: number) => m / 111_320;

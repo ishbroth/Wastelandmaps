@@ -1,3 +1,4 @@
+import ScrollRow from './ScrollRow';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { downloadImage, shareImage } from '../lib/usePaidRender';
 
@@ -406,17 +407,19 @@ export default function BlowApart({ beforeUrl, afterUrl, name, file, seed }: { b
 
   return (
     <>
-      <span className="rm-modal-style rm-modal-actions">
-        {state !== 'plain' && <button type="button" className="rm-btn rm-btn-ghost" disabled={state !== 'done' || recording} onClick={() => play()}>REPLAY</button>}
-        <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void downloadImage(afterUrl, file)}>SAVE IMAGE</button>
-        {canRecord && state !== 'plain' && (
-          <button type="button" className="rm-btn rm-btn-ghost" disabled={state !== 'done' || recording} onClick={saveAnimation}>{recording ? 'RECORDING…' : 'SAVE VIDEO'}</button>
-        )}
-        <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void shareImage(afterUrl, file, name)}>SHARE</button>
-      </span>
       {state === 'plain'
         ? <img src={afterUrl} className="rm-modal-canvas rm-modal-render" alt={`${name} in the wasteland`} />
         : <canvas ref={canvas} className="rm-modal-canvas rm-modal-render" aria-label={`${name}: the photograph is hit by a bomb and torn apart to reveal it in the wasteland`} />}
+      <div className="rm-snap-actions">
+        <ScrollRow label="Snapshot options">
+          {state !== 'plain' && <button type="button" className="rm-btn rm-btn-ghost" disabled={state !== 'done' || recording} onClick={() => play()}>REPLAY</button>}
+          <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void downloadImage(afterUrl, file)}>SAVE IMAGE</button>
+          {canRecord && state !== 'plain' && (
+            <button type="button" className="rm-btn rm-btn-ghost" disabled={state !== 'done' || recording} onClick={saveAnimation}>{recording ? 'RECORDING…' : 'SAVE VIDEO'}</button>
+          )}
+          <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void shareImage(afterUrl, file, name)}>SHARE</button>
+        </ScrollRow>
+      </div>
     </>
   );
 }

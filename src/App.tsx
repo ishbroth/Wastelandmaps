@@ -3,11 +3,11 @@ import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
-import { accountsEnabled, loadMapPosition, reportDiscovery, saveMapPosition, useAccount } from './lib/account';
+import { accountsEnabled, loadAutoDiscover, loadFoundPlaces, loadMapPosition, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveMapPosition, useAccount, type FoundPlace } from './lib/account';
 import { enableNotifications, pushNotice } from './lib/notify';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
-import { DataPanel, LocationsPanel, SharePanel } from './components/Panels';
+import { AccountPanel, LocationsPanel, SharePanel } from './components/Panels';
 import { geocodeLatLng, geocodeQuery, loadGoogle, type Region } from './lib/google';
 import { loadIndex, loadMetro, metroAt } from './lib/metros';
 import { wastelandName } from './lib/lore';
@@ -51,6 +51,10 @@ export default function App() {
   const [rads, setRads] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const [tracking, setTracking] = useState(false);
+  // everything this survivor has found (kept on the account when signed in)
+  const [found, setFound] = useState<FoundPlace[]>([]);
+  const foundRef = useRef<FoundPlace[]>([]);
+  const pendingOpen = useRef<{ id: string; scene: boolean } | null>(null);
   const [liveName, setLiveName] = useState('');
   // while zoomed out the top of the map names the continent, country or state instead of the city
   const [zoomName, setZoomName] = useState<string | null>(null);
@@ -122,6 +126,29 @@ export default function App() {
     document.documentElement.dataset.look = look;
   }, [look]);
 
+  /** Keeps places on the survivor's record with their city, state and country, and on the account when signed in. */
+  const recordFound = useCallback(async (places: Location[]) => {
+    const real = places.filter((p) => p.id !== VAULT_ID);
+    if (real.length === 0) return;
+    const metros = await loadIndex();
+    const rows: FoundPlace[] = real.map((p) => {
+      const m = metroAt(metros, p.position, 40);
+      const code = m ? m.id.split('-')[1] : '';
+      return {
+        id: p.id, name: p.name, oldName: p.oldName && p.oldName !== p.name ? p.oldName : null, metroId: m?.id ?? null, city: m?.name ?? null,
+        state: m && ['US', 'AU'].includes(m.country) && /^[a-z]{2,3}$/.test(code) ? code.toUpperCase() : null, country: m?.country ?? null,
+        lat: p.position.lat, lng: p.position.lng, foundAt: new Date().toISOString(),
+      };
+    });
+    const have = new Set(foundRef.current.map((f) => f.id));
+    const fresh = rows.filter((r) => !have.has(r.id));
+    if (fresh.length === 0) return;
+    foundRef.current = [...fresh, ...foundRef.current];
+    setFound(foundRef.current);
+    const who = accountRef.current?.session;
+    if (who) void saveFoundPlaces(who.user.id, fresh);
+  }, []);
+
   /** Marks places as discovered (filled in on the map) and remembers them in this browser, per city. */
   const markFound = useCallback((places: Location[], onFoot?: LatLng) => {
     const fresh = places.filter((p) => !visitedRef.current.has(p.id));
@@ -131,6 +158,7 @@ export default function App() {
     visitedRef.current = next;
     setVisited(next);
     try { localStorage.setItem(foundKey.current, JSON.stringify([...next])); } catch { /* storage unavailable */ }
+    void recordFound(fresh);
     // "Discovered: <new name>, formerly <old name>", in the page and, if allowed, as a notification
     const said = fresh.map((p) => (p.oldName && p.oldName !== p.name ? `${p.name}, formerly ${p.oldName}` : p.name));
     setToast(`DISCOVERED: ${said.join(' | ')}`);
@@ -157,7 +185,7 @@ export default function App() {
         void accountRef.current?.refresh();
       })();
     }
-  }, []);
+  }, [recordFound]);
 
   const spotFor = useCallback((id: string | null): Spot | null => {
     if (!id) return null;
@@ -198,7 +226,7 @@ export default function App() {
       foundKey.current = `wastelandmaps:found:v1:${r.address}`;
       let saved: string[] = [];
       try { saved = JSON.parse(localStorage.getItem(foundKey.current) ?? '[]') as string[]; } catch { /* nothing saved */ }
-      setVisited(new Set([VAULT_ID, ...saved]));
+      setVisited(new Set([VAULT_ID, ...saved, ...foundRef.current.map((f) => f.id)]));
       setMessage(`VAULT ${w.vault.number}: YOU EMERGE INTO ${w.regionName.toUpperCase()}`);
       sound('select');
       setFlood([]);
@@ -288,6 +316,31 @@ export default function App() {
     }
   }, [followMap]);
 
+  // signed in: the places found on the account fill in on the map, and AUTO-DISCOVER comes back as it was left
+  const userId = account.session?.user.id ?? null;
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    void (async () => {
+      const [list, auto] = await Promise.all([loadFoundPlaces(userId), loadAutoDiscover(userId)]);
+      if (cancelled) return;
+      const have = new Set(list.map((f) => f.id));
+      const local = foundRef.current.filter((f) => !have.has(f.id));
+      if (local.length > 0) void saveFoundPlaces(userId, local); // found before signing in
+      foundRef.current = [...local, ...list];
+      setFound(foundRef.current);
+      const next = new Set(visitedRef.current);
+      list.forEach((f) => next.add(f.id));
+      visitedRef.current = next;
+      setVisited(next);
+      if (auto) setTracking(true);
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+  useEffect(() => {
+    if (!userId) { foundRef.current = []; setFound([]); }
+  }, [userId]);
+
   // opening the page: the country this device is in (North America if unknown), or, signed in, exactly where the map was left
   useEffect(() => {
     accountRef.current = account;
@@ -364,6 +417,26 @@ export default function App() {
   }, [search, initial]);
 
 
+  // ---- from the Data tab: go to a found place, or open its snapshot ----
+  useEffect(() => {
+    const p = pendingOpen.current;
+    if (!p || busy || !locations.some((l) => l.id === p.id)) return;
+    pendingOpen.current = null;
+    setSelectedId(p.id);
+    if (p.scene) setSceneId(p.id);
+  }, [locations, busy]);
+  const openFound = useCallback(async (place: FoundPlace, scene: boolean) => {
+    // on a phone the map is above the tabs: bring it into view
+    document.querySelector('.rm-screen')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (locationsRef.current.some((l) => l.id === place.id)) {
+      setSelectedId(place.id);
+      if (scene) setSceneId(place.id);
+      return;
+    }
+    pendingOpen.current = { id: place.id, scene };
+    await show(() => geocodeLatLng({ lat: place.lat, lng: place.lng }), place.city ?? place.name);
+  }, [show]);
+
   // ---- fast travel ----
   const startTravel = useCallback((spot: Spot) => {
     if (!player || !wasteland || travel || spot.id === hereId) return;
@@ -394,6 +467,8 @@ export default function App() {
       visitedRef.current = next;
       setVisited(next);
       try { localStorage.setItem(foundKey.current, JSON.stringify([...next])); } catch { /* storage unavailable */ }
+      const place = locationsRef.current.find((l) => l.id === t.spot.id);
+      if (place) void recordFound([place]);
     }
     setTravel(null);
     setMessage(`ARRIVED AT ${t.spot.name.toUpperCase()}. ${t.note}${t.rads > 0 ? ` +${t.rads} RADS.` : ''}`);
@@ -402,7 +477,7 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(''), 3200);
     setSceneId(t.spot.id);
     sound('select');
-  }, [sound]);
+  }, [sound, recordFound]);
 
   // auto-discover: while it is on, walking within about 120 m of a place fills it in on the map
   useEffect(() => {
@@ -419,6 +494,14 @@ export default function App() {
     );
     return () => navigator.geolocation.clearWatch(id);
   }, [tracking, markFound]);
+
+  const toggleTracking = () => {
+    const next = !tracking;
+    if (next) void enableNotifications();
+    setTracking(next);
+    const who = accountRef.current?.session;
+    if (who) void saveAutoDiscover(who.user.id, next);
+  };
 
   const toggleCategory =(id: CategoryId) =>
     setHidden((prev) => {
@@ -504,7 +587,7 @@ export default function App() {
         </div>
 
         <aside className="rm-side">
-          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onLocate={locateMe} tracking={tracking} onToggleTracking={() => { if (!tracking) void enableNotifications(); setTracking(!tracking); }} />
+          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onLocate={locateMe} tracking={tracking} onToggleTracking={toggleTracking} />
           <nav className="rm-tabs" role="tablist" aria-label="Pip-Boy menu">
             {(['locations', 'data', 'share'] as Tab[]).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); sound('tick'); }}>
@@ -519,7 +602,7 @@ export default function App() {
                 onSelect={(id) => { setSelectedId(id); sound('select'); }}
               />
             )}
-            {tab === 'data' && <DataPanel region={region} wasteland={wasteland} locations={locations} />}
+            {tab === 'data' && <AccountPanel account={account} found={found} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
             {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} soundOn={soundOn} onToggleSound={() => setSoundOn((s) => !s)} />}
           </section>
         </aside>

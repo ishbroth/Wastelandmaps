@@ -1,9 +1,9 @@
 // Radiation zones: soft, uneven clouds rather than circles. Where they sit comes from _tools/build-zones.ts (sparse parts of each city, on land);
-// the cloud may drift out over water. Each is [lat, lng, radius in meters, rads, seed].
+// the cloud may drift out over water. Each is [lat, lng, radius in meters, rads, seed, name of the neighborhood or suburb it sits over].
 
 import { hashString, seeded, type LatLng } from './wasteland';
 
-export type ZoneEntry = number[];
+export type ZoneEntry = (number | string)[];
 
 let loading: Promise<Record<string, ZoneEntry[]>> | null = null;
 export function loadZones(): Promise<Record<string, ZoneEntry[]>> {
@@ -15,7 +15,10 @@ export function loadZones(): Promise<Record<string, ZoneEntry[]>> {
   return loading;
 }
 
-export const zoneFromEntry = ([lat, lng, radiusMeters, rads, seed]: ZoneEntry) => ({ position: { lat, lng }, radiusMeters, rads, seed });
+export const zoneFromEntry = ([lat, lng, radiusMeters, rads, seed, name]: ZoneEntry) => ({
+  position: { lat: lat as number, lng: lng as number }, radiusMeters: radiusMeters as number, rads: rads as number, seed: seed as number,
+  ...(typeof name === 'string' && name ? { name } : {}),
+});
 
 /** An uneven cloud outline around a point: the radius swells and shrinks lobe by lobe, differently for each layer. */
 export function cloudOutline(center: LatLng, radius: number, seed: number, layer: number): LatLng[] {

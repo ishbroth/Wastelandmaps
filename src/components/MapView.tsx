@@ -233,7 +233,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       }));
       const marker = createHtmlMarker({
         position: zone.position,
-        element: pinElement('rad', iconFor('rad'), 'IRRADIATED', `${zone.rads} RADS`, 'rm-pin-rad'),
+        element: pinElement('rad', iconFor('rad'), zone.name ? zone.name.toUpperCase() : 'IRRADIATED', zone.name ? `IRRADIATED · ${zone.rads} RADS` : `${zone.rads} RADS`, 'rm-pin-rad'),
         zIndex: 10,
       });
       marker.setMap(map);

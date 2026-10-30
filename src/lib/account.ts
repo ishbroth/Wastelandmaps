@@ -124,7 +124,7 @@ export async function unlockRender(placeId: string, name: string): Promise<Unloc
 /** Where this person last left the map, or null. */
 export async function loadMapPosition(userId: string): Promise<{ lat: number; lng: number; zoom: number } | null> {
   const { data } = await db().from('map_positions').select('lat,lng,zoom').eq('user_id', userId).maybeSingle();
-  return data ? { lat: data.lat as number, lng: data.lng as number, zoom: data.zoom as number } : null;
+  return data && data.lat != null && data.lng != null && data.zoom != null ? { lat: data.lat as number, lng: data.lng as number, zoom: data.zoom as number } : null;
 }
 
 /** Remembers where the map is. */
@@ -138,4 +138,47 @@ export interface DiscoveryResult { total: number; bonus: boolean; given: number 
 export async function reportDiscovery(placeId: string, place: { lat: number; lng: number }, here: { lat: number; lng: number }): Promise<DiscoveryResult | null> {
   const { data, error } = await db().functions.invoke('report-discovery', { body: { placeId, lat: place.lat, lng: place.lng, userLat: here.lat, userLng: here.lng } });
   return error || !data ? null : (data as DiscoveryResult);
+}
+
+// ---- what a signed-in person has found, and their settings ----
+
+/** A place the person has discovered: kept on their account so it follows them to any device. */
+export interface FoundPlace {
+  id: string;
+  name: string;
+  oldName: string | null;
+  metroId: string | null;
+  /** The real city, state and country, for grouping the list. */
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  lat: number;
+  lng: number;
+  foundAt: string;
+}
+
+interface FoundRow { place_id: string; name: string; old_name: string | null; metro_id: string | null; city: string | null; state: string | null; country: string | null; lat: number; lng: number; found_at: string }
+
+/** Everything this person has found, newest first. Empty if the table is not there yet. */
+export async function loadFoundPlaces(userId: string): Promise<FoundPlace[]> {
+  const { data, error } = await db().from('found_places').select('place_id,name,old_name,metro_id,city,state,country,lat,lng,found_at').eq('user_id', userId).order('found_at', { ascending: false }).limit(5000);
+  if (error || !data) return [];
+  return (data as FoundRow[]).map((r) => ({ id: r.place_id, name: r.name, oldName: r.old_name, metroId: r.metro_id, city: r.city, state: r.state, country: r.country, lat: r.lat, lng: r.lng, foundAt: r.found_at }));
+}
+
+/** Remembers places on the account (a place already there is left as it is). */
+export async function saveFoundPlaces(userId: string, places: FoundPlace[]): Promise<void> {
+  if (places.length === 0) return;
+  const rows = places.map((p) => ({ user_id: userId, place_id: p.id, name: p.name, old_name: p.oldName, metro_id: p.metroId, city: p.city, state: p.state, country: p.country, lat: p.lat, lng: p.lng }));
+  await db().from('found_places').upsert(rows, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
+}
+
+/** Whether AUTO-DISCOVER was left on. */
+export async function loadAutoDiscover(userId: string): Promise<boolean> {
+  const { data, error } = await db().from('map_positions').select('auto_discover').eq('user_id', userId).maybeSingle();
+  return !error && !!data && (data as { auto_discover?: boolean }).auto_discover === true;
+}
+
+export async function saveAutoDiscover(userId: string, on: boolean): Promise<void> {
+  await db().from('map_positions').upsert({ user_id: userId, auto_discover: on, updated_at: new Date().toISOString() });
 }

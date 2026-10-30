@@ -54,6 +54,7 @@ function findMetros(): Metro[] {
     let home: Metro | null = null;
     let best = Infinity;
     for (const m of centers) {
+      if (m.city.country !== city.country) continue; // a border ends a metro: San Diego is not part of Tijuana
       if (Math.abs(m.city.lat - city.lat) > m.radiusKm / 111 + 0.01) continue; // cheap check first
       const d = distanceMeters(m.city, city) / 1000;
       if (d <= m.radiusKm && d < best) { best = d; home = m; }
@@ -74,18 +75,18 @@ function findMetros(): Metro[] {
 }
 
 // ---- 2. what kind of place a Wikidata class is ----
-const NOT_A_PLACE = /\b(congressional|electoral|legislative|numbering|telephone|postal|area code|zip code|time zone|event|battle|siege|massacre|trials?|incident|riot|protest|disaster|accident|bombings?|attacks?|terror[a-z]*|conflict|occurrence|campaign|expedition|festival|election|murder|disappearance|death|assassination|shooting|crime|scandal|hoax|tournament|games|world cup|cup|championship|competition|contest|season|chain|brand|company|corporation|business|enterprise|retailer|dynasty|empire|kingdom|treaty|language|dialect|religion|ethnic|department|republic|county|municipality|commune|province|prefecture|region|country|state|arrondissement|human settlement|census|township|constituency|supercomputer|computer|dataset|newspaper|television|radio|publication|album|film|painting|database|website|software|league|team|political|ideology|term|list)\b/i;
+const NOT_A_PLACE = /\b(congressional|electoral|legislative district|numbering|telephone|postal|area code|zip code|time zone|event|battle|siege|massacre|trials?|incident|riot|protest|disaster|accident|bombings?|attacks?|terror[a-z]*|conflict|occurrence|campaign|expedition|festival|election|murder|disappearance|death|assassination|shooting|crime|scandal|hoax|tournament|games|world cup|cup|championship|competition|contest|season|chain|brand|company|corporation|business|enterprise|retailer|dynasty|empire|kingdom|treaty|language|dialect|religion|ethnic|department|republic|county|municipality|commune|province|prefecture|region|country|state|arrondissement|human settlement|census|township|constituency|supercomputer|computer|dataset|newspaper|television|radio|publication|album|film|painting|database|website|software|league|team|political|ideology|term|list)\b/i;
 // what an uncategorized place has to be to count as a landmark: a structure, a monument, a famous square or street
-const LANDMARK = /\b(tower|skyscraper|building|monument|memorial|statue|sculpture|arch|triumphal|gate|bridge|palace|castle|chateau|château|fortress|citadel|ruins?|archaeolog[a-z]*|landmark|attraction|avenue|boulevard|promenade|pier|lighthouse|dam|windmill|theatre|theater|opera|amphitheat[a-z]*|pyramid|obelisk|fountain|mausoleum|tomb|heritage|historic|observation|ferris|mill|prison|pavilion|villa|manor|mansion|house|complex|cross|column|wall|garden|estate|temple|tourist|viewpoint|market hall|hall|walk|bazaar|shopping street|pedestrian|district|neighbou?rhood|quarter|chinatown|little italy|amusement park|theme park|zoo|aquarium|stadium|racecourse|circus|market|shopping|restaurant|diner)\b/i;
+const LANDMARK = /\b(bank|insurance|stock exchange|headquarters|tower|skyscraper|building|monument|memorial|statue|sculpture|arch|triumphal|gate|bridge|palace|castle|chateau|château|fortress|citadel|ruins?|archaeolog[a-z]*|landmark|attraction|avenue|boulevard|promenade|pier|lighthouse|dam|windmill|theatre|theater|opera|amphitheat[a-z]*|pyramid|obelisk|fountain|mausoleum|tomb|heritage|historic|observation|ferris|mill|prison|pavilion|villa|manor|mansion|house|complex|cross|column|wall|garden|estate|temple|tourist|viewpoint|market hall|hall|walk|bazaar|shopping street|pedestrian|district|neighbou?rhood|quarter|chinatown|little italy|amusement park|theme park|zoo|aquarium|stadium|racecourse|circus|market|shopping|restaurant|diner)\b/i;
 /** How much a kind of place counts toward being picked: the famous and the visitable first, the everyday after. */
-const WEIGHT: Record<string, number> = { other: 1.6, arena: 1.2, guard: 1.1, chapel: 1.0, park: 1.0, school: 0.9, medical: 0.8, cantina: 1.2, market: 1.2, lodging: 0.9, transit: 0.6, fuel: 0.6 };
+const WEIGHT: Record<string, number> = { other: 1.6, arena: 1.3, guard: 1.7, chapel: 0.9, park: 0.9, school: 0.8, medical: 1.0, cantina: 1.1, market: 1.0, lodging: 1.2, transit: 0.35, fuel: 0.5 };
 const CATEGORY_WORDS: [string, RegExp][] = [
   ['medical', /\b(hospital|clinic|medical|pharmacy|health|sanatorium|dispensary)\b/i],
   ['school', /\b(school|university|college|library|academy|institute|campus|archive|observatory|laborator)/i],
   ['market', /\b(supermarket|shopping|mall|market|department store|store|shop|bazaar|arcade|souk)\b/i],
   ['fuel', /\b(gas station|petrol|fuel|filling station|garage|car dealer|factory|plant|refinery)\b/i],
   ['park', /\b(park|garden|nature|forest|reserve|beach|botanical|cemetery|zoo\b(?! park)|recreation|playground|square|plaza|common)\b/i],
-  ['guard', /\b(police|fire station|city hall|town hall|courthouse|court|government|embassy|prison|jail|castle|fort|barracks|military|parliament|capitol|palace|legislat|ministry|consulate|customs)\b/i],
+  ['guard', /\b(police|fire station|city hall|town hall|courthouse|court|government|embassy|prison|jail|castle|fort|barracks|military|parliament|capitol|palace|legislat|legislative building|ministry|consulate|customs|rathaus|ayuntamiento|mairie|stadthaus|council house|congress|senate|state house|assembly hall|municipal building|city council)\b/i],
   ['cantina', /\b(restaurant|bar\b|cafe|café|pub|brewery|winery|tavern|diner|club|nightclub|distillery)\b/i],
   ['chapel', /\b(church|cathedral|mosque|synagogue|temple|shrine|monastery|basilica|abbey|chapel|pagoda|gurdwara|minaret|mission)\b/i],
   ['transit', /\b(airport|railway station|train station|metro station|subway station|bus station|terminal|station|port\b|harbou?r|ferry|bridge|heliport|pier)\b/i],
@@ -146,18 +147,18 @@ async function fetchRows(metro: Metro, minSitelinks: number): Promise<Row[]> {
 }
 
 /** Bump when the rules for choosing places change, so the next run redoes every metro. */
-const SELECTION_VERSION = 4;
+const SELECTION_VERSION = 5;
 
 // ---- 4. choosing the places ----
-interface Place { id: string; name: string; lat: number; lng: number; category: string; sl: number; fame: number; station: boolean; neighborhood: boolean }
+interface Place { id: string; name: string; lat: number; lng: number; category: string; sl: number; fame: number; station: boolean; neighborhood: boolean; gov: boolean; downtown: boolean }
 
 /** How many places a metro gets: about 5 per 100,000 people, never fewer than 4 and never more than 600 (the biggest metros would otherwise be huge files). */
 const wanted = (pop: number) => Math.min(600, Math.max(4, Math.round((pop / 100_000) * 4.95)));
 
 /** How the places of a metro are shared out among the kinds of place: landmarks, towers and neighborhoods first, shops and restaurants next. */
-const SHARE: Record<string, number> = { other: 0.3, arena: 0.12, market: 0.1, cantina: 0.1, school: 0.08, park: 0.08, chapel: 0.06, guard: 0.05, medical: 0.05, lodging: 0.03, transit: 0.05, fuel: 0.0 };
+const SHARE: Record<string, number> = { other: 0.27, arena: 0.12, guard: 0.09, market: 0.08, cantina: 0.08, park: 0.07, school: 0.06, medical: 0.06, lodging: 0.06, chapel: 0.05, transit: 0.025, fuel: 0.0 };
 /** The most of any one kind (a share of the metro's places): the everyday kinds never crowd out the rest. */
-const CAP: Record<string, number> = { school: 0.13, chapel: 0.09, transit: 0.06, park: 0.11, medical: 0.07, fuel: 0.02, cantina: 0.14, market: 0.14, lodging: 0.07, guard: 0.1, arena: 0.14 };
+const CAP: Record<string, number> = { school: 0.09, chapel: 0.08, transit: 0.03, park: 0.1, medical: 0.08, fuel: 0.02, cantina: 0.12, market: 0.11, lodging: 0.09, guard: 0.13, arena: 0.15 };
 
 // which places have a photo of themselves on Wikidata (the place's snapshot is made from it), remembered between runs
 const imageFile = path.join(ROOT, '_data', 'p18.json');
@@ -176,6 +177,10 @@ async function learnImages(ids: string[]): Promise<void> {
 
 // the countries where more is looked for: the Americas north of Mexico, Europe and Australasia (restaurants, stores, theatres, towers, piers)
 const TARGET = new Set(['US', 'CA', 'AU', 'NZ', 'AL', 'AD', 'AT', 'BY', 'BE', 'BA', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IS', 'IE', 'IT', 'XK', 'LV', 'LI', 'LT', 'LU', 'MT', 'MD', 'MC', 'ME', 'NL', 'MK', 'NO', 'PL', 'PT', 'RO', 'RU', 'SM', 'RS', 'SK', 'SI', 'ES', 'SE', 'CH', 'UA', 'GB']);
+/** The big government buildings every city shows: capitol, city hall, courthouse, parliament, congress hall, county seat. */
+const GOV = /\b(capitol|city hall|town hall|courthouse|court house|county court|parliament|congress|legislat|state house|statehouse|government (?:building|house|palace|center|centre)|seat of government|county (?:building|hall)|city council|council house|rathaus|ayuntamiento|mairie|hôtel de ville|hotel de ville|palais de justice|stadthaus|municipal building|senate|assembly|governor)\b/i;
+/** The downtown kinds: hotels, banks and insurers, skyscrapers, and the historical or semi-governmental places (hospitals, libraries, museums, attractions). */
+const DOWNTOWN_KIND = new Set(['other', 'lodging', 'medical', 'school', 'arena', 'guard']);
 /** Not a place on a map: an electoral district, a telephone area code. */
 const NOT_A_PLACE_NAME = /congressional district|legislative district|school district|electoral|area codes?\b|zip codes?|postal code|time zone|telephone|numbering plan/i;
 
@@ -187,6 +192,28 @@ async function fetchExtraRows(metro: Metro): Promise<Row[]> {
   if (fs.existsSync(cache)) return JSON.parse(fs.readFileSync(cache, 'utf8')) as Row[];
   const radius = Math.min(metro.radiusKm, 35);
   const query = 'SELECT ?item ?itemLabel ?sl ?coord ?classLabel WHERE {\n  SERVICE wikibase:around { ?item wdt:P625 ?coord . bd:serviceParam wikibase:center "Point(' + metro.city.lng + ' ' + metro.city.lat + ')"^^geo:wktLiteral . bd:serviceParam wikibase:radius "' + radius + '" . }\n  ?item wikibase:sitelinks ?sl . FILTER(?sl >= 1)\n  ?item wdt:P31 ?class .\n  VALUES ?class { ' + EXTRA_CLASSES.map((c) => 'wd:' + c).join(' ') + ' }\n  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,mul,fr,de,es,pt,it,nl,ru". }\n} LIMIT 1500';
+  let data;
+  try { data = await sparql(query); } catch { return []; } // not fatal: the general list still works
+  const rows: Row[] = [];
+  for (const b of data.results.bindings) {
+    const m = /Point\(([-\d.e]+) ([-\d.e]+)\)/.exec(b.coord.value);
+    if (!m) continue;
+    rows.push({ item: b.item.value.split('/').pop() as string, label: b.itemLabel.value, sl: Number(b.sl.value), lat: Number(m[2]), lng: Number(m[1]), klass: b.classLabel.value });
+  }
+  fs.writeFileSync(cache, JSON.stringify(rows));
+  await sleep(900);
+  return rows;
+}
+
+// the downtown kinds, asked for on their own: government buildings, city halls, courthouses, banks, hotels, tourist attractions, libraries, museums,
+// hospitals, theatres, skyscrapers and office buildings
+const DOWNTOWN_CLASSES = ['Q16831714', 'Q543654', 'Q1137809', 'Q22687', 'Q27686', 'Q570116', 'Q7075', 'Q33506', 'Q16917', 'Q24354', 'Q11303', 'Q1021645'];
+async function fetchDowntownRows(metro: Metro): Promise<Row[]> {
+  if (!TARGET.has(metro.city.country)) return [];
+  const cache = path.join(RAW, metro.id + '.downtown.json');
+  if (fs.existsSync(cache)) return JSON.parse(fs.readFileSync(cache, 'utf8')) as Row[];
+  const radius = Math.min(metro.radiusKm, 22);
+  const query = 'SELECT ?item ?itemLabel ?sl ?coord ?classLabel WHERE {\n  SERVICE wikibase:around { ?item wdt:P625 ?coord . bd:serviceParam wikibase:center "Point(' + metro.city.lng + ' ' + metro.city.lat + ')"^^geo:wktLiteral . bd:serviceParam wikibase:radius "' + radius + '" . }\n  VALUES ?class { ' + DOWNTOWN_CLASSES.map((c) => 'wd:' + c).join(' ') + ' }\n  ?item wdt:P31 ?class .\n  ?item wikibase:sitelinks ?sl .\n  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,mul,fr,de,es,pt,it,nl,ru,ja,zh,ko". }\n} LIMIT 4000';
   let data;
   try { data = await sparql(query); } catch { return []; } // not fatal: the general list still works
   const rows: Row[] = [];
@@ -220,16 +247,24 @@ function candidatesOf(metro: Metro, rows: Row[]): Place[] {
     const station = category === 'transit' && classes.some((l) => /station|stop|terminal|metro|subway|underground|tram|halt/i.test(l));
     const neighborhood = category === 'other' && classes.some((l) => /neighbou?rhood|quarter|district|chinatown|little italy|village|borough|suburb/i.test(l));
     const weight = (WEIGHT[category] ?? 1) * (station ? 0.5 : 1);
-    out.push({ id: row.item, name: row.label, lat: row.lat, lng: row.lng, category, sl: row.sl * weight, fame: row.sl, station, neighborhood });
+    const gov = (category === 'guard' || category === 'other') && (classes.some((l) => GOV.test(l)) || GOV.test(row.label)) && !classes.some((l) => /prison|jail|police|fire station|barracks|military|embassy|consulate/i.test(l));
+    // downtown: within the middle of the metro, in the countries where the city centers are dense with things to see
+    const centerKm = distanceMeters(metro.city, row) / 1000;
+    const downtown = TARGET.has(metro.city.country) && centerKm <= Math.min(8, metro.radiusKm * 0.35);
+    const boost = downtown && DOWNTOWN_KIND.has(category) ? 1.6 : 1;
+    out.push({ id: row.item, name: row.label, lat: row.lat, lng: row.lng, category, sl: row.sl * weight * boost * (gov ? 3 : 1), fame: row.sl, station, neighborhood, gov, downtown });
   }
   return out.sort((x, y) => y.sl - x.sl);
 }
 
 async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
   const n = wanted(metro.pop);
-  const all = candidatesOf(metro, rows.concat(await fetchExtraRows(metro)));
+  const all = candidatesOf(metro, rows.concat(await fetchExtraRows(metro), await fetchDowntownRows(metro)));
   // look at the best few times what is needed, and prefer the ones that have a photo to make a snapshot from
   const pool = all.slice(0, Math.min(2600, n * 4 + 20));
+  // the government buildings are always looked at, whatever their rank
+  const govs = all.filter((c) => c.gov).slice(0, 60);
+  for (const g of govs) if (!pool.includes(g)) pool.push(g);
   await learnImages(pool.map((c) => c.id));
   for (const c of pool) if (!hasImage[c.id]) c.sl *= 0.3;
   pool.sort((x, y) => y.sl - x.sl);
@@ -239,10 +274,14 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
   const picked: Place[] = [];
   const count = (cat: string) => picked.filter((p) => p.category === cat).length;
   // stops of a line: about 3% of a metro's places, a little more only if the metro has hardly anything else to show
-  let stationShare = 0.03;
+  let stationShare = 0.015;
   const stations = () => picked.filter((p) => p.station).length;
   const neighborhoods = () => picked.filter((p) => p.neighborhood).length;
-  const room = (c: Place, gap: number) => picked.every((q) => distanceMeters(q, c) / 1000 >= gap);
+  // downtown, places may stand closer together: the city centers are the densest part of the map
+  const centerDist = (c: Place) => distanceMeters(metro.city, c) / 1000;
+  const dense = TARGET.has(metro.city.country) ? Math.min(8, metro.radiusKm * 0.35) : 0;
+  const gapAt = (c: Place, gap: number) => (dense > 0 ? gap * (centerDist(c) <= dense ? 0.3 : centerDist(c) <= dense * 2 ? 0.6 : 1) : gap);
+  const room = (c: Place, gap: number) => picked.every((q) => distanceMeters(q, c) / 1000 >= gapAt(c, gap));
   const take = (c: Place, limit: number, gap: number, strict: boolean) => {
     if (picked.length >= n || picked.includes(c)) return false;
     if (strict && count(c.category) >= Math.max(2, Math.ceil(n * (CAP[c.category] ?? 0.2)))) return false;
@@ -253,6 +292,17 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
     picked.push(c);
     return true;
   };
+
+  // 0. the big government buildings of the city (with a photo to make the snapshot from), whatever the caps say
+  const govLimit = Math.min(8, Math.max(2, Math.round(n * 0.05)));
+  let govTaken = 0;
+  for (const c of pool.filter((x) => x.gov && hasImage[x.id]).concat(pool.filter((x) => x.gov && !hasImage[x.id]))) {
+    if (govTaken >= govLimit || picked.length >= n) break;
+    if (picked.includes(c)) continue;
+    if (!picked.every((q) => distanceMeters(q, c) / 1000 >= baseGap * 0.12)) continue;
+    picked.push(c);
+    govTaken++;
+  }
 
   // 1. each kind of place gets its share, landmarks and towers first, spread out over the metro
   for (const gapFactor of [1, 0.65, 0.4]) {
@@ -270,7 +320,7 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
   const others = all.filter((c) => !c.neighborhood);
   for (const factor of [0.3, 0.15, 0.06]) for (const c of others) take(c, n, baseGap * factor, false);
   for (const factor of [0.3, 0.15, 0.06]) for (const c of all) take(c, n, baseGap * factor, false);
-  stationShare = 0.07;
+  stationShare = 0.04;
   for (const factor of [0.3, 0.15, 0.06]) for (const c of all) take(c, n, baseGap * factor, false);
   return picked;
 }

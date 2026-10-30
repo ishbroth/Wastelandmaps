@@ -1,13 +1,14 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
+import ScrollRow from './ScrollRow';
+import { shuffledShowcase } from '../lib/showcase';
 
-/** Real-world cities that stand in for the games' wastelands, as one-click starting points. */
-const STARTING_PLACES = ['Boston, MA', 'Washington, DC', 'Las Vegas, NV', 'Charleston, WV', 'Seattle, WA', 'Chicago, IL'];
-
+/** Cities with a permanent landmark snapshot, as one-click starting points (a different order each visit, three showing at a time). */
 export default function SearchBar({ busy, disabled, initial, onSearch, onLocate, tracking, onToggleTracking }: {
   busy: boolean; disabled: boolean; initial: string; onSearch: (q: string) => void; onLocate: () => void; tracking: boolean; onToggleTracking: () => void;
 }) {
   const off = busy || disabled;
   const [value, setValue] = useState(initial);
+  const cities = useMemo(() => shuffledShowcase(), []);
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (value.trim()) onSearch(value.trim());
@@ -33,10 +34,14 @@ export default function SearchBar({ busy, disabled, initial, onSearch, onLocate,
         <button type="button" className={`rm-track${tracking ? ' on' : ''}`} aria-pressed={tracking} onClick={onToggleTracking} title="Discover places automatically when you are near them">
           {tracking ? '◉ AUTO-DISCOVER ON' : '○ AUTO-DISCOVER OFF'}
         </button>
+      </div>
+      <div className="rm-try">
         <span>TRY</span>
-        {STARTING_PLACES.map((p) => (
-          <button key={p} type="button" disabled={off} onClick={() => { setValue(p); onSearch(p); }}>{p.split(',')[0]}</button>
-        ))}
+        <ScrollRow className="rm-try-row" label="Cities to try">
+          {cities.map((p) => (
+            <button key={p} type="button" className="rm-try-city" disabled={off} onClick={() => { setValue(p); onSearch(p); }} title={p}>{p.split(',')[0]}</button>
+          ))}
+        </ScrollRow>
       </div>
     </div>
   );
