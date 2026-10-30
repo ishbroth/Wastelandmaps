@@ -5,6 +5,7 @@ import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
 import { accountsEnabled, loadAutoDiscover, loadFoundPlaces, loadMapPosition, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveMapPosition, useAccount, type FoundPlace } from './lib/account';
 import { enableNotifications, pushNotice } from './lib/notify';
+import { pointsFor } from './lib/points';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { AccountPanel, LocationsPanel, SharePanel } from './components/Panels';
@@ -176,21 +177,28 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(''), 4200);
     void pushNotice('Discovered', said.join('\n'));
     if (soundRef.current) beep('select');
-    // reaching places on foot counts toward free snapshots: every 10 is one credit
+    // reaching places on foot earns points; every level reached gives a free snapshot credit
     const who = accountRef.current?.session;
     if (onFoot && who) {
       void (async () => {
-        let earned = 0;
+        let added = 0;
+        let credits = 0;
+        let level = 0;
         for (const p of fresh) {
-          if (!/^(wd:Q\d+|vault:\d+)$/.test(p.id)) continue;
-          const result = await reportDiscovery(p.id, p.position, onFoot);
-          if (result?.bonus) earned += result.given;
+          if (!/^(wd:Q\d+|vault:\d+|famous:[a-z0-9-]+|lore:[a-z0-9-]+)$/.test(p.id)) continue;
+          const result = await reportDiscovery(p.id, p.position, onFoot, pointsFor(p));
+          added += result?.added ?? 0;
+          if (result?.bonus) { credits += result.given; level = result.level ?? level; }
         }
-        if (earned > 0) {
-          setToast(`10 PLACES REACHED: ${earned} FREE SNAPSHOT CREDIT${earned > 1 ? 'S' : ''} EARNED`);
+        if (credits > 0) {
+          setToast(`LEVEL UP${level ? ` (LEVEL ${level})` : ''}: ${credits} FREE SNAPSHOT CREDIT${credits > 1 ? 'S' : ''} EARNED`);
           window.clearTimeout(toastTimer.current);
           toastTimer.current = window.setTimeout(() => setToast(''), 5200);
-          void pushNotice('Free snapshot earned', 'Every 10 places you reach on foot unlocks a snapshot.');
+          void pushNotice('Level up', 'You earned a free snapshot credit.');
+        } else if (added > 0) {
+          setToast(`+${added} POINTS`);
+          window.clearTimeout(toastTimer.current);
+          toastTimer.current = window.setTimeout(() => setToast(''), 3200);
         }
         void accountRef.current?.refresh();
       })();
@@ -685,7 +693,7 @@ export default function App() {
           )}
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
-              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)}
+              spot={selectedSpot} points={(() => { const place = locations.find((l) => l.id === selectedSpot.id); return place ? pointsFor(place) : 0; })()} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)}
               traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onDiscover={() => { const place = locations.find((l) => l.id === selectedSpot.id); if (place) markFound([place]); }} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}

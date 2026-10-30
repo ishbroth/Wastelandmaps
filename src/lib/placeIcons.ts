@@ -5,11 +5,21 @@
 
 import type { CategoryId } from './wasteland';
 
-export type IconId =
+type BaseIconId =
   | 'school' | 'church' | 'cross' | 'cluster' | 'house' | 'smallbuilding' | 'museum' | 'clocktower' | 'hospital' | 'plane' | 'subway' | 'bridge'
   | 'anchor' | 'stadium' | 'tree' | 'shield' | 'capitol' | 'castle' | 'bed' | 'vault' | 'tower' | 'monument' | 'arch'
   | 'book' | 'beaker' | 'houses' | 'skyscraper' | 'statue' | 'ringart' | 'flag' | 'column' | 'railcross' | 'tram' | 'mosque' | 'cathedral' | 'temple' | 'badge' | 'firebadge' | 'fork' | 'cart' | 'theatre' | 'leafytree' | 'fountain'
   | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
+
+/** The world-famous buildings and monuments, drawn as themselves (famousIcons.ts). */
+export type FamousIconId =
+  | 'notredame' | 'toweroflondon' | 'brooklynbridge' | 'pyramids' | 'londoneye' | 'chrysler' | 'colosseum' | 'sagrada' | 'louvre' | 'buckingham' | 'brandenburg'
+  | 'parthenon' | 'hagiasophia' | 'stbasils' | 'whitehouse' | 'lincoln' | 'sydneybridge' | 'hooverdam' | 'timessquare' | 'grandcentral' | 'rockefeller'
+  | 'forbiddencity' | 'alcatraz' | 'towerbridge' | 'stpeters' | 'trevi' | 'westminsterabbey' | 'sacrecoeur' | 'atomium' | 'charlesbridge' | 'duomomilan'
+  | 'rialto' | 'pantheon';
+export type IconId = BaseIconId | FamousIconId;
+/** Filled in by famousIcons.ts when it loads. */
+export const EXTRA_ICONS: Record<string, string> = {};
 
 export const f = (d: string) => `<path class="f" d="${d}"/>`;
 export const d = (p: string) => `<path class="d" d="${p}"/>`;
@@ -17,7 +27,7 @@ export const s = (p: string) => `<path class="s" d="${p}"/>`;
 export const svg = (inner: string) =>
   `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 
-const ICONS: Record<IconId, string> = {
+const ICONS: Record<BaseIconId, string> = {
   school: svg(f('M2.5 9 12 4.5 21.5 9 12 13.5Z') + f('M6.5 11.2V16c0 1.4 2.5 2.6 5.5 2.6s5.5-1.2 5.5-2.6v-4.8L12 13.5Z') + s('M21.5 9v6')),
   church: svg(f('M5 21V12.5l7-4.5 7 4.5V21Z') + s('M12 8V2.5M9.8 4.6h4.4') + d('M10 21v-4a2 2 0 0 1 4 0v4')),
   cross: svg(f('M10 3h4v5h5v4h-5v9h-4v-9H5V8h5Z')),
@@ -69,7 +79,7 @@ const ICONS: Record<IconId, string> = {
   fountain: svg(f('M4.5 16.5h15l-1.8 4h-11.4Z') + s('M12 16.5V8M12 8C10.5 6.5 8.5 7 7.5 9M12 8c1.5-1.5 3.5-1 4.5 1M12 5V3M9.5 5.5 8.5 4M14.5 5.5l1-1.5')),
 };
 
-export const placeIcon = (id: IconId): string => ICONS[id];
+export const placeIcon = (id: IconId): string => (ICONS as Record<string, string>)[id] ?? EXTRA_ICONS[id] ?? ICONS.monument;
 
 /** The everyday icon for each kind of place, used on the filter buttons and when nothing about the real name says more. */
 export const CATEGORY_ICON: Record<CategoryId, IconId> = {

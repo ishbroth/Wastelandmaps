@@ -2,6 +2,7 @@
 // (see _tools/build-metros.ts) from open data. Nothing is asked of Google here; these are plain files served with the site.
 
 import { LORE_TOWNS } from './loreSites';
+import { FAMOUS } from './famous';
 import { FREE_RENDERS } from './renders';
 import { assignVaults } from './vaults';
 import { distanceMeters, locationFromData, type CategoryId, type LatLng, type Location } from './wasteland';
@@ -73,6 +74,27 @@ function withFreeLandmarks(metro: MetroEntry, places: Location[]): Location[] {
   return places;
 }
 
+/**
+ * The world's most famous buildings always appear on the map of the metro they stand in, drawn as themselves: one already in the list (under its
+ * real name, or standing at the same spot) is upgraded, and one that is missing is added.
+ */
+function withFamous(metro: MetroEntry, places: Location[]): Location[] {
+  for (const f of FAMOUS) {
+    const here = { lat: f.lat, lng: f.lng };
+    if (distanceMeters({ lat: metro.lat, lng: metro.lng }, here) > metro.radiusKm * 1000 + 8000) continue;
+    let spot = places.find((p) => !p.famous && (p.id.startsWith('wd:') || p.id.startsWith('famous:')) && f.match.test(p.oldName) && distanceMeters(p.position, here) < 2500);
+    spot ??= places.find((p) => !p.famous && !freeLandmark(p.id) && p.id.startsWith('wd:') && distanceMeters(p.position, here) < 120);
+    if (!spot) {
+      spot = locationFromData(`famous:${f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, f.name, here, 'other', 999);
+      places.push(spot);
+    }
+    spot.icon = f.icon;
+    spot.famous = true;
+  }
+  return places;
+}
+const freeLandmark = (id: string) => id.startsWith('wd:') && id.slice(3) in FREE_RENDERS;
+
 /** The buildings and landmarks the games' stories name, around the lore towns that fall inside this metro. */
 function withLoreSites(metro: MetroEntry, places: Location[]): Location[] {
   for (const town of LORE_TOWNS) {
@@ -100,7 +122,7 @@ export function loadMetro(metro: MetroEntry): Promise<Location[]> {
       .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string, number?, number?][] }>) : { places: [] }))
       .then((m) => m.places.map(([pid, name, lat, lng, category, fame, area]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0, area === 1)))
       .then((places) => places.filter((p) => !NOT_A_PLACE.test(p.oldName)))
-      .then((places) => assignVaults(metro, withLoreSites(metro, withFreeLandmarks(metro, places))))
+      .then((places) => assignVaults(metro, withLoreSites(metro, withFamous(metro, withFreeLandmarks(metro, places)))))
       .catch(() => [] as Location[]);
     loaded.set(id, hit);
   }

@@ -191,6 +191,10 @@ export interface Location {
   lore?: { town: string; text: string };
   /** This place is the entrance to a vault. `lore` is a line from the games' story when it is one of theirs. */
   vault?: { number: number; lore?: string };
+  /** One of the world's most famous buildings: drawn as itself, a little larger than its neighbors, and worth more points. */
+  famous?: boolean;
+  /** A district of the city rather than a building. */
+  neighborhood?: boolean;
 }
 
 const THREATS: Location['threat'][] = ['Quiet', 'Quiet', 'Scavengers', 'Scavengers', 'Raiders', 'Feral Ghouls', 'Super Mutants', 'Radiation'];
@@ -203,7 +207,10 @@ export function toLocation(place: { id: string; name: string; position: LatLng; 
 /** The same, for a place whose category is already known (the pre-built maps). */
 export function locationFromData(id: string, name: string, position: LatLng, categoryId: CategoryId, fame = 0, neighborhood = false): Location {
   const loc = locationIn(categoryById(categoryId), { id, name, position }, fame);
-  if (neighborhood) loc.icon = neighborhoodIcon(name); // a district of the city: a few buildings, or a cluster of small houses
+  if (neighborhood) {
+    loc.icon = neighborhoodIcon(name); // a district of the city: a few buildings, or a cluster of small houses
+    loc.neighborhood = true;
+  }
   return loc;
 }
 

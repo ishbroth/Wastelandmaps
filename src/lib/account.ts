@@ -27,8 +27,10 @@ export interface Account {
   loaded: boolean;
   /** Places this person has unlocked ("wd:Q243"). */
   unlocked: Set<string>;
-  /** How many places this person has reached on foot (every 10 earns a free snapshot). */
+  /** How many places this person has reached on foot. */
   discoveries: number;
+  /** Points earned by reaching places on foot (see points.ts): they fill the level bar, and every level gives a free snapshot. */
+  points: number;
   refresh: () => Promise<void>;
 }
 
@@ -39,20 +41,31 @@ export function useAccount(): Account {
   const [loaded, setLoaded] = useState(!accountsEnabled);
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
   const [discoveries, setDiscoveries] = useState(0);
+  const [points, setPoints] = useState(0);
 
   const load = async (s: Session | null) => {
     if (!accountsEnabled || !s) {
       setCredits(null);
       setUnlocked(new Set());
       setDiscoveries(0);
+      setPoints(0);
       return;
     }
     const [bal, owned, found] = await Promise.all([
       db().from('credits').select('balance').eq('user_id', s.user.id).maybeSingle(),
       db().from('unlocks').select('place_id').eq('user_id', s.user.id),
-      db().from('discoveries').select('place_id', { count: 'exact', head: true }).eq('user_id', s.user.id),
+      db().from('discoveries').select('points').eq('user_id', s.user.id),
     ]);
-    setDiscoveries(found.count ?? 0);
+    if (found.error) {
+      // the points column is not there yet: count the places, ten points each
+      const count = await db().from('discoveries').select('place_id', { count: 'exact', head: true }).eq('user_id', s.user.id);
+      setDiscoveries(count.count ?? 0);
+      setPoints((count.count ?? 0) * 10);
+    } else {
+      const rows = (found.data ?? []) as { points: number }[];
+      setDiscoveries(rows.length);
+      setPoints(rows.reduce((sum, r) => sum + (r.points ?? 10), 0));
+    }
     setCredits((bal.data?.balance as number | undefined) ?? 0);
     setUnlocked(new Set(((owned.data ?? []) as { place_id: string }[]).map((r) => r.place_id)));
   };
@@ -76,7 +89,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -132,11 +145,11 @@ export async function saveMapPosition(userId: string, lat: number, lng: number, 
   await db().from('map_positions').upsert({ user_id: userId, lat, lng, zoom, updated_at: new Date().toISOString() });
 }
 
-export interface DiscoveryResult { total: number; bonus: boolean; given: number }
+export interface DiscoveryResult { total: number; bonus: boolean; given: number; /** Points added by this place (0 if it was already on the record). */ added?: number; points?: number; level?: number }
 
-/** Tells the server a place was reached on foot. Every 10th earns a free snapshot credit. Null if it could not be recorded. */
-export async function reportDiscovery(placeId: string, place: { lat: number; lng: number }, here: { lat: number; lng: number }): Promise<DiscoveryResult | null> {
-  const { data, error } = await db().functions.invoke('report-discovery', { body: { placeId, lat: place.lat, lng: place.lng, userLat: here.lat, userLng: here.lng } });
+/** Tells the server a place was reached on foot, worth `points`. Each new level reached gives a free snapshot credit. Null if it could not be recorded. */
+export async function reportDiscovery(placeId: string, place: { lat: number; lng: number }, here: { lat: number; lng: number }, points = 10): Promise<DiscoveryResult | null> {
+  const { data, error } = await db().functions.invoke('report-discovery', { body: { placeId, lat: place.lat, lng: place.lng, userLat: here.lat, userLng: here.lng, points } });
   return error || !data ? null : (data as DiscoveryResult);
 }
 
