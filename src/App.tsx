@@ -703,7 +703,7 @@ export default function App() {
           )}
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
-              spot={selectedSpot} points={(() => { const place = locations.find((l) => l.id === selectedSpot.id); return place ? pointsFor(place) : 0; })()} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)}
+              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)}
               traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}

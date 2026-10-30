@@ -5,10 +5,8 @@ import { distanceMeters, subtitle, type LatLng, type Spot, type Wasteland } from
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
 /** The card that opens on the map when a place is selected: what it is, what it would cost to get there, and the two things to do about it. */
-export default function LocationCard({ spot, points, from, here, visited, traveling, onTravel, onScene, onClose }: {
+export default function LocationCard({ spot, from, here, visited, traveling, onTravel, onScene, onClose }: {
   spot: Spot;
-  /** What reaching this place is worth, in points. */
-  points: number;
   /** Where the device is (while AUTO-DISCOVER is on), or null. */
   from: LatLng | null;
   wasteland?: Wasteland;
@@ -31,7 +29,7 @@ export default function LocationCard({ spot, points, from, here, visited, travel
         <button type="button" className="rm-card-close" onClick={onClose} aria-label="Close">×</button>
       </div>
       <p className="rm-card-meta">
-        {visited ? 'DISCOVERED' : 'UNDISCOVERED'}{points > 0 ? ` · ${points} XP` : ''} · {spot.threat}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}
+        {visited ? 'DISCOVERED' : 'UNDISCOVERED'} · {spot.threat}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}
       </p>
       {!here && from && (
         <p className="rm-card-trip">
