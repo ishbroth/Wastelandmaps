@@ -314,18 +314,28 @@ export default function App() {
   const search = useCallback((q: string) => show(() => geocodeQuery(q), q), [show]);
 
   const locateMe = useCallback(() => {
-    void enableNotifications();
     if (!navigator.geolocation) {
       setMessage('ERROR: THIS DEVICE CANNOT FIND ITSELF');
       return;
     }
+    // ask for the position first, straight from the click: a second permission question (notifications) used to open in front of it and swallow it
+    setMessage('LOOKING FOR YOU… (ANSWER THE LOCATION QUESTION AT THE TOP OF THE BROWSER)');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        setMessage('');
         void show(() => geocodeLatLng({ lat: pos.coords.latitude, lng: pos.coords.longitude }), 'your position');
         setTracking(true);
+        void enableNotifications();
       },
-      () => setMessage('ERROR: LOCATION PERMISSION DENIED'),
-      { timeout: 10_000 },
+      (err) =>
+        setMessage(
+          err.code === 1
+            ? 'ERROR: LOCATION IS BLOCKED FOR THIS SITE. CLICK THE LOCK BESIDE THE ADDRESS, ALLOW LOCATION, AND TRY AGAIN'
+            : err.code === 2
+              ? 'ERROR: THIS DEVICE CANNOT WORK OUT WHERE IT IS. CHECK THAT LOCATION IS TURNED ON IN ITS SETTINGS'
+              : 'ERROR: LOCATION TOOK TOO LONG. TRY AGAIN',
+        ),
+      { timeout: 20_000, maximumAge: 60_000 },
     );
   }, [show]);
 
