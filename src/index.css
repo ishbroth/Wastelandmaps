@@ -462,3 +462,19 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 @media (max-width: 960px) { .rm-screen { --screen-h: max(420px, 62vh); } }
 @media (max-width: 960px) and (orientation: landscape) and (max-height: 620px) { .rm-screen { --screen-h: max(240px, calc(100vh - 78px)); } }
 .rm-modal-wide .rm-modal-render { max-height: max(150px, calc(var(--screen-h) - 215px)); }
+
+/* ---- driving navigation over the map ---- */
+.rm-nav { position: absolute; left: 10px; right: 10px; top: 10px; z-index: 14; background: var(--panel); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 0 0 20px var(--glow); padding: 8px 12px; }
+.rm-nav-turn { display: flex; align-items: center; gap: 12px; }
+.rm-nav-arrow { font-size: 44px; line-height: 1; color: var(--ink); text-shadow: 0 0 10px var(--glow); width: 54px; text-align: center; flex: none; }
+.rm-nav-text { display: flex; flex-direction: column; min-width: 0; }
+.rm-nav-text b { font-family: var(--font-display); font-weight: 400; font-size: 24px; letter-spacing: 1px; line-height: 1.1; }
+.rm-nav-text i { font-style: normal; color: var(--ink-dim); font-size: 14px; letter-spacing: 1px; }
+.rm-nav-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); font-family: var(--font-display); font-size: 18px; letter-spacing: 1px; }
+.rm-nav-foot small { color: var(--ink-dim); font-size: 13px; letter-spacing: 1px; }
+.rm-nav-foot .rm-btn { font-size: 16px; padding: 2px 14px; }
+.rm-toast-flash { animation: rm-toast-flash 3.6s step-end forwards; }
+@keyframes rm-toast-flash { 0%, 20%, 40%, 60%, 80% { opacity: 1; } 10%, 30%, 50%, 70%, 90% { opacity: 0.15; } 100% { opacity: 0; } }
+.rm-flights { position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); z-index: 14; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 16px var(--glow); font-family: var(--font-display); letter-spacing: 2px; max-width: calc(100% - 20px); }
+.rm-flights a.rm-btn { text-decoration: none; font-size: 16px; white-space: normal; text-align: center; }
+@media (max-width: 960px) { .rm-nav-arrow { font-size: 36px; width: 44px; } .rm-nav-text b { font-size: 20px; } }

@@ -17,7 +17,9 @@ import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORT
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState } from './lib/share';
 import { beep } from './lib/sound';
-import { START_MINUTES, encounterFor, formatClock, radsAlongRoute, travelMinutes, type TravelRun } from './lib/travel';
+import { START_MINUTES, formatClock, type TravelRun } from './lib/travel';
+import NavBanner from './components/NavBanner';
+import { currentFix, flightsUrl, googleMapsUrl, isOverseas, progressAlong, requestRoute, type NavRoute } from './lib/navigation';
 import {
   VAULT_ID, distanceMeters, generateWasteland, spotFromLocation, vaultSpot,
   type CategoryId, type LatLng, type Location, type Spot, type Wasteland,
@@ -51,6 +53,14 @@ export default function App() {
   const [rads, setRads] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const [tracking, setTracking] = useState(false);
+  // where the device is now (while AUTO-DISCOVER is on), and the driving navigation to a place
+  const [fix, setFix] = useState<LatLng | null>(null);
+  const fixRef = useRef<LatLng | null>(null);
+  const [nav, setNav] = useState<{ spot: Spot; route: NavRoute | null; step: number; toTurn: number | null; remaining: number | null; busy: string } | null>(null);
+  const navRef = useRef(nav);
+  const lastReroute = useRef(0);
+  const [flash, setFlash] = useState(false);
+  const [flightLink, setFlightLink] = useState<{ url: string; place: string } | null>(null);
   // everything this survivor has found (kept on the account when signed in)
   const [found, setFound] = useState<FoundPlace[]>([]);
   const foundRef = useRef<FoundPlace[]>([]);
@@ -77,7 +87,6 @@ export default function App() {
   const account = useAccount();
   const [accountOpen, setAccountOpen] = useState(false);
   const trip = useRef<Trip | null>(null);
-  const tripCount = useRef(0);
   const visitedRef = useRef(visited);
   const toastTimer = useRef<number | undefined>(undefined);
 
@@ -93,7 +102,8 @@ export default function App() {
     busyRef.current = busy;
     wastelandRef.current = wasteland;
     travelRef.current = !!travel;
-  }, [soundOn, look, visited, locations, busy, travel, wasteland]);
+    navRef.current = nav;
+  }, [soundOn, look, visited, locations, busy, travel, wasteland, nav]);
 
   const sound = useCallback((kind: 'tick' | 'select' | 'error') => {
     if (soundRef.current) beep(kind);
@@ -437,21 +447,107 @@ export default function App() {
     await show(() => geocodeLatLng({ lat: place.lat, lng: place.lng }), place.city ?? place.name);
   }, [show]);
 
-  // ---- fast travel ----
-  const startTravel = useCallback((spot: Spot) => {
-    if (!player || !wasteland || travel || spot.id === hereId) return;
-    const minutes = travelMinutes(player, spot.position);
-    trip.current = {
-      spot,
-      minutes,
-      rads: radsAlongRoute(player, spot.position, wasteland.zones),
-      note: encounterFor(hereId ?? 'start', spot.id),
-    };
-    tripCount.current += 1;
-    setTravel({ id: tripCount.current, from: player, to: spot.position, durationMs: Math.min(4500, Math.max(2000, 1600 + minutes * 25)) });
-    setMessage(`TRAVELING TO ${spot.name.toUpperCase()}…`);
-    sound('tick');
-  }, [player, wasteland, travel, hereId, sound]);
+  // ---- fast travel: driving navigation (AUTO-DISCOVER must be on), or a flight search for a place overseas ----
+  const say = useCallback((text: string, flashing = false) => {
+    setToast(text);
+    setFlash(flashing);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => { setToast(''); setFlash(false); }, flashing ? 3600 : 4200);
+  }, []);
+
+  /** The flight search for the place's city (opened in a new tab; if the browser blocks that, a button appears on the map). */
+  const openFlights = useCallback(async (spot: Spot) => {
+    const metros = await loadIndex();
+    const m = metroAt(metros, spot.position, 60);
+    let country = '';
+    try { country = m ? (new Intl.DisplayNames(['en'], { type: 'region' }).of(m.country) ?? '') : ''; } catch { /* no names */ }
+    const place = m ? [m.name, country].filter(Boolean).join(', ') : (spot.oldName ?? spot.name);
+    const url = flightsUrl(place);
+    const opened = window.open(url, '_blank', 'noopener');
+    if (!opened) setFlightLink({ url, place });
+    say(`OVERSEAS: FLIGHTS TO ${place.toUpperCase()}`);
+  }, [say]);
+
+  const endNavigation = useCallback(() => {
+    setNav(null);
+    navRef.current = null;
+  }, []);
+
+  const startNavigation = useCallback(async (spot: Spot) => {
+    if (navRef.current) return;
+    // fast travel needs the device's real position, which is what AUTO-DISCOVER is for
+    if (!tracking) {
+      say('AUTO-DISCOVER MUST BE ON TO FAST TRAVEL', true);
+      sound('error');
+      return;
+    }
+    setSelectedId(null);
+    setFlightLink(null);
+    setNav({ spot, route: null, step: 0, toTurn: null, remaining: null, busy: 'LOCATING YOU' });
+    const here = fixRef.current ?? (await currentFix());
+    if (!here) {
+      setNav(null);
+      say('COULD NOT FIND YOUR POSITION. TRY AGAIN IN A MOMENT');
+      return;
+    }
+    fixRef.current = here;
+    setFix(here);
+    if (isOverseas(here, spot.position)) {
+      setNav(null);
+      void openFlights(spot);
+      return;
+    }
+    setNav({ spot, route: null, step: 0, toTurn: null, remaining: null, busy: 'ROUTING' });
+    const answer = await requestRoute(here, spot.position);
+    if (answer.kind === 'no_route') {
+      setNav(null);
+      void openFlights(spot); // no road from here: it is across the water
+      return;
+    }
+    if (answer.kind === 'unavailable') {
+      // Google's directions cannot be used from here (the service is not switched on for this key): hand over to Google Maps itself
+      setNav(null);
+      window.open(googleMapsUrl(spot.position), '_blank', 'noopener');
+      say('NAVIGATION OPENED IN GOOGLE MAPS');
+      return;
+    }
+    lastReroute.current = Date.now();
+    const first = answer.route.steps[0];
+    setNav({ spot, route: answer.route, step: 0, toTurn: first?.meters ?? null, remaining: answer.route.meters, busy: '' });
+    setMessage(`NAVIGATING TO ${spot.name.toUpperCase()}`);
+  }, [tracking, say, sound, openFlights]);
+
+  /** Every new position while navigating: the next turn, the distance left, rerouting if you left the road, and arriving. */
+  const onNavFix = useCallback(async (here: LatLng) => {
+    const n = navRef.current;
+    if (!n?.route) return;
+    const p = progressAlong(n.route, here);
+    const toDestination = distanceMeters(here, n.spot.position);
+    if (toDestination < 60 || p.remaining < 40) {
+      const spot = n.spot;
+      setNav(null);
+      navRef.current = null;
+      const place = locationsRef.current.find((l) => l.id === spot.id);
+      if (place) markFound([place], here);
+      say(`ARRIVED: ${spot.name}`);
+      setSceneId(spot.id);
+      return;
+    }
+    setNav({ ...n, step: p.step, toTurn: p.toTurn, remaining: p.remaining, busy: '' });
+    if (p.off > 90 && Date.now() - lastReroute.current > 15_000) {
+      lastReroute.current = Date.now();
+      setNav((cur) => (cur ? { ...cur, busy: 'REROUTING' } : cur));
+      const answer = await requestRoute(here, n.spot.position);
+      setNav((cur) => (cur && answer.kind === 'route' ? { ...cur, route: answer.route, step: 0, toTurn: answer.route.steps[0]?.meters ?? null, remaining: answer.route.meters, busy: '' } : cur ? { ...cur, busy: '' } : cur));
+    }
+  }, [markFound, say]);
+  const onNavFixRef = useRef(onNavFix);
+  useEffect(() => { onNavFixRef.current = onNavFix; }, [onNavFix]);
+
+  // turning AUTO-DISCOVER off ends any navigation
+  useEffect(() => {
+    if (!tracking && navRef.current) endNavigation();
+  }, [tracking, endNavigation]);
 
   const arrive = useCallback(() => {
     const t = trip.current;
@@ -485,11 +581,20 @@ export default function App() {
     const id = navigator.geolocation.watchPosition(
       (pos) => {
         const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const moved = !fixRef.current || distanceMeters(fixRef.current, here) > 12;
+        fixRef.current = here;
+        if (moved) {
+          setFix(here);
+          setPlayer(here);
+          setHereId(null);
+        }
+        void onNavFixRef.current(here);
         const reach = Math.max(120, Math.min(pos.coords.accuracy, 250));
         const near = locationsRef.current.filter((l) => !visitedRef.current.has(l.id) && distanceMeters(here, l.position) <= reach);
         markFound(near, here);
       },
-      () => { setTracking(false); setMessage('ERROR: LOCATION PERMISSION DENIED'); },
+      // only a refusal turns it off: a moment without a signal (a tunnel, a bad fix) must not end the navigation
+      (err) => { if (err.code === 1) { setTracking(false); setMessage('ERROR: LOCATION PERMISSION DENIED'); } },
       { enableHighAccuracy: true, maximumAge: 10_000 },
     );
     return () => navigator.geolocation.clearWatch(id);
@@ -544,7 +649,7 @@ export default function App() {
           {status === 'ready' ? (
             <MapView
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={locations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
+              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} nav={nav?.route ? { path: nav.route.path } : null} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
@@ -553,17 +658,35 @@ export default function App() {
           )}
           <div className="rm-crt" aria-hidden="true" />
 
-          {toast && <div className="rm-toast" role="status">{toast}</div>}
+          {toast && <div className={`rm-toast${flash ? ' rm-toast-flash' : ''}`} role="status">{toast}</div>}
+          {flightLink && (
+            <div className="rm-flights" role="status">
+              <span>OVERSEAS</span>
+              <a className="rm-btn" href={flightLink.url} target="_blank" rel="noopener noreferrer" onClick={() => setFlightLink(null)}>FLIGHTS TO {flightLink.place.toUpperCase()}</a>
+              <button type="button" className="rm-btn rm-btn-ghost" onClick={() => setFlightLink(null)}>×</button>
+            </div>
+          )}
+          {nav && (
+            <NavBanner
+              destination={nav.spot.name}
+              instruction={nav.route?.steps[nav.step + 1]?.text ?? (nav.route ? 'Continue to your destination' : '')}
+              toTurn={nav.toTurn}
+              remaining={nav.remaining}
+              seconds={nav.route && nav.remaining !== null && nav.route.meters > 0 ? (nav.remaining / nav.route.meters) * nav.route.seconds : null}
+              busy={nav.busy}
+              onEnd={endNavigation}
+            />
+          )}
           {travel && (
             <div className="rm-traveling" role="status">
               <span>FAST TRAVEL</span>
               <div className="rm-progress"><div style={{ animationDuration: `${travel.durationMs}ms` }} key={travel.id} /></div>
             </div>
           )}
-          {selectedSpot && wasteland && !sceneSpot && (
+          {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
-              spot={selectedSpot} from={player} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)}
-              traveling={!!travel} onTravel={() => startTravel(selectedSpot)} onDiscover={() => { const place = locations.find((l) => l.id === selectedSpot.id); if (place) markFound([place]); }} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
+              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)}
+              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onDiscover={() => { const place = locations.find((l) => l.id === selectedSpot.id); if (place) markFound([place]); }} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (

@@ -51,7 +51,25 @@
     church: [place('c1', 'Old North Church', 'church', 0.012, 0.012)],
     restaurant: [place('r1', 'Union Oyster House', 'restaurant', 0.006, 0.006), place('r2', 'Legal Sea Foods', 'restaurant', -0.012, -0.012)],
   };
+  // directions: a two-step route through the midpoint, or no route when the places are an ocean apart
+  const point = (p) => new LatLng(p);
+  const routesLib = {
+    DirectionsService: class {
+      async route(req) {
+        const o = req.origin, d = req.destination;
+        if (window.__routesDenied) throw { code: 'REQUEST_DENIED' };
+        if (Math.abs(o.lat - d.lat) > 20 || Math.abs(o.lng - d.lng) > 40) throw { code: 'ZERO_RESULTS' };
+        window.__routeCalls = (window.__routeCalls || 0) + 1;
+        const mid = { lat: (o.lat + d.lat) / 2, lng: (o.lng + d.lng) / 2 };
+        return { routes: [{ overview_path: [point(o), point(mid), point(d)], legs: [{ distance: { value: 2000 }, duration: { value: 300 }, steps: [
+          { instructions: 'Head <b>north</b> on <b>Main St</b>', distance: { value: 1000 }, start_location: point(o), end_location: point(mid), path: [point(o), point(mid)] },
+          { instructions: 'Turn <b>left</b> onto <b>Oak Ave</b><div style="font-size:0.9em">Destination will be on the right</div>', distance: { value: 1000 }, start_location: point(mid), end_location: point(d), path: [point(mid), point(d)] },
+        ] }] }] };
+      }
+    },
+  };
   const libs = {
+    routes: routesLib,
     maps: {},
     places: {
       SearchNearbyRankPreference: { POPULARITY: 'POPULARITY' },
@@ -67,7 +85,7 @@
       },
     },
   };
-  window.google = { maps: { Map: MapMock, LatLng, OverlayView, Circle, Polyline, Polygon, importLibrary: async (n) => libs[n] } };
+  window.google = { maps: { Map: MapMock, LatLng, OverlayView, Circle, Polyline, Polygon, TravelMode: { DRIVING: 'DRIVING' }, importLibrary: async (n) => libs[n] } };
   // a fake photo archive: only Boston Common has a free photo
   const realFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {

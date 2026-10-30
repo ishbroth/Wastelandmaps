@@ -25,6 +25,8 @@ interface Props {
   /** A trip to animate, or null. */
   travel: TravelRun | null;
   onArrive: () => void;
+  /** Driving navigation: the route to draw, and the map follows you along it. Null when not navigating. */
+  nav: { path: LatLng[] } | null;
   onSelect: (id: string | null) => void;
   /** The map came to rest somewhere: where, and how far in. */
   onViewport: (center: LatLng, zoom: number) => void;
@@ -112,7 +114,7 @@ function morphLabel(el: HTMLElement, from: string, to: string) {
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
-export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, onSelect, onViewport, regionLabels, flood, startView }: Props) {
+export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, flood, startView }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<google.maps.LatLngBoundsLiteral | null>(null);
   const everShown = useRef(new Set<string>());
@@ -129,6 +131,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
   const onArriveRef = useRef(onArrive);
   const onViewportRef = useRef(onViewport);
   const visitedRef = useRef(visited);
+  const lastDrag = useRef(0);
   useEffect(() => {
     onSelectRef.current = onSelect;
     onArriveRef.current = onArrive;
@@ -159,6 +162,8 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       holder.current?.style.setProperty('--pin-size', `${Math.round(Math.min(36, Math.max(18, 18 + (zoom - 11) * 6)))}px`);
     };
     map.addListener('zoom_changed', markClose);
+    // moving the map by hand pauses the navigation's following for a few seconds
+    map.addListener('dragstart', () => { lastDrag.current = Date.now(); });
     // a click on empty map clears the choice, but not the same moment a marker was pressed
     map.addListener('click', () => {
       if (Date.now() - lastPressAt > 600) onSelectRef.current(null);
@@ -436,6 +441,29 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       holder.current?.classList.remove('rm-travelling');
     };
   }, [travel, look]);
+
+  // driving navigation: the route drawn solid over the map, and the map close in on you
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !nav || nav.path.length < 2) return;
+    const halo = new google.maps.Polyline({ map, path: nav.path, strokeColor: '#000000', strokeOpacity: 0.65, strokeWeight: 11, zIndex: 20 });
+    const line = new google.maps.Polyline({ map, path: nav.path, strokeColor: look.ink, strokeOpacity: 1, strokeWeight: 6, zIndex: 21 });
+    holder.current?.classList.add('rm-navigating');
+    lastDrag.current = 0;
+    return () => {
+      halo.setMap(null);
+      line.setMap(null);
+      holder.current?.classList.remove('rm-navigating');
+    };
+  }, [nav, look]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !nav || !player) return;
+    if (Date.now() - lastDrag.current < 8000) return;
+    map.panTo(player);
+    if ((map.getZoom() ?? 0) < 16) map.setZoom(17);
+  }, [nav, player]);
 
   return <div ref={holder} className="rm-map" role="application" aria-label="Wasteland map" />;
 }
