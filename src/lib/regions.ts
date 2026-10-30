@@ -113,7 +113,7 @@ const STATE_NAMES: Record<string, [string, boolean]> = {
   AL: ['Dixie Dust', false], AK: ['The Frozen Front', true], AZ: ['The Arid Zone', false], AR: ['The Ozark Ashes', false], CA: ['The New California Republic', true],
   CO: ['The Mile-High Divide', false], CT: ['The Cut', false], DE: ['The First State of Ruin', false], DC: ['The Capital Wasteland', true], FL: ['The Sunshine Meltdown', false],
   GA: ['The Peach Pit Wastes', false], HI: ['The Isles of Rad', false], ID: ['The Spud Wastes', false], IL: ['The Prairie', false], IN: ['The Hoosier Hollows', false],
-  IA: ['The Fields', false], KS: ['Toto\'s Wasteland', false], KY: ['The Bluegrass Burn', false], LA: ['The Bayou Glow', false], ME: ['The Lobster Wastes', false],
+  IA: ['The Fields', false], KS: ['Tornado Alley', false], KY: ['The Bluegrass Burn', false], LA: ['The Bayou Glow', false], ME: ['The Lobster Wastes', false],
   MD: ['The Old Line Rubble', false], MA: ['The Commonwealth', true], MI: ['Wolverine Territory', false], MN: ['The Land of 10,000 Craters', false], MS: ['The Delta Dust', false],
   MO: ['The Show-Me Rubble', false], MT: ['The Big Sky Wastes', false], NE: ['The Husk', false], NV: ['The Mojave Wasteland', true], NH: ['The Granite Ruins', false],
   NJ: ['The Garden of Ash', false], NM: ['The Land of Radiation', false], NY: ['The Empire State of Ruin', false], NC: ['The Tar Heel Wastes', false], ND: ['The Bakken Burn', false],
