@@ -45,6 +45,30 @@ const smallTowns: Town[] = fs.readFileSync(path.join(ROOT, '_data', 'cities1000.
   const f = line.split('\t');
   return { lat: Number(f[4]), lng: Number(f[5]), country: f[8], pop: Number(f[14]) };
 }).filter((t) => t.pop > 0);
+// Which country a spot is in: the country of the nearest town of 1,000 or more. A metro keeps only places in its own country (Tijuana gets no San Diego).
+const countryGrid = new Map<string, Town[]>();
+for (const t of smallTowns) {
+  const key = `${Math.floor(t.lat * 4)}:${Math.floor(t.lng * 4)}`;
+  if (!countryGrid.has(key)) countryGrid.set(key, []);
+  countryGrid.get(key)!.push(t);
+}
+function countryAt(lat: number, lng: number): string | null {
+  for (let ring = 1; ring <= 6; ring++) {
+    let best: Town | null = null;
+    let bestD = Infinity;
+    const cy = Math.floor(lat * 4), cx = Math.floor(lng * 4);
+    for (let y = cy - ring; y <= cy + ring; y++) {
+      for (let x = cx - ring; x <= cx + ring; x++) {
+        for (const t of countryGrid.get(`${y}:${x}`) ?? []) {
+          const d = (t.lat - lat) ** 2 + ((t.lng - lng) * Math.cos((lat * Math.PI) / 180)) ** 2;
+          if (d < bestD) { bestD = d; best = t; }
+        }
+      }
+    }
+    if (best) return best.country;
+  }
+  return null;
+}
 /** How far a metro area reaches from its center, in km (the suburbs), by the size of its core. */
 const metroReachKm = (pop: number) => Math.min(80, 26 + 25 * Math.log10(Math.max(pop, 100_000) / 100_000));
 
@@ -213,7 +237,7 @@ async function fetchRows(metro: Metro, minSitelinks: number): Promise<Row[]> {
 }
 
 /** Bump when the rules for choosing places change, so the next run redoes every metro. */
-const SELECTION_VERSION = 6;
+const SELECTION_VERSION = 7;
 
 // ---- 4. choosing the places ----
 interface Place { id: string; name: string; lat: number; lng: number; category: string; sl: number; fame: number; station: boolean; neighborhood: boolean; gov: boolean; downtown: boolean }
@@ -305,6 +329,7 @@ function candidatesOf(metro: Metro, rows: Row[]): Place[] {
     if (/^Q\d+$/.test(row.label)) continue; // no readable name
     if (NOT_A_PLACE_NAME.test(row.label)) continue;
     if (distanceMeters(metro.city, row) / 1000 > metro.radiusKm) continue;
+    if (countryAt(row.lat, row.lng) !== metro.city.country) continue; // a border ends a metro
     const category = categoryOf(classes);
     if (!category) continue;
     // mosques: in the Americas north of Mexico, Europe and Australasia only one in five is kept, to make room for other places

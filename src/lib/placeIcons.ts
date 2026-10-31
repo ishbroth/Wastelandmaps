@@ -31,7 +31,7 @@ export type FamousIconId =
   | 'renoarch' | 'mgmgrand' | 'slctemple' | 'slccityhall' | 'walkercenter' | 'cocapitol'
   | 'danielsfisher' | 'wellsfargodenver' | 'pioneercourthouse' | 'portlandbuilding' | 'koin' | 'columbiacenter'
   | 'smithtower' | 'boisedepot' | 'idcapitol' | 'firstinterstate' | 'arkcapitol' | 'oldcourthousestl'
-  | 'swbell' | 'bofacorp' | 'southtryon550' | 'nccapitol' | 'wvcapitol' | 'keeneland'
+  | 'swbell' | 'bofacorp' | 'southtryon550' | 'nccapitol' | 'wvcapitol' | 'churchilldowns' | 'lexfinancial'
   | 'fortknox' | 'sunsphere' | 'maclellan' | 'cadetchapel' | 'pacificsw' | 'devontower'
   | 'southboston320' | 'nebcapitol' | 'mutualomaha' | 'epiccenter' | 'mscapitol' | 'alcapitol'
   | 'wattsbuilding' | 'regionsharbert' | 'shangrila' | 'paradox' | 'vancouverhouse' | 'saddledome'
