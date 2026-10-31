@@ -3,7 +3,9 @@ import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
-import { accountsEnabled, loadAutoDiscover, loadFoundPlaces, loadMapPosition, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveMapPosition, useAccount, type FoundPlace } from './lib/account';
+import { accountsEnabled, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, savePersonalPlace, saveMapPosition, useAccount, type FoundPlace } from './lib/account';
+import { resolveSuggestion, type Suggestion } from './lib/addressSearch';
+import { personalId, personalLocation, type PersonalPlace } from './lib/personal';
 import { enableNotifications, pushNotice } from './lib/notify';
 import { levelInfo, pointsFor } from './lib/points';
 import { raidFor } from './lib/raid/raid';
@@ -90,6 +92,15 @@ export default function App() {
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   const account = useAccount();
+  // an address picked from the search that has not been reached yet (only a destination), and the person's own places near this map
+  const [target, setTarget] = useState<PersonalPlace | null>(null);
+  const personalLocs = useMemo(() => {
+    const here = region?.center;
+    const mine = account.personal.filter((q) => !here || distanceMeters(here, { lat: q.lat, lng: q.lng }) < 150_000).map((q) => personalLocation(q, true));
+    if (target && !account.personal.some((q) => q.placeId === target.placeId)) mine.push(personalLocation(target, false));
+    return mine;
+  }, [account.personal, target, region]);
+  const allLocations = useMemo(() => [...locations, ...personalLocs], [locations, personalLocs]);
   const [accountOpen, setAccountOpen] = useState(false);
   const trip = useRef<Trip | null>(null);
   const visitedRef = useRef(visited);
@@ -97,18 +108,18 @@ export default function App() {
 
   const soundRef = useRef(false);
   const lookRef = useRef(look);
-  const locationsRef = useRef(locations);
+  const locationsRef = useRef(allLocations);
   const foundKey = useRef('');
   useEffect(() => {
     soundRef.current = soundOn;
     lookRef.current = look;
     visitedRef.current = visited;
-    locationsRef.current = locations;
+    locationsRef.current = allLocations;
     busyRef.current = busy;
     wastelandRef.current = wasteland;
     travelRef.current = !!travel;
     navRef.current = nav;
-  }, [soundOn, look, visited, locations, busy, travel, wasteland, nav]);
+  }, [soundOn, look, visited, allLocations, busy, travel, wasteland, nav]);
 
   const sound = useCallback((kind: 'tick' | 'select' | 'error') => {
     if (soundRef.current) beep(kind);
@@ -165,7 +176,23 @@ export default function App() {
   }, []);
 
   /** Marks places as discovered (filled in on the map) and remembers them in this browser, per city. */
-  const markFound = useCallback((places: Location[], onFoot?: LatLng) => {
+  const markFound = useCallback((all: Location[], onFoot?: LatLng) => {
+    // an address they travelled to goes on their own map (when signed in) and nowhere else
+    for (const mine of all.filter((p) => p.personal)) {
+      const who = accountRef.current?.session;
+      const kept = accountRef.current?.personal.some((q) => personalId(q.placeId) === mine.id);
+      if (kept) continue;
+      if (!who) {
+        setToast('SIGN IN TO KEEP THIS PLACE ON YOUR PERSONAL MAP');
+      } else {
+        void savePersonalPlace(who.user.id, { placeId: mine.id.slice(3), name: mine.name, address: mine.personal?.address ?? '', lat: mine.position.lat, lng: mine.position.lng, kind: mine.personal?.kind ?? 'house' })
+          .then(() => accountRef.current?.refresh())
+          .then(() => setToast(`DISCOVERED: ${mine.name}`));
+      }
+      window.clearTimeout(toastTimer.current);
+      toastTimer.current = window.setTimeout(() => setToast(''), 4200);
+    }
+    const places = all.filter((p) => !p.personal);
     const fresh = places.filter((p) => !visitedRef.current.has(p.id));
     if (fresh.length === 0) return;
     const next = new Set(visitedRef.current);
@@ -217,9 +244,9 @@ export default function App() {
   const spotFor = useCallback((id: string | null): Spot | null => {
     if (!id) return null;
     if (id === VAULT_ID) return wasteland ? vaultSpot(wasteland) : null;
-    const loc = locations.find((l) => l.id === id);
+    const loc = allLocations.find((l) => l.id === id);
     return loc ? spotFromLocation(loc) : null;
-  }, [wasteland, locations]);
+  }, [wasteland, allLocations]);
   const selectedSpot = useMemo(() => spotFor(selectedId), [spotFor, selectedId]);
   const sceneSpot = useMemo(() => spotFor(sceneId), [spotFor, sceneId]);
 
@@ -228,6 +255,7 @@ export default function App() {
     setSelectedId(null);
     setSceneId(null);
     setTravel(null);
+    setTarget(null);
     setMessage(`SCANNING ${label.toUpperCase()}…`);
     try {
       const r = await resolveRegion();
@@ -392,6 +420,30 @@ export default function App() {
   }, [status, account, show]);
 
   const search = useCallback((q: string) => show(() => geocodeQuery(q), q), [show]);
+
+  /** A suggestion picked from the scan field: a city opens its map; an address opens the map around it with the address as the destination. */
+  const pickSuggestion = useCallback(async (suggestion: Suggestion) => {
+    if (suggestion.area) {
+      void search(suggestion.text);
+      return;
+    }
+    let place;
+    try {
+      place = await resolveSuggestion(suggestion);
+    } catch {
+      setMessage('NO SUCH PLACE ON ANY MAP');
+      return;
+    }
+    await show(() => geocodeQuery(place.address).catch(() => geocodeLatLng(place.position)), place.name);
+    setTarget({ placeId: place.placeId, name: place.name, address: place.address, lat: place.position.lat, lng: place.position.lng, kind: place.kind });
+    setSelectedId(personalId(place.placeId));
+  }, [show, search]);
+  const renameSpot = useCallback(async (spot: Spot, name: string) => {
+    const who = accountRef.current?.session;
+    if (!who || !spot.personal) return;
+    await renamePersonalPlace(who.user.id, spot.id.slice(3), name);
+    await accountRef.current?.refresh();
+  }, []);
 
   const locateMe = useCallback(() => {
     if (!navigator.geolocation) {
@@ -639,6 +691,7 @@ export default function App() {
   };
 
   const total = locations.length + (wasteland ? 1 : 0);
+  const navView = useMemo(() => (nav?.route ? { path: nav.route.path, steps: nav.route.steps, step: nav.step } : null), [nav?.route, nav?.step]);
 
   return (
     <div className="rm-app">
@@ -665,8 +718,8 @@ export default function App() {
           {(wasteland || zoomName) && <div className="rm-poster-title" key={zoomName ?? (liveName || wasteland?.regionName)} aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}</div>}
           {status === 'ready' ? (
             <MapView
-              look={LOOKS[look]} region={region} wasteland={wasteland} locations={locations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={visited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={nav?.route ? { path: nav.route.path } : null} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
+              look={LOOKS[look]} region={region} wasteland={wasteland} locations={allLocations} hiddenCategories={hidden}
+              selectedId={selectedId} visited={visited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
@@ -703,14 +756,14 @@ export default function App() {
           )}
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
-              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)}
+              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} onRename={selectedSpot.personal?.saved ? (name) => void renameSpot(selectedSpot, name) : undefined}
               traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
             <SceneModal
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)}
-              account={account} plan={(() => { const place = locations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault ? raidFor(place) : undefined; })()} raid={(() => { const place = locations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && place.id.startsWith('wd:') ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={() => setAccountOpen(true)} onClose={() => setSceneId(null)}
+              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && place.id.startsWith('wd:') ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={() => setAccountOpen(true)} onClose={() => setSceneId(null)}
             />
           )}
           {accountOpen && <AccountModal account={account} onClose={() => setAccountOpen(false)} />}
@@ -728,7 +781,7 @@ export default function App() {
         </div>
 
         <aside className="rm-side">
-          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onLocate={locateMe} tracking={tracking} onToggleTracking={toggleTracking} />
+          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onPick={(s) => void pickSuggestion(s)} onLocate={locateMe} tracking={tracking} onToggleTracking={toggleTracking} />
           <nav className="rm-tabs" role="tablist" aria-label="Pip-Boy menu">
             {(['locations', 'data', 'share'] as Tab[]).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); sound('tick'); }}>

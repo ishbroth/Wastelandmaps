@@ -28,6 +28,7 @@ export function seeded(seed: number): () => number {
   };
 }
 
+import { describePersonal, type PersonalKind } from './personal';
 import { neighborhoodIcon, pickIcon, type IconId } from './placeIcons';
 import { backstoryFor } from './backstories';
 import { enemyById, type BossId, type EnemyId } from './raid/enemies';
@@ -197,6 +198,8 @@ export interface Location {
   famous?: boolean;
   /** A district of the city rather than a building. */
   neighborhood?: boolean;
+  /** An address someone travelled to (their own pin, a little smaller): where it is, what kind of place it is, and whether they have reached it. */
+  personal?: { address: string; kind: PersonalKind; saved: boolean };
 }
 
 const THREATS: Location['threat'][] = ['Quiet', 'Quiet', 'Scavengers', 'Scavengers', 'Raiders', 'Feral Ghouls', 'Super Mutants', 'Radiation'];
@@ -291,11 +294,12 @@ export interface Spot {
   icon: IconId;
   vault?: Location['vault'];
   lore?: Location['lore'];
+  personal?: Location['personal'];
 }
 
 export const VAULT_ID = 'vault';
 
-export const spotFromLocation = (l: Location): Spot => ({ id: l.id, name: l.name, oldName: l.oldName, kind: l.category, position: l.position, threat: l.threat, loot: l.loot, rads: l.rads, icon: l.icon, vault: l.vault, lore: l.lore });
+export const spotFromLocation = (l: Location): Spot => ({ id: l.id, name: l.name, oldName: l.oldName, kind: l.category, position: l.position, threat: l.threat, loot: l.loot, rads: l.rads, icon: l.icon, vault: l.vault, lore: l.lore, personal: l.personal });
 
 /** The line under a place's name: what it used to be, or what it is. */
 export function subtitle(p: { name: string; oldName: string | null; vault?: { number: number }; lore?: { town: string } }): string {
@@ -325,6 +329,7 @@ function presentDay(plan: PlaceInhabitants): string {
 }
 
 export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabitants): string[] {
+  if (spot.personal) return describePersonal(spot.name, spot.personal.address, spot.personal.kind, regionName);
   const rand = seeded(hashString(`${spot.id}|journal`));
   if (spot.lore && !spot.vault) {
     return [`${spot.name}, ${regionName}. ${spot.lore.town}.`, spot.lore.text, 'The ruins keep it quieter than the stories do.'];

@@ -4,6 +4,7 @@ import { accountsEnabled, PACK, type Account } from '../lib/account';
 import { freeRenderFor } from '../lib/renders';
 import { usePaidRender } from '../lib/usePaidRender';
 import { findSnapshot, type Snapshot } from '../lib/snapshot';
+import { streetViewAvailable } from '../lib/addressSearch';
 import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } from '../lib/wasteland';
 import type { LookId } from '../lib/looks';
 import BlowApart from './BlowApart';
@@ -28,12 +29,24 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
   const [found, setFound] = useState<{ id: string; snapshot: Snapshot | null } | null>(null);
   const snapshot: Snapshot | null | 'searching' = spot.kind === 'vault' ? null : found?.id === spot.id ? found.snapshot : 'searching';
   const photo = snapshot !== null && snapshot !== 'searching' ? snapshot : null;
+  // one of their own places: its snapshot is made from Street View, when there is a picture of it (asking is free)
+  const personal = !!spot.personal;
+  const [street, setStreet] = useState<{ id: string; ok: boolean } | null>(null);
+  useEffect(() => {
+    if (!spot.personal) return;
+    let cancelled = false;
+    void streetViewAvailable(spot.position).then((ok) => { if (!cancelled) setStreet({ id: spot.id, ok }); });
+    return () => { cancelled = true; };
+  }, [spot]);
+  const streetState = !personal ? null : street?.id === spot.id ? (street.ok ? 'yes' : 'no') : 'checking';
+  const searching = personal ? streetState === 'checking' : snapshot === 'searching';
+  const cost = personal ? 4 : 1;
   const sceneCanvas = useRef<HTMLCanvasElement>(null);
   const seed = useMemo(() => hashString(spot.id), [spot.id]);
   const journal = useMemo(() => describeSpot(spot, regionName, plan), [spot, regionName, plan]);
 
   // the paid snapshot: for places with a freely licensed photo listed on Wikidata that are not among the free few
-  const canPay = accountsEnabled && !render && spot.id.startsWith('wd:') && !!photo?.listed;
+  const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || (personal && streetState === 'yes'));
   const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay);
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
@@ -42,6 +55,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
   // what the reveal plays between: the real photo, and the finished picture
   const reveal = render
     ? { before: render.before, after: render.url, name: render.name, file: `${render.name.replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`, credit: { photo: render.photo, author: render.author, license: render.license, page: render.page } }
+    : paidReady && personal ? { before: '', after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit }
     : paidReady && photo ? { before: photo.imageUrl, after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit } : null;
 
   // the drawn scene
@@ -61,7 +75,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
 
   // look for the photo of the place (the famous few already come with their snapshot)
   useEffect(() => {
-    if (spot.kind === 'vault' || !spot.oldName || render) return;
+    if (spot.kind === 'vault' || !spot.oldName || render || spot.personal) return;
     let cancelled = false;
     findSnapshot(spot.position, spot.oldName, spot.id.startsWith('wd:') ? spot.id.slice(3) : undefined).then((s) => {
       if (!cancelled) setFound({ id: spot.id, snapshot: s });
@@ -92,7 +106,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
         <div className="rm-modal-head">
           <div>
             <h2>{spot.name}</h2>
-            <p>{spot.kind === 'vault' ? 'A sealed vault' : subtitle(spot)}{visited ? ' · DISCOVERED' : ''}</p>
+            <p>{spot.kind === 'vault' ? 'A sealed vault' : spot.personal ? spot.personal.address : subtitle(spot)}{visited || spot.personal?.saved ? ' · DISCOVERED' : ''}</p>
           </div>
           <button type="button" className="rm-btn rm-btn-ghost" onClick={onClose} aria-label="Close">CLOSE</button>
         </div>
@@ -102,9 +116,9 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
           <button
             type="button" role="tab" aria-selected={tab === 'snapshot'} className={`rm-tab-render${tab === 'snapshot' ? ' on' : ''}`}
             disabled={!snapshotAvailable} onClick={() => setTab('snapshot')}
-            title={snapshotAvailable ? 'The place as it is now' : snapshot === 'searching' ? 'Searching the photo archives' : 'No free photo of this place to make a snapshot from'}
+            title={snapshotAvailable ? 'The place as it is now' : searching ? 'Looking for a picture of the place' : personal ? 'No Street View picture of this place' : 'No free photo of this place to make a snapshot from'}
           >
-            {!render && snapshot === 'searching' ? 'SNAPSHOT…' : snapshotAvailable ? (locked ? 'SNAPSHOT ★' : 'SNAPSHOT') : 'NO SNAPSHOT'}
+            {!render && searching ? 'SNAPSHOT…' : snapshotAvailable ? (locked ? 'SNAPSHOT ★' : 'SNAPSHOT') : 'NO SNAPSHOT'}
           </button>
           {reveal && raid && (
             <button type="button" className="rm-tab-loot" disabled={account.cleared.has(spot.id)} onClick={() => setRaiding(true)} title={account.cleared.has(spot.id) ? 'Already cleared' : 'Fight what lives there and loot it'}>{account.cleared.has(spot.id) ? 'CLEARED' : 'LOOT'}</button>
@@ -119,23 +133,28 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
           {tab === 'snapshot' && locked && (
             <div className="rm-locked">
               <b>SNAPSHOT SEALED</b>
-              <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>
+              {personal
+                ? <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share. It costs {cost} credits.</p>
+                : <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>}
               {paid.state.kind === 'error' && <p className="rm-account-note">{paid.state.message}</p>}
               {paid.state.kind === 'working' ? (
                 <button type="button" className="rm-btn" disabled>DEVELOPING… ABOUT 20 SECONDS</button>
               ) : !account.session ? (
                 <button type="button" className="rm-btn" onClick={onAccount}>SIGN IN TO UNLOCK · {PACK.credits} SNAPSHOTS FOR {PACK.price}</button>
-              ) : account.credits === 0 ? (
-                <button type="button" className="rm-btn" onClick={onAccount}>BUY {PACK.credits} SNAPSHOTS: {PACK.price}</button>
+              ) : (account.credits ?? 0) < cost ? (
+                <button type="button" className="rm-btn" onClick={onAccount}>{personal ? `YOU NEED ${cost} CREDITS · ` : ''}BUY {PACK.credits} SNAPSHOTS: {PACK.price}</button>
               ) : (
-                <button type="button" className="rm-btn" onClick={() => void paid.run()}>UNLOCK FOR 1 CREDIT</button>
+                <button type="button" className="rm-btn" onClick={() => void paid.run()}>UNLOCK FOR {cost} CREDIT{cost > 1 ? 'S' : ''}</button>
               )}
             </div>
           )}
           <div className="rm-modal-crt" aria-hidden="true" />
         </div>
 
-        {tab === 'snapshot' && reveal && (
+        {tab === 'snapshot' && reveal && personal && (
+          <p className="rm-modal-credit">Made from Google Street View imagery. The original picture is not kept; only this render is, and only you can open it.</p>
+        )}
+        {tab === 'snapshot' && reveal && !personal && (
           <p className="rm-modal-credit">
             Made from “{reveal.credit.photo}” by {reveal.credit.author}, {reveal.credit.license}, via{' '}
             <a href={reveal.credit.page} target="_blank" rel="noreferrer">Wikimedia Commons</a>. Shared under the same license.

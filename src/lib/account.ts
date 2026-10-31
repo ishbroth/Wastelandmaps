@@ -1,6 +1,7 @@
 // Accounts and render credits: signing in, the credit balance, buying a pack, and unlocking a place's game-style render.
 // All of the money logic lives on the server (supabase/functions); this only asks and shows.
 
+import type { PersonalPlace } from './personal';
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import { STARTING_ARSENAL, type Arsenal, type WeaponClass } from './raid/weapons';
@@ -21,6 +22,8 @@ export function db(): SupabaseClient {
 export const PACK = { credits: 8, price: '$1.99' };
 
 export interface Account {
+  /** Addresses they have travelled to: their own pins. */
+  personal: PersonalPlace[];
   session: Session | null;
   email: string | null;
   /** Credits left, or null while it is being fetched. */
@@ -52,6 +55,7 @@ export function useAccount(): Account {
   const [loot, setLoot] = useState<LootBag>({});
   const [arsenal, setArsenal] = useState<Arsenal>(STARTING_ARSENAL);
   const [cleared, setCleared] = useState<Set<string>>(new Set());
+  const [personal, setPersonal] = useState<PersonalPlace[]>([]);
 
   const load = async (s: Session | null) => {
     if (!accountsEnabled || !s) {
@@ -62,6 +66,7 @@ export function useAccount(): Account {
       setLoot({});
       setArsenal(STARTING_ARSENAL);
       setCleared(new Set());
+      setPersonal([]);
       return;
     }
     // loot and guns (empty if the raids migration has not been run)
@@ -77,6 +82,7 @@ export function useAccount(): Account {
       setArsenal(guns);
     });
     void db().from('raid_runs').select('place_id').eq('user_id', s.user.id).eq('won', true).then((r) => setCleared(new Set(((r.data ?? []) as { place_id: string }[]).map((x) => x.place_id))));
+    void db().from('personal_places').select('place_id,name,address,lat,lng,kind').eq('user_id', s.user.id).order('created_at').then((r) => setPersonal(((r.data ?? []) as { place_id: string; name: string; address: string; lat: number; lng: number; kind: PersonalPlace['kind'] }[]).map((x) => ({ placeId: x.place_id, name: x.name, address: x.address, lat: x.lat, lng: x.lng, kind: x.kind }))));
     const [bal, owned, found] = await Promise.all([
       db().from('credits').select('balance').eq('user_id', s.user.id).maybeSingle(),
       db().from('unlocks').select('place_id').eq('user_id', s.user.id),
@@ -115,7 +121,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, arsenal, cleared, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, arsenal, cleared, personal, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -145,7 +151,7 @@ export type UnlockResult =
 
 /** Unlocks a place (one credit, once) and returns the render. 'working' means it is still being made: ask again in a few seconds, free. */
 export async function unlockRender(placeId: string, name: string): Promise<UnlockResult> {
-  const { data, error } = await db().functions.invoke('unlock-render', { body: { placeId, name } });
+  const { data, error } = await db().functions.invoke(placeId.startsWith('me:') ? 'unlock-streetview' : 'unlock-render', { body: { placeId, name } });
   if (error) {
     // the function answers with an error code in the body even on a 4xx/5xx
     let reason = 'server';
@@ -155,7 +161,7 @@ export async function unlockRender(placeId: string, name: string): Promise<Unloc
     }
     return { kind: 'error', reason: reason as 'server' };
   }
-  if (data?.status === 'ready') return { kind: 'ready', render: { url: data.url as string, credit: data.credit as Unlocked['credit'] } };
+  if (data?.status === 'ready') return { kind: 'ready', render: { url: data.url as string, credit: (data.credit as Unlocked['credit'] | undefined) ?? { photo: 'Street View', author: 'Google', license: '', page: 'https://www.google.com/streetview/' } } };
   if (data?.status === 'working') return { kind: 'working' };
   return { kind: 'error', reason: 'server' };
 }
@@ -246,4 +252,16 @@ export async function startRaid(placeId: string, worth: number, enemies: number,
 export async function finishRaid(runId: string, won: boolean): Promise<{ won: boolean; loot?: LootBag }> {
   const { data, error } = await db().functions.invoke('raid', { body: { action: 'finish', runId, won } });
   return error || !data?.ok ? { won: false } : { won: data.won === true, loot: data.loot as LootBag | undefined };
+}
+
+/** Keeps an address they reached on their own map. */
+export async function savePersonalPlace(userId: string, p: PersonalPlace): Promise<void> {
+  await db().from('personal_places').upsert({ user_id: userId, place_id: p.placeId, name: p.name.slice(0, 80), address: p.address, lat: p.lat, lng: p.lng, kind: p.kind }, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
+}
+
+/** A new name for one of their own places. */
+export async function renamePersonalPlace(userId: string, placeId: string, name: string): Promise<void> {
+  const clean = name.trim().slice(0, 80);
+  if (!clean) return;
+  await db().from('personal_places').update({ name: clean }).eq('user_id', userId).eq('place_id', placeId);
 }

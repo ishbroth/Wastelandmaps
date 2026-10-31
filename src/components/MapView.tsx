@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createHtmlMarker, type HtmlMarkerHandle } from '../lib/htmlMarker';
+import { turnArrow } from '../lib/navigation';
 import { iconFor } from '../lib/icons';
 import { placeIcon } from '../lib/placeIcons';
 import { landmarkIcon } from '../lib/landmarkIcons';
@@ -10,7 +11,7 @@ import type { TravelRun } from '../lib/travel';
 import { patchOutline, type FloodPatch } from '../lib/flood';
 import { cloudOutline } from '../lib/zones';
 import { levelsAt, type RegionLabel } from '../lib/regions';
-import { VAULT_ID, hashString, subtitle, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
+import { VAULT_ID, distanceMeters, hashString, subtitle, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
 
 interface Props {
   look: Look;
@@ -28,7 +29,7 @@ interface Props {
   travel: TravelRun | null;
   onArrive: () => void;
   /** Driving navigation: the route to draw, and the map follows you along it. Null when not navigating. */
-  nav: { path: LatLng[] } | null;
+  nav: { path: LatLng[]; steps: { text: string; meters: number; start: LatLng; end: LatLng; path: LatLng[] }[]; step: number } | null;
   onSelect: (id: string | null) => void;
   /** The map came to rest somewhere: where, and how far in. */
   onViewport: (center: LatLng, zoom: number) => void;
@@ -286,7 +287,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     for (const loc of inView) {
       if (pins.current.has(loc.id)) continue;
       const free = freeRenderFor(loc.id); // the always-free landmarks: drawn as themselves, and a little larger
-      const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free ? 'rm-pin-landmark' : loc.famous ? 'rm-pin-famous' : ''].filter(Boolean).join(' '));
+      const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free ? 'rm-pin-landmark' : loc.famous ? 'rm-pin-famous' : '', loc.personal ? 'rm-pin-personal' : '', loc.personal && !loc.personal.saved ? 'rm-pin-target' : ''].filter(Boolean).join(' '));
       el.classList.toggle('rm-pin-visited', visitedRef.current.has(loc.id));
       markCleared(el, clearedRef.current.has(loc.id));
       const brandNew = !everShown.current.has(loc.id);
@@ -379,7 +380,18 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
 
   // places you have been to are marked
   useEffect(() => {
-    pins.current.forEach((p, id) => { p.el.classList.toggle('rm-pin-visited', visited.has(id)); markCleared(p.el, cleared.has(id)); });
+    const byId = new Map(locations.map((l) => [l.id, l]));
+    pins.current.forEach((p, id) => {
+      p.el.classList.toggle('rm-pin-visited', visited.has(id));
+      markCleared(p.el, cleared.has(id));
+      const mine = byId.get(id);
+      if (mine?.personal) {
+        // their own places: the destination turns into a kept pin once reached, and a renamed place shows its new name
+        p.el.classList.toggle('rm-pin-target', !mine.personal.saved);
+        const title = p.el.querySelector('.rm-pin-label b');
+        if (title && title.textContent !== mine.name) title.textContent = mine.name;
+      }
+    });
   }, [visited, cleared, locations, hiddenCategories]);
 
   // the chosen place: highlight it and move to it
@@ -456,20 +468,82 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     };
   }, [travel, look]);
 
-  // driving navigation: the route drawn solid over the map, and the map close in on you
+  // driving navigation. The streets are not drawn on this map, so the way is: the whole route as a thin line, and ahead of you a bright path that
+  // pulses and runs with chevrons toward the next turns, with the turns marked on it.
+  const ahead = useRef<{ halo: google.maps.Polyline; line: google.maps.Polyline } | null>(null);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !nav || nav.path.length < 2) return;
-    const halo = new google.maps.Polyline({ map, path: nav.path, strokeColor: '#000000', strokeOpacity: 0.65, strokeWeight: 11, zIndex: 20 });
-    const line = new google.maps.Polyline({ map, path: nav.path, strokeColor: look.ink, strokeOpacity: 1, strokeWeight: 6, zIndex: 21 });
+    const halo = new google.maps.Polyline({ map, path: nav.path, strokeColor: '#000000', strokeOpacity: 0.5, strokeWeight: 8, zIndex: 20 });
+    const thin = new google.maps.Polyline({ map, path: nav.path, strokeColor: look.ink, strokeOpacity: 0.55, strokeWeight: 3, zIndex: 21 });
+    const aheadHalo = new google.maps.Polyline({ map, path: [], strokeColor: '#000000', strokeOpacity: 0.7, strokeWeight: 14, zIndex: 22 });
+    const aheadLine = new google.maps.Polyline({
+      map, path: [], strokeColor: look.ink, strokeOpacity: 1, strokeWeight: 7, zIndex: 23,
+      icons: [{ icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.6, strokeColor: '#000000', strokeWeight: 1, fillColor: '#ffffff', fillOpacity: 0.95 }, offset: '0px', repeat: '46px' }],
+    });
+    ahead.current = { halo: aheadHalo, line: aheadLine };
     holder.current?.classList.add('rm-navigating');
     lastDrag.current = 0;
+    // the pulse and the running chevrons
+    let raf = 0;
+    const started = performance.now();
+    const pulse = (now: number) => {
+      const t = (now - started) / 1000;
+      const k = 0.5 + 0.5 * Math.sin(t * 4.2);
+      aheadLine.setOptions({
+        strokeOpacity: 0.62 + 0.38 * k, strokeWeight: 6 + 3 * k,
+        icons: [{ icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.4 + 0.6 * k, strokeColor: '#000000', strokeWeight: 1, fillColor: '#ffffff', fillOpacity: 0.95 }, offset: `${Math.floor((t * 34) % 46)}px`, repeat: '46px' }],
+      });
+      aheadHalo.setOptions({ strokeOpacity: 0.45 + 0.3 * k });
+      raf = requestAnimationFrame(pulse);
+    };
+    raf = requestAnimationFrame(pulse);
     return () => {
+      cancelAnimationFrame(raf);
       halo.setMap(null);
-      line.setMap(null);
+      thin.setMap(null);
+      aheadHalo.setMap(null);
+      aheadLine.setMap(null);
+      ahead.current = null;
       holder.current?.classList.remove('rm-navigating');
     };
-  }, [nav, look]);
+  }, [nav?.path, look]);
+
+  // the path ahead (from you to the turn after next, at most about a mile and a half) and a marker on each turn on it
+  useEffect(() => {
+    const map = mapRef.current;
+    const live = ahead.current;
+    if (!map || !nav || !live) return;
+    const route: LatLng[] = [];
+    let meters = 0;
+    const turns: { at: LatLng; text: string; meters: number }[] = [];
+    if (player) route.push(player);
+    for (let i = nav.step; i < nav.steps.length && meters < 2400 && turns.length < 3; i++) {
+      const st = nav.steps[i];
+      const pts = st.path.length ? st.path : [st.start, st.end];
+      // for the step you are on, start from the point of it nearest you
+      let from = 0;
+      if (i === nav.step && player) {
+        let best = Infinity;
+        pts.forEach((q, j) => { const d = distanceMeters(player, q); if (d < best) { best = d; from = j; } });
+      }
+      for (let j = from; j < pts.length; j++) route.push(pts[j]);
+      meters += st.meters;
+      if (i < nav.steps.length - 1) turns.push({ at: st.end, text: nav.steps[i + 1].text, meters: meters });
+    }
+    live.line.setPath(route);
+    live.halo.setPath(route);
+    const handles = turns.map((turn, idx) => {
+      const el = document.createElement('div');
+      el.className = 'rm-turn-marker';
+      el.innerHTML = `<b>${turnArrow(turn.text)}</b><i></i>`;
+      (el.querySelector('i') as HTMLElement).textContent = idx === 0 ? 'NEXT' : '';
+      const handle = createHtmlMarker({ position: turn.at, element: el, zIndex: 60 });
+      handle.setMap(map);
+      return handle;
+    });
+    return () => handles.forEach((h) => h.setMap(null));
+  }, [nav?.step, nav?.steps, player]);
 
   useEffect(() => {
     const map = mapRef.current;

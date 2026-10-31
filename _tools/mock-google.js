@@ -36,7 +36,7 @@
       return { fromLatLngToDivPixel: (ll) => ({ x: (ll.lng() - m.center.lng) * scale + m.el.clientWidth / 2, y: (m.center.lat - ll.lat()) * scale + m.el.clientHeight / 2 }) };
     }
   }
-  class Polyline { constructor(o) { this.o = o; this.removed = false; (window.__polylines ||= []).push(this); } setMap(map) { if (!map) this.removed = true; } }
+  class Polyline { constructor(o) { this.o = o; this.removed = false; (window.__polylines ||= []).push(this); } setMap(map) { if (!map) this.removed = true; } setOptions(o) { Object.assign(this.o, o); } setPath(p) { this.o.path = p; } }
   class Polygon { constructor(o) { this.o = o; this.removed = false; (window.__polygons ||= []).push(this); } setMap(map) { if (!map) this.removed = true; } setOptions(o) { Object.assign(this.o, o); } }
   class Circle { constructor(o) { this.o = o; (window.__circles ||= []).push(o); } setMap() {} }
   const place = (id, name, type, dlat, dlng) => ({ id, displayName: name, primaryType: type, types: [type], location: new LatLng(42.36 + dlat, -71.06 + dlng) });
@@ -85,7 +85,7 @@
       },
     },
   };
-  window.google = { maps: { Map: MapMock, LatLng, OverlayView, Circle, Polyline, Polygon, TravelMode: { DRIVING: 'DRIVING' }, importLibrary: async (n) => libs[n] } };
+  window.google = { maps: { Map: MapMock, LatLng, OverlayView, Circle, Polyline, Polygon, TravelMode: { DRIVING: 'DRIVING' }, SymbolPath: { FORWARD_CLOSED_ARROW: 1 }, importLibrary: async (n) => libs[n] } };
   // a fake photo archive: only Boston Common has a free photo
   const realFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {
