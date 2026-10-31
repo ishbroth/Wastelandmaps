@@ -309,7 +309,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       if (shapes.has(key)) continue;
       shapes.set(key, new google.maps.Polygon({
         map, paths: patchOutline(patch), clickable: false, zIndex: 2,
-        fillColor: look.floodFill, fillOpacity: 0.96, strokeColor: look.floodStroke, strokeOpacity: 0.7, strokeWeight: 1,
+        fillColor: look.floodFill, fillOpacity: 1, strokeColor: look.floodStroke, strokeOpacity: 0.7, strokeWeight: 1,
       }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
