@@ -1,1 +1,1 @@
-{"id":"cn-05-chaoyang","name":"Chaoyang","country":"CN","center":[42.66223,126.0263],"pop":141662,"radiusKm":20,"title":"The Fallen Chaoyang","places":[["Q1636129","Huifa City Ruins",42.73628,126.18538,"other",2]]}
+{"id":"cn-05-chaoyang","name":"Chaoyang","country":"CN","center":[42.66223,126.0263],"pop":141662,"radiusKm":30,"title":"The Fallen Chaoyang","places":[["Q1636129","Huifa City Ruins",42.73628,126.18538,"other",2,0],["Q28412922","Panshi railway station",42.9257,126.0625,"transit",2,0]]}
