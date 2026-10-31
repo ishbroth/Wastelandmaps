@@ -34,9 +34,12 @@ function stream(seed: number) {
   };
 }
 
-interface Tile { x: number; y: number; w: number; h: number; dx: number; dy: number; spin: number; start: number }
-interface Chunk { vx: number; vy: number; size: number; start: number; hue: number; spin: number; y0: number }
-interface Streak { y: number; speed: number; length: number; thick: number; offset: number; alpha: number }
+// The blast comes from behind the picture, where the mushroom cloud stands, and travels toward the viewer: everything flies outward from that point
+// on the screen and grows as it nears the glass.
+interface Tile { x: number; y: number; w: number; h: number; push: number; zoom: number; drift: number; spin: number; start: number }
+interface Chunk { angle: number; speed: number; size: number; start: number; hue: number; spin: number; r0: number }
+interface Streak { angle: number; speed: number; length: number; thick: number; offset: number; alpha: number }
+interface Puff { angle: number; speed: number; radius: number; start: number; shade: number; r0: number }
 interface Sky { mask: HTMLCanvasElement | null; hasSky: boolean; cloudX: number; horizon: number }
 
 /** Finds the open sky in the photograph (bright, bluish or grey, near the top), so the mushroom cloud can rise behind the landmark and not in front of it. */
@@ -93,33 +96,39 @@ function findSky(before: HTMLImageElement, width: number, height: number): Sky {
   }
 }
 
-function plan(width: number, height: number, seed: number) {
+function plan(width: number, height: number, seed: number, ox: number, oy: number) {
   const rand = stream(seed);
   const rows = Math.max(6, Math.round((COLS * height) / width));
   const tw = width / COLS;
   const th = height / rows;
-  const wind = 0.5 + rand() * 0.25; // the blast blows to the right
+  const reach = Math.max(Math.hypot(ox, oy), Math.hypot(width - ox, oy), Math.hypot(ox, height - oy), Math.hypot(width - ox, height - oy));
   const tiles: Tile[] = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < COLS; c++) {
       const cx = (c + 0.5) * tw;
+      const cy = (r + 0.5) * th;
       tiles.push({
         x: c * tw, y: r * th, w: tw, h: th,
-        dx: (wind + rand() * 0.8) * width * 0.9, dy: (rand() - 0.62) * height * 0.8,
-        spin: (rand() - 0.5) * 9,
-        // the shock front sweeps across from the left: tiles are ripped off in order
-        start: 0.47 + (cx / width) * 0.13 + rand() * 0.025,
+        push: 1.3 + rand() * 1.4, // how far it travels out from the blast point, as a multiple of its distance from it
+        zoom: 2.2 + rand() * 3.2, // how much bigger it gets as it flies at the viewer
+        drift: (rand() - 0.3) * 0.25,
+        spin: (rand() - 0.5) * 3.5,
+        // the shock front spreads out from the blast point: the pieces nearest it are ripped off first
+        start: 0.47 + (Math.hypot(cx - ox, cy - oy) / reach) * 0.12 + rand() * 0.025,
       });
     }
   }
-  const chunks: Chunk[] = Array.from({ length: 130 }, () => ({
-    vx: (0.4 + rand() * 1.3) * width * (wind + 0.3), vy: (rand() - 0.7) * height * 0.8, size: 3 + rand() * 15, start: 0.48 + rand() * 0.14,
-    hue: 20 + rand() * 25, spin: (rand() - 0.5) * 14, y0: height * (0.35 + rand() * 0.55),
+  const chunks: Chunk[] = Array.from({ length: 170 }, () => ({
+    angle: rand() * Math.PI * 2, speed: 0.5 + rand() * 1.1, size: 3 + rand() * 9, start: 0.47 + rand() * 0.14,
+    hue: 20 + rand() * 25, spin: (rand() - 0.5) * 14, r0: rand() * reach * 0.12,
   }));
-  const streaks: Streak[] = Array.from({ length: 70 }, () => ({
-    y: rand() * height, speed: 1.2 + rand() * 1.6, length: width * (0.25 + rand() * 0.5), thick: 5 + rand() * 30, offset: rand(), alpha: 0.12 + rand() * 0.28,
+  const streaks: Streak[] = Array.from({ length: 90 }, () => ({
+    angle: rand() * Math.PI * 2, speed: 0.7 + rand() * 1.0, length: reach * (0.18 + rand() * 0.4), thick: 2 + rand() * 9, offset: rand() * 0.2, alpha: 0.18 + rand() * 0.32,
   }));
-  return { tiles, chunks, streaks, wind, rand: stream(seed ^ 0x5bd1e995) };
+  const puffs: Puff[] = Array.from({ length: 46 }, () => ({
+    angle: rand() * Math.PI * 2, speed: 0.35 + rand() * 0.9, radius: reach * (0.07 + rand() * 0.12), start: 0.45 + rand() * 0.1, shade: rand(), r0: rand() * reach * 0.1,
+  }));
+  return { tiles, chunks, streaks, puffs, ox, oy, reach, rand: stream(seed ^ 0x5bd1e995) };
 }
 
 /** The mushroom cloud: a fireball at the base, a stem, and a billowing cap, grown from nothing and then breaking up in the dust. */
@@ -200,6 +209,13 @@ function draw(
   if (t > 0.3 && t < 0.47) quake = ease(clamp((t - 0.3) / 0.17)) * 4;
   else if (t >= 0.47) quake = Math.max(0, 1 - (t - 0.47) / 0.3) * 26;
   ctx.translate((Math.sin(t * 210) + Math.sin(t * 337)) * 0.5 * quake, (Math.cos(t * 180) + Math.sin(t * 281)) * 0.5 * quake);
+  // the blast shoves the whole picture at the viewer, then it settles back
+  if (t >= 0.46 && t < 0.62) {
+    const push = 1 + 0.07 * Math.sin(clamp((t - 0.46) / 0.16) * Math.PI);
+    ctx.translate(p.ox, p.oy);
+    ctx.scale(push, push);
+    ctx.translate(-p.ox, -p.oy);
+  }
 
   // underneath: the destroyed picture, hidden in darkness and dust until the real one is torn away
   ctx.drawImage(after, 0, 0, width, height);
@@ -225,11 +241,14 @@ function draw(
       ctx.fillRect(tile.x - 2, tile.y - 2, tile.w + 4, tile.h + 4);
       ctx.restore();
       if (s >= 1) continue;
+      // it flies straight out from the blast point and grows as it comes at the viewer
+      const cx = tile.x + tile.w / 2, cy = tile.y + tile.h / 2;
+      const out = 1 + move * tile.push;
       ctx.save();
-      ctx.globalAlpha = 1 - Math.pow(s, 1.8);
-      ctx.translate(tile.x + tile.w / 2 + tile.dx * move, tile.y + tile.h / 2 + tile.dy * move + move * move * height * 0.4);
+      ctx.globalAlpha = 1 - Math.pow(s, 2.2);
+      ctx.translate(p.ox + (cx - p.ox) * out, p.oy + (cy - p.oy) * out + move * move * height * tile.drift);
       ctx.rotate(tile.spin * move);
-      const grow = 1 + move * 0.3;
+      const grow = 1 + move * tile.zoom;
       ctx.scale(grow, grow);
       ctx.drawImage(before, (tile.x / width) * before.width, (tile.y / height) * before.height, (tile.w / width) * before.width + 1, (tile.h / height) * before.height + 1, -tile.w / 2, -tile.h / 2, tile.w + 1.5, tile.h + 1.5);
       ctx.fillStyle = 'rgba(70,35,8,' + scorch * 0.5 + ')';
@@ -265,34 +284,74 @@ function draw(
     ctx.fillRect(-40, -40, width + 80, height + 80);
   }
 
-  // the dust wall of the shock wave sweeping through, and the pieces it carries
+  // the blast reaching the viewer: a ring of shock spreading from the blast point, dust billowing out of it toward the glass, rays of grit, and the debris it throws
   if (t > 0.44 && t < 0.86) {
-    const wave = ease(clamp((t - 0.44) / 0.42));
-    const haze = Math.sin(clamp((t - 0.44) / 0.42) * Math.PI);
-    ctx.fillStyle = 'rgba(200,165,120,' + haze * 0.5 + ')';
+    const q = clamp((t - 0.44) / 0.42);
+    const haze = Math.sin(q * Math.PI);
+    // the ring
+    const ring = p.reach * 1.25 * Math.pow(q, 0.75);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,235,200,' + haze * 0.22 + ')';
+    ctx.lineWidth = 6 + q * 40;
+    ctx.beginPath();
+    ctx.arc(p.ox, p.oy, ring, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    // a warm haze that is thickest at the blast point and washes outward
+    const wash = ctx.createRadialGradient(p.ox, p.oy, 0, p.ox, p.oy, p.reach * (0.3 + q * 1.1));
+    wash.addColorStop(0, 'rgba(235,200,150,' + haze * 0.65 + ')');
+    wash.addColorStop(1, 'rgba(200,165,120,' + haze * 0.3 + ')');
+    ctx.fillStyle = wash;
     ctx.fillRect(-40, -40, width + 80, height + 80);
-    for (const s of p.streaks) {
-      const x = ((t - 0.44) * 3.2 * s.speed + s.offset) % 1.5 * width - s.length * 0.4;
-      const a = s.alpha * haze * 1.4;
-      const g = ctx.createLinearGradient(x, 0, x + s.length, 0);
-      g.addColorStop(0, 'rgba(215,180,135,0)');
-      g.addColorStop(0.5, 'rgba(215,180,135,' + a + ')');
-      g.addColorStop(1, 'rgba(215,180,135,0)');
+    // billows of dust, swelling as they come at the viewer
+    for (const puff of p.puffs) {
+      const age = clamp((t - puff.start) / 0.34);
+      if (age <= 0) continue;
+      const dist = puff.r0 + p.reach * puff.speed * Math.pow(age, 0.8);
+      const x = p.ox + Math.cos(puff.angle) * dist;
+      const y = p.oy + Math.sin(puff.angle) * dist * 0.85;
+      const r = puff.radius * (0.6 + age * 4.2);
+      const a = Math.sin(Math.min(1, age) * Math.PI) * 0.75;
+      const tone = 150 + Math.round(puff.shade * 70);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(' + tone + ',' + (tone - 28) + ',' + (tone - 62) + ',' + a + ')');
+      g.addColorStop(1, 'rgba(' + tone + ',' + (tone - 28) + ',' + (tone - 62) + ',0)');
       ctx.fillStyle = g;
-      ctx.fillRect(x, s.y - s.thick / 2, s.length, s.thick);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
     }
-    void wave;
+    // rays of grit streaming out of the blast point
+    for (const s of p.streaks) {
+      const age = clamp((q - s.offset) / 0.7);
+      if (age <= 0) continue;
+      const r1 = p.reach * s.speed * Math.pow(age, 0.9);
+      const r0 = Math.max(0, r1 - s.length * (0.4 + age));
+      const dx = Math.cos(s.angle), dy = Math.sin(s.angle);
+      const a = s.alpha * Math.sin(Math.min(1, age) * Math.PI) * 0.9;
+      const g = ctx.createLinearGradient(p.ox + dx * r0, p.oy + dy * r0, p.ox + dx * r1, p.oy + dy * r1);
+      g.addColorStop(0, 'rgba(215,180,135,0)');
+      g.addColorStop(1, 'rgba(225,190,145,' + a + ')');
+      ctx.strokeStyle = g;
+      ctx.lineWidth = s.thick * (0.5 + age * 2.2);
+      ctx.beginPath();
+      ctx.moveTo(p.ox + dx * r0, p.oy + dy * r0);
+      ctx.lineTo(p.ox + dx * r1, p.oy + dy * r1);
+      ctx.stroke();
+    }
   }
   for (const c of p.chunks) {
     const age = t - c.start;
     if (age < 0 || age > 0.3) continue;
     const s = age / 0.3;
+    const dist = c.r0 + p.reach * c.speed * Math.pow(s, 1.3);
+    const scale = 0.6 + s * 6; // it is coming at the viewer
     ctx.save();
-    ctx.globalAlpha = 1 - s * s;
-    ctx.translate(c.vx * s * 0.55, c.y0 + c.vy * s * 0.5 + s * s * height * 0.5);
+    ctx.globalAlpha = Math.min(1, s * 6) * (1 - s * s);
+    ctx.translate(p.ox + Math.cos(c.angle) * dist, p.oy + Math.sin(c.angle) * dist * 0.9 + s * s * height * 0.12);
     ctx.rotate(c.spin * s);
     ctx.fillStyle = 'hsl(' + c.hue + ',32%,' + (22 + (c.size % 5) * 6) + '%)';
-    ctx.fillRect(-c.size / 2, -c.size / 3, c.size, (c.size * 2) / 3);
+    ctx.fillRect((-c.size * scale) / 2, (-c.size * scale) / 3, c.size * scale, (c.size * scale * 2) / 3);
     ctx.restore();
   }
 
@@ -364,7 +423,10 @@ export default function BlowApart({ beforeUrl, afterUrl, name, file, seed }: { b
         const layer = document.createElement('canvas');
         layer.width = width;
         layer.height = height;
-        images.current = { before, after, plan: plan(width, height, seed), sky: findSky(before, width, height), cloud: layer.getContext('2d'), width, height };
+        const sky = findSky(before, width, height);
+        // the blast point is where the mushroom cloud stands (the middle of the picture when there is no open sky for it)
+        const ox = (sky.hasSky ? sky.cloudX : 0.5) * width, oy = (sky.hasSky ? sky.horizon : 0.55) * height;
+        images.current = { before, after, plan: plan(width, height, seed, ox, oy), sky, cloud: layer.getContext('2d'), width, height };
         let seen = false;
         try { seen = !!localStorage.getItem(seenKey); } catch { /* storage unavailable: play it */ }
         if (seen) finish();

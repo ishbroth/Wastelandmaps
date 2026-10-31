@@ -503,3 +503,41 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-arsenal-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font-size: 12px; letter-spacing: 2px; color: var(--ink-dim); }
 .rm-arsenal-head b { font-family: var(--font-display); font-weight: 400; font-size: 17px; letter-spacing: 1px; color: var(--ink); text-align: right; }
 .rm-arsenal-buy { width: 100%; margin-top: 4px; font-size: 13px; letter-spacing: 1px; white-space: normal; text-align: left; padding: 4px 8px; }
+
+/* ---- looting: the shooting gallery ---- */
+.rm-tab-loot { background: transparent; color: var(--ink); border: 1px solid var(--ink); padding: 2px 14px; font-family: var(--font-display); font-size: 20px; letter-spacing: 2px; cursor: pointer; animation: rm-loot-pulse 1.6s ease-in-out infinite; }
+.rm-tab-loot:hover { background: var(--ink); color: var(--on-ink); }
+@keyframes rm-loot-pulse { 0%, 100% { box-shadow: 0 0 0 var(--glow); } 50% { box-shadow: 0 0 12px var(--glow); } }
+.rm-raid { position: fixed; inset: 0; z-index: 200; background: #000; color: #e8e0c8; user-select: none; -webkit-user-select: none; font-family: var(--font-display); letter-spacing: 2px; }
+.rm-raid-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; display: block; }
+.rm-raid-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; padding: 18px 26px; background: rgba(0, 0, 0, 0.82); border: 2px solid #c9b87a; max-width: calc(100% - 30px); }
+.rm-raid-center h2 { margin: 0 0 8px; font-weight: 400; font-size: 44px; letter-spacing: 6px; color: #e8d58a; }
+.rm-raid-center p { margin: 0 0 14px; font-size: 20px; }
+.rm-raid-center .rm-btn { color: #e8d58a; border-color: #c9b87a; }
+.rm-raid-loot { list-style: none; margin: 0 0 14px; padding: 0; font-size: 24px; }
+.rm-raid-loot b { color: #e8d58a; margin-right: 6px; }
+.rm-raid-top { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; align-items: center; gap: 12px; pointer-events: none; }
+.rm-raid-top .rm-btn { pointer-events: auto; color: #e8d58a; border-color: #8a7a4a; font-size: 16px; padding: 2px 12px; margin-left: auto; background: rgba(0, 0, 0, 0.5); }
+.rm-raid-health { position: relative; width: min(260px, 46vw); height: 24px; border: 2px solid #c9b87a; background: rgba(0, 0, 0, 0.6); }
+.rm-raid-health > div { height: 100%; background: linear-gradient(#d8a838, #8a6418); }
+.rm-raid-health span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; text-shadow: 0 1px 2px #000; }
+.rm-raid-left { font-size: 18px; color: #e8d58a; text-shadow: 0 1px 3px #000; }
+.rm-raid-boss { position: absolute; left: 50%; top: 46px; transform: translateX(-50%); width: min(420px, 70vw); text-align: center; pointer-events: none; }
+.rm-raid-boss b { font-weight: 400; font-size: 18px; text-shadow: 0 1px 3px #000; }
+.rm-raid-boss > div { height: 12px; border: 2px solid #8a2a2a; background: rgba(0, 0, 0, 0.6); }
+.rm-raid-boss > div > div { height: 100%; background: #b83232; }
+.rm-raid-banner { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); font-size: 62px; letter-spacing: 10px; color: #e8d58a; text-shadow: 0 0 18px rgba(232, 213, 138, 0.6), 0 2px 4px #000; pointer-events: none; animation: rm-raid-banner 2.2s ease-out forwards; white-space: nowrap; }
+@keyframes rm-raid-banner { 0% { opacity: 0; transform: translateX(-50%) scale(1.5); } 15%, 70% { opacity: 1; transform: translateX(-50%) scale(1); } 100% { opacity: 0; } }
+.rm-raid-ammo { position: absolute; right: 14px; bottom: 14px; font-size: 22px; color: #e8d58a; text-shadow: 0 1px 3px #000; pointer-events: none; }
+/* the weapon wheel: pistol left, automatic right, sniper below, heavy weapons above */
+.rm-raid-wheel { position: absolute; left: 14px; bottom: 14px; width: 168px; height: 168px; }
+.rm-wheel-slot { position: absolute; width: 70px; height: 70px; border-radius: 50%; background: rgba(0, 0, 0, 0.62); border: 2px solid #8a7a4a; color: #e8d58a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; cursor: pointer; overflow: hidden; }
+.rm-wheel-slot img { max-width: 52px; max-height: 38px; object-fit: contain; pointer-events: none; }
+.rm-wheel-slot small { font-size: 9px; letter-spacing: 0; line-height: 1; text-align: center; max-width: 62px; margin-top: 1px; }
+.rm-wheel-slot.on { border-color: #fff2b0; box-shadow: 0 0 14px rgba(255, 242, 176, 0.7); background: rgba(70, 56, 20, 0.8); }
+.rm-wheel-slot.locked { opacity: 0.5; cursor: default; font-size: 22px; }
+.rm-wheel-left { left: 0; top: 49px; }
+.rm-wheel-right { right: 0; top: 49px; }
+.rm-wheel-top { left: 49px; top: 0; }
+.rm-wheel-bottom { left: 49px; bottom: 0; }
+@media (max-height: 520px) { .rm-raid-wheel { width: 130px; height: 130px; } .rm-wheel-slot { width: 54px; height: 54px; } .rm-wheel-left, .rm-wheel-right { top: 38px; } .rm-wheel-top, .rm-wheel-bottom { left: 38px; } .rm-wheel-slot img { max-width: 40px; max-height: 28px; } .rm-wheel-slot small { display: none; } .rm-raid-banner { font-size: 40px; } }

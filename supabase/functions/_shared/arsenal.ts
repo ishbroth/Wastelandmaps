@@ -67,10 +67,10 @@ export const WEAPON_CLASSES: Record<WeaponClass, { label: string; /** Where it s
     label: 'Heavy Weapons',
     slot: 'top',
     tiers: [
-      { id: 'flamethrower', name: 'M2 Flamethrower', real: 'M2 flamethrower, napalm backpack flamethrower', tier: 1, damage: 7, rate: 12, auto: true, splash: 0.07, ammo: 360, recipe: { oil: 2, steel: 1, adhesive: 1 } },
-      { id: 'm79', name: 'M79 Grenade Launcher', real: 'M79 "Blooper", 40mm single-shot grenade launcher', tier: 2, damage: 120, rate: 0.7, splash: 0.09, ammo: 12, recipe: { steel: 3, springs: 1, oil: 1, adhesive: 1, screws: 1 } },
-      { id: 'missile', name: 'M72 Missile Launcher', real: 'M72 LAW, 66mm shoulder-fired rocket launcher', tier: 3, damage: 260, rate: 0.5, splash: 0.13, ammo: 8, recipe: { steel: 3, circuitry: 2, fiberoptics: 1, oil: 2, gears: 1, adhesive: 1 } },
-      { id: 'fatman', name: 'Fat Man', real: 'Davy Crockett recoilless launcher firing the Fat Man mini-nuke', tier: 4, damage: 800, rate: 0.25, splash: 0.26, ammo: 3, recipe: { steel: 4, circuitry: 3, fiberoptics: 2, gears: 2, oil: 2, plastic: 1, glass: 1 } },
+      { id: 'flamethrower', name: 'M2 Flamethrower', real: 'M2 flamethrower, napalm backpack flamethrower', tier: 1, damage: 7, rate: 12, auto: true, splash: 0.07, ammo: 600, recipe: { oil: 2, steel: 1, adhesive: 1 } },
+      { id: 'm79', name: 'M79 Grenade Launcher', real: 'M79 "Blooper", 40mm single-shot grenade launcher', tier: 2, damage: 120, rate: 0.7, splash: 0.09, ammo: 20, recipe: { steel: 3, springs: 1, oil: 1, adhesive: 1, screws: 1 } },
+      { id: 'missile', name: 'M72 Missile Launcher', real: 'M72 LAW, 66mm shoulder-fired rocket launcher', tier: 3, damage: 260, rate: 0.5, splash: 0.13, ammo: 14, recipe: { steel: 3, circuitry: 2, fiberoptics: 1, oil: 2, gears: 1, adhesive: 1 } },
+      { id: 'fatman', name: 'Fat Man', real: 'Davy Crockett recoilless launcher firing the Fat Man mini-nuke', tier: 4, damage: 800, rate: 0.25, splash: 0.26, ammo: 6, recipe: { steel: 4, circuitry: 3, fiberoptics: 2, gears: 2, oil: 2, plastic: 1, glass: 1 } },
     ],
   },
 };

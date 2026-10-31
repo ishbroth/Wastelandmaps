@@ -7,6 +7,9 @@ import { findSnapshot, type Snapshot } from '../lib/snapshot';
 import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } from '../lib/wasteland';
 import type { LookId } from '../lib/looks';
 import BlowApart from './BlowApart';
+import RaidScreen from './RaidScreen';
+import { spawnsFor } from '../lib/raid/spawnData';
+import type { RaidPlan } from '../lib/raid/raid';
 
 type Tab = 'scene' | 'snapshot';
 
@@ -15,11 +18,12 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ spot, regionName, look, visited, account, plan, onAccount, onClose }: {
-  spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; onAccount: () => void; onClose: () => void;
+export default function SceneModal({ spot, regionName, look, visited, account, plan, raid, level, sound, onAccount, onClose }: {
+  spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void;
 }) {
   const render = useMemo(() => freeRenderFor(spot.id), [spot.id]);
   const [tab, setTab] = useState<Tab>(render ? 'snapshot' : 'scene');
+  const [raiding, setRaiding] = useState(false);
   // the photo search answers for one place at a time; until it answers for this one, we are still searching (the vault is made up: no photo)
   const [found, setFound] = useState<{ id: string; snapshot: Snapshot | null } | null>(null);
   const snapshot: Snapshot | null | 'searching' = spot.kind === 'vault' ? null : found?.id === spot.id ? found.snapshot : 'searching';
@@ -102,6 +106,9 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
           >
             {!render && snapshot === 'searching' ? 'SNAPSHOT…' : snapshotAvailable ? (locked ? 'SNAPSHOT ★' : 'SNAPSHOT') : 'NO SNAPSHOT'}
           </button>
+          {reveal && raid && (
+            <button type="button" className="rm-tab-loot" onClick={() => setRaiding(true)} title="Fight what lives there and loot it">LOOT</button>
+          )}
         </div>
 
         <div className="rm-modal-view">
@@ -146,6 +153,9 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
         </div>
         )}
       </div>
+      {raiding && reveal && raid && (
+        <RaidScreen plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} level={level} sound={sound} onExit={() => setRaiding(false)} />
+      )}
     </div>
   );
 }

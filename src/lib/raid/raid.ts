@@ -3,7 +3,7 @@
 
 import { pointsFor } from '../points';
 import { hashString, seeded, type Location } from '../wasteland';
-import { BOSS_IDS, ENEMY_IDS, enemyById, type BossId, type EnemyId } from './enemies';
+import { BOSS_IDS, enemyById, type BossId, type EnemyId } from './enemies';
 import { LOOT_TYPES, type LootId } from './loot';
 
 export interface RaidPlan {
@@ -20,6 +20,16 @@ export interface RaidPlan {
   lootTypes: LootId[];
   /** The least and most pieces of loot a win gives. */
   lootRange: [number, number];
+}
+
+/** The kinds of enemy a place of this worth can have: the small places have the weak things, deathclaws only guard the great landmarks. */
+function poolFor(worth: number): EnemyId[] {
+  const pool: EnemyId[] = ['raider', 'bloatfly', 'radroach', 'molerat', 'ghoul'];
+  if (worth >= 15) pool.push('robot', 'radscorpion');
+  if (worth >= 20) pool.push('mirelurk');
+  if (worth >= 30) pool.push('supermutant');
+  if (worth >= 50) pool.push('deathclaw');
+  return pool;
 }
 
 /** Worth for the top two tiers: they have a boss. */
@@ -47,9 +57,10 @@ export function wavesFor(total: number): number[] {
 /** Plan for any worth and id (the places with permanent snapshots can also be given a hand-made plan, see landmarkRaids.ts). */
 export function planFor(id: string, worth: number): RaidPlan {
   const rand = seeded(hashString(`${id}|raid`));
-  const first = ENEMY_IDS[Math.floor(rand() * ENEMY_IDS.length)];
+  const pool = poolFor(worth);
+  const first = pool[Math.floor(rand() * pool.length)];
   // about one place in three is a mix of two kinds
-  const second = rand() < 0.34 ? ENEMY_IDS.filter((e) => e !== first)[Math.floor(rand() * (ENEMY_IDS.length - 1))] : null;
+  const second = rand() < 0.34 ? pool.filter((e) => e !== first)[Math.floor(rand() * (pool.length - 1))] : null;
   const enemies = second ? [first, second] : [first];
   const boss = worth >= BOSS_FROM ? BOSS_IDS[Math.floor(rand() * BOSS_IDS.length)] : null;
 

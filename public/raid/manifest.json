@@ -1,0 +1,414 @@
+{
+ "enemies": {
+  "ghoul": {
+   "frames": [
+    {
+     "file": "enemies/ghoul-0.webp",
+     "w": 130,
+     "h": 340
+    },
+    {
+     "file": "enemies/ghoul-1.webp",
+     "w": 126,
+     "h": 340
+    },
+    {
+     "file": "enemies/ghoul-2.webp",
+     "w": 230,
+     "h": 307
+    },
+    {
+     "file": "enemies/ghoul-3.webp",
+     "w": 281,
+     "h": 96
+    }
+   ]
+  },
+  "bloatfly": {
+   "frames": [
+    {
+     "file": "enemies/bloatfly-0.webp",
+     "w": 267,
+     "h": 340
+    },
+    {
+     "file": "enemies/bloatfly-1.webp",
+     "w": 298,
+     "h": 230
+    },
+    {
+     "file": "enemies/bloatfly-2.webp",
+     "w": 246,
+     "h": 314
+    },
+    {
+     "file": "enemies/bloatfly-3.webp",
+     "w": 253,
+     "h": 170
+    }
+   ]
+  },
+  "deathclaw": {
+   "frames": [
+    {
+     "file": "enemies/deathclaw-0.webp",
+     "w": 249,
+     "h": 336
+    },
+    {
+     "file": "enemies/deathclaw-1.webp",
+     "w": 251,
+     "h": 340
+    },
+    {
+     "file": "enemies/deathclaw-2.webp",
+     "w": 332,
+     "h": 334
+    },
+    {
+     "file": "enemies/deathclaw-3.webp",
+     "w": 304,
+     "h": 146
+    }
+   ]
+  },
+  "gangrenousghoul": {
+   "frames": [
+    {
+     "file": "enemies/gangrenousghoul-0.webp",
+     "w": 139,
+     "h": 340
+    },
+    {
+     "file": "enemies/gangrenousghoul-1.webp",
+     "w": 138,
+     "h": 340
+    },
+    {
+     "file": "enemies/gangrenousghoul-2.webp",
+     "w": 248,
+     "h": 320
+    },
+    {
+     "file": "enemies/gangrenousghoul-3.webp",
+     "w": 321,
+     "h": 118
+    }
+   ]
+  },
+  "glowingbloatfly": {
+   "frames": [
+    {
+     "file": "enemies/glowingbloatfly-0.webp",
+     "w": 340,
+     "h": 340
+    },
+    {
+     "file": "enemies/glowingbloatfly-1.webp",
+     "w": 340,
+     "h": 340
+    },
+    {
+     "file": "enemies/glowingbloatfly-2.webp",
+     "w": 340,
+     "h": 340
+    },
+    {
+     "file": "enemies/glowingbloatfly-3.webp",
+     "w": 340,
+     "h": 253
+    }
+   ]
+  },
+  "mirelurk": {
+   "frames": [
+    {
+     "file": "enemies/mirelurk-0.webp",
+     "w": 291,
+     "h": 338
+    },
+    {
+     "file": "enemies/mirelurk-1.webp",
+     "w": 287,
+     "h": 340
+    },
+    {
+     "file": "enemies/mirelurk-2.webp",
+     "w": 354,
+     "h": 323
+    },
+    {
+     "file": "enemies/mirelurk-3.webp",
+     "w": 371,
+     "h": 205
+    }
+   ]
+  },
+  "mirelurkqueen": {
+   "frames": [
+    {
+     "file": "enemies/mirelurkqueen-0.webp",
+     "w": 238,
+     "h": 340
+    },
+    {
+     "file": "enemies/mirelurkqueen-1.webp",
+     "w": 324,
+     "h": 325
+    },
+    {
+     "file": "enemies/mirelurkqueen-2.webp",
+     "w": 354,
+     "h": 336
+    },
+    {
+     "file": "enemies/mirelurkqueen-3.webp",
+     "w": 370,
+     "h": 190
+    }
+   ]
+  },
+  "molerat": {
+   "frames": [
+    {
+     "file": "enemies/molerat-0.webp",
+     "w": 223,
+     "h": 326
+    },
+    {
+     "file": "enemies/molerat-1.webp",
+     "w": 225,
+     "h": 333
+    },
+    {
+     "file": "enemies/molerat-2.webp",
+     "w": 320,
+     "h": 340
+    },
+    {
+     "file": "enemies/molerat-3.webp",
+     "w": 405,
+     "h": 187
+    }
+   ]
+  },
+  "radroach": {
+   "frames": [
+    {
+     "file": "enemies/radroach-0.webp",
+     "w": 315,
+     "h": 340
+    },
+    {
+     "file": "enemies/radroach-1.webp",
+     "w": 305,
+     "h": 338
+    },
+    {
+     "file": "enemies/radroach-2.webp",
+     "w": 359,
+     "h": 328
+    },
+    {
+     "file": "enemies/radroach-3.webp",
+     "w": 330,
+     "h": 212
+    }
+   ]
+  },
+  "radscorpion": {
+   "frames": [
+    {
+     "file": "enemies/radscorpion-0.webp",
+     "w": 346,
+     "h": 340
+    },
+    {
+     "file": "enemies/radscorpion-1.webp",
+     "w": 349,
+     "h": 324
+    },
+    {
+     "file": "enemies/radscorpion-2.webp",
+     "w": 383,
+     "h": 315
+    },
+    {
+     "file": "enemies/radscorpion-3.webp",
+     "w": 367,
+     "h": 216
+    }
+   ]
+  },
+  "raider": {
+   "frames": [
+    {
+     "file": "enemies/raider-0.webp",
+     "w": 240,
+     "h": 338
+    },
+    {
+     "file": "enemies/raider-1.webp",
+     "w": 245,
+     "h": 337
+    },
+    {
+     "file": "enemies/raider-2.webp",
+     "w": 231,
+     "h": 340
+    },
+    {
+     "file": "enemies/raider-3.webp",
+     "w": 318,
+     "h": 302
+    }
+   ]
+  },
+  "robot": {
+   "frames": [
+    {
+     "file": "enemies/robot-0.webp",
+     "w": 263,
+     "h": 339
+    },
+    {
+     "file": "enemies/robot-1.webp",
+     "w": 315,
+     "h": 338
+    },
+    {
+     "file": "enemies/robot-2.webp",
+     "w": 268,
+     "h": 340
+    },
+    {
+     "file": "enemies/robot-3.webp",
+     "w": 373,
+     "h": 212
+    }
+   ]
+  },
+  "supermutant": {
+   "frames": [
+    {
+     "file": "enemies/supermutant-0.webp",
+     "w": 258,
+     "h": 339
+    },
+    {
+     "file": "enemies/supermutant-1.webp",
+     "w": 258,
+     "h": 339
+    },
+    {
+     "file": "enemies/supermutant-2.webp",
+     "w": 339,
+     "h": 340
+    },
+    {
+     "file": "enemies/supermutant-3.webp",
+     "w": 340,
+     "h": 194
+    }
+   ]
+  }
+ },
+ "guns": {
+  "m1911": {
+   "file": "guns/m1911.webp",
+   "w": 640,
+   "h": 473,
+   "tipX": 0.432
+  },
+  "ak47": {
+   "file": "guns/ak47.webp",
+   "w": 640,
+   "h": 623,
+   "tipX": 0.627
+  },
+  "deagle": {
+   "file": "guns/deagle.webp",
+   "w": 640,
+   "h": 836,
+   "tipX": 0.072
+  },
+  "fatman": {
+   "file": "guns/fatman.webp",
+   "w": 640,
+   "h": 509,
+   "tipX": 0.318
+  },
+  "flamethrower": {
+   "file": "guns/flamethrower.webp",
+   "w": 640,
+   "h": 588,
+   "tipX": 0.17
+  },
+  "m249": {
+   "file": "guns/m249.webp",
+   "w": 640,
+   "h": 451,
+   "tipX": 0.455
+  },
+  "m79": {
+   "file": "guns/m79.webp",
+   "w": 640,
+   "h": 518,
+   "tipX": 0.271
+  },
+  "m82": {
+   "file": "guns/m82.webp",
+   "w": 640,
+   "h": 537,
+   "tipX": 0.19
+  },
+  "missile": {
+   "file": "guns/missile.webp",
+   "w": 640,
+   "h": 524,
+   "tipX": 0.25
+  },
+  "model70": {
+   "file": "guns/model70.webp",
+   "w": 542,
+   "h": 455,
+   "tipX": 0.258
+  },
+  "mp5": {
+   "file": "guns/mp5.webp",
+   "w": 640,
+   "h": 616,
+   "tipX": 0.481
+  },
+  "rem700": {
+   "file": "guns/rem700.webp",
+   "w": 640,
+   "h": 581,
+   "tipX": 0.25
+  },
+  "svd": {
+   "file": "guns/svd.webp",
+   "w": 638,
+   "h": 435,
+   "tipX": 0.278
+  },
+  "sw29": {
+   "file": "guns/sw29.webp",
+   "w": 640,
+   "h": 599,
+   "tipX": 0.353
+  },
+  "sw500": {
+   "file": "guns/sw500.webp",
+   "w": 640,
+   "h": 574,
+   "tipX": 0.328
+  },
+  "uzi": {
+   "file": "guns/uzi.webp",
+   "w": 640,
+   "h": 589,
+   "tipX": 0.382
+  }
+ }
+}

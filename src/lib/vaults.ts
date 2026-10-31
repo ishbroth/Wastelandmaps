@@ -4,6 +4,7 @@
 
 import { LORE_VAULTS } from './loreVaults';
 import { isFamous } from './placeNames';
+import { FREE_RENDERS } from './renders';
 import { distanceMeters, hashString, seeded, type Location } from './wasteland';
 
 /** Countries measured at 250,000 people a vault: North America, Europe, Australia, China, Japan, South Korea, New Zealand, Argentina, Uruguay, Brazil. */
@@ -61,7 +62,7 @@ export function assignVaults(metro: Metro, places: Location[]): Location[] {
 
   // the rest: local, not-famous places, spread across the metro
   const want = Math.max(0, vaultCount(metro.country, metro.pop) - lore);
-  const candidates = out.filter((p) => !p.vault && p.category !== 'transit' && p.id.startsWith('wd:') && !isFamous(p.category, p.fame ?? 0) && !/\b(exercise|operation|festival|exhibition|games|tournament|championship|expedition)\b/i.test(p.oldName));
+  const candidates = out.filter((p) => !p.vault && p.category !== 'transit' && p.id.startsWith('wd:') && !p.famous && !FREE_RENDERS[p.id.slice(3)] && !isFamous(p.category, p.fame ?? 0) && !/\b(exercise|operation|festival|exhibition|games|tournament|championship|expedition)\b/i.test(p.oldName));
   const chosen: Location[] = [];
   while (chosen.length < want && candidates.length > chosen.length) {
     // the candidate farthest from the vaults already chosen (the first is picked at random)
