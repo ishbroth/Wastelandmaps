@@ -23,7 +23,22 @@ export type FamousIconId =
   | 'stpaulcathedral' | 'iowacapitol' | 'seagate' | 'aegon' | 'basspro' | 'attbatman'
   | 'ppgplace' | 'comcastcenter' | 'oneliberty' | 'bromoseltzer' | 'bofabaltimore' | 'vbconvention'
   | 'colonialwilliamsburg' | 'vacapitol' | 'niagara' | 'indsquare' | 'tampa100' | 'breakwater'
-  | 'frenchquarter' | 'tcenergy' | 'spacecenter';
+  | 'frenchquarter' | 'tcenergy' | 'spacecenter'
+  | 'reuniontower' | 'oldred' | 'livestockexchange' | 'riverwalk' | 'toweramericas' | 'shoreline'
+  | 'txcapitol' | 'uttower' | 'block185' | 'otbassett' | 'albplaza' | 'sanxavier'
+  | 'grandcentraltower' | 'westwardho' | 'usbanktower' | 'capitolrecords' | 'oneamerica' | 'coronadobridge'
+  | 'eastcountycourthouse' | 'transamerica' | 'stanford' | 'tribuneoakland' | 'casscapitol' | 'sanjosecityhall'
+  | 'renoarch' | 'mgmgrand' | 'slctemple' | 'slccityhall' | 'walkercenter' | 'cocapitol'
+  | 'danielsfisher' | 'wellsfargodenver' | 'pioneercourthouse' | 'portlandbuilding' | 'koin' | 'columbiacenter'
+  | 'smithtower' | 'boisedepot' | 'idcapitol' | 'firstinterstate' | 'arkcapitol' | 'oldcourthousestl'
+  | 'swbell' | 'bofacorp' | 'southtryon550' | 'nccapitol' | 'wvcapitol' | 'keeneland'
+  | 'fortknox' | 'sunsphere' | 'maclellan' | 'cadetchapel' | 'pacificsw' | 'devontower'
+  | 'southboston320' | 'nebcapitol' | 'mutualomaha' | 'epiccenter' | 'mscapitol' | 'alcapitol'
+  | 'wattsbuilding' | 'regionsharbert' | 'shangrila' | 'paradox' | 'vancouverhouse' | 'saddledome'
+  | 'telussky' | 'bowcalgary' | 'epcortower' | 'stantectower' | 'mosaicregina' | 'nutrientower'
+  | 'main300' | 'parliamentcanada' | 'maryqueen' | 'notredamemontreal' | 'maestria' | 'quebecparliament'
+  | 'chateaufrontenac' | 'halifaxclock' | 'customhouseme' | 'industrialtrust' | 'travelerstower' | 'buffalocityhall'
+  | 'empirestateplaza';
 export type IconId = BaseIconId | FamousIconId;
 /** Filled in by famousIcons.ts when it loads. */
 export const EXTRA_ICONS: Record<string, string> = {};
