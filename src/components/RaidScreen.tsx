@@ -4,7 +4,7 @@ import { loadRaidAssets, type RaidAssets } from '../lib/raid/assets';
 import { playSound } from '../lib/raid/audio';
 import { enemyById } from '../lib/raid/enemies';
 import { Game, type Enemy, type Spawns } from '../lib/raid/engine';
-import { lootName, type LootBag, type LootId } from '../lib/raid/loot';
+import { LOOT_CAP, lootName, type LootBag, type LootId } from '../lib/raid/loot';
 import { maxHealth, type RaidPlan } from '../lib/raid/raid';
 import { WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
 
@@ -57,6 +57,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
   const [message, setMessage] = useState('');
   const [hud, setHud] = useState<Hud | null>(null);
   const [loot, setLoot] = useState<LootBag | null>(null);
+  const [lost, setLost] = useState<LootBag>({});
   const finished = useRef(false);
 
   const ownedGuns = useMemo(() => WEAPON_CLASS_IDS.filter((c) => account.arsenal[c] > 0).map((c) => weaponAt(c, account.arsenal[c] as 1 | 2 | 3 | 4).id), [account.arsenal]);
@@ -68,7 +69,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
     if (g) setPhase(won ? 'won' : 'lost');
     if (run.current) {
       const result = await finishRaid(run.current, won);
-      if (won) setLoot(result.won ? (result.loot ?? {}) : {});
+      if (won) { setLoot(result.won ? (result.loot ?? {}) : {}); setLost(result.lost ?? {}); }
       void account.refresh();
     }
   }, [account]);
@@ -397,6 +398,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
               <ul className="rm-raid-loot">
                 {Object.keys(loot).length === 0 && <li>Nothing was recovered.</li>}
                 {(Object.entries(loot) as [LootId, number][]).map(([id, n]) => <li key={id}><b>+{n}</b> {lootName(id)}</li>)}
+                {(Object.entries(lost) as [LootId, number][]).map(([id, n]) => <li key={`lost-${id}`} className="rm-raid-lost">{lootName(id)} FULL ({LOOT_CAP}): {n} LEFT BEHIND</li>)}
               </ul>
             )
           ) : <p>The {plan.boss ? enemyById(plan.boss).name.toLowerCase() : enemyById(plan.enemies[0]).plural} won this time. Go back and try again.</p>}

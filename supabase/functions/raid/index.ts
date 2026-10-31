@@ -41,16 +41,26 @@ Deno.serve(async (req) => {
 
   if (b.action === 'start') {
     const placeId = String(b.placeId ?? '');
-    if (!/^wd:Q\d+$/.test(placeId)) return reply(req, { error: 'bad_place' }, 400);
+    const personal = /^me:[A-Za-z0-9_-]{10,200}$/.test(placeId);
+    if (!personal && !/^wd:Q\d+$/.test(placeId)) return reply(req, { error: 'bad_place' }, 400);
     const worth = Number(b.worth);
     const enemies = Math.round(Number(b.enemies));
     const types = Array.isArray(b.lootTypes) ? [...new Set(b.lootTypes.map(String))] : [];
     if (!WORTHS.includes(worth) || !(enemies >= 1 && enemies <= 80) || types.length < 1 || types.length > 3 || types.some((t) => !LOOT.includes(t))) return reply(req, { error: 'bad_raid' }, 400);
 
-    // the snapshot has to be theirs: a permanent one, or unlocked with a credit
-    if (!FREE.has(placeId.slice(3))) {
+    // the snapshot has to be theirs: a permanent one, unlocked with a credit, or (an address in the atlas) in a metro they have unlocked
+    if (personal && worth > 30) return reply(req, { error: 'bad_raid' }, 400);
+    if (!(!personal && FREE.has(placeId.slice(3)))) {
       const { data: owned } = await db.from('unlocks').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
-      if (!owned) return reply(req, { error: 'locked' }, 403);
+      let allowed = !!owned;
+      if (!allowed && personal) {
+        const { data: row } = await db.from('address_renders').select('metro_id,status').eq('place_id', placeId.slice(3)).maybeSingle();
+        if (row?.status === 'ready' && row.metro_id) {
+          const { data: whole } = await db.from('metro_unlocks').select('metro_id').eq('user_id', user).eq('metro_id', row.metro_id as string).maybeSingle();
+          allowed = !!whole;
+        }
+      }
+      if (!allowed) return reply(req, { error: 'locked' }, 403);
     }
     // each place can be looted once: a won raid clears it for good (the snapshot can still be viewed)
     const { data: won } = await db.from('raid_runs').select('id').eq('user_id', user).eq('place_id', placeId).eq('won', true).limit(1);
@@ -73,9 +83,10 @@ Deno.serve(async (req) => {
     const won = b.won === true && believable;
     await db.from('raid_runs').update({ finished_at: new Date().toISOString(), won }).eq('id', run.id);
     if (!won) return reply(req, { ok: true, won: false });
-    const { error } = await db.rpc('grant_loot', { p_user: user, p_loot: run.loot });
+    // the pack holds 99 of each kind: what does not fit is lost
+    const { data: paid, error } = await db.rpc('grant_loot', { p_user: user, p_loot: run.loot });
     if (error) return reply(req, { error: 'server' }, 500);
-    return reply(req, { ok: true, won: true, loot: run.loot });
+    return reply(req, { ok: true, won: true, loot: (paid as { granted: unknown }).granted, lost: (paid as { lost: unknown }).lost });
   }
 
   return reply(req, { error: 'bad_action' }, 400);

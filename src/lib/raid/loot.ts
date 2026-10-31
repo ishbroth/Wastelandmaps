@@ -1,4 +1,4 @@
-// The things a place can be looted for. A survivor keeps any amount of each; they are spent to unlock and upgrade guns (weapons.ts).
+// The things a place can be looted for. A survivor can carry up to 99 of each (more is lost); they are spent to unlock and upgrade guns (weapons.ts).
 
 export const LOOT_TYPES = [
   { id: 'steel', name: 'Steel' },
@@ -13,6 +13,9 @@ export const LOOT_TYPES = [
   { id: 'gears', name: 'Gears' },
   { id: 'plastic', name: 'Plastic' },
 ] as const;
+
+/** The most of each kind a survivor can store. */
+export const LOOT_CAP = 99;
 
 export type LootId = (typeof LOOT_TYPES)[number]['id'];
 export type LootBag = Partial<Record<LootId, number>>;

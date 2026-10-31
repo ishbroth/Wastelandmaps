@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sceneFontsReady, startScene } from '../lib/scene';
-import { accountsEnabled, PACK, type Account } from '../lib/account';
+import { accountsEnabled, checkAddress, PACK, type Account } from '../lib/account';
 import { freeRenderFor } from '../lib/renders';
 import { usePaidRender } from '../lib/usePaidRender';
 import { findSnapshot, type Snapshot } from '../lib/snapshot';
@@ -19,7 +19,9 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ spot, regionName, look, visited, account, plan, raid, level, sound, onAccount, onClose }: {
+export default function SceneModal({ spot, regionName, look, visited, account, plan, raid, level, sound, metroId, onAccount, onClose }: {
+  /** The metro the map is showing: an address rendered here belongs to its atlas. */
+  metroId?: string | null;
   spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void;
 }) {
   const render = useMemo(() => freeRenderFor(spot.id), [spot.id]);
@@ -38,6 +40,15 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
     void streetViewAvailable(spot.position).then((ok) => { if (!cancelled) setStreet({ id: spot.id, ok }); });
     return () => { cancelled = true; };
   }, [spot]);
+  // has anyone rendered this address already (then only the unlock is paid for), and is it theirs to see?
+  const [address, setAddress] = useState<{ id: string; exists: boolean; owned: boolean } | null>(null);
+  useEffect(() => {
+    if (!spot.personal || !account.session) return;
+    let cancelled = false;
+    void checkAddress(spot.id.slice(3)).then((r) => { if (!cancelled) setAddress({ id: spot.id, ...r }); });
+    return () => { cancelled = true; };
+  }, [spot, account.session]);
+  const rendered = address?.id === spot.id ? address : null;
   const streetState = !personal ? null : street?.id === spot.id ? (street.ok ? 'yes' : 'no') : 'checking';
   const searching = personal ? streetState === 'checking' : snapshot === 'searching';
   const cost = personal ? 4 : 1;
@@ -46,8 +57,8 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
   const journal = useMemo(() => describeSpot(spot, regionName, plan), [spot, regionName, plan]);
 
   // the paid snapshot: for places with a freely licensed photo listed on Wikidata that are not among the free few
-  const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || (personal && streetState === 'yes'));
-  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay);
+  const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || (personal && (streetState === 'yes' || !!rendered?.exists)));
+  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId } : undefined, !!rendered?.owned);
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
   const locked = canPay && !paidReady;

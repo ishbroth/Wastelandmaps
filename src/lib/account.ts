@@ -19,9 +19,24 @@ export function db(): SupabaseClient {
   return client;
 }
 
-export const PACK = { credits: 8, price: '$1.99' };
+export const PACKS = [
+  { id: 'eight', credits: 8, price: '$1.99' },
+  { id: 'twentyfour', credits: 24, price: '$4.99' },
+  { id: 'fiftytwo', credits: 52, price: '$9.99' },
+] as const;
+/** The smallest pack (what is quoted when someone is short of credits). */
+export const PACK = PACKS[0];
+/** Unlocking every rendered address in one metro. */
+export const METRO_COST = 48;
+
+export interface Home { placeId?: string; name?: string; address?: string; lat?: number; lng?: number; skipped: boolean }
 
 export interface Account {
+  /** Where home is (null until they have said or skipped), and whether that is known yet. */
+  home: Home | null;
+  homeLoaded: boolean;
+  /** Metros whose rendered addresses they have all unlocked. */
+  metros: Set<string>;
   /** Addresses they have travelled to: their own pins. */
   personal: PersonalPlace[];
   session: Session | null;
@@ -56,6 +71,9 @@ export function useAccount(): Account {
   const [arsenal, setArsenal] = useState<Arsenal>(STARTING_ARSENAL);
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [personal, setPersonal] = useState<PersonalPlace[]>([]);
+  const [home, setHome] = useState<Home | null>(null);
+  const [homeLoaded, setHomeLoaded] = useState(false);
+  const [metros, setMetros] = useState<Set<string>>(new Set());
 
   const load = async (s: Session | null) => {
     if (!accountsEnabled || !s) {
@@ -67,6 +85,9 @@ export function useAccount(): Account {
       setArsenal(STARTING_ARSENAL);
       setCleared(new Set());
       setPersonal([]);
+      setHome(null);
+      setHomeLoaded(false);
+      setMetros(new Set());
       return;
     }
     // loot and guns (empty if the raids migration has not been run)
@@ -83,6 +104,13 @@ export function useAccount(): Account {
     });
     void db().from('raid_runs').select('place_id').eq('user_id', s.user.id).eq('won', true).then((r) => setCleared(new Set(((r.data ?? []) as { place_id: string }[]).map((x) => x.place_id))));
     void db().from('personal_places').select('place_id,name,address,lat,lng,kind').eq('user_id', s.user.id).order('created_at').then((r) => setPersonal(((r.data ?? []) as { place_id: string; name: string; address: string; lat: number; lng: number; kind: PersonalPlace['kind'] }[]).map((x) => ({ placeId: x.place_id, name: x.name, address: x.address, lat: x.lat, lng: x.lng, kind: x.kind }))));
+    void db().from('user_home').select('place_id,name,address,lat,lng,skipped').eq('user_id', s.user.id).maybeSingle().then((r) => {
+      // if the table is not there yet, do not nag about it
+      if (r.error) setHome({ skipped: true });
+      else setHome(r.data ? { placeId: r.data.place_id ?? undefined, name: r.data.name ?? undefined, address: r.data.address ?? undefined, lat: r.data.lat ?? undefined, lng: r.data.lng ?? undefined, skipped: !!r.data.skipped } : null);
+      setHomeLoaded(true);
+    });
+    void db().from('metro_unlocks').select('metro_id').eq('user_id', s.user.id).then((r) => setMetros(new Set(((r.data ?? []) as { metro_id: string }[]).map((x) => x.metro_id))));
     const [bal, owned, found] = await Promise.all([
       db().from('credits').select('balance').eq('user_id', s.user.id).maybeSingle(),
       db().from('unlocks').select('place_id').eq('user_id', s.user.id),
@@ -121,7 +149,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, arsenal, cleared, personal, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, arsenal, cleared, personal, home, homeLoaded, metros, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -133,8 +161,8 @@ export async function sendSignInLink(email: string): Promise<string | null> {
 export const signOut = () => db().auth.signOut();
 
 /** Starts the Stripe checkout for a pack and sends the browser there. */
-export async function buyPack(): Promise<string | null> {
-  const { data, error } = await db().functions.invoke('create-checkout', { body: { pack: 'eight' } });
+export async function buyPack(pack: string = 'eight'): Promise<string | null> {
+  const { data, error } = await db().functions.invoke('create-checkout', { body: { pack } });
   if (error || !data?.url) return 'Could not start the checkout. Try again in a moment.';
   window.location.href = data.url as string;
   return null;
@@ -150,8 +178,8 @@ export type UnlockResult =
   | { kind: 'error'; reason: 'no_credits' | 'no_photo' | 'busy' | 'failed' | 'sign_in' | 'server' };
 
 /** Unlocks a place (one credit, once) and returns the render. 'working' means it is still being made: ask again in a few seconds, free. */
-export async function unlockRender(placeId: string, name: string): Promise<UnlockResult> {
-  const { data, error } = await db().functions.invoke(placeId.startsWith('me:') ? 'unlock-streetview' : 'unlock-render', { body: { placeId, name } });
+export async function unlockRender(placeId: string, name: string, extra?: { kind?: string; metroId?: string | null }): Promise<UnlockResult> {
+  const { data, error } = await db().functions.invoke(placeId.startsWith('me:') ? 'unlock-streetview' : 'unlock-render', { body: { placeId, name, ...extra } });
   if (error) {
     // the function answers with an error code in the body even on a 4xx/5xx
     let reason = 'server';
@@ -249,9 +277,9 @@ export async function startRaid(placeId: string, worth: number, enemies: number,
 }
 
 /** Ends a raid. A win pays the loot the server decided at the start. */
-export async function finishRaid(runId: string, won: boolean): Promise<{ won: boolean; loot?: LootBag }> {
+export async function finishRaid(runId: string, won: boolean): Promise<{ won: boolean; loot?: LootBag; lost?: LootBag }> {
   const { data, error } = await db().functions.invoke('raid', { body: { action: 'finish', runId, won } });
-  return error || !data?.ok ? { won: false } : { won: data.won === true, loot: data.loot as LootBag | undefined };
+  return error || !data?.ok ? { won: false } : { won: data.won === true, loot: data.loot as LootBag | undefined, lost: data.lost as LootBag | undefined };
 }
 
 /** Keeps an address they reached on their own map. */
@@ -264,4 +292,40 @@ export async function renamePersonalPlace(userId: string, placeId: string, name:
   const clean = name.trim().slice(0, 80);
   if (!clean) return;
   await db().from('personal_places').update({ name: clean }).eq('user_id', userId).eq('place_id', placeId);
+}
+
+/** Has anyone already rendered this address, and can this person see it without paying? (Free to ask.) */
+export async function checkAddress(placeId: string): Promise<{ exists: boolean; owned: boolean }> {
+  const { data, error } = await db().functions.invoke('unlock-streetview', { body: { action: 'check', placeId } });
+  return error || !data ? { exists: false, owned: false } : { exists: data.exists === true, owned: data.owned === true };
+}
+
+export interface AtlasPlace { placeId: string; name: string; address: string; lat: number; lng: number; kind: PersonalPlace['kind'] }
+
+/** How many addresses are rendered in a metro, and whether this person has unlocked them all. */
+export async function atlasCount(metroId: string): Promise<{ count: number; unlocked: boolean } | null> {
+  const { data, error } = await db().functions.invoke('address-atlas', { body: { action: 'count', metroId } });
+  return error || !data ? null : { count: Number(data.count ?? 0), unlocked: data.unlocked === true };
+}
+
+/** Unlocks every rendered address in a metro (48 credits). */
+export async function atlasUnlock(metroId: string): Promise<'ok' | 'no_credits' | 'error'> {
+  const { data, error } = await db().functions.invoke('address-atlas', { body: { action: 'unlock', metroId } });
+  if (error) {
+    const response = (error as { context?: Response }).context;
+    try { if (response && ((await response.json()) as { error?: string }).error === 'no_credits') return 'no_credits'; } catch { /* no body */ }
+    return 'error';
+  }
+  return data?.ok ? 'ok' : 'error';
+}
+
+/** The rendered addresses of a metro this person has unlocked. */
+export async function atlasList(metroId: string): Promise<AtlasPlace[]> {
+  const { data, error } = await db().functions.invoke('address-atlas', { body: { action: 'list', metroId } });
+  return error || !data?.places ? [] : (data.places as AtlasPlace[]);
+}
+
+/** Remembers where home is, or that they chose not to say. */
+export async function saveHome(userId: string, home: Home): Promise<void> {
+  await db().from('user_home').upsert({ user_id: userId, place_id: home.placeId ?? null, name: home.name ?? null, address: home.address ?? null, lat: home.lat ?? null, lng: home.lng ?? null, skipped: home.skipped }, { onConflict: 'user_id' });
 }

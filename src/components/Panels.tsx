@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
 import { freeRenderFor } from '../lib/renders';
-import { PACK, craftWeapon, type Account, type FoundPlace } from '../lib/account';
+import { LOOT_CAP } from '../lib/raid/loot';
+import { METRO_COST, PACK, atlasCount, atlasUnlock, craftWeapon, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag } from '../lib/raid/loot';
 import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt } from '../lib/raid/weapons';
@@ -105,8 +106,11 @@ const countryName = (iso: string | null) => {
 };
 
 /** The Data tab: credits, and every place found, grouped by city; a place opens on the map, and an unlocked snapshot opens ready to play. */
-export function AccountPanel({ account, found, onAccount, onGoTo, onSnapshot }: {
+export function AccountPanel({ account, found, metro, onChangeHome, onAccount, onGoTo, onSnapshot }: {
   account: Account;
+  /** The metro the map is showing, for its address atlas. */
+  metro?: { id: string; name: string };
+  onChangeHome: () => void;
   found: FoundPlace[];
   onAccount: () => void;
   onGoTo: (place: FoundPlace) => void;
@@ -150,10 +154,17 @@ export function AccountPanel({ account, found, onAccount, onGoTo, onSnapshot }: 
         <button type="button" className="rm-btn rm-btn-ghost" onClick={onAccount} title={`${PACK.credits} snapshots for ${PACK.price}`}>BUY MORE</button>
       </div>
 
+      <h3>HOME</h3>
+      <div className="rm-acct-credits">
+        <div><span>{account.home?.address ? account.home.address : 'Not set'}</span></div>
+        <button type="button" className="rm-btn rm-btn-ghost" onClick={onChangeHome}>{account.home?.address ? 'CHANGE' : 'SET HOME'}</button>
+      </div>
+      {metro && <AtlasBox account={account} metro={metro} />}
+
       <h3>LOOT</h3>
       <div className="rm-loot">
         {LOOT_TYPES.map((l) => (
-          <span key={l.id} className={`rm-loot-item${(account.loot[l.id] ?? 0) === 0 ? ' rm-loot-none' : ''}`}><b>{account.loot[l.id] ?? 0}</b> {l.name}</span>
+          <span key={l.id} className={`rm-loot-item${(account.loot[l.id] ?? 0) === 0 ? ' rm-loot-none' : ''}${(account.loot[l.id] ?? 0) >= LOOT_CAP ? ' rm-loot-full' : ''}`} title={`Storage holds ${LOOT_CAP} of each`}><b>{account.loot[l.id] ?? 0}</b>/{LOOT_CAP} {l.name}</span>
         ))}
       </div>
       <h3>GUNS</h3>
@@ -245,6 +256,45 @@ export function SharePanel({ query, look, soundOn, onToggleSound }: { query: str
         The poster prints exactly what is on screen (use "Save as PDF" in the print window). Map imagery belongs to Google and is for your own
         use; WastelandMaps is an unofficial fan project and is not affiliated with Bethesda or Microsoft.
       </p>
+    </div>
+  );
+}
+
+/** The address atlas of the metro on the map: how many addresses other survivors have rendered here, and the one-time unlock of all of them. */
+function AtlasBox({ account, metro }: { account: Account; metro: { id: string; name: string } }) {
+  const [count, setCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+  const unlocked = account.metros.has(metro.id);
+  useEffect(() => {
+    let cancelled = false;
+    setCount(null);
+    void atlasCount(metro.id).then((r) => { if (!cancelled) setCount(r?.count ?? 0); });
+    return () => { cancelled = true; };
+  }, [metro.id, unlocked]);
+  const unlock = async () => {
+    setBusy(true);
+    setNote('');
+    const result = await atlasUnlock(metro.id);
+    setNote(result === 'no_credits' ? `You need ${METRO_COST} credits.` : result === 'error' ? 'That did not go through. Nothing was charged.' : '');
+    setBusy(false);
+    await account.refresh();
+  };
+  return (
+    <div className="rm-atlas">
+      <h3>ADDRESS ATLAS · {metro.name.toUpperCase()}</h3>
+      {unlocked ? (
+        <p className="rm-fine">Unlocked. Every address rendered here{count ? ` (${count} so far)` : ''}, including ones added later, is on your map; open one to see it and loot it.</p>
+      ) : (
+        <>
+          <p className="rm-fine">{count === null ? 'Counting…' : count === 0 ? 'No addresses are rendered here yet.' : `${count} address${count === 1 ? '' : 'es'} here have been rendered by other survivors.`} Unlock them all, now and in the future, for {METRO_COST} credits.</p>
+          <button type="button" className="rm-btn rm-btn-ghost" disabled={busy || (account.credits ?? 0) < METRO_COST} onClick={() => void unlock()}>
+            UNLOCK THE WHOLE METRO · {METRO_COST} CREDITS
+          </button>
+          {(account.credits ?? 0) < METRO_COST && <p className="rm-fine">You have {account.credits ?? 0}. Buy a pack to get more.</p>}
+        </>
+      )}
+      {note && <p className="rm-account-note">{note}</p>}
     </div>
   );
 }

@@ -562,3 +562,11 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-turn-marker b { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: var(--on-ink, #000); font-size: 18px; font-weight: 400; box-shadow: 0 0 10px var(--glow), 0 0 0 2px #000; animation: rm-turn-pulse 1.1s ease-in-out infinite; }
 .rm-turn-marker i { font-style: normal; font-size: 10px; letter-spacing: 1px; color: var(--ink); text-shadow: 0 0 4px #000, 0 0 2px #000; margin-top: 2px; }
 @keyframes rm-turn-pulse { 0%, 100% { transform: scale(0.92); } 50% { transform: scale(1.12); } }
+
+/* packs, the atlas, the loot cap, home */
+.rm-packs { display: grid; gap: 8px; }
+.rm-loot-full b { color: #ff9a3d; }
+.rm-raid-lost { color: #ff9a3d; }
+.rm-atlas { margin-top: 10px; }
+.rm-suggest-inline { position: static; box-shadow: none; margin-top: 6px; }
+.rm-home .rm-account-body { display: grid; gap: 10px; }

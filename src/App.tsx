@@ -3,8 +3,9 @@ import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
-import { accountsEnabled, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, savePersonalPlace, saveMapPosition, useAccount, type FoundPlace } from './lib/account';
-import { resolveSuggestion, type Suggestion } from './lib/addressSearch';
+import { accountsEnabled, atlasList, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import HomePrompt from './components/HomePrompt';
+import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
 import { personalId, personalLocation, type PersonalPlace } from './lib/personal';
 import { enableNotifications, pushNotice } from './lib/notify';
 import { levelInfo, pointsFor } from './lib/points';
@@ -100,7 +101,26 @@ export default function App() {
     if (target && !account.personal.some((q) => q.placeId === target.placeId)) mine.push(personalLocation(target, false));
     return mine;
   }, [account.personal, target, region]);
-  const allLocations = useMemo(() => [...locations, ...personalLocs], [locations, personalLocs]);
+  // the metro on the map (its address atlas), the addresses other survivors rendered there when this person has unlocked the metro, and the home prompt
+  const [metroInfo, setMetroInfo] = useState<{ id: string; name: string } | null>(null);
+  const [atlas, setAtlas] = useState<AtlasPlace[]>([]);
+  const [homeOpen, setHomeOpen] = useState(false);
+  const [homeSkipped, setHomeSkipped] = useState(false);
+  const atlasLocs = useMemo(() => atlas
+    .filter((a) => !account.personal.some((q) => q.placeId === a.placeId))
+    .map((a) => {
+      const loc = personalLocation({ placeId: a.placeId, name: a.name, address: a.address, lat: a.lat, lng: a.lng, kind: a.kind }, true);
+      return { ...loc, personal: { ...(loc.personal as NonNullable<Location['personal']>), atlas: true } };
+    }), [atlas, account.personal]);
+  const allLocations = useMemo(() => [...locations, ...personalLocs, ...atlasLocs], [locations, personalLocs, atlasLocs]);
+  const atlasOwned = !!metroInfo && account.metros.has(metroInfo.id);
+  useEffect(() => {
+    if (!account.session || !metroInfo || !atlasOwned) { setAtlas([]); return; }
+    let cancelled = false;
+    void atlasList(metroInfo.id).then((list) => { if (!cancelled) setAtlas(list); });
+    return () => { cancelled = true; };
+  }, [account.session, metroInfo, atlasOwned]);
+
   const [accountOpen, setAccountOpen] = useState(false);
   const trip = useRef<Trip | null>(null);
   const visitedRef = useRef(visited);
@@ -268,6 +288,7 @@ export default function App() {
       if (madeZones) w.zones = madeZones.map(zoneFromEntry);
       scanId.current += 1;
       metroSeen.current = { current: home?.id ?? '', loaded: new Set(home ? [home.id] : []) };
+      setMetroInfo(home ? { id: home.id, name: home.name } : null);
       setLiveName(title);
       setWasteland(w);
       setQuery(r.address);
@@ -329,6 +350,7 @@ export default function App() {
     const near = under ?? metroAt(metros, center, 120);
     if (near && near.id !== seen.current) {
       seen.current = near.id;
+      setMetroInfo({ id: near.id, name: near.name });
       setLiveName(near.title);
       setToast(`ENTERING ${near.title.toUpperCase()}`);
       window.clearTimeout(toastTimer.current);
@@ -438,6 +460,22 @@ export default function App() {
     setTarget({ placeId: place.placeId, name: place.name, address: place.address, lat: place.position.lat, lng: place.position.lng, kind: place.kind });
     setSelectedId(personalId(place.placeId));
   }, [show, search]);
+  /** Home chosen (here or typed): remembered, shown as a place of their own named Home, and the map goes there. */
+  const chooseHome = useCallback(async (place: PickedPlace) => {
+    const who = accountRef.current?.session;
+    if (!who) return;
+    await saveHome(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, skipped: false });
+    await savePersonalPlace(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, kind: 'house' });
+    await accountRef.current?.refresh();
+    setHomeOpen(false);
+    await show(() => geocodeQuery(place.address).catch(() => geocodeLatLng(place.position)), 'HOME');
+  }, [show]);
+  const skipHome = useCallback(async () => {
+    setHomeSkipped(true);
+    if (homeOpen) { setHomeOpen(false); return; }
+    const who = accountRef.current?.session;
+    if (who) { await saveHome(who.user.id, { skipped: true }); await accountRef.current?.refresh(); }
+  }, [homeOpen]);
   const renameSpot = useCallback(async (spot: Spot, name: string) => {
     const who = accountRef.current?.session;
     if (!who || !spot.personal) return;
@@ -756,17 +794,19 @@ export default function App() {
           )}
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
-              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} onRename={selectedSpot.personal?.saved ? (name) => void renameSpot(selectedSpot, name) : undefined}
+              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas ? (name) => void renameSpot(selectedSpot, name) : undefined}
               traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
             <SceneModal
+              metroId={metroInfo?.id}
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)}
-              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && place.id.startsWith('wd:') ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={() => setAccountOpen(true)} onClose={() => setSceneId(null)}
+              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.personal) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={() => setAccountOpen(true)} onClose={() => setSceneId(null)}
             />
           )}
           {accountOpen && <AccountModal account={account} onClose={() => setAccountOpen(false)} />}
+          {((account.session && account.homeLoaded && !account.home && !homeSkipped) || homeOpen) && <HomePrompt onChosen={(place) => void chooseHome(place)} onSkip={() => void skipHome()} />}
 
           <div className="rm-status" role="status">
             <span className={busy || travel ? 'rm-blink' : ''}>{message}</span>
@@ -796,7 +836,7 @@ export default function App() {
                 onSelect={(id) => { setSelectedId(id); sound('select'); }}
               />
             )}
-            {tab === 'data' && <AccountPanel account={account} found={found} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
+            {tab === 'data' && <AccountPanel account={account} found={found} metro={metroInfo ?? undefined} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
             {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} soundOn={soundOn} onToggleSound={() => setSoundOn((s) => !s)} />}
           </section>
         </aside>

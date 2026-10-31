@@ -199,7 +199,7 @@ export interface Location {
   /** A district of the city rather than a building. */
   neighborhood?: boolean;
   /** An address someone travelled to (their own pin, a little smaller): where it is, what kind of place it is, and whether they have reached it. */
-  personal?: { address: string; kind: PersonalKind; saved: boolean };
+  personal?: { address: string; kind: PersonalKind; saved: boolean; /** Rendered by another survivor, shown because the whole metro is unlocked. */ atlas?: boolean };
 }
 
 const THREATS: Location['threat'][] = ['Quiet', 'Quiet', 'Scavengers', 'Scavengers', 'Raiders', 'Feral Ghouls', 'Super Mutants', 'Radiation'];

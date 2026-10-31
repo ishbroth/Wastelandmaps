@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { PACK, buyPack, sendSignInLink, signOut, type Account } from '../lib/account';
+import { PACKS, buyPack, sendSignInLink, signOut, type Account } from '../lib/account';
 
 /** Sign in, see the balance, buy a pack of render credits. */
 export default function AccountModal({ account, onClose }: { account: Account; onClose: () => void }) {
@@ -14,9 +14,9 @@ export default function AccountModal({ account, onClose }: { account: Account; o
     setNote(problem ?? 'Check your email: we sent you a sign-in link. Open it on this device.');
     setBusy(false);
   };
-  const buy = async () => {
+  const buy = async (pack: string) => {
     setBusy(true);
-    const problem = await buyPack();
+    const problem = await buyPack(pack);
     if (problem) {
       setNote(problem);
       setBusy(false);
@@ -45,7 +45,11 @@ export default function AccountModal({ account, onClose }: { account: Account; o
             <p className="rm-account-balance">{account.credits === null ? '…' : account.credits} <span>SNAPSHOT CREDITS</span></p>
             <p className="rm-account-small">{account.discoveries} places reached on foot. Every level you reach gives a free snapshot credit (turn on AUTO-DISCOVER and go for a walk; the Data tab shows your level).</p>
             <p>Each credit unlocks one place's snapshot: the real photograph blown apart into the wasteland, to view, download and share. Unlocked renders stay yours.</p>
-            <button type="button" className="rm-btn" disabled={busy} onClick={buy}>BUY {PACK.credits} SNAPSHOTS: {PACK.price}</button>
+            <div className="rm-packs">
+              {PACKS.map((pk) => (
+                <button key={pk.id} type="button" className="rm-btn" disabled={busy} onClick={() => void buy(pk.id)}>BUY {pk.credits} CREDITS: {pk.price}</button>
+              ))}
+            </div>
             <p className="rm-account-small">Pay by card, Apple Pay or Google Pay through Stripe. A render that cannot be made gives your credit back.</p>
             <button type="button" className="rm-btn rm-btn-ghost" onClick={() => { void signOut(); onClose(); }}>SIGN OUT</button>
           </div>

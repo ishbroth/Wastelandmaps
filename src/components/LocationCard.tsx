@@ -53,7 +53,7 @@ export default function LocationCard({ spot, from, here, visited, cleared, onRen
         <button type="button" className="rm-card-close" onClick={onClose} aria-label="Close">×</button>
       </div>
       <p className="rm-card-meta">
-        {spot.personal ? (spot.personal.saved ? 'YOUR PLACE · DISCOVERED' : 'DESTINATION') : <>{visited ? 'DISCOVERED' : 'UNDISCOVERED'} · {spot.threat}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}</>}
+        {spot.personal ? (spot.personal.atlas ? 'ADDRESS ATLAS' : spot.personal.saved ? 'YOUR PLACE · DISCOVERED' : 'DESTINATION') : <>{visited ? 'DISCOVERED' : 'UNDISCOVERED'} · {spot.threat}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}</>}
       </p>
       {!here && from && (
         <p className="rm-card-trip">

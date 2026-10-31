@@ -74,3 +74,16 @@ export async function streetViewAvailable(position: LatLng): Promise<boolean> {
     return false;
   }
 }
+
+/** The address where someone is standing (for setting it as home). */
+export async function reverseGeocode(position: LatLng): Promise<PickedPlace | null> {
+  try {
+    const { Geocoder } = (await google.maps.importLibrary('geocoding')) as google.maps.GeocodingLibrary;
+    const { results } = await new Geocoder().geocode({ location: position });
+    const hit = results?.find((r) => r.types.includes('street_address') || r.types.includes('premise')) ?? results?.[0];
+    if (!hit) return null;
+    return { placeId: hit.place_id, name: 'Home', address: hit.formatted_address, position, kind: 'house' };
+  } catch {
+    return null;
+  }
+}
