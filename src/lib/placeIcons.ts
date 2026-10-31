@@ -39,7 +39,9 @@ export type FamousIconId =
   | 'main300' | 'parliamentcanada' | 'maryqueen' | 'notredamemontreal' | 'maestria' | 'quebecparliament'
   | 'chateaufrontenac' | 'halifaxclock' | 'customhouseme' | 'industrialtrust' | 'travelerstower' | 'buffalocityhall'
   | 'empirestateplaza';
-export type IconId = BaseIconId | FamousIconId;
+export type IconId = BaseIconId | FamousIconId | `local:${string}`;
+/** Makers for icons that are built from their id (the local landmarks of famousIcons2.ts). */
+export const ICON_MAKERS: ((id: string) => string | undefined)[] = [];
 /** Filled in by famousIcons.ts when it loads. */
 export const EXTRA_ICONS: Record<string, string> = {};
 
@@ -101,7 +103,15 @@ const ICONS: Record<BaseIconId, string> = {
   fountain: svg(f('M4.5 16.5h15l-1.8 4h-11.4Z') + s('M12 16.5V8M12 8C10.5 6.5 8.5 7 7.5 9M12 8c1.5-1.5 3.5-1 4.5 1M12 5V3M9.5 5.5 8.5 4M14.5 5.5l1-1.5')),
 };
 
-export const placeIcon = (id: IconId): string => (ICONS as Record<string, string>)[id] ?? EXTRA_ICONS[id] ?? ICONS.monument;
+export function placeIcon(id: IconId): string {
+  const known = (ICONS as Record<string, string>)[id] ?? EXTRA_ICONS[id];
+  if (known) return known;
+  for (const make of ICON_MAKERS) {
+    const made = make(id);
+    if (made) { EXTRA_ICONS[id] = made; return made; }
+  }
+  return ICONS.monument;
+}
 
 /** The everyday icon for each kind of place, used on the filter buttons and when nothing about the real name says more. */
 export const CATEGORY_ICON: Record<CategoryId, IconId> = {

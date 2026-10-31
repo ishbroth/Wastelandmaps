@@ -1,7 +1,7 @@
 // More famous landmarks (the second batch), each drawn as itself. The towers are built from one outline (a shaft, a crown, a few details) so they stay
 // consistent; the places with a shape of their own (a ball on a stalk, a bridge, a vault door) are drawn by hand. Registered with placeIcons on import.
 
-import { EXTRA_ICONS, d, f, s, svg } from './placeIcons';
+import { EXTRA_ICONS, ICON_MAKERS, d, f, s, svg } from './placeIcons';
 
 const n = (v: number) => Math.round(v * 100) / 100;
 
@@ -155,3 +155,59 @@ const ICONS: Record<string, string> = {
 };
 
 for (const [id, markup] of Object.entries(ICONS)) EXTRA_ICONS[id] = markup;
+
+// ---- the local landmarks of the world's cities: icons built from a kind and a number, so every building gets its own variation ----
+const CROWNS: Crown[] = ['flat', 'spire', 'pyramid', 'dome', 'gables', 'antenna', 'stepped', 'slant', 'crown', 'clock'];
+const DETAILS: Detail[] = ['bands', 'ribs', 'x', 'bands'];
+const BASES = ['none', 'podium', 'wings'] as const;
+
+function stream(seed: number) {
+  let t = (seed + 0x6d2b79f5) >>> 0;
+  return () => {
+    t = (t + 0x6d2b79f5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function localIcon(id: string): string | undefined {
+  const m = /^local:(\w+):(\d+)$/.exec(id);
+  if (!m) return undefined;
+  const r = stream(Number(m[2]));
+  const pick = <T,>(list: readonly T[]): T => list[Math.floor(r() * list.length)];
+  switch (m[1]) {
+    case 'gov': {
+      const v = r();
+      if (v < 0.4) return domeHall({ star: r() < 0.15, lantern: r() < 0.5, cross: r() < 0.25, flag: r() < 0.25 });
+      if (v < 0.7) return portico({ cupola: r() < 0.5, dome: r() < 0.4 });
+      return castleHall({ turrets: r() < 0.6, tower: r() < 0.8 });
+    }
+    case 'spire': {
+      const platform = 4 + r() * 5;
+      let out = f('M10.9 21 11.6 7h.8l.7 14Z') + s(`M7.5 21l3.4-9M16.5 21l-3.4-9M12 7V1.4`);
+      out += f(`M${n(12 - 3.4)} ${n(platform)}a3.4 1.3 0 0 1 6.8 0 3.4 1.3 0 0 1-6.8 0Z`);
+      if (r() < 0.5) out += f(`M${n(12 - 2.4)} ${n(platform + 5)}a2.4 1 0 0 1 4.8 0 2.4 1 0 0 1-4.8 0Z`);
+      return svg(out + d('M9.6 17.2h4.8'));
+    }
+    case 'hall': {
+      let out = f('M2.5 21V12.4h19V21Z') + f('M9.6 12.4V7h4.8v5.4Z') + f('M8.8 7 12 3.4 15.2 7Z');
+      out += d('M12 9.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z') + d('M5.2 21v-4a1.6 1.6 0 0 1 3.2 0v4M15.6 21v-4a1.6 1.6 0 0 1 3.2 0v4M10.4 21v-4.4h3.2V21');
+      if (r() < 0.5) out += f('M2.5 12.4 4 10.4h4.4v2ZM21.5 12.4 20 10.4h-4.4v2Z');
+      return svg(out);
+    }
+    case 'block': {
+      const w1 = 7 + r() * 5, w2 = 5 + r() * 5, h1 = 8 + r() * 8, h2 = 5 + r() * 8;
+      const x1 = 2.5, x2 = 21.5 - w2;
+      let out = f(`M${n(x1)} 21V${n(21 - h1)}h${n(w1)}V21Z`) + f(`M${n(x2)} 21V${n(21 - h2)}h${n(w2)}V21Z`);
+      out += f(`M${n(x1 + w1)} ${n(21 - Math.min(h1, h2) * 0.8)}h${n(x2 - x1 - w1 + 0.1)}v1.8h${n(-(x2 - x1 - w1 + 0.1))}Z`);
+      let win = '';
+      for (let y = 21 - h1 + 1.8; y < 19.5; y += 2.4) win += `M${n(x1 + 1)} ${n(y)}h${n(w1 - 2)}`;
+      for (let y = 21 - h2 + 1.8; y < 19.5; y += 2.4) win += `M${n(x2 + 1)} ${n(y)}h${n(w2 - 2)}`;
+      return svg(out + d(win));
+    }
+    default:
+      return tower({ w: 4.6 + r() * 3.4, top: 3 + Math.floor(r() * 7), crown: pick(CROWNS), detail: pick(DETAILS), base: pick(BASES) });
+  }
+}
+ICON_MAKERS.push(localIcon);

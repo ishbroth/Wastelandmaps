@@ -5,7 +5,7 @@ import { LORE_TOWNS } from './loreSites';
 import { FAMOUS } from './famous';
 import { FREE_RENDERS } from './renders';
 import { assignVaults } from './vaults';
-import { distanceMeters, locationFromData, type CategoryId, type LatLng, type Location } from './wasteland';
+import { distanceMeters, hashString, locationFromData, type CategoryId, type LatLng, type Location } from './wasteland';
 
 export interface MetroEntry {
   id: string;
@@ -95,6 +95,23 @@ function withFamous(metro: MetroEntry, places: Location[]): Location[] {
   }
   return places;
 }
+/** The local landmarks of the world's cities (made by _tools/build-locals.ts): one to five buildings per metro, by its size. */
+type Locals = Record<string, [string, string][]>;
+let localsLoading: Promise<Locals> | null = null;
+const loadLocals = (): Promise<Locals> =>
+  (localsLoading ??= fetch(`${import.meta.env.BASE_URL}data/locals.json`)
+    .then(async (r): Promise<Locals> => (r.ok ? ((await r.json()) as Locals) : {}))
+    .catch((): Locals => ({})));
+function withLocals(places: Location[], picks: [string, string][]): Location[] {
+  for (const [qid, kind] of picks) {
+    const spot = places.find((p) => p.id === `wd:${qid}` && !p.famous);
+    if (!spot) continue;
+    spot.icon = `local:${kind}:${hashString(qid) % 100000}`;
+    spot.famous = true;
+  }
+  return places;
+}
+
 /** A landmark added to a metro takes the place of one of its least important places, so the count stays what it was. */
 function dropLeastOf(metro: MetroEntry, places: Location[]) {
   let worst = -1;
@@ -138,6 +155,7 @@ export function loadMetro(metro: MetroEntry): Promise<Location[]> {
       .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string, number?, number?][] }>) : { places: [] }))
       .then((m) => m.places.map(([pid, name, lat, lng, category, fame, area]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0, area === 1)))
       .then((places) => places.filter((p) => !NOT_A_PLACE.test(p.oldName)))
+      .then(async (places) => withLocals(places, (await loadLocals())[metro.id] ?? []))
       .then((places) => assignVaults(metro, withLoreSites(metro, withFamous(metro, withFreeLandmarks(metro, places)))))
       .catch(() => [] as Location[]);
     loaded.set(id, hit);

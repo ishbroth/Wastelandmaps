@@ -1,9 +1,9 @@
 // Miniatures of the world's most famous buildings and monuments (beyond the ones with permanent snapshots), each drawn as itself.
 // Same outline system as placeIcons.ts: f fills in when found, d is a detail, s stays a line. They are registered with placeIcons on import.
 
-import { EXTRA_ICONS, d, f, s, svg, type FamousIconId } from './placeIcons';
+import { EXTRA_ICONS, d, f, s, svg } from './placeIcons';
 
-const ICONS: Record<FamousIconId, string> = {
+const ICONS: Record<string, string> = {
   notredame: svg(f('M3 21V8.5h5.5V21Z') + f('M15.5 21V8.5H21V21Z') + f('M8.5 21V11.5h7V21Z') + s('M12 11.5V4.5M10.7 6.5h2.6M3 8.5h5.5M15.5 8.5H21') + d('M12 13.6a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8ZM10.5 21v-1.6a1.5 1.5 0 0 1 3 0V21')),
   toweroflondon: svg(f('M6 21V10.5h12V21Z') + f('M4.5 21V6.5h3.2V21ZM16.3 21V6.5h3.2V21Z') + s('M4.5 6.5 6.1 4.5l1.6 2M16.3 6.5l1.6-2 1.6 2') + d('M10 21v-3.5h4V21M9.5 13.5h.01M14.5 13.5h.01')),
   brooklynbridge: svg(f('M4 6h4v13H4ZM16 6h4v13h-4Z') + f('M1.5 18.2h21v2.2h-21Z') + d('M5 19v-3.4a1 1 0 0 1 2 0V19M17 19v-3.4a1 1 0 0 1 2 0V19') + s('M8 7l4 11.2M8 7 2 14M16 7l-4 11.2M16 7l6 7M8 6.5C10 9 14 9 16 6.5')),
