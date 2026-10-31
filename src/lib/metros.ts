@@ -81,17 +81,33 @@ function withFreeLandmarks(metro: MetroEntry, places: Location[]): Location[] {
 function withFamous(metro: MetroEntry, places: Location[]): Location[] {
   for (const f of FAMOUS) {
     const here = { lat: f.lat, lng: f.lng };
-    if (distanceMeters({ lat: metro.lat, lng: metro.lng }, here) > metro.radiusKm * 1000 + 8000) continue;
+    if (f.metro ? f.metro !== metro.id : distanceMeters({ lat: metro.lat, lng: metro.lng }, here) > metro.radiusKm * 1000 + 8000) continue;
     let spot = places.find((p) => !p.famous && (p.id.startsWith('wd:') || p.id.startsWith('famous:')) && f.match.test(p.oldName) && distanceMeters(p.position, here) < 2500);
     spot ??= places.find((p) => !p.famous && !freeLandmark(p.id) && p.id.startsWith('wd:') && distanceMeters(p.position, here) < 120);
     if (!spot) {
       spot = locationFromData(`famous:${f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, f.name, here, 'other', 999);
+      dropLeastOf(metro, places);
       places.push(spot);
     }
+    if (f.move) { spot.position = here; spot.name = f.name; spot.neighborhood = false; }
     spot.icon = f.icon;
     spot.famous = true;
   }
   return places;
+}
+/** A landmark added to a metro takes the place of one of its least important places, so the count stays what it was. */
+function dropLeastOf(metro: MetroEntry, places: Location[]) {
+  let worst = -1;
+  for (let i = 0; i < places.length; i++) {
+    const p = places[i];
+    if (!p.id.startsWith('wd:') || p.famous || p.neighborhood || p.lore || p.vault || freeLandmark(p.id)) continue;
+    if (worst < 0) { worst = i; continue; }
+    const w = places[worst];
+    const fame = p.fame ?? 0, wf = w.fame ?? 0;
+    const far = distanceMeters(p.position, { lat: metro.lat, lng: metro.lng }) > distanceMeters(w.position, { lat: metro.lat, lng: metro.lng });
+    if (fame < wf || (fame === wf && far)) worst = i;
+  }
+  if (worst >= 0) places.splice(worst, 1);
 }
 const freeLandmark = (id: string) => id.startsWith('wd:') && id.slice(3) in FREE_RENDERS;
 

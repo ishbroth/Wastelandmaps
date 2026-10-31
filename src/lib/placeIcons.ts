@@ -16,7 +16,14 @@ export type FamousIconId =
   | 'notredame' | 'toweroflondon' | 'brooklynbridge' | 'pyramids' | 'londoneye' | 'chrysler' | 'colosseum' | 'sagrada' | 'louvre' | 'buckingham' | 'brandenburg'
   | 'parthenon' | 'hagiasophia' | 'stbasils' | 'whitehouse' | 'lincoln' | 'sydneybridge' | 'hooverdam' | 'timessquare' | 'grandcentral' | 'rockefeller'
   | 'forbiddencity' | 'alcatraz' | 'towerbridge' | 'stpeters' | 'trevi' | 'westminsterabbey' | 'sacrecoeur' | 'atomium' | 'charlesbridge' | 'duomomilan'
-  | 'rialto' | 'pantheon';
+  | 'rialto' | 'pantheon'
+  | 'miamifreedom' | 'cocacola' | 'atlairport' | 'keytower' | 'unionterminal' | 'bengalsstadium'
+  | 'horseshoe' | 'speedway' | 'soldierssailors' | 'rencen' | 'guardian' | 'hancock'
+  | 'navypier' | 'wisgas' | 'wiscapitol' | 'libertymemorial' | 'powerlight' | 'capellatower'
+  | 'stpaulcathedral' | 'iowacapitol' | 'seagate' | 'aegon' | 'basspro' | 'attbatman'
+  | 'ppgplace' | 'comcastcenter' | 'oneliberty' | 'bromoseltzer' | 'bofabaltimore' | 'vbconvention'
+  | 'colonialwilliamsburg' | 'vacapitol' | 'niagara' | 'indsquare' | 'tampa100' | 'breakwater'
+  | 'frenchquarter' | 'tcenergy' | 'spacecenter';
 export type IconId = BaseIconId | FamousIconId;
 /** Filled in by famousIcons.ts when it loads. */
 export const EXTRA_ICONS: Record<string, string> = {};
