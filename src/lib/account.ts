@@ -36,6 +36,8 @@ export interface Account {
   /** What they have looted, and the highest tier of each class of gun they have built. */
   loot: LootBag;
   arsenal: Arsenal;
+  /** Places they have already looted: each can be looted once, and shows [Cleared] on the map. */
+  cleared: Set<string>;
   refresh: () => Promise<void>;
 }
 
@@ -49,6 +51,7 @@ export function useAccount(): Account {
   const [points, setPoints] = useState(0);
   const [loot, setLoot] = useState<LootBag>({});
   const [arsenal, setArsenal] = useState<Arsenal>(STARTING_ARSENAL);
+  const [cleared, setCleared] = useState<Set<string>>(new Set());
 
   const load = async (s: Session | null) => {
     if (!accountsEnabled || !s) {
@@ -58,6 +61,7 @@ export function useAccount(): Account {
       setPoints(0);
       setLoot({});
       setArsenal(STARTING_ARSENAL);
+      setCleared(new Set());
       return;
     }
     // loot and guns (empty if the raids migration has not been run)
@@ -72,6 +76,7 @@ export function useAccount(): Account {
       setLoot(bag);
       setArsenal(guns);
     });
+    void db().from('raid_runs').select('place_id').eq('user_id', s.user.id).eq('won', true).then((r) => setCleared(new Set(((r.data ?? []) as { place_id: string }[]).map((x) => x.place_id))));
     const [bal, owned, found] = await Promise.all([
       db().from('credits').select('balance').eq('user_id', s.user.id).maybeSingle(),
       db().from('unlocks').select('place_id').eq('user_id', s.user.id),
@@ -110,7 +115,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, arsenal, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, arsenal, cleared, refresh, loaded };
 }
 
 /** Emails a sign-in link. */

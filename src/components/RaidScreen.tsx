@@ -89,7 +89,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
       ]);
       if (cancelled) return;
       if ('error' in started) {
-        setMessage(started.error === 'sign_in' ? 'SIGN IN TO LOOT' : started.error === 'locked' ? 'UNLOCK THIS SNAPSHOT FIRST' : started.error === 'too_many' ? 'YOU HAVE BEEN FIGHTING A LOT. REST A WHILE' : 'THE RAID COULD NOT START. TRY AGAIN IN A MOMENT');
+        setMessage(started.error === 'sign_in' ? 'SIGN IN TO LOOT' : started.error === 'locked' ? 'UNLOCK THIS SNAPSHOT FIRST' : started.error === 'cleared' ? 'THIS PLACE IS ALREADY CLEARED' : started.error === 'too_many' ? 'YOU HAVE BEEN FIGHTING A LOT. REST A WHILE' : 'THE RAID COULD NOT START. TRY AGAIN IN A MOMENT');
         setPhase('error');
         return;
       }

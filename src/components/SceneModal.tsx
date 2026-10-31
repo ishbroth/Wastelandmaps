@@ -107,7 +107,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
             {!render && snapshot === 'searching' ? 'SNAPSHOT…' : snapshotAvailable ? (locked ? 'SNAPSHOT ★' : 'SNAPSHOT') : 'NO SNAPSHOT'}
           </button>
           {reveal && raid && (
-            <button type="button" className="rm-tab-loot" onClick={() => setRaiding(true)} title="Fight what lives there and loot it">LOOT</button>
+            <button type="button" className="rm-tab-loot" disabled={account.cleared.has(spot.id)} onClick={() => setRaiding(true)} title={account.cleared.has(spot.id) ? 'Already cleared' : 'Fight what lives there and loot it'}>{account.cleared.has(spot.id) ? 'CLEARED' : 'LOOT'}</button>
           )}
         </div>
 

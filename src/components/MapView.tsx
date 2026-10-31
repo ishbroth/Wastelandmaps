@@ -20,6 +20,8 @@ interface Props {
   hiddenCategories: Set<CategoryId>;
   selectedId: string | null;
   visited: Set<string>;
+  /** Places already looted: their label says [Cleared]. */
+  cleared: Set<string>;
   /** Where you are standing. */
   player: LatLng | null;
   /** A trip to animate, or null. */
@@ -82,6 +84,15 @@ function pinElement(kind: string, iconHtml: string, label: string, sub: string, 
   return el;
 }
 
+/** A looted place shows [Cleared] under its name (the line it normally has is kept to put back). */
+function markCleared(el: HTMLElement, cleared: boolean) {
+  const line = el.querySelector('.rm-pin-label i') as HTMLElement | null;
+  if (!line) return;
+  if (el.dataset.sub === undefined) el.dataset.sub = line.textContent ?? '';
+  el.classList.toggle('rm-pin-cleared', cleared);
+  line.textContent = cleared ? '[Cleared]' : el.dataset.sub;
+}
+
 function playerElement(): HTMLElement {
   const el = document.createElement('div');
   el.className = 'rm-player';
@@ -114,7 +125,7 @@ function morphLabel(el: HTMLElement, from: string, to: string) {
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
-export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, flood, startView }: Props) {
+export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, cleared, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, flood, startView }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<google.maps.LatLngBoundsLiteral | null>(null);
   const everShown = useRef(new Set<string>());
@@ -131,13 +142,15 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
   const onArriveRef = useRef(onArrive);
   const onViewportRef = useRef(onViewport);
   const visitedRef = useRef(visited);
+  const clearedRef = useRef(cleared);
   const lastDrag = useRef(0);
   useEffect(() => {
     onSelectRef.current = onSelect;
     onArriveRef.current = onArrive;
     onViewportRef.current = onViewport;
     visitedRef.current = visited;
-  }, [onSelect, onArrive, onViewport, visited]);
+    clearedRef.current = cleared;
+  }, [onSelect, onArrive, onViewport, visited, cleared]);
 
   // the map itself, once
   useEffect(() => {
@@ -275,6 +288,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       const free = freeRenderFor(loc.id); // the always-free landmarks: drawn as themselves, and a little larger
       const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free ? 'rm-pin-landmark' : loc.famous ? 'rm-pin-famous' : ''].filter(Boolean).join(' '));
       el.classList.toggle('rm-pin-visited', visitedRef.current.has(loc.id));
+      markCleared(el, clearedRef.current.has(loc.id));
       const brandNew = !everShown.current.has(loc.id);
       everShown.current.add(loc.id);
       if (!firstBatch && brandNew) {
@@ -365,8 +379,8 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
 
   // places you have been to are marked
   useEffect(() => {
-    pins.current.forEach((p, id) => p.el.classList.toggle('rm-pin-visited', visited.has(id)));
-  }, [visited, locations, hiddenCategories]);
+    pins.current.forEach((p, id) => { p.el.classList.toggle('rm-pin-visited', visited.has(id)); markCleared(p.el, cleared.has(id)); });
+  }, [visited, cleared, locations, hiddenCategories]);
 
   // the chosen place: highlight it and move to it
   useEffect(() => {

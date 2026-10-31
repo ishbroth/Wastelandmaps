@@ -28,7 +28,6 @@ export function seeded(seed: number): () => number {
   };
 }
 
-import { isFamous, wastelandPlaceName } from './placeNames';
 import { neighborhoodIcon, pickIcon, type IconId } from './placeIcons';
 import { backstoryFor } from './backstories';
 import { enemyById, type BossId, type EnemyId } from './raid/enemies';
@@ -217,41 +216,14 @@ export function locationFromData(id: string, name: string, position: LatLng, cat
   return loc;
 }
 
-/** Landmarks get a name that fits what they are, read from their real name in the languages most of them are written in. */
-const LANDMARK_NAMES: [RegExp, string[]][] = [
-  [/\b(?:tower|tour|turm|torre|toren|tårn|wieża)\b/i, ['The Fallen Spire', 'Rusted Needle', 'Leaning Beacon', 'Broken Spire']],
-  [/\b(?:arch|arc|arco|bogen|triumphal)\b/i, ['The Shattered Arch', 'Bombed Gateway', 'Cracked Archway']],
-  [/\b(?:palace|palais|palazzo|palacio|schloss|château|chateau|castle|castello|castillo|burg|fortress|citadel|fort)\b/i, ['The Ruined Court', 'Warlord Keep', 'Hollow Fortress', 'Raider Citadel']],
-  [/\b(?:cathedral|cathédrale|kathedrale|catedral|duomo|basilica|basilique|abbey|abbaye|monastery)\b/i, ['The Hollow Cathedral', 'Chapel of Ash', 'Broken Sanctuary']],
-  [/\b(?:bridge|pont|brücke|ponte|puente|brug)\b/i, ['The Broken Span', 'Collapsed Crossing', 'Rust Bridge']],
-  [/\b(?:monument|memorial|statue|obelisk|column|colonne|sculpture)\b/i, ['The Toppled Idol', 'Monument to Nothing', 'Fallen Founder']],
-  [/\b(?:avenue|boulevard|promenade|champs|street|rue|strasse|straße|via|calle|plaza|square|place|platz|piazza)\b/i, ['The Dead Mile', 'Looted Promenade', 'The Long Rubble', 'Ashen Concourse']],
-  [/\b(?:opera|theatre|théâtre|theater|teatro|garnier)\b/i, ['The Silent Stage', 'Gilded Ruin', 'Last Curtain']],
-  [/\b(?:market|bazaar|souk|halle)\b/i, ['The Scrap Bazaar', 'Trader Maze']],
-  [/\b(?:hill|montmartre|mount|mont|berg|bunker)\b/i, ['The High Wreck', 'Overlook of Ruin']],
-  [/\b(?:capitol|parliament|assembly|congress|senate|city hall|hôtel de ville|rathaus)\b/i, ['The Old Assembly', 'Hall of Dead Laws', 'Rusted Senate']],
-  [/\b(?:pyramid|temple|shrine|pagoda|mosque|synagogue)\b/i, ['The Sun-Bleached Temple', 'Hollow Shrine', 'Altar of Ash']],
-  [/\b(?:skyscraper|center|centre|plaza|building|world trade|empire state)\b/i, ['The Broken Giant', 'Gutted Tower', 'Hollow Skyscraper']],
-];
-
-function landmarkName(realName: string, rand: () => number): string | null {
-  for (const [pattern, names] of LANDMARK_NAMES) if (pattern.test(realName)) return names[Math.floor(rand() * names.length)];
-  return null;
-}
-
 /** `fame` is given for the pre-built places: famous ones keep their real name, the rest get a made-up one. Without it (the live Google path) names come from the category's short list. */
 function locationIn(category: Category, place: { id: string; name: string; position: LatLng }, fame?: number): Location {
   const rand = seeded(hashString(place.id || place.name));
-  const nameRand = seeded(hashString(`name:${place.id || place.name}`));
   const threat = THREATS[Math.floor(rand() * THREATS.length)];
   return {
     id: place.id,
     oldName: place.name,
-    name: fame === undefined
-      ? (category.id === 'other' ? landmarkName(place.name, rand) : null) ?? category.names[Math.floor(rand() * category.names.length)]
-      : isFamous(category.id, fame)
-        ? place.name
-        : (category.id === 'other' ? landmarkName(place.name, nameRand) : null) ?? wastelandPlaceName(place.name, category.id, nameRand),
+    name: place.name,
     category: category.id,
     position: place.position,
     loot: category.loot[Math.floor(rand() * category.loot.length)],
@@ -328,9 +300,8 @@ export const spotFromLocation = (l: Location): Spot => ({ id: l.id, name: l.name
 /** The line under a place's name: what it used to be, or what it is. */
 export function subtitle(p: { name: string; oldName: string | null; vault?: { number: number }; lore?: { town: string } }): string {
   if (p.lore && !p.vault) return p.lore.town;
-  if (p.vault) return p.oldName ? `Entrance to Vault ${String(p.vault.number).padStart(3, '0')}. Formerly ${p.oldName}` : 'A Vault-Tec facility';
-  if (!p.oldName) return '';
-  return p.name === p.oldName ? 'Old World landmark' : `Formerly ${p.oldName}`;
+  if (p.vault) return p.oldName ? '' : 'A Vault-Tec facility';
+  return '';
 }
 
 export const vaultSpot = (w: Wasteland): Spot => ({ id: VAULT_ID, name: `VAULT ${w.vault.number}`, oldName: null, kind: 'vault', position: w.vault.position, threat: 'Quiet', loot: 'Clean water, a bed and a very large door', rads: 0, icon: 'vault' });
@@ -372,7 +343,7 @@ export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabit
   const openers = OPENERS[spot.kind] ?? OPENERS.other;
   const story = backstoryFor(spot.id, spot.oldName);
   return [
-    spot.name === spot.oldName ? `${spot.name}, ${regionName}. One of the Old World's great landmarks, or what the years have left of it.` : `${spot.name}, ${regionName}. Formerly ${spot.oldName}.`,
+    `${spot.name}, ${regionName}.`,
     story ?? openers[Math.floor(rand() * openers.length)],
     plan ? presentDay(plan) : `${THREAT_LINES[spot.threat]} Worth a look for: ${spot.loot.toLowerCase()}.`,
   ];

@@ -52,6 +52,9 @@ Deno.serve(async (req) => {
       const { data: owned } = await db.from('unlocks').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
       if (!owned) return reply(req, { error: 'locked' }, 403);
     }
+    // each place can be looted once: a won raid clears it for good (the snapshot can still be viewed)
+    const { data: won } = await db.from('raid_runs').select('id').eq('user_id', user).eq('place_id', placeId).eq('won', true).limit(1);
+    if (won && won.length) return reply(req, { error: 'cleared' }, 409);
     const since = new Date(Date.now() - 3600 * 1000).toISOString();
     const { count } = await db.from('raid_runs').select('id', { count: 'exact', head: true }).eq('user_id', user).gte('started_at', since);
     if ((count ?? 0) >= MAX_RAIDS_PER_HOUR) return reply(req, { error: 'too_many' }, 429);

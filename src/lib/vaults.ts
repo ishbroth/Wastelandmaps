@@ -35,7 +35,7 @@ export function assignVaults(metro: Metro, places: Location[]): Location[] {
   const makeVault = (p: Location, number: number, lore?: string) => {
     p.vault = { number, ...(lore ? { lore } : {}) };
     p.icon = 'vault';
-    p.name = `VAULT ${String(number).padStart(3, '0')}`;
+    p.name = p.oldName ? `VAULT ${String(number).padStart(3, '0')} (${p.oldName})` : `VAULT ${String(number).padStart(3, '0')}`;
   };
 
   // the games' own vaults that stand in this metro

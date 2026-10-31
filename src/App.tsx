@@ -666,7 +666,7 @@ export default function App() {
           {status === 'ready' ? (
             <MapView
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={locations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={visited} player={player} travel={travel} onArrive={arrive} nav={nav?.route ? { path: nav.route.path } : null} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
+              selectedId={selectedId} visited={visited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={nav?.route ? { path: nav.route.path } : null} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
@@ -703,7 +703,7 @@ export default function App() {
           )}
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
-              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)}
+              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)}
               traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}

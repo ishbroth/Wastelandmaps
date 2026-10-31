@@ -5,13 +5,14 @@ import { distanceMeters, subtitle, type LatLng, type Spot, type Wasteland } from
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
 /** The card that opens on the map when a place is selected: what it is, what it would cost to get there, and the two things to do about it. */
-export default function LocationCard({ spot, from, here, visited, traveling, onTravel, onScene, onClose }: {
+export default function LocationCard({ spot, from, here, visited, cleared, traveling, onTravel, onScene, onClose }: {
   spot: Spot;
   /** Where the device is (while AUTO-DISCOVER is on), or null. */
   from: LatLng | null;
   wasteland?: Wasteland;
   here: boolean;
   visited: boolean;
+  cleared?: boolean;
   traveling: boolean;
   onTravel: () => void;
   onScene: () => void;
@@ -24,7 +25,7 @@ export default function LocationCard({ spot, from, here, visited, traveling, onT
         <span className="rm-card-icon" dangerouslySetInnerHTML={{ __html: iconHtmlFor(spot.id, placeIcon(spot.icon)) }} />
         <div className="rm-card-title">
           <b>{spot.name}</b>
-          <i>{spot.kind === 'vault' ? 'Your home' : subtitle(spot)}</i>
+          <i>{cleared ? '[Cleared]' : spot.kind === 'vault' ? 'Your home' : subtitle(spot)}</i>
         </div>
         <button type="button" className="rm-card-close" onClick={onClose} aria-label="Close">×</button>
       </div>
