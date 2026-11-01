@@ -62,6 +62,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
   const [downed, setDowned] = useState(false);
   const [loot, setLoot] = useState<LootBag | null>(null);
   const [pending, setPending] = useState(false);
+  const [waiting, setWaiting] = useState<LootBag>({});
   const [lost, setLost] = useState<LootBag>({});
   const finished = useRef(false);
 
@@ -74,7 +75,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
     if (g) { setPhase(won ? 'won' : 'lost'); buzz(won ? 'victory' : 'defeat'); }
     if (run.current) {
       const result = await finishRaid(run.current, won);
-      if (won) { setPending(result.pending === true); setLoot(result.won ? (result.loot ?? {}) : {}); setLost(result.lost ?? {}); }
+      if (won) { setPending(result.pending === true); setWaiting(result.waiting ?? {}); setLoot(result.won ? (result.loot ?? {}) : {}); setLost(result.lost ?? {}); }
       void account.refresh();
     }
   }, [account]);
@@ -533,7 +534,12 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
           <h2>{phase === 'won' ? 'AREA CLEARED' : 'YOU DIED'}</h2>
           {phase === 'won' ? (
             loot === null ? <p>COUNTING THE LOOT…</p> : pending ? (
-              <p>You fended off the hordes from afar, but you must actually enter this landmark in your timeline. Once you discover it you will be automatically awarded your loot.</p>
+              <>
+                <p>You fended off the hordes from afar, but you must actually enter this landmark in your timeline. Once you discover it you will be automatically awarded your loot.</p>
+                <ul className="rm-raid-loot">
+                  {(Object.entries(waiting) as [LootId, number][]).map(([id, n]) => <li key={id}><b>+{n}</b> {lootName(id)} <small>WAITING</small></li>)}
+                </ul>
+              </>
             ) : (
               <ul className="rm-raid-loot">
                 {Object.keys(loot).length === 0 && <li>Nothing was recovered.</li>}

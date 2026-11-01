@@ -321,9 +321,9 @@ export async function startRaid(placeId: string, worth: number, enemies: number,
 }
 
 /** Ends a raid. A win pays the loot the server decided at the start. */
-export async function finishRaid(runId: string, won: boolean): Promise<{ won: boolean; loot?: LootBag; lost?: LootBag; /** A permanent landmark fought from afar: the loot waits until it is discovered. */ pending?: boolean }> {
+export async function finishRaid(runId: string, won: boolean): Promise<{ won: boolean; loot?: LootBag; lost?: LootBag; /** A permanent landmark fought from afar: the loot waits until it is discovered. */ pending?: boolean; /** What is waiting for them. */ waiting?: LootBag }> {
   const { data, error } = await db().functions.invoke('raid', { body: { action: 'finish', runId, won } });
-  return error || !data?.ok ? { won: false } : { won: data.won === true, loot: data.loot as LootBag | undefined, lost: data.lost as LootBag | undefined, pending: data.pending === true };
+  return error || !data?.ok ? { won: false } : { won: data.won === true, loot: data.loot as LootBag | undefined, lost: data.lost as LootBag | undefined, pending: data.pending === true, waiting: data.waiting as LootBag | undefined };
 }
 
 /** A landmark fought from afar has now been discovered: pays the loot that was waiting for it (nothing if none was). */

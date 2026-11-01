@@ -644,3 +644,8 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 
 .rm-modal-flash { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; width: min(86%, 460px); text-align: center; padding: 14px 18px; background: rgba(0, 0, 0, 0.82); border: 2px solid #ff9a3d; color: #ffb866; font-family: var(--font-display); font-size: 22px; letter-spacing: 2px; line-height: 1.25; animation: rm-flash-msg 3.8s ease-out forwards; }
 @keyframes rm-flash-msg { 0%, 12%, 24%, 36% { opacity: 1; } 6%, 18%, 30% { opacity: 0.25; } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+/* the end-of-fight panel scrolls instead of being cut off on a short screen */
+.rm-raid-center { max-height: calc(100% - 24px); overflow-y: auto; }
+@media (max-height: 520px) { .rm-raid-center { padding: 10px 16px; } .rm-raid-center h2 { font-size: 28px; letter-spacing: 3px; margin-bottom: 4px; } .rm-raid-center p { font-size: 16px; margin-bottom: 8px; } .rm-raid-loot { font-size: 18px; margin-bottom: 8px; } }
+.rm-raid-loot small { font-size: 12px; color: #c9b87a; letter-spacing: 2px; }

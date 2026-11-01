@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
     const owner = place.startsWith('me:') || (await discovered(db, user, place));
     if (!owner) {
       await db.from('raid_runs').update({ paid: false }).eq('id', run.id);
-      return reply(req, { ok: true, won: true, pending: true });
+      return reply(req, { ok: true, won: true, pending: true, waiting: run.loot });
     }
     // the pack holds 99 of each kind: what does not fit is lost
     const { data: paid, error } = await db.rpc('grant_loot', { p_user: user, p_loot: run.loot });
