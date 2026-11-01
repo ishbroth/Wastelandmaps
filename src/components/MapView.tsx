@@ -236,12 +236,6 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     vault.current = null;
     if (!map || !wasteland) return;
 
-    const vaultEl = pinElement('vault', iconFor('vault'), `VAULT ${wasteland.vault.number}`, 'Sealed. Probably.', 'rm-pin-vault');
-    onPress(vaultEl, () => onSelectRef.current(VAULT_ID));
-    const vaultMarker = createHtmlMarker({ position: wasteland.vault.position, element: vaultEl, zIndex: 40 });
-    vaultMarker.setMap(map);
-    extras.current.push({ handle: vaultMarker });
-    vault.current = { el: vaultEl, position: wasteland.vault.position };
 
     for (const zone of wasteland.zones) {
       // a soft, uneven cloud: three layers, each a different shape, thickest at the middle

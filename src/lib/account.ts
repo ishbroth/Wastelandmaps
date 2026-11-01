@@ -196,9 +196,9 @@ export async function unlockRender(placeId: string, name: string, extra?: { kind
 }
 
 /** Where this person last left the map, or null. */
-export async function loadMapPosition(userId: string): Promise<{ lat: number; lng: number; zoom: number } | null> {
-  const { data } = await db().from('map_positions').select('lat,lng,zoom').eq('user_id', userId).maybeSingle();
-  return data && data.lat != null && data.lng != null && data.zoom != null ? { lat: data.lat as number, lng: data.lng as number, zoom: data.zoom as number } : null;
+export async function loadMapPosition(userId: string): Promise<{ lat: number; lng: number; zoom: number; /** When it was saved (milliseconds). */ updatedAt: number } | null> {
+  const { data } = await db().from('map_positions').select('lat,lng,zoom,updated_at').eq('user_id', userId).maybeSingle();
+  return data && data.lat != null && data.lng != null && data.zoom != null ? { lat: data.lat as number, lng: data.lng as number, zoom: data.zoom as number, updatedAt: data.updated_at ? new Date(data.updated_at as string).getTime() : 0 } : null;
 }
 
 /** Remembers where the map is. */

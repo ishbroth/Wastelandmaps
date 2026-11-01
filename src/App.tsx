@@ -5,7 +5,7 @@ import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
 import { accountsEnabled, atlasList, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
-import { getFix, watchFixes, type GeoError } from './lib/geo';
+import { getFix, locationState, watchFixes, type GeoError } from './lib/geo';
 import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
 import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
 import { personalId, personalLocation, type PersonalPlace } from './lib/personal';
@@ -318,16 +318,16 @@ export default function App() {
       setQuery(r.address);
       setHidden(new Set());
       setLocations([]);
-      // you start where everyone starts: at the vault door
-      setPlayer(w.vault.position);
-      setHereId(VAULT_ID);
+      // you are where the device is (when location is on), not at a vault door: the only vault that is yours is your home
+      setPlayer(fixRef.current);
+      setHereId(null);
       setClock(START_MINUTES);
       setRads(0);
       foundKey.current = `wastelandmaps:found:v1:${r.address}`;
       let saved: string[] = [];
       try { saved = JSON.parse(localStorage.getItem(foundKey.current) ?? '[]') as string[]; } catch { /* nothing saved */ }
-      setVisited(new Set([VAULT_ID, ...saved, ...foundRef.current.map((f) => f.id)]));
-      setMessage(`VAULT ${w.vault.number}: YOU EMERGE INTO ${w.regionName.toUpperCase()}`);
+      setVisited(new Set([...saved, ...foundRef.current.map((f) => f.id)]));
+      setMessage(`YOU EMERGE INTO ${w.regionName.toUpperCase()}`);
       sound('select');
       setFlood([]);
       if (home) void loadFlood().then((all) => setFlood(all[home.id] ?? []));
@@ -447,19 +447,31 @@ export default function App() {
     accountRef.current = account;
   }, [account]);
   useEffect(() => {
-    if (started.current || status !== 'ready' || !account.loaded) return;
+    // wait until we know who this is, and (signed in) whether they have set a home
+    if (started.current || status !== 'ready' || !account.loaded || (account.session && !account.homeLoaded)) return;
     started.current = true;
     void (async () => {
       const regions = await loadRegions();
+      // where the map opens: where the map was left, if that was in the last twelve hours; otherwise where the device is (when location is on);
+      // otherwise (signed in with a home) the home vault; otherwise the country the device is in (North America if unknown)
       if (account.session) {
         const saved = await loadMapPosition(account.session.user.id);
-        if (saved) {
+        if (saved && Date.now() - saved.updatedAt < 12 * 3600 * 1000) {
           const center = { lat: saved.lat, lng: saved.lng };
           setStartView({ kind: 'view', center, zoom: saved.zoom });
           // close in: set up the wasteland around that spot too, without moving the map
           if (saved.zoom >= 9) void show(async () => ({ ...(await geocodeLatLng(center)), keepView: true }), 'your last position');
           return;
         }
+      }
+      const here = (await locationState()) === 'granted' ? await currentFix(8000) : null;
+      const home = account.session && account.home?.lat !== undefined && account.home.lng !== undefined ? { lat: account.home.lat, lng: account.home.lng } : null;
+      const spot = here ?? home;
+      if (spot) {
+        if (here) { fixRef.current = here; setFix(here); }
+        setStartView({ kind: 'view', center: spot, zoom: 15 });
+        void show(async () => ({ ...(await geocodeLatLng(spot)), keepView: true }), here ? 'your position' : 'home');
+        return;
       }
       setStartView({ kind: 'bounds', bounds: (regions && countryBounds(regions, deviceCountry())) || NORTH_AMERICA });
     })();
@@ -755,7 +767,7 @@ export default function App() {
     sound('tick');
   };
 
-  const total = locations.length + (wasteland ? 1 : 0);
+  const total = locations.length;
   const navView = useMemo(() => (nav?.route ? { path: nav.route.path, steps: nav.route.steps, step: nav.step } : null), [nav?.route, nav?.step]);
 
   return (

@@ -25,7 +25,7 @@ interface RegionsFile { countries: CountryData[]; states: StateData[] }
 const SUPER: Record<string, { name: string; at: LatLng }> = {
   frontier: { name: 'The Nuclear Frontier', at: { lat: 46, lng: -100 } },
   unfrozen: { name: 'The Unfrozen Lands', at: { lat: 70, lng: -42 } },
-  dustlands: { name: 'The Dustlands', at: { lat: 19, lng: -92 } },
+  dustlands: { name: 'La Tierra Quemada', at: { lat: 19, lng: -92 } },
   amazon: { name: 'The Burnt Amazon', at: { lat: -4, lng: -60 } },
   cone: { name: 'Tierra del Fuego', at: { lat: -41, lng: -66 } },
   oldworld: { name: 'The Old Continent', at: { lat: 49, lng: 15 } },
@@ -68,7 +68,7 @@ const COUNTRY_NAMES: Record<string, string> = {
   DK: 'The Danish Dead Zone', GR: 'The Classical Ruins', TR: 'The Burning Bridge', RU: 'The Ironed Curtain', BY: 'The Pale Plains', RO: 'The Carpathian Cinders',
   CN: 'The Red Wastes', JP: 'Jablam', KR: 'South Krater', KP: 'North Krater', IN: 'The Subcontinent', PK: 'The Indus Cinders', ID: 'The Ring of Fire Islands', TH: 'Bye-Land',
   VN: 'The Delta Dead Zone', PH: 'The Thousand Burning Isles', IR: 'The Persian Dust', SA: 'The Oil-Slick Sands', EG: 'The Dusty Dynasty', ZA: 'The Scorched Cape', NG: 'The Niger Nuke Zone',
-  KE: 'The Savanna Scorch', ET: 'The Highland Husk', AU: 'The Radioactive Outback', NZ: 'The Long Black Cloud', KZ: 'The Great Steppe Scar', MN: 'The Empty Steppe',
+  KE: 'The Savanna Scorch', ET: 'The Highland Husk', AU: 'The Radioactive Outback', NZ: 'Z-Land', KZ: 'The Great Steppe Scar', MN: 'The Empty Steppe',
   CD: 'The Burnt Congo', CG: 'The Burnt Congo Basin', MG: 'The Red Island Ruins', GL: 'The Frozen Ice Waste', IS: 'The Ash Isle',
 };
 
@@ -110,13 +110,13 @@ function plainName(name: string): string {
 
 /** US states: the lore names where the games give one, ours elsewhere. */
 const STATE_NAMES: Record<string, [string, boolean]> = {
-  AL: ['Dixie Dust', false], AK: ['The Frozen Front', true], AZ: ['The Arid Zone', false], AR: ['The Ozark Ashes', false], CA: ['The New California Republic', true],
-  CO: ['The Mile-High Divide', false], CT: ['The Cut', false], DE: ['The First State of Ruin', false], DC: ['The Capital Wasteland', true], FL: ['The Sunshine Meltdown', false],
-  GA: ['The Peach Pit Wastes', false], HI: ['The Isles of Rad', false], ID: ['The Spud Wastes', false], IL: ['The Prairie', false], IN: ['The Hoosier Hollows', false],
-  IA: ['The Fields', false], KS: ['Tornado Alley', false], KY: ['The Bluegrass Burn', false], LA: ['The Bayou Glow', false], ME: ['The Lobster Wastes', false],
-  MD: ['The Old Line Rubble', false], MA: ['The Commonwealth', true], MI: ['Wolverine Territory', false], MN: ['The Land of 10,000 Craters', false], MS: ['The Delta Dust', false],
+  AL: ['Alablama', false], AK: ['The Frozen Front', true], AZ: ['The Arid Zone', false], AR: ['The Ozark Ashes', false], CA: ['The New California Republic', true],
+  CO: ['The Mile-High Divide', false], CT: ['The Cut', false], DE: ['The First State of Ruin', false], DC: ['The Capital Wasteland', true], FL: ['The Sunburn State', false],
+  GA: ['The Peach Pit', false], HI: ['The Isles of Rad', false], ID: ['The Spud Wastes', false], IL: ['The Prairie', false], IN: ['The Hoosier Hollows', false],
+  IA: ['The Fields', false], KS: ['Tornado Alley', false], KY: ['The Bluegrass Burn', false], LA: ['The Burnt Bayou', false], ME: ['The New England Commonwealth', false],
+  MD: ['The Old Line Rubble', false], MA: ['The Commonwealth', true], MI: ['Wolverine Territory', false], MN: ['The Land of 10,000 Craters', false], MS: ['The Dusty Delta', false],
   MO: ['The Show-Me Rubble', false], MT: ['The Big Sky Wastes', false], NE: ['The Husk', false], NV: ['The Mojave Wasteland', true], NH: ['The Granite Ruins', false],
-  NJ: ['The Garden of Ash', false], NM: ['The Land of Radiation', false], NY: ['The Empire State of Ruin', false], NC: ['The Tar Heel Wastes', false], ND: ['The Bakken Burn', false],
+  NJ: ['The Garden of Ash', false], NM: ['The Land of Radiation', false], NY: ['The Empire State of Ruin', false], NC: ['The Tobacco Ruins', false], ND: ['The Bakken Burn', false],
   OH: ['The Buckeye Badlands', false], OK: ['The Dustbowl', false], OR: ['Beaver Territory', false], PA: ['The Keystone Ruins', false], RI: ['The Rhode Rubble', false],
   SC: ['The Palmetto Wastes', false], SD: ['The Black Hills Burn', false], TN: ['The Volunteer Wastes', false], TX: ['The Lone Star Wastes', false], UT: ['New Canaan', true],
   VT: ['The Green Mountain Ruins', false], VA: ['The Old Dominion Ruins', false], WA: ['The Evergreen Ashlands', false], WV: ['Appalachia', true], WI: ['The Dairyland Dead Zone', false],

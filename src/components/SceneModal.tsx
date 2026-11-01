@@ -20,7 +20,7 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ spot, regionName, look, visited, account, plan, raid, level, sound, metroId, onAccount, onClose }: {
+export default function SceneModal({ spot, regionName, look, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
   /** The metro the map is showing: an address rendered here belongs to its atlas. */
   metroId?: string | null;
   spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void;
@@ -185,7 +185,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
         )}
       </div>
       {raiding && reveal && raid && (
-        <RaidScreen plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} level={level} sound={sound} onExit={() => setRaiding(false)} />
+        <RaidScreen plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} sound={sound} onExit={() => setRaiding(false)} />
       )}
     </div>
   );

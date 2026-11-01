@@ -4,14 +4,13 @@ import { loadRaidAssets, type RaidAssets } from '../lib/raid/assets';
 import { playSound } from '../lib/raid/audio';
 import { buzz } from '../lib/haptics';
 import { enemyById } from '../lib/raid/enemies';
-import { Game, type Enemy, type Spawns } from '../lib/raid/engine';
+import { Game, MAX_HITS, type Enemy, type Spawns } from '../lib/raid/engine';
 import { LOOT_CAP, lootName, type LootBag, type LootId } from '../lib/raid/loot';
-import { maxHealth, type RaidPlan } from '../lib/raid/raid';
+import type { RaidPlan } from '../lib/raid/raid';
 import { WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
 
 interface Hud {
-  health: number;
-  max: number;
+  hits: number;
   ammo: number | null;
   selected: WeaponClass;
   remaining: number;
@@ -37,13 +36,12 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
  * The shooting gallery: the destroyed picture blown up to the whole screen, the place's enemies walking out of the ground in waves, a gun at the bottom
  * and a wheel to switch between the four classes of weapon. Winning pays the loot the server decided; dying sends the survivor back to try again.
  */
-export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, level, sound, onExit }: {
+export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, sound, onExit }: {
   plan: RaidPlan;
   placeId: string;
   imageUrl: string;
   spawns: Spawns;
   account: Account;
-  level: number;
   sound: boolean;
   onExit: () => void;
 }) {
@@ -53,7 +51,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
   const bg = useRef<HTMLImageElement | null>(null);
   const run = useRef<string | null>(null);
   const view = useRef({ x: 0, y: 0, w: 1, h: 1 });
-  const pointer = useRef({ down: false, x: 0, y: 0 });
+  const pointer = useRef({ down: false, x: -1, y: -1 });
   const [phase, setPhase] = useState<'loading' | 'fighting' | 'won' | 'lost' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [hud, setHud] = useState<Hud | null>(null);
@@ -103,7 +101,8 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
       bg.current = picture;
       assets.current = art;
       run.current = started.runId;
-      game.current = new Game({ plan, spawns, arsenal: account.arsenal, maxHealth: maxHealth(level) });
+      game.current = new Game({ plan, spawns, arsenal: account.arsenal });
+      if (import.meta.env.DEV) (window as unknown as { __game?: Game }).__game = game.current; // for trying things out in development
       setPhase('fighting');
       last = performance.now();
       raf = requestAnimationFrame(loop);
@@ -121,19 +120,17 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const before = g.killed;
-      const healthBefore = g.health;
+      const hitsBefore = g.hits;
       g.update(dt);
       if (g.killed > before) { playSound('kill', sound); buzz('kill'); }
-      if (g.health < healthBefore - 0.5) buzz('hurt');
-      const hurtBefore = g.hitFlash;
-      void hurtBefore;
+      if (g.hits > hitsBefore) { playSound('hurt', sound); buzz('hurt'); }
       if (pointer.current.down) shoot();
       draw(c, g, now / 1000);
       if (now - lastHud > 100) {
         lastHud = now;
         const boss = g.enemies.find((e) => e.boss && e.state !== 'dying');
         setHud({
-          health: g.health, max: g.maxHealth, ammo: g.ammo[g.selected] ?? null, selected: g.selected, remaining: g.totalEnemies - g.killed,
+          hits: g.hits, ammo: g.ammo[g.selected] ?? null, selected: g.selected, remaining: g.remaining,
           banner: g.bannerT > 0 ? g.banner : '', bossHp: boss ? boss.hp / boss.maxHp : null, bossName: boss?.type.name ?? '',
         });
       }
@@ -182,6 +179,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
       const vy = fitted ? (cssH - vh) / 2 : cssH - vh;
       view.current = { x: vx, y: vy, w: vw, h: vh };
 
+      if (pointer.current.x < 0) { pointer.current.x = cssW * 0.5; pointer.current.y = cssH * 0.55; }
       const shake = g.shake * 8;
       ctx.save();
       ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
@@ -200,7 +198,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
       for (const e of sorted) {
         const sprites = assets.current.enemies[e.type.id];
         const hPx = g.heightOf(e) * vh;
-        const bob = e.type.flying ? Math.sin(e.phase + e.t * 4) * 0.015 * vh - 0.1 * hPx : 0;
+        const bob = e.type.flying ? Math.sin(e.phase + e.t * 4) * 0.045 * hPx - 0.1 * hPx : 0;
         const x = vx + e.u * vw, y = vy + e.v * vh + bob;
         ctx.save();
         if (e.state === 'dying') ctx.globalAlpha = Math.max(0, Math.min(1, 1.2 - e.t));
@@ -211,7 +209,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
         ctx.fill();
         if (sprites) {
           const f0 = sprites.frames[0];
-          const frameIndex = e.state === 'dying' ? 3 : e.state === 'attacking' ? (e.t < 0.28 ? 2 : 0) : Math.floor(e.t * 3.5 + e.id) % 2;
+          const frameIndex = e.state === 'dying' ? 3 : e.state === 'striking' ? 2 : Math.floor(e.t * 3.5 + e.id) % 2;
           const frame = sprites.frames[frameIndex] ?? f0;
           const scale = hPx / f0.naturalHeight;
           const dw = frame.naturalWidth * scale, dh = frame.naturalHeight * scale;
@@ -229,7 +227,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
           ctx.fillRect(x - bw * 0.3, y - hPx * 0.9, bw * 0.6, hPx * 0.08);
         }
         ctx.restore();
-        if (!e.boss && e.hp < e.maxHp && e.state !== 'dying') {
+        if (!e.boss && e.hp < e.maxHp && e.state !== 'dying' && hPx > 24) {
           const bw = Math.max(18, hPx * 0.3);
           ctx.fillStyle = 'rgba(0,0,0,0.6)';
           ctx.fillRect(x - bw / 2, y - hPx - 8, bw, 4);
@@ -292,8 +290,56 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
       }
       ctx.restore();
 
-      // blood at the edges when hurt, and when nearly dead
-      const alpha = Math.max(g.hitFlash * 0.55, g.health / g.maxHealth < 0.25 ? 0.18 + 0.1 * Math.sin(time * 6) : 0);
+      // what the survivor was struck by: a bullet hole, claw marks, or a blast, flashing across the picture
+      const unit = Math.min(cssW, cssH);
+      for (const st of g.strikes) {
+        const q = st.t / st.life;
+        const sx = vx + st.u * vw, sy = vy + st.v * vh;
+        const fade = q < 0.55 ? 1 : 1 - (q - 0.55) / 0.45;
+        const seeded = (n: number) => { const x = Math.sin(st.seed * 12.9898 + n * 78.233) * 43758.5453; return x - Math.floor(x); };
+        ctx.save();
+        if (st.kind === 'bullet') {
+          const r = unit * 0.075;
+          if (q < 0.25) { ctx.fillStyle = `rgba(255,240,200,${0.9 * (1 - q / 0.25)})`; ctx.beginPath(); ctx.arc(sx, sy, r * (2.2 - q * 4), 0, Math.PI * 2); ctx.fill(); }
+          ctx.globalAlpha = fade;
+          ctx.strokeStyle = 'rgba(235,235,235,0.85)';
+          ctx.lineWidth = 1.6;
+          for (let i = 0; i < 9; i++) {
+            const ang = seeded(i) * Math.PI * 2, len = r * (1.6 + seeded(i + 20) * 2.6);
+            ctx.beginPath(); ctx.moveTo(sx + Math.cos(ang) * r * 0.8, sy + Math.sin(ang) * r * 0.8);
+            ctx.lineTo(sx + Math.cos(ang) * len, sy + Math.sin(ang) * len + (seeded(i + 40) - 0.5) * r * 0.5); ctx.stroke();
+          }
+          const hole = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+          hole.addColorStop(0, 'rgba(0,0,0,1)'); hole.addColorStop(0.7, 'rgba(10,6,4,0.95)'); hole.addColorStop(1, 'rgba(10,6,4,0.2)');
+          ctx.fillStyle = hole;
+          ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+        } else if (st.kind === 'slash') {
+          ctx.globalAlpha = fade;
+          const reach = Math.min(1, q / 0.22);
+          const len = unit * 0.9;
+          ctx.lineCap = 'round';
+          for (let i = 0; i < 3; i++) {
+            const ox = (i - 1) * unit * 0.075, oy = (i - 1) * unit * 0.02;
+            const x0 = sx - len * 0.42 + ox, y0 = sy - len * 0.5 + oy, x1 = x0 + len * 0.84 * reach, y1 = y0 + len * 1.0 * reach;
+            ctx.strokeStyle = 'rgba(30,0,0,0.85)'; ctx.lineWidth = 20 - i * 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo((x0 + x1) / 2 + 14 + seeded(i) * 30, (y0 + y1) / 2 - 10, x1, y1); ctx.stroke();
+            ctx.strokeStyle = 'rgba(210,30,20,0.95)'; ctx.lineWidth = 10 - i * 2; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo((x0 + x1) / 2 + 14 + seeded(i) * 30, (y0 + y1) / 2 - 10, x1, y1); ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,230,210,0.9)'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo((x0 + x1) / 2 + 14 + seeded(i) * 30, (y0 + y1) / 2 - 10, x1, y1); ctx.stroke();
+          }
+        } else {
+          const flash = Math.pow(1 - q, 2);
+          const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, Math.max(cssW, cssH) * (0.5 + q * 0.6));
+          grad.addColorStop(0, `rgba(255,250,215,${flash})`);
+          grad.addColorStop(0.35, `rgba(255,160,50,${flash * 0.85})`);
+          grad.addColorStop(1, `rgba(120,30,0,${flash * 0.45})`);
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, cssW, cssH);
+          ctx.fillStyle = `rgba(30,20,12,${Math.max(0, 0.45 * (q - 0.3))})`;
+          ctx.fillRect(0, 0, cssW, cssH);
+        }
+        ctx.restore();
+      }
+      // blood at the edges for a moment after a strike
+      const alpha = g.hitFlash * 0.5;
       if (alpha > 0) {
         const grad = ctx.createRadialGradient(cssW / 2, cssH / 2, Math.min(cssW, cssH) * 0.35, cssW / 2, cssH / 2, Math.max(cssW, cssH) * 0.75);
         grad.addColorStop(0, 'rgba(160,0,0,0)');
@@ -301,6 +347,22 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, cssW, cssH);
       }
+
+      // the crosshair, where the survivor is aiming (it moves to wherever they tap)
+      const cx = pointer.current.x, cy = pointer.current.y, cr = Math.max(16, unit * 0.034) * (1 + g.recoil * 0.25);
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (const [color, width] of [['rgba(0,0,0,0.75)', 5], ['rgba(255,236,150,0.95)', 2]] as [string, number][]) {
+        ctx.strokeStyle = color; ctx.lineWidth = width;
+        ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - cr * 1.7, cy); ctx.lineTo(cx - cr * 0.55, cy); ctx.moveTo(cx + cr * 0.55, cy); ctx.lineTo(cx + cr * 1.7, cy);
+        ctx.moveTo(cx, cy - cr * 1.7); ctx.lineTo(cx, cy - cr * 0.55); ctx.moveTo(cx, cy + cr * 0.55); ctx.lineTo(cx, cy + cr * 1.7);
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(255,90,60,0.95)';
+      ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     };
 
     void start();
@@ -336,7 +398,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
   };
 
   return (
-    <div className="rm-raid" role="dialog" aria-label="Looting">
+    <div className="rm-raid" role="dialog" aria-label="Looting" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
       <canvas
         ref={canvas}
         className="rm-raid-canvas"
@@ -356,9 +418,8 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
       {phase === 'fighting' && hud && (
         <>
           <div className="rm-raid-top">
-            <div className="rm-raid-health" aria-label="Health">
-              <div style={{ width: `${Math.max(0, Math.round((hud.health / hud.max) * 100))}%` }} />
-              <span>HP {Math.ceil(hud.health)} / {hud.max}</span>
+            <div className="rm-raid-strikes" aria-label={`Strikes taken: ${hud.hits} of ${MAX_HITS}`}>
+              {Array.from({ length: MAX_HITS }, (_, i) => <i key={i} className={i < hud.hits ? 'hit' : ''} />)}
             </div>
             <span className="rm-raid-left">{hud.remaining} LEFT</span>
             <button type="button" className="rm-btn rm-btn-ghost" onClick={onExit}>RETREAT</button>
