@@ -59,7 +59,7 @@ html[data-look='parchment'] .rm-tabs button.on { color: #f0e4bf; border-bottom-c
 
 .rm-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.rm-app { max-width: 1360px; margin: 0 auto; padding: 18px 20px 28px; }
+.rm-app { max-width: 1360px; margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
 
 /* ---- header ---- */
 .rm-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }

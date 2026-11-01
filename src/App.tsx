@@ -3,8 +3,10 @@ import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
-import { accountsEnabled, atlasList, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import { accountsEnabled, atlasList, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
+import { getFix, watchFixes, type GeoError } from './lib/geo';
+import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
 import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
 import { personalId, personalLocation, type PersonalPlace } from './lib/personal';
 import { enableNotifications, pushNotice } from './lib/notify';
@@ -106,6 +108,9 @@ export default function App() {
   const [atlas, setAtlas] = useState<AtlasPlace[]>([]);
   const [homeOpen, setHomeOpen] = useState(false);
   const [homeSkipped, setHomeSkipped] = useState(false);
+  // in the app: the sign-in email opens the app with a link, and coming back from a purchase should show the new balance
+  useEffect(() => onAppUrl((url) => { void completeSignInFromUrl(url).then((ok) => { if (ok) void account.refresh(); }); }), [account]);
+  useEffect(() => onResume(() => { if (accountRef.current?.session) void accountRef.current.refresh(); }), []);
   const atlasLocs = useMemo(() => atlas
     .filter((a) => !account.personal.some((q) => q.placeId === a.placeId))
     .map((a) => {
@@ -484,28 +489,23 @@ export default function App() {
   }, []);
 
   const locateMe = useCallback(() => {
-    if (!navigator.geolocation) {
-      setMessage('ERROR: THIS DEVICE CANNOT FIND ITSELF');
-      return;
-    }
     // ask for the position first, straight from the click: a second permission question (notifications) used to open in front of it and swallow it
-    setMessage('LOOKING FOR YOU… (ANSWER THE LOCATION QUESTION AT THE TOP OF THE BROWSER)');
-    navigator.geolocation.getCurrentPosition(
+    setMessage(isNative() ? 'LOOKING FOR YOU…' : 'LOOKING FOR YOU… (ANSWER THE LOCATION QUESTION AT THE TOP OF THE BROWSER)');
+    getFix({ timeout: 20_000, maximumAge: 60_000 }).then(
       (pos) => {
         setMessage('');
-        void show(() => geocodeLatLng({ lat: pos.coords.latitude, lng: pos.coords.longitude }), 'your position');
+        void show(() => geocodeLatLng({ lat: pos.lat, lng: pos.lng }), 'your position');
         setTracking(true);
         void enableNotifications();
       },
-      (err) =>
+      (err: GeoError) =>
         setMessage(
           err.code === 1
-            ? 'ERROR: LOCATION IS BLOCKED FOR THIS SITE. CLICK THE LOCK BESIDE THE ADDRESS, ALLOW LOCATION, AND TRY AGAIN'
+            ? (isNative() ? 'ERROR: LOCATION IS OFF FOR THIS APP. TURN IT ON IN THE PHONE SETTINGS, THEN TRY AGAIN' : 'ERROR: LOCATION IS BLOCKED FOR THIS SITE. CLICK THE LOCK BESIDE THE ADDRESS, ALLOW LOCATION, AND TRY AGAIN')
             : err.code === 2
               ? 'ERROR: THIS DEVICE CANNOT WORK OUT WHERE IT IS. CHECK THAT LOCATION IS TURNED ON IN ITS SETTINGS'
               : 'ERROR: LOCATION TOOK TOO LONG. TRY AGAIN',
         ),
-      { timeout: 20_000, maximumAge: 60_000 },
     );
   }, [show]);
 
@@ -570,7 +570,7 @@ export default function App() {
     try { country = m ? (new Intl.DisplayNames(['en'], { type: 'region' }).of(m.country) ?? '') : ''; } catch { /* no names */ }
     const place = m ? [m.name, country].filter(Boolean).join(', ') : (spot.oldName ?? spot.name);
     const url = flightsUrl(place);
-    const opened = window.open(url, '_blank', 'noopener');
+    const opened = await openExternal(url);
     if (!opened) setFlightLink({ url, place });
     say(`OVERSEAS: FLIGHTS TO ${place.toUpperCase()}`);
   }, [say]);
@@ -614,7 +614,7 @@ export default function App() {
     if (answer.kind === 'unavailable') {
       // Google's directions cannot be used from here (the service is not switched on for this key): hand over to Google Maps itself
       setNav(null);
-      window.open(googleMapsUrl(spot.position), '_blank', 'noopener');
+      void openExternal(googleMapsUrl(spot.position));
       say('NAVIGATION OPENED IN GOOGLE MAPS');
       return;
     }
@@ -684,10 +684,12 @@ export default function App() {
 
   // auto-discover: while it is on, walking within about 120 m of a place fills it in on the map
   useEffect(() => {
-    if (!tracking || !navigator.geolocation) return;
-    const id = navigator.geolocation.watchPosition(
+    if (!tracking) return;
+    let stop: (() => void) | null = null;
+    let cancelled = false;
+    void watchFixes(
       (pos) => {
-        const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const here = { lat: pos.lat, lng: pos.lng };
         const moved = !fixRef.current || distanceMeters(fixRef.current, here) > 12;
         fixRef.current = here;
         if (moved) {
@@ -696,15 +698,14 @@ export default function App() {
           setHereId(null);
         }
         void onNavFixRef.current(here);
-        const reach = Math.max(120, Math.min(pos.coords.accuracy, 250));
+        const reach = Math.max(120, Math.min(pos.accuracy, 250));
         const near = locationsRef.current.filter((l) => !visitedRef.current.has(l.id) && distanceMeters(here, l.position) <= reach);
         markFound(near, here);
       },
       // only a refusal turns it off: a moment without a signal (a tunnel, a bad fix) must not end the navigation
-      (err) => { if (err.code === 1) { setTracking(false); setMessage('ERROR: LOCATION PERMISSION DENIED'); } },
-      { enableHighAccuracy: true, maximumAge: 10_000 },
-    );
-    return () => navigator.geolocation.clearWatch(id);
+      (code) => { if (code === 1) { setTracking(false); setMessage('ERROR: LOCATION PERMISSION DENIED'); } },
+    ).then((off) => { if (cancelled) off(); else stop = off; });
+    return () => { cancelled = true; stop?.(); };
   }, [tracking, markFound]);
 
   const toggleTracking = () => {

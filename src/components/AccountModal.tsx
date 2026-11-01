@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { purchasesAvailable } from '../lib/native';
 import { PACKS, buyPack, sendSignInLink, signOut, type Account } from '../lib/account';
 
 /** Sign in, see the balance, buy a pack of render credits. */
@@ -45,12 +46,13 @@ export default function AccountModal({ account, onClose }: { account: Account; o
             <p className="rm-account-balance">{account.credits === null ? '…' : account.credits} <span>SNAPSHOT CREDITS</span></p>
             <p className="rm-account-small">{account.discoveries} places reached on foot. Every level you reach gives a free snapshot credit (turn on AUTO-DISCOVER and go for a walk; the Data tab shows your level).</p>
             <p>Each credit unlocks one place's snapshot: the real photograph blown apart into the wasteland, to view, download and share. Unlocked renders stay yours.</p>
-            <div className="rm-packs">
+            {!purchasesAvailable() && <p className="rm-account-small">Credits cannot be bought inside the app yet. Credits you already have, and free ones from levelling up, work here.</p>}
+            {purchasesAvailable() && <div className="rm-packs">
               {PACKS.map((pk) => (
                 <button key={pk.id} type="button" className="rm-btn" disabled={busy} onClick={() => void buy(pk.id)}>BUY {pk.credits} CREDITS: {pk.price}</button>
               ))}
-            </div>
-            <p className="rm-account-small">Pay by card, Apple Pay or Google Pay through Stripe. A render that cannot be made gives your credit back.</p>
+            </div>}
+            {purchasesAvailable() && <p className="rm-account-small">Pay by card, Apple Pay or Google Pay through Stripe. A render that cannot be made gives your credit back.</p>}
             <button type="button" className="rm-btn rm-btn-ghost" onClick={() => { void signOut(); onClose(); }}>SIGN OUT</button>
           </div>
         )}

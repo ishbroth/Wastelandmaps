@@ -1,6 +1,7 @@
 // Fast travel is real now: with AUTO-DISCOVER on, the map turns into a driving navigation map from where you stand to the place you picked
 // (Google's directions), and an overseas place opens a flight search instead.
 
+import { getFix } from './geo';
 import { distanceMeters, type LatLng } from './wasteland';
 
 export interface NavStep {
@@ -92,15 +93,13 @@ export const googleMapsUrl = (to: LatLng): string => `https://www.google.com/map
 export const flightsUrl = (placeName: string): string => `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights to ${placeName}`)}`;
 
 /** The device's position now, or null if it will not say. */
-export function currentFix(timeoutMs = 12_000): Promise<LatLng | null> {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) return resolve(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => resolve(null),
-      { timeout: timeoutMs, maximumAge: 30_000, enableHighAccuracy: true },
-    );
-  });
+export async function currentFix(timeoutMs = 12_000): Promise<LatLng | null> {
+  try {
+    const fix = await getFix({ timeout: timeoutMs, maximumAge: 30_000 });
+    return { lat: fix.lat, lng: fix.lng };
+  } catch {
+    return null;
+  }
 }
 
 const feet = (m: number) => Math.round(m * 3.281 / 50) * 50;

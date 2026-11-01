@@ -1,6 +1,7 @@
 import ScrollRow from './ScrollRow';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { downloadImage, shareImage } from '../lib/usePaidRender';
+import { saveBlob } from '../lib/native';
 
 /**
  * The reveal: the real photograph, then a bomb. A flash of white, a mushroom cloud rising over the sky in the photo (when it has open sky), the
@@ -453,14 +454,7 @@ export default function BlowApart({ beforeUrl, afterUrl, name, file, seed }: { b
     recorder.ondataavailable = (e) => { if (e.data.size > 0) parts.push(e.data); };
     recorder.onstop = () => {
       const blob = new Blob(parts, { type: mime.split(';')[0] });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = file.replace(/\.png$/i, mime.startsWith('video/mp4') ? '.mp4' : '.webm');
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
-      setRecording(false);
+      void saveBlob(blob, file.replace(/\.png$/i, mime.startsWith('video/mp4') ? '.mp4' : '.webm'), name).finally(() => setRecording(false));
     };
     recorder.start();
     // play it again from the start while recording, and stop a moment after the finish

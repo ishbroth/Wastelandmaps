@@ -1,6 +1,7 @@
 // The paid game-style render of one place: unlocking it (one credit), waiting while it is made, and showing it again later for free.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isNative, saveBlob } from './native';
 import { unlockRender, type Account, type Unlocked } from './account';
 
 export type PaidState =
@@ -70,22 +71,20 @@ export function usePaidRender(spotId: string, name: string, account: Account, en
   return { state, run };
 }
 
-/** Saves an image to the device. Links to another site cannot be saved with a plain download link, so the image is fetched first. */
+/** Saves an image to the device (a download on the web; the share sheet in the app, where it can be saved or sent). */
 export async function downloadImage(url: string, filename: string): Promise<void> {
   const blob = await (await fetch(url)).blob();
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+  await saveBlob(blob, filename, filename.replace(/\.[a-z0-9]+$/i, ''));
 }
 
 /** The phone's share sheet with the picture itself, where the browser can; otherwise it just saves the picture. */
 export async function shareImage(url: string, filename: string, title: string): Promise<void> {
   try {
     const blob = await (await fetch(url)).blob();
+    if (isNative()) {
+      await saveBlob(blob, filename, title);
+      return;
+    }
     const file = new File([blob], filename, { type: blob.type || 'image/png' });
     if (navigator.canShare?.({ files: [file] })) {
       await navigator.share({ files: [file], title, text: `${title}, after the bombs. wastelandmaps.com` });

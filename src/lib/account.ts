@@ -1,6 +1,7 @@
 // Accounts and render credits: signing in, the credit balance, buying a pack, and unlocking a place's game-style render.
 // All of the money logic lives on the server (supabase/functions); this only asks and shows.
 
+import { APP_SCHEME, NATIVE_AUTH_REDIRECT, goTo, isNative } from './native';
 import type { PersonalPlace } from './personal';
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
@@ -154,7 +155,7 @@ export function useAccount(): Account {
 
 /** Emails a sign-in link. */
 export async function sendSignInLink(email: string): Promise<string | null> {
-  const { error } = await db().auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + window.location.pathname } });
+  const { error } = await db().auth.signInWithOtp({ email, options: { emailRedirectTo: isNative() ? NATIVE_AUTH_REDIRECT : window.location.origin + window.location.pathname } });
   return error ? error.message : null;
 }
 
@@ -164,7 +165,7 @@ export const signOut = () => db().auth.signOut();
 export async function buyPack(pack: string = 'eight'): Promise<string | null> {
   const { data, error } = await db().functions.invoke('create-checkout', { body: { pack } });
   if (error || !data?.url) return 'Could not start the checkout. Try again in a moment.';
-  window.location.href = data.url as string;
+  await goTo(data.url as string);
   return null;
 }
 
@@ -328,4 +329,23 @@ export async function atlasList(metroId: string): Promise<AtlasPlace[]> {
 /** Remembers where home is, or that they chose not to say. */
 export async function saveHome(userId: string, home: Home): Promise<void> {
   await db().from('user_home').upsert({ user_id: userId, place_id: home.placeId ?? null, name: home.name ?? null, address: home.address ?? null, lat: home.lat ?? null, lng: home.lng ?? null, skipped: home.skipped }, { onConflict: 'user_id' });
+}
+
+/** The app was opened by the sign-in email's link (com.wastelandmaps.app://auth#access_token=...): finish signing in with it. */
+export async function completeSignInFromUrl(url: string): Promise<boolean> {
+  if (!url.startsWith(NATIVE_AUTH_REDIRECT) && !url.startsWith(APP_SCHEME)) return false;
+  const hash = new URLSearchParams(url.includes('#') ? url.slice(url.indexOf('#') + 1) : '');
+  const query = new URLSearchParams(url.includes('?') ? url.slice(url.indexOf('?') + 1).split('#')[0] : '');
+  const access = hash.get('access_token');
+  const refresh = hash.get('refresh_token');
+  if (access && refresh) {
+    const { error } = await db().auth.setSession({ access_token: access, refresh_token: refresh });
+    return !error;
+  }
+  const code = query.get('code');
+  if (code) {
+    const { error } = await db().auth.exchangeCodeForSession(code);
+    return !error;
+  }
+  return false;
 }

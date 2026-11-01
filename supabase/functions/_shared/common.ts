@@ -3,7 +3,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 /** Where the app may be served from. Anything else is refused, so another site cannot start checkouts on someone's behalf. */
-const ALLOWED_ORIGINS = ['https://wastelandmaps.com', 'https://www.wastelandmaps.com', 'http://localhost:5173', 'http://localhost:5174'];
+const ALLOWED_ORIGINS = [
+  'https://wastelandmaps.com', 'https://www.wastelandmaps.com', 'http://localhost:5173', 'http://localhost:5174',
+  // the apps (Capacitor): iOS serves its pages from capacitor://localhost, Android from https://localhost
+  'capacitor://localhost', 'https://localhost', 'http://localhost', 'ionic://localhost',
+];
 
 export function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('origin') ?? '';

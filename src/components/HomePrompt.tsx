@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { reverseGeocode, resolveSuggestion, suggest, type PickedPlace, type Suggestion } from '../lib/addressSearch';
 import { currentFix } from '../lib/navigation';
+import { locationState } from '../lib/geo';
 
 type Step = 'ask' | 'type';
 
@@ -20,12 +21,8 @@ export default function HomePrompt({ onChosen, onSkip }: { onChosen: (place: Pic
   useEffect(() => {
     let cancelled = false;
     const decide = async () => {
-      if (!navigator.geolocation) return 'type';
-      try {
-        const state = await navigator.permissions?.query({ name: 'geolocation' as PermissionName });
-        if (state?.state === 'denied') return 'type';
-      } catch { /* the permission cannot be read: ask anyway */ }
-      return 'ask';
+      const state = await locationState();
+      return state === 'unsupported' || state === 'denied' ? 'type' : 'ask';
     };
     void decide().then((s) => { if (!cancelled) setStep(s as Step); });
     return () => { cancelled = true; };

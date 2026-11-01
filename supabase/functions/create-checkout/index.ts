@@ -20,7 +20,9 @@ Deno.serve(async (req) => {
   const chosen = PACKS[pack ?? 'eight'];
   if (!chosen) return reply(req, { error: 'unknown_pack' }, 400);
 
-  const origin = req.headers.get('origin') ?? 'https://wastelandmaps.com';
+  // Stripe sends the person back to a web address: the app's own origin (capacitor://localhost) is not one, so the app uses the site's
+  const seen = req.headers.get('origin') ?? '';
+  const origin = /^https:\/\/(www\.)?wastelandmaps\.com$/.test(seen) ? seen : 'https://wastelandmaps.com';
   const stripe = new Stripe(secret, { apiVersion: '2023-10-16', httpClient: Stripe.createFetchHttpClient() });
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
