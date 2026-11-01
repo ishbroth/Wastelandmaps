@@ -35,13 +35,13 @@ function poolFor(worth: number): EnemyId[] {
 /** Worth for the top two tiers: they have a boss. */
 const BOSS_FROM = 50;
 
-/** The least and most pieces of loot a win pays, by the place's worth: 2 for the smallest, 3-4 for small and mid, 4-5 for larger buildings, 5-8 for the famous, 7-10 for the permanent landmarks. (The server has the same table.) */
+/** The least and most pieces of loot a win pays, by the place's worth: 2-3 for the smallest, 3-4 for small and mid, 4-5 for larger buildings, 5-8 for the famous, 7-10 for the permanent landmarks. (The server has the same table.) */
 export function lootRangeFor(worth: number): [number, number] {
   if (worth >= 75) return [7, 10];
   if (worth >= 50) return [5, 8];
   if (worth >= 30) return [4, 5];
   if (worth >= 15) return [3, 4];
-  return [2, 2];
+  return [2, 3];
 }
 
 /** One wave after another: a single enemy, then two, then growing until the rest arrive together. */

@@ -28,7 +28,7 @@ function pieceRange(worth: number): [number, number] {
   if (worth >= 50) return [5, 8];
   if (worth >= 30) return [4, 5];
   if (worth >= 15) return [3, 4];
-  return [2, 2];
+  return [2, 3];
 }
 
 /** The loot a win pays: a number of pieces within the range for the place's worth, at least one of every kind the place has. */
