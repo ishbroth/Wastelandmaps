@@ -58,6 +58,8 @@ export interface Account {
   points: number;
   /** What they have looted, and the highest tier of each class of gun they have built. */
   loot: LootBag;
+  /** Stimpaks in the pack. */
+  stimpaks: number;
   arsenal: Arsenal;
   /** Places they have already looted: each can be looted once, and shows [Cleared] on the map. */
   cleared: Set<string>;
@@ -73,6 +75,7 @@ export function useAccount(): Account {
   const [discoveries, setDiscoveries] = useState(0);
   const [points, setPoints] = useState(0);
   const [loot, setLoot] = useState<LootBag>({});
+  const [stimpaks, setStimpaks] = useState(0);
   const [arsenal, setArsenal] = useState<Arsenal>(STARTING_ARSENAL);
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [personal, setPersonal] = useState<PersonalPlace[]>([]);
@@ -87,6 +90,7 @@ export function useAccount(): Account {
       setDiscoveries(0);
       setPoints(0);
       setLoot({});
+      setStimpaks(0);
       setArsenal(STARTING_ARSENAL);
       setCleared(new Set());
       setPersonal([]);
@@ -99,7 +103,9 @@ export function useAccount(): Account {
     void Promise.all([
       db().from('player_loot').select('loot,qty').eq('user_id', s.user.id),
       db().from('player_weapons').select('weapon_class,tier').eq('user_id', s.user.id),
-    ]).then(([l, w]) => {
+      db().from('player_stimpaks').select('qty').eq('user_id', s.user.id).maybeSingle(),
+    ]).then(([l, w, st]) => {
+      setStimpaks((st.data?.qty as number | undefined) ?? 0);
       const bag: LootBag = {};
       for (const r of (l.data ?? []) as { loot: LootId; qty: number }[]) bag[r.loot] = r.qty;
       const guns: Arsenal = { ...STARTING_ARSENAL };
@@ -154,7 +160,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, arsenal, cleared, personal, home, homeLoaded, metros, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, arsenal, cleared, personal, home, homeLoaded, metros, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -279,6 +285,18 @@ export async function saveAutoDiscover(userId: string, on: boolean): Promise<voi
 export async function craftWeapon(weaponClass: WeaponClass): Promise<{ ok: boolean; tier?: number; reason?: string }> {
   const { data, error } = await db().functions.invoke('craft', { body: { class: weaponClass } });
   return error || !data ? { ok: false, reason: 'server' } : (data as { ok: boolean; tier?: number; reason?: string });
+}
+
+/** Trades spare loot for a stimpak (the trade is one of STIMPAK_TRADES). */
+export async function tradeStimpak(trade: string): Promise<{ ok: boolean; qty?: number; reason?: string }> {
+  const { data, error } = await db().functions.invoke('stimpak', { body: { action: 'trade', trade } });
+  return error || !data ? { ok: false, reason: 'server' } : (data as { ok: boolean; qty?: number; reason?: string });
+}
+
+/** Uses a stimpak (the screen then gives the survivor their strikes back). */
+export async function useStimpak(): Promise<{ ok: boolean; qty?: number }> {
+  const { data, error } = await db().functions.invoke('stimpak', { body: { action: 'use' } });
+  return error || !data ? { ok: false } : (data as { ok: boolean; qty?: number });
 }
 
 /** Starts a raid on a place (the server checks the snapshot is theirs and decides the loot). Returns the run to finish, or the reason it cannot start. */

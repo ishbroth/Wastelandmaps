@@ -98,6 +98,8 @@ export class Game {
   readonly arsenal: Arsenal;
   /** Strikes taken so far (three is death). */
   hits = 0;
+  /** The action is stopped (the weapon wheel is open). */
+  paused = false;
   enemies: Enemy[] = [];
   effects: Effect[] = [];
   strikes: Strike[] = [];
@@ -206,7 +208,7 @@ export class Game {
   }
 
   update(dt: number) {
-    if (this.outcome !== 'fighting') return;
+    if (this.outcome !== 'fighting' || this.paused) return;
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.recoil = Math.max(0, this.recoil - dt * 6);
     this.shake = Math.max(0, this.shake - dt * 3);
@@ -286,6 +288,12 @@ export class Game {
     this.effects = this.effects.filter((fx) => fx.t < fx.life);
     for (const s of this.strikes) s.t += dt;
     this.strikes = this.strikes.filter((s) => s.t < s.life);
+  }
+
+  /** A stimpak: the survivor has all their strikes back. */
+  heal() {
+    this.hits = 0;
+    this.hitFlash = 0;
   }
 
   /** An enemy lands its blow: a bullet hole, a slash across the screen, or a blast, and the survivor has one strike fewer. */

@@ -6,9 +6,10 @@ import { enemiesLine } from '../lib/raid/raid';
 import { hapticsAvailable, hapticsEnabled, setHaptics } from '../lib/haptics';
 import { purchasesAvailable } from '../lib/native';
 import Caps, { CapIcon } from './Caps';
-import { METRO_COST, PACKS, caps, atlasCount, atlasUnlock, buyPack, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
+import { STIMPAK_TRADES } from '../../supabase/functions/_shared/stimpak';
+import { METRO_COST, PACKS, caps, tradeStimpak, atlasCount, atlasUnlock, buyPack, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
-import { LOOT_TYPES, canAfford, describeBag } from '../lib/raid/loot';
+import { LOOT_TYPES, canAfford, describeBag, type LootBag } from '../lib/raid/loot';
 import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt } from '../lib/raid/weapons';
 
 import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
@@ -175,6 +176,16 @@ export function AccountPanel({ account, found, metro, onChangeHome, onAccount, o
           <span key={l.id} className={`rm-loot-item${(account.loot[l.id] ?? 0) === 0 ? ' rm-loot-none' : ''}${(account.loot[l.id] ?? 0) >= LOOT_CAP ? ' rm-loot-full' : ''}`} title={`Storage holds ${LOOT_CAP} of each`}><b>{account.loot[l.id] ?? 0}</b>/{LOOT_CAP} {l.name}</span>
         ))}
       </div>
+      <h3>STIMPAKS: {account.stimpaks}</h3>
+      <ul className="rm-arsenal">
+        {STIMPAK_TRADES.map((t) => (
+          <li key={t.id}>
+            <button type="button" className="rm-btn rm-btn-ghost rm-arsenal-buy" disabled={!canAfford(account.loot, t.cost as LootBag)} onClick={() => { void tradeStimpak(t.id).then(() => account.refresh()); }}>
+              TRADE {describeBag(t.cost as LootBag).toUpperCase()} FOR 1 STIMPAK
+            </button>
+          </li>
+        ))}
+      </ul>
       <h3>GUNS</h3>
       <ul className="rm-arsenal">
         {WEAPON_CLASS_IDS.map((cls) => {

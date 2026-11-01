@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { finishRaid, startRaid, type Account } from '../lib/account';
+import { finishRaid, startRaid, useStimpak, type Account } from '../lib/account';
 import { loadRaidAssets, type RaidAssets } from '../lib/raid/assets';
 import { playSound } from '../lib/raid/audio';
 import { buzz } from '../lib/haptics';
@@ -56,6 +56,9 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
   const [phase, setPhase] = useState<'loading' | 'fighting' | 'won' | 'lost' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [hud, setHud] = useState<Hud | null>(null);
+  const [wheelOpen, setWheelOpen] = useState(false);
+  const [stims, setStims] = useState(account.stimpaks);
+  const [healing, setHealing] = useState(false);
   const [loot, setLoot] = useState<LootBag | null>(null);
   const [lost, setLost] = useState<LootBag>({});
   const finished = useRef(false);
@@ -145,7 +148,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
     const shoot = () => {
       const g = game.current;
       const picture = bg.current;
-      if (!g || !picture) return;
+      if (!g || !picture || g.paused) return;
       const v = view.current;
       const u = (pointer.current.x - v.x) / v.w;
       const w = (pointer.current.y - v.y) / v.h;
@@ -269,7 +272,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
       const gh = Math.min(cssH * 0.34, 330);
       const gw = gunArt ? gh * (gunArt.image.naturalWidth / gunArt.image.naturalHeight) : gh * 0.5;
       // anchored to the bottom right with its edges off screen (the pictures are cut off at their edges), turning a little toward where the survivor aims
-      const pivotX = Math.max(gw * 0.5, cssW - gw * 0.44), pivotY = Math.min(cssH, vy + vh) + gh * 0.2;
+      const pivotX = Math.max(gw * 0.5, cssW - gw * 0.44), pivotY = Math.min(cssH, vy + vh) + gh * 0.42;
       const aim = Math.max(-0.12, Math.min(0.12, Math.atan2(pointer.current.x - pivotX, pivotY - pointer.current.y) * 0.3));
       ctx.save();
       ctx.translate(pivotX, pivotY + g.recoil * 22);
@@ -382,7 +385,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
     const onKey = (e: KeyboardEvent) => {
       const cls = keys[e.key];
       if (cls) game.current?.select(cls);
-      if (e.key === 'Escape') onExit();
+      if (e.key === 'Escape') { if (game.current?.paused) closeWheel(); else onExit(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -394,8 +397,31 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
     pointer.current.y = e.clientY - r.top;
   };
 
+  const openWheel = () => {
+    if (!game.current) return;
+    game.current.paused = true;
+    setWheelOpen(true);
+  };
+  function closeWheel() {
+    if (game.current) game.current.paused = false;
+    setWheelOpen(false);
+  }
   const pick = (cls: WeaponClass) => {
     if (game.current?.select(cls)) setHud((h) => (h ? { ...h, selected: cls } : h));
+    closeWheel();
+  };
+  const heal = async () => {
+    const g = game.current;
+    if (!g || healing || stims <= 0 || g.hits <= 0) return;
+    setHealing(true);
+    const result = await useStimpak();
+    if (result.ok) {
+      g.heal();
+      setStims(result.qty ?? Math.max(0, stims - 1));
+      setHud((h) => (h ? { ...h, hits: 0 } : h));
+      void account.refresh();
+    }
+    setHealing(false);
   };
 
   return createPortal(
@@ -430,29 +456,37 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
           )}
           {hud.banner && <div className="rm-raid-banner" key={hud.banner}>{hud.banner}</div>}
           {hud.ammo !== null && <div className="rm-raid-ammo">AMMO {hud.ammo}</div>}
-          <div className="rm-raid-wheel" role="group" aria-label="Weapons">
-            {WEAPON_CLASS_IDS.map((cls) => {
-              const tier = account.arsenal[cls];
-              const w = tier > 0 ? weaponAt(cls, tier as 1 | 2 | 3 | 4) : null;
-              return (
-                <button
-                  key={cls}
-                  type="button"
-                  className={`rm-wheel-slot rm-wheel-${WEAPON_CLASSES[cls].slot}${hud.selected === cls ? ' on' : ''}${w ? '' : ' locked'}`}
-                  disabled={!w}
-                  onClick={() => pick(cls)}
-                  title={w ? w.name : `${WEAPON_CLASSES[cls].label}: not built yet`}
-                >
-                  {w ? (
-                    <>
-                      <GunThumb src={`${import.meta.env.BASE_URL}raid/guns/${w.id}.webp`} />
-                      <small>{w.name}</small>
-                    </>
-                  ) : <span>🔒</span>}
-                </button>
-              );
-            })}
+          <div className="rm-raid-bar">
+            <button type="button" className="rm-btn rm-raid-btn" onClick={openWheel} disabled={wheelOpen}>WEAPONS</button>
+            <button type="button" className="rm-btn rm-raid-btn" onClick={() => void heal()} disabled={wheelOpen || healing || stims <= 0 || hud.hits <= 0} title="Take back all your strikes">STIMPAK ×{stims}</button>
           </div>
+          {wheelOpen && (
+            <div className="rm-wheel-overlay" onClick={closeWheel}>
+            <div className="rm-raid-wheel" role="group" aria-label="Weapons" onClick={(e) => e.stopPropagation()}>
+              {WEAPON_CLASS_IDS.map((cls) => {
+                const tier = account.arsenal[cls];
+                const w = tier > 0 ? weaponAt(cls, tier as 1 | 2 | 3 | 4) : null;
+                return (
+                  <button
+                    key={cls}
+                    type="button"
+                    className={`rm-wheel-slot rm-wheel-${WEAPON_CLASSES[cls].slot}${hud.selected === cls ? ' on' : ''}${w ? '' : ' locked'}`}
+                    disabled={!w}
+                    onClick={() => pick(cls)}
+                    title={w ? w.name : `${WEAPON_CLASSES[cls].label}: not built yet`}
+                  >
+                    {w ? (
+                      <>
+                        <GunThumb src={`${import.meta.env.BASE_URL}raid/guns/${w.id}.webp`} />
+                        <small>{w.name}</small>
+                      </>
+                    ) : <span>🔒</span>}
+                  </button>
+                );
+              })}
+            </div>
+            </div>
+          )}
         </>
       )}
 

@@ -529,18 +529,22 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-raid-banner { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); font-size: 62px; letter-spacing: 10px; color: #e8d58a; text-shadow: 0 0 18px rgba(232, 213, 138, 0.6), 0 2px 4px #000; pointer-events: none; animation: rm-raid-banner 2.2s ease-out forwards; white-space: nowrap; }
 @keyframes rm-raid-banner { 0% { opacity: 0; transform: translateX(-50%) scale(1.5); } 15%, 70% { opacity: 1; transform: translateX(-50%) scale(1); } 100% { opacity: 0; } }
 .rm-raid-ammo { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px)); font-size: 22px; color: #e8d58a; text-shadow: 0 1px 3px #000; pointer-events: none; }
-/* the weapon wheel: pistol left, automatic right, sniper below, heavy weapons above */
-.rm-raid-wheel { position: absolute; z-index: 3; left: max(14px, env(safe-area-inset-left)); bottom: max(70px, calc(env(safe-area-inset-bottom) + 56px)); width: 132px; height: 132px; }
-.rm-wheel-slot { position: absolute; width: 56px; height: 56px; border-radius: 50%; background: rgba(0, 0, 0, 0.62); border: 2px solid #8a7a4a; color: #e8d58a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; cursor: pointer; overflow: hidden; }
-.rm-wheel-slot img { max-width: 42px; max-height: 30px; object-fit: contain; pointer-events: none; }
-.rm-wheel-slot small { font-size: 8px; letter-spacing: 0; line-height: 1; text-align: center; max-width: 50px; margin-top: 1px; }
-.rm-wheel-slot.on { border-color: #fff2b0; box-shadow: 0 0 14px rgba(255, 242, 176, 0.7); background: rgba(70, 56, 20, 0.8); }
+/* the weapon wheel: opened from the WEAPONS button over the paused fight; pistol left, automatic right, sniper below, heavy weapons above */
+.rm-raid-bar { position: absolute; z-index: 3; left: max(14px, env(safe-area-inset-left)); bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px)); display: flex; gap: 8px; }
+.rm-raid-btn { color: #e8d58a; border-color: #8a7a4a; background: rgba(0, 0, 0, 0.55); font-size: 17px; padding: 4px 14px; }
+.rm-raid-btn:disabled { opacity: 0.45; }
+.rm-wheel-overlay { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(0, 0, 0, 0.38); }
+.rm-raid-wheel { position: relative; width: 240px; height: 240px; opacity: 0.94; }
+.rm-wheel-slot { position: absolute; width: 90px; height: 90px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); border: 2px solid #8a7a4a; color: #e8d58a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; cursor: pointer; overflow: hidden; backdrop-filter: blur(2px); }
+.rm-wheel-slot img { max-width: 70px; max-height: 50px; object-fit: contain; pointer-events: none; }
+.rm-wheel-slot small { font-size: 10px; letter-spacing: 0; line-height: 1; text-align: center; max-width: 80px; margin-top: 2px; }
+.rm-wheel-slot.on { border-color: #fff2b0; box-shadow: 0 0 14px rgba(255, 242, 176, 0.7); background: rgba(70, 56, 20, 0.7); }
 .rm-wheel-slot.locked { opacity: 0.5; cursor: default; font-size: 22px; }
-.rm-wheel-left { left: 0; top: 38px; }
-.rm-wheel-right { right: 0; top: 38px; }
-.rm-wheel-top { left: 38px; top: 0; }
-.rm-wheel-bottom { left: 38px; bottom: 0; }
-@media (max-height: 520px) { .rm-raid-wheel { width: 108px; height: 108px; bottom: max(44px, calc(env(safe-area-inset-bottom) + 32px)); } .rm-wheel-slot { width: 46px; height: 46px; } .rm-wheel-left, .rm-wheel-right { top: 31px; } .rm-wheel-top, .rm-wheel-bottom { left: 31px; } .rm-wheel-slot img { max-width: 40px; max-height: 28px; } .rm-wheel-slot small { display: none; } .rm-raid-banner { font-size: 40px; } }
+.rm-wheel-left { left: 0; top: 75px; }
+.rm-wheel-right { right: 0; top: 75px; }
+.rm-wheel-top { left: 75px; top: 0; }
+.rm-wheel-bottom { left: 75px; bottom: 0; }
+@media (max-height: 520px) { .rm-raid-wheel { width: 190px; height: 190px; } .rm-wheel-slot { width: 70px; height: 70px; } .rm-wheel-left, .rm-wheel-right { top: 60px; } .rm-wheel-top, .rm-wheel-bottom { left: 60px; } .rm-wheel-slot img { max-width: 54px; max-height: 36px; } .rm-wheel-slot small { display: none; } .rm-raid-banner { font-size: 40px; } }
 
 /* the scan field's suggestions */
 .rm-search { position: relative; }
