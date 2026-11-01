@@ -111,8 +111,9 @@ export default function SceneModal({ onNeedDiscover, spot, regionName, look, vis
 
   // a snapshot that has just been unlocked opens by itself
   useEffect(() => {
-    if (paidReady) setTab('snapshot');
-  }, [paidReady]);
+    // only a snapshot that has just been paid for opens by itself; one that was already theirs waits for the SNAPSHOT button
+    if (paidReady && paid.state.kind === 'ready' && paid.state.fresh) setTab('snapshot');
+  }, [paidReady, paid.state]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

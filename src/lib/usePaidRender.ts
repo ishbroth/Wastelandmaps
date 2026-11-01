@@ -7,7 +7,8 @@ import { recoverSession, unlockRender, type Account, type Unlocked } from './acc
 export type PaidState =
   | { kind: 'idle' }
   | { kind: 'working' }
-  | { kind: 'ready'; render: Unlocked }
+  /** `fresh`: it was just paid for in this visit (an unlock that was already theirs opens quietly). */
+  | { kind: 'ready'; render: Unlocked; fresh: boolean }
   | { kind: 'error'; message: string };
 
 const MESSAGES: Record<string, string> = {
@@ -43,7 +44,7 @@ export function usePaidRender(spotId: string, name: string, account: Account, en
     running.current = false;
   }, [spotId]);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (auto = false) => {
     if (running.current) return;
     running.current = true;
     setState({ kind: 'working' });
@@ -51,7 +52,7 @@ export function usePaidRender(spotId: string, name: string, account: Account, en
       const result = await unlockRender(spotId, name, extra);
       if (!alive.current) break;
       if (result.kind === 'ready') {
-        setState({ kind: 'ready', render: result.render });
+        setState({ kind: 'ready', render: result.render, fresh: !auto });
         running.current = false;
         void account.refresh();
         return;
@@ -72,7 +73,7 @@ export function usePaidRender(spotId: string, name: string, account: Account, en
   // already unlocked: show it without being asked (and without charge)
   const owned = account.unlocked.has(spotId) || alsoOwned;
   useEffect(() => {
-    if (enabled && account.session && owned && state.kind === 'idle') void run();
+    if (enabled && account.session && owned && state.kind === 'idle') void run(true);
   }, [enabled, account.session, owned, state.kind, run]);
 
   return { state, run };
