@@ -84,7 +84,7 @@ const ICONS: Record<string, string> = {
   capitolrecords: svg(f('M8.5 21V6h7v15Z') + f('M7.8 6h8.4V4.6H7.8Z') + s('M12 4.6V1.4') + d('M8.5 9h7M8.5 12h7M8.5 15h7M8.5 18h7') + f('M4 21v-4h4.5v4ZM15.5 21v-4H20v4Z')),
   oneamerica: tower({ w: 6.4, top: 7, crown: 'pyramid', detail: 'ribs', base: 'podium' }),
   coronadobridge: svg(f('M1.5 17.4c3.6 0 6-6.4 10.5-6.4s6.9 6.4 10.5 6.4v1.8c-3.6 0-6-6.4-10.5-6.4S5.1 19.2 1.5 19.2Z') + f('M6.2 21v-4.4H8V21ZM16 21v-4.4h1.8V21Z') + s('M1.5 21.6h21') + d('M10.5 12.6V19M13.5 12.6V19')),
-  eastcountycourthouse: portico(),
+  eastcountycourthouse: tower({ w: 9, top: 5, crown: 'flat', detail: 'bands', base: 'podium' }),
   transamerica: svg(f('M12 1.4 8.2 21h7.6Z') + f('M8.8 13.2H6.8V6.6l2.4 3.2ZM15.2 13.2h2V6.6l-2.4 3.2Z') + d('M10.8 8h2.4M10.2 11.5h3.6M9.6 15h4.8M9 18.4h6')),
   stanford: svg(f('M2.5 21v-6h13v6Z') + d('M4.2 21v-3a1.5 1.5 0 0 1 3 0v3M8.8 21v-3a1.5 1.5 0 0 1 3 0v3M13.4 21v-3') + f('M16.5 21V8.6h4V21Z') + f('M16 8.6h5L20.4 7h-3.8Z') + f('M17.4 7V4.2h2.2V7Z') + s('M18.5 4.2V2.4')),
   tribuneoakland: tower({ w: 5, top: 9, crown: 'clock', detail: 'bands', base: 'podium' }),

@@ -164,7 +164,13 @@ export default function App() {
   }, []);
   const trip = useRef<Trip | null>(null);
   const homeId = account.home?.placeId ? personalId(account.home.placeId) : null;
-  const shownVisited = useMemo(() => (homeId ? new Set(visited).add(homeId) : visited), [visited, homeId]);
+  const shownVisited = useMemo(() => {
+    const all = new Set(visited);
+    if (homeId) all.add(homeId);
+    // an address whose snapshot they paid for counts as discovered
+    for (const q of account.personal) if (account.unlocked.has(personalId(q.placeId))) all.add(personalId(q.placeId));
+    return all;
+  }, [visited, homeId, account.personal, account.unlocked]);
   const visitedRef = useRef(visited);
   const toastTimer = useRef<number | undefined>(undefined);
 

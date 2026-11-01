@@ -58,10 +58,10 @@ const LABEL_ZOOM = 16;
  */
 function minZoomFor(loc: Location, selectedId: string | null): number {
   if (loc.personal?.home || freeRenderFor(loc.id) || loc.id === selectedId || (loc.personal && !loc.personal.saved)) return 0;
-  if (loc.personal) return 12;
+  if (loc.personal) return 11;
   if (loc.famous) return 6;
   const pts = pointsFor(loc);
-  return pts >= 30 ? 9 : pts >= 20 ? 10 : pts >= 15 ? 11 : 12;
+  return pts >= 30 ? 8 : pts >= 20 ? 9 : pts >= 15 ? 10 : 11;
 }
 
 /**

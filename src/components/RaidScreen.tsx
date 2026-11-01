@@ -275,7 +275,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
       const gh = Math.min(cssH * 0.34, 330);
       const gw = gunArt ? gh * (gunArt.image.naturalWidth / gunArt.image.naturalHeight) : gh * 0.5;
       // anchored to the bottom right with its edges off screen (the pictures are cut off at their edges), turning a little toward where the survivor aims
-      const pivotX = Math.max(gw * 0.5, cssW - gw * 0.44), pivotY = cssH + gh * 0.45;
+      const pivotX = Math.max(gw * 0.5, cssW - gw * 0.44), pivotY = cssH + gh * 0.64;
       const aim = Math.max(-0.12, Math.min(0.12, Math.atan2(pointer.current.x - pivotX, pivotY - pointer.current.y) * 0.3));
       ctx.save();
       ctx.translate(pivotX, pivotY + g.recoil * 22);
