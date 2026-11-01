@@ -33,7 +33,7 @@ const ENEMIES = {
   gangrenousghoul: SHEET('a Fallout gangrenous ghoul: a bloated, grotesque, rotting ghoul with swollen green-black sores and tattered clothes, much larger and more diseased than a normal ghoul', POSES_WALK),
   glowingbloatfly: SHEET('a Fallout glowing bloatfly: a giant mutated fly with a swollen abdomen that glows radioactive green from inside, translucent wings, huge and menacing', POSES_FLY),
   mirelurkqueen: SHEET('a Fallout mirelurk queen: an enormous mutated crab queen with a massive spiked shell, a crest, huge claws and a gaping acid-spitting mouth', POSES_WALK),
-  behemoth: SHEET('a Fallout behemoth: a gigantic super mutant, three times the size of a man, pale grey-blue skin, a scar-covered body and a huge lamppost-sized club', POSES_WALK),
+  behemoth: SHEET('a Fallout Behemoth, the biggest kind of super mutant: a gigantic, hulking, hunched, bald humanoid brute with a small head and an enormous muscular body, pale blue-grey skin covered in scars and stitches, wearing only a ragged loincloth and a few strips of scrap armor, and gripping a huge bent street-lamp post as a club in one fist; it must look like a much bigger version of a normal Fallout super mutant, a muscular person with a human face, jaw and fists, not a block or a box', POSES_WALK),
 };
 
 const GUN = (what) => `${STYLE} A first-person video game view of the player's hands holding ${what}, seen from behind and slightly above, the barrel pointing away from the camera and up, centered, cropped at the forearms, on a perfectly flat solid magenta (#FF00FF) background with no floor, no shadow, no text and no gradient. Gloved hands, worn and scratched metal, realistic and detailed.`;

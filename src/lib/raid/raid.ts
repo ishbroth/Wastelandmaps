@@ -3,7 +3,7 @@
 
 import { pointsFor } from '../points';
 import { hashString, seeded, type Location } from '../wasteland';
-import { BOSS_IDS, enemyById, type BossId, type EnemyId } from './enemies';
+import { BOSS_IDS, HP_SCALE, enemyById, type BossId, type EnemyId } from './enemies';
 import { LOOT_TYPES, type LootId } from './loot';
 
 export interface RaidPlan {
@@ -65,10 +65,10 @@ export function planFor(id: string, worth: number): RaidPlan {
   const boss = worth >= BOSS_FROM ? BOSS_IDS[Math.floor(rand() * BOSS_IDS.length)] : null;
 
   // the same hit points of enemy for the same worth: many weak ones or a few strong ones
-  const budget = 120 + worth * 24;
+  const budget = (120 + worth * 24) * HP_SCALE;
   const avgHp = enemies.reduce((sum, e) => sum + enemyById(e).hp, 0) / enemies.length;
   const hardest = Math.max(...enemies.map((e) => enemyById(e).hp));
-  const least = hardest > 300 ? 2 : hardest > 150 ? 3 : 5;
+  const least = hardest > 300 * HP_SCALE ? 2 : hardest > 150 * HP_SCALE ? 3 : 5;
   let total = Math.max(least, Math.min(40, Math.round((boss ? budget * 0.6 : budget) / avgHp)));
   if (boss) total = Math.max(3, Math.min(total, 24));
 
