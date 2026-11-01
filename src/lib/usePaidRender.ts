@@ -31,6 +31,12 @@ export function usePaidRender(spotId: string, name: string, account: Account, en
     return () => { alive.current = false; };
   }, []);
 
+  // a new session (signed in again, or renewed): a failure from the old one is forgotten, so what is already theirs opens by itself
+  const token = account.session?.access_token;
+  useEffect(() => {
+    setState((st) => (st.kind === 'error' ? { kind: 'idle' } : st));
+  }, [token]);
+
   // a different place: start over
   useEffect(() => {
     setState({ kind: 'idle' });
