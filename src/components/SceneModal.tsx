@@ -22,15 +22,22 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ onNeedDiscover, spot, regionName, look, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
+export default function SceneModal({ spot, regionName, look, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
   /** The metro the map is showing: an address rendered here belongs to its atlas. */
   metroId?: string | null;
-  spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void; /** Tried to loot a place that has not been discovered. */ onNeedDiscover: () => void;
+  spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void; /** Kept for callers; the message is shown over the picture now. */ onNeedDiscover?: () => void;
 }) {
   const render = useMemo(() => freeRenderFor(spot.id), [spot.id]);
   const [tab, setTab] = useState<Tab>(render ? 'snapshot' : 'scene');
   const [raiding, setRaiding] = useState(false);
   const [buying, setBuying] = useState(false);
+  // the reason the LOOT button will not work yet, flashed over the picture
+  const [needDiscover, setNeedDiscover] = useState(0);
+  useEffect(() => {
+    if (!needDiscover) return;
+    const t = window.setTimeout(() => setNeedDiscover(0), 3800);
+    return () => window.clearTimeout(t);
+  }, [needDiscover]);
   // the photo search answers for one place at a time; until it answers for this one, we are still searching (the vault is made up: no photo)
   const [found, setFound] = useState<{ id: string; snapshot: Snapshot | null } | null>(null);
   const snapshot: Snapshot | null | 'searching' = spot.kind === 'vault' ? null : found?.id === spot.id ? found.snapshot : 'searching';
@@ -146,7 +153,7 @@ export default function SceneModal({ onNeedDiscover, spot, regionName, look, vis
             {!render && searching ? 'SNAPSHOT…' : snapshotAvailable ? (locked ? 'SNAPSHOT ★' : 'SNAPSHOT') : 'NO SNAPSHOT'}
           </button>
           {reveal && raid && (
-            <button type="button" className={`rm-tab-loot${visited || render || spot.personal ? '' : ' rm-tab-loot-faded'}`} disabled={account.cleared.has(spot.id)} onClick={() => (visited || render || spot.personal ? setRaiding(true) : onNeedDiscover())} title={account.cleared.has(spot.id) ? 'Already cleared' : 'Fight what lives there and loot it'}>{account.cleared.has(spot.id) ? 'CLEARED' : 'LOOT'}</button>
+            <button type="button" className={`rm-tab-loot${visited || render || spot.personal ? '' : ' rm-tab-loot-faded'}`} disabled={account.cleared.has(spot.id)} onClick={() => (visited || render || spot.personal ? setRaiding(true) : setNeedDiscover(Date.now()))} title={account.cleared.has(spot.id) ? 'Already cleared' : 'Fight what lives there and loot it'}>{account.cleared.has(spot.id) ? 'CLEARED' : 'LOOT'}</button>
           )}
         </div>
 
@@ -171,6 +178,7 @@ export default function SceneModal({ onNeedDiscover, spot, regionName, look, vis
               )}
             </div>
           )}
+          {needDiscover > 0 && <div className="rm-modal-flash" key={needDiscover} role="alert">YOU MUST DISCOVER THIS LOCATION FIRST. GO THERE, OR FAST TRAVEL TO IT, THEN COME BACK TO LOOT IT.</div>}
           <div className="rm-modal-crt" aria-hidden="true" />
         </div>
 

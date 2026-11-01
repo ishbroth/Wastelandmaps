@@ -636,3 +636,6 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-found-recent { padding-left: 0; }
 
 .rm-tab-loot-faded { opacity: 0.45; }
+
+.rm-modal-flash { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; width: min(86%, 460px); text-align: center; padding: 14px 18px; background: rgba(0, 0, 0, 0.82); border: 2px solid #ff9a3d; color: #ffb866; font-family: var(--font-display); font-size: 22px; letter-spacing: 2px; line-height: 1.25; animation: rm-flash-msg 3.8s ease-out forwards; }
+@keyframes rm-flash-msg { 0%, 12%, 24%, 36% { opacity: 1; } 6%, 18%, 30% { opacity: 0.25; } 80% { opacity: 1; } 100% { opacity: 0; } }
