@@ -3,7 +3,7 @@ import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } 
 import { freeRenderFor } from '../lib/renders';
 import { LOOT_CAP } from '../lib/raid/loot';
 import { hapticsAvailable, hapticsEnabled, setHaptics } from '../lib/haptics';
-import { METRO_COST, PACK, atlasCount, atlasUnlock, craftWeapon, type Account, type FoundPlace } from '../lib/account';
+import { METRO_COST, PACK, atlasCount, atlasUnlock, craftWeapon, deleteAccount, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag } from '../lib/raid/loot';
 import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt } from '../lib/raid/weapons';
@@ -228,6 +228,7 @@ export function AccountPanel({ account, found, metro, onChangeHome, onAccount, o
           </div>
         );
       })}
+      <DeleteLine />
     </div>
   );
 }
@@ -297,6 +298,31 @@ function AtlasBox({ account, metro }: { account: Account; metro: { id: string; n
           {(account.credits ?? 0) < METRO_COST && <p className="rm-fine">You have {account.credits ?? 0}. Buy a pack to get more.</p>}
         </>
       )}
+      {note && <p className="rm-account-note">{note}</p>}
+    </div>
+  );
+}
+
+/** The last line of the Data tab: delete the account, after a warning and a confirmation. They can sign up again with the same email afterwards. */
+function DeleteLine() {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+  if (!asking) {
+    return <p className="rm-delete-line"><button type="button" onClick={() => setAsking(true)}>Delete my account</button></p>;
+  }
+  return (
+    <div className="rm-delete-confirm" role="alertdialog" aria-label="Delete my account">
+      <p><b>Delete your account?</b> You will lose all your progress: the places you have found, your level and XP, your credits, loot and guns, your home and your own places. This cannot be undone. You can sign up again with the same email, but you will start from the beginning.</p>
+      <div className="rm-row-buttons">
+        <button
+          type="button" className="rm-btn rm-danger" disabled={busy}
+          onClick={async () => { setBusy(true); const ok = await deleteAccount(); if (!ok) { setNote('The account could not be deleted. Try again in a moment.'); setBusy(false); } }}
+        >
+          {busy ? 'DELETING…' : 'YES, DELETE EVERYTHING'}
+        </button>
+        <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setAsking(false)}>CANCEL</button>
+      </div>
       {note && <p className="rm-account-note">{note}</p>}
     </div>
   );
