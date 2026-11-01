@@ -35,8 +35,10 @@ export const FREE_RENDERS: Record<string, FreeRender> = { ...ORIGINAL_RENDERS, .
 
 /** The free render for a place on the map, by its id ("wd:Q243"), or undefined. */
 export function freeRenderFor(spotId: string): (FreeRender & { url: string; before: string }) | undefined {
-  if (!spotId.startsWith('wd:')) return undefined;
-  const id = spotId.slice(3);
-  const hit = FREE_RENDERS[id];
-  return hit ? { ...hit, url: `${import.meta.env.BASE_URL}renders/${id}.png`, before: `${import.meta.env.BASE_URL}renders/${id}-source.jpg` } : undefined;
+  // a Wikidata place ("wd:Q243") or one of the few landmarks that has none ("famous:...", keyed by its whole id)
+  const id = spotId.startsWith('wd:') ? spotId.slice(3) : spotId.startsWith('famous:') ? spotId : null;
+  const hit = id ? FREE_RENDERS[id] : undefined;
+  if (!id || !hit) return undefined;
+  const file = id.replace(/^famous:/, 'famous-').replace(/-+$/, '');
+  return { ...hit, url: `${import.meta.env.BASE_URL}renders/${file}.png`, before: `${import.meta.env.BASE_URL}renders/${file}-source.jpg` };
 }

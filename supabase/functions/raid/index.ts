@@ -14,6 +14,7 @@ const FREE = new Set([
   'Q243', 'Q9202', 'Q5317', 'Q41225', 'Q45178', 'Q79961', 'Q133274', 'Q2636724', 'Q12495', 'Q134883', 'Q1107297', 'Q4176', 'Q1542408', 'Q9188', 'Q1052042',
   'Q5853834', 'Q2027162', 'Q44440', 'Q1563940', 'Q180376', 'Q390028', 'Q6506496', 'Q831389', 'Q3177225', 'Q223207', 'Q83063', 'Q39054', 'Q179191', 'Q756452',
   'Q9141', 'Q183536', 'Q178114', 'Q29294',
+  'famous:east-county-courthouse-el-cajon-',
 ]);
 const MAX_RAIDS_PER_HOUR = 30;
 
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
   if (b.action === 'start') {
     const placeId = String(b.placeId ?? '');
     const personal = /^me:[A-Za-z0-9_-]{10,200}$/.test(placeId);
-    if (!personal && !/^wd:Q\d+$/.test(placeId)) return reply(req, { error: 'bad_place' }, 400);
+    if (!personal && !/^(wd:Q\d+|famous:[a-z0-9-]+)$/.test(placeId)) return reply(req, { error: 'bad_place' }, 400);
     const worth = Number(b.worth);
     const enemies = Math.round(Number(b.enemies));
     const types = Array.isArray(b.lootTypes) ? [...new Set(b.lootTypes.map(String))] : [];
@@ -50,7 +51,7 @@ Deno.serve(async (req) => {
 
     // the snapshot has to be theirs: a permanent one, unlocked with a credit, or (an address in the atlas) in a metro they have unlocked
     if (personal && worth > 30) return reply(req, { error: 'bad_raid' }, 400);
-    if (!(!personal && FREE.has(placeId.slice(3)))) {
+    if (!(!personal && FREE.has(placeId.startsWith('famous:') ? placeId : placeId.slice(3)))) {
       const { data: owned } = await db.from('unlocks').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
       let allowed = !!owned;
       if (!allowed && personal) {

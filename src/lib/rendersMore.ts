@@ -3,6 +3,8 @@
 import type { FreeRender } from './renders';
 
 export const MORE_RENDERS: Record<string, FreeRender> = {
+  // a landmark with no Wikidata item: keyed by its map id, the photo was supplied by the site owner
+  'famous:east-county-courthouse-el-cajon-': { name: "East County Courthouse (El Cajon)", photo: "Superior Court, East County Division, El Cajon", author: "Supplied by WastelandMaps", license: "Provided by the site owner", page: "https://wastelandmaps.com" },
   Q2636724: { name: "Alamo Mission", photo: "Alamo Mission, San Antonio, Texas, USA", author: "Zygmunt Put Zetpe0202", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Alamo_Mission,_San_Antonio,_Texas,_USA.jpg", lat: 29.425833, lng: -98.486111 },
   Q12495: { name: "Burj Khalifa", photo: "Dubai skyline 2015 (crop)", author: "Tim.Reckmann", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Dubai_skyline_2015_(crop).jpg", lat: 25.197222222222223, lng: 55.274166666666666 },
   Q134883: { name: "CN Tower", photo: "CN Tower from Puente de Luz, Toronto, Ontario, 2025-08-25 01", author: "Chris Woodrich", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:CN_Tower_from_Puente_de_Luz,_Toronto,_Ontario,_2025-08-25_01.jpg", lat: 43.642752777778, lng: -79.387147222222 },
