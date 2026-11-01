@@ -349,3 +349,11 @@ export async function completeSignInFromUrl(url: string): Promise<boolean> {
   }
   return false;
 }
+
+/** Deletes the account and everything tied to it (places found, credits, loot, personal places). The server does it; this signs out afterwards. */
+export async function deleteAccount(): Promise<boolean> {
+  const { data, error } = await db().functions.invoke('delete-account', { body: { confirm: 'DELETE' } });
+  if (error || !data?.ok) return false;
+  await db().auth.signOut();
+  return true;
+}

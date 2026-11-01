@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { purchasesAvailable } from '../lib/native';
-import { PACKS, buyPack, sendSignInLink, signOut, type Account } from '../lib/account';
+import { PACKS, buyPack, deleteAccount, sendSignInLink, signOut, type Account } from '../lib/account';
 
 /** Sign in, see the balance, buy a pack of render credits. */
 export default function AccountModal({ account, onClose }: { account: Account; onClose: () => void }) {
   const [email, setEmail] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [typed, setTyped] = useState('');
 
   const signIn = async (e: FormEvent) => {
     e.preventDefault();
@@ -54,6 +56,22 @@ export default function AccountModal({ account, onClose }: { account: Account; o
             </div>}
             {purchasesAvailable() && <p className="rm-account-small">Pay by card, Apple Pay or Google Pay through Stripe. A render that cannot be made gives your credit back.</p>}
             <button type="button" className="rm-btn rm-btn-ghost" onClick={() => { void signOut(); onClose(); }}>SIGN OUT</button>
+            <p className="rm-account-small"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a></p>
+            {!deleting ? (
+              <button type="button" className="rm-btn rm-btn-ghost rm-danger" onClick={() => setDeleting(true)}>DELETE MY ACCOUNT</button>
+            ) : (
+              <div className="rm-delete">
+                <p className="rm-account-small">This permanently deletes your account, credits, loot, guns and the places you have found. It cannot be undone. Type DELETE to confirm.</p>
+                <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="DELETE" autoComplete="off" aria-label="Type DELETE to confirm" />
+                <button
+                  type="button" className="rm-btn rm-danger" disabled={busy || typed.trim().toUpperCase() !== 'DELETE'}
+                  onClick={async () => { setBusy(true); const ok = await deleteAccount(); if (ok) onClose(); else { setNote('The account could not be deleted. Try again in a moment.'); setBusy(false); } }}
+                >
+                  DELETE FOR GOOD
+                </button>
+                <button type="button" className="rm-btn rm-btn-ghost" onClick={() => { setDeleting(false); setTyped(''); }}>KEEP MY ACCOUNT</button>
+              </div>
+            )}
           </div>
         )}
         {note && <p className="rm-account-note">{note}</p>}

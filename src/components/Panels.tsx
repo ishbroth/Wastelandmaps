@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
 import { freeRenderFor } from '../lib/renders';
 import { LOOT_CAP } from '../lib/raid/loot';
+import { hapticsAvailable, hapticsEnabled, setHaptics } from '../lib/haptics';
 import { METRO_COST, PACK, atlasCount, atlasUnlock, craftWeapon, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag } from '../lib/raid/loot';
@@ -233,6 +234,7 @@ export function AccountPanel({ account, found, metro, onChangeHome, onAccount, o
 
 export function SharePanel({ query, look, soundOn, onToggleSound }: { query: string; look: LookId; soundOn: boolean; onToggleSound: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [haptics, setHapticsState] = useState(hapticsEnabled());
   const link = query ? buildShareUrl({ query, look }) : '';
   const copy = async () => {
     try {
@@ -251,6 +253,7 @@ export function SharePanel({ query, look, soundOn, onToggleSound }: { query: str
         <button type="button" className="rm-btn" disabled={!link} onClick={copy}>{copied ? 'COPIED' : 'COPY LINK'}</button>
         <button type="button" className="rm-btn" disabled={!link} onClick={() => window.print()}>PRINT POSTER</button>
         <button type="button" className="rm-btn" onClick={onToggleSound} aria-pressed={soundOn}>SOUND {soundOn ? 'ON' : 'OFF'}</button>
+        {hapticsAvailable() && <button type="button" className="rm-btn" onClick={() => { setHaptics(!haptics); setHapticsState(!haptics); }} aria-pressed={haptics}>VIBRATION {haptics ? 'ON' : 'OFF'}</button>}
       </div>
       <p className="rm-fine">
         The poster prints exactly what is on screen (use "Save as PDF" in the print window). Map imagery belongs to Google and is for your own

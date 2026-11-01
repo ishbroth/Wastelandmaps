@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { finishRaid, startRaid, type Account } from '../lib/account';
 import { loadRaidAssets, type RaidAssets } from '../lib/raid/assets';
 import { playSound } from '../lib/raid/audio';
+import { buzz } from '../lib/haptics';
 import { enemyById } from '../lib/raid/enemies';
 import { Game, type Enemy, type Spawns } from '../lib/raid/engine';
 import { LOOT_CAP, lootName, type LootBag, type LootId } from '../lib/raid/loot';
@@ -66,7 +67,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
     if (finished.current) return;
     finished.current = true;
     const g = game.current;
-    if (g) setPhase(won ? 'won' : 'lost');
+    if (g) { setPhase(won ? 'won' : 'lost'); buzz(won ? 'victory' : 'defeat'); }
     if (run.current) {
       const result = await finishRaid(run.current, won);
       if (won) { setLoot(result.won ? (result.loot ?? {}) : {}); setLost(result.lost ?? {}); }
@@ -120,8 +121,10 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const before = g.killed;
+      const healthBefore = g.health;
       g.update(dt);
-      if (g.killed > before) playSound('kill', sound);
+      if (g.killed > before) { playSound('kill', sound); buzz('kill'); }
+      if (g.health < healthBefore - 0.5) buzz('hurt');
       const hurtBefore = g.hitFlash;
       void hurtBefore;
       if (pointer.current.down) shoot();
@@ -151,7 +154,8 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, l
       const weapon = g.weapon;
       if (g.fire(u, w, picture.naturalWidth / picture.naturalHeight, ratioOf)) {
         if (weapon) playSound(weapon.splash && !weapon.auto ? 'explosive' : weapon.auto && weapon.splash ? 'flame' : (g.selected as 'pistol' | 'automatic' | 'sniper'), sound);
-        if (weapon?.splash && !weapon.auto) window.setTimeout(() => playSound('boom', sound), 120);
+        if (weapon) buzz(weapon.splash && !weapon.auto ? 'explosive' : weapon.auto && weapon.splash ? 'flame' : (g.selected as 'pistol' | 'automatic' | 'sniper'));
+        if (weapon?.splash && !weapon.auto) window.setTimeout(() => { playSound('boom', sound); buzz('boom'); }, 120);
       }
     };
     (canvas.current as HTMLCanvasElement & { __shoot?: () => void }).__shoot = shoot;

@@ -36,3 +36,13 @@ npm run app:sync        # type-checks, builds the site, copies it into android/ 
 ## What is app-aware in the code
 
 `src/lib/native.ts` (links, saving/sharing pictures through the share sheet, resume, status bar, splash), `src/lib/geo.ts` (location through Capacitor), `src/lib/notify.ts` (local notifications), the sign-in link in `src/lib/account.ts`.
+
+## Feel, background discovery and store requirements (added)
+
+- **Haptics and sounds** (`src/lib/haptics.ts`, `src/lib/sound.ts`): setting out on a fast travel, arriving, discovering, gaining XP, levelling up, and every gun and hit in the shooting gallery buzz and chirp. Sound is on by default in the app and off on the website; vibration has its own switch (Share tab).
+- **Discovery with the phone in a pocket** (`src/lib/geo.ts`): with AUTO-DISCOVER on, the app keeps receiving positions while locked or in the background (community plugin `@capacitor-community/background-geolocation`). Android shows a notification while it does (that is the system's rule); iOS shows the blue status bar. Web requests use Capacitor's native networking (`CapacitorHttp`) so discoveries still reach the server after five minutes in the background. Test this on real phones: the simulator cannot move.
+  - **Apple review:** background location needs a clear reason and the `UIBackgroundModes: location` entry (done). In App Store Connect's review notes, say that background location is used only to discover nearby places while the user has AUTO-DISCOVER on, and that it can be switched off in the app.
+  - **Google Play review:** `ACCESS_BACKGROUND_LOCATION` needs the Play Console's location declaration and a short demo video of the feature.
+- **Account deletion** (required by both stores): Account > Delete my account (`delete-account` function). **Privacy policy:** `/privacy.html` (replace the contact address with a real one before submitting).
+- **iOS privacy manifest:** `ios/App/App/PrivacyInfo.xcprivacy` is added to the Xcode project's resources. In Xcode, Product > Archive, then check "Generate Privacy Report" lists nothing undeclared.
+- **Reviewer login:** the sign-in is an emailed link, which a store reviewer cannot open. Before submitting, add a review account they can use (for example a fixed email with a password sign-in only that account can use) and put it in the review notes.

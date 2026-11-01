@@ -570,3 +570,6 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-atlas { margin-top: 10px; }
 .rm-suggest-inline { position: static; box-shadow: none; margin-top: 6px; }
 .rm-home .rm-account-body { display: grid; gap: 10px; }
+
+.rm-danger { border-color: #ff6a3d; color: #ff6a3d; }
+.rm-delete { display: grid; gap: 8px; }

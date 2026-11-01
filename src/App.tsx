@@ -23,7 +23,8 @@ import { loadZones, zoneFromEntry } from './lib/zones';
 import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORTH_AMERICA, type RegionLabel } from './lib/regions';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState } from './lib/share';
-import { beep } from './lib/sound';
+import { beep, type BeepKind } from './lib/sound';
+import { buzz } from './lib/haptics';
 import { START_MINUTES, formatClock, type TravelRun } from './lib/travel';
 import NavBanner from './components/NavBanner';
 import { currentFix, flightsUrl, googleMapsUrl, isOverseas, progressAlong, requestRoute, type NavRoute } from './lib/navigation';
@@ -51,7 +52,7 @@ export default function App() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [hidden, setHidden] = useState<Set<CategoryId>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [soundOn, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => isNative()); // on in the app, off on the website until switched on
 
   // the survivor: where they stand, what time it is, how irradiated they are, what they have seen
   const [player, setPlayer] = useState<LatLng | null>(null);
@@ -146,7 +147,9 @@ export default function App() {
     navRef.current = nav;
   }, [soundOn, look, visited, allLocations, busy, travel, wasteland, nav]);
 
-  const sound = useCallback((kind: 'tick' | 'select' | 'error') => {
+  /** A sound and a buzz for a moment of the game (the buzz has its own switch; the sound follows SOUND). */
+  const sound = useCallback((kind: BeepKind) => {
+    buzz(kind);
     if (soundRef.current) beep(kind);
   }, []);
 
@@ -231,7 +234,8 @@ export default function App() {
     setToast(`DISCOVERED: ${said.join(' | ')}`);
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(''), 4200);
-    if (soundRef.current) beep('select');
+    buzz('discover');
+    if (soundRef.current) beep('discover');
     // reaching places on foot earns XP; every level reached gives a free snapshot credit
     const who = accountRef.current?.session;
     // signed in and on foot: the notification waits for the XP, so it can say "+50 XP" too
@@ -250,11 +254,15 @@ export default function App() {
         if (added > 0) {
           // on the map if it is in front of them, as a notification if the page is in the background
           setXpFlash({ text: `+${added} XP`, id: Date.now() });
+          buzz('xp');
+          if (soundRef.current) beep('xp');
           window.clearTimeout(xpTimer.current);
           xpTimer.current = window.setTimeout(() => setXpFlash(null), 2600);
         }
         if (credits > 0) {
           window.setTimeout(() => {
+            buzz('levelup');
+            if (soundRef.current) beep('levelup');
             setToast(`LEVEL UP${level ? `: LEVEL ${level}` : ''}. ${credits} FREE SNAPSHOT CREDIT${credits > 1 ? 'S' : ''} EARNED`);
             window.clearTimeout(toastTimer.current);
             toastTimer.current = window.setTimeout(() => setToast(''), 5200);
@@ -622,6 +630,7 @@ export default function App() {
     const first = answer.route.steps[0];
     setNav({ spot, route: answer.route, step: 0, toTurn: first?.meters ?? null, remaining: answer.route.meters, busy: '' });
     setMessage(`NAVIGATING TO ${spot.name.toUpperCase()}`);
+    sound('travel');
   }, [tracking, say, sound, openFlights]);
 
   /** Every new position while navigating: the next turn, the distance left, rerouting if you left the road, and arriving. */
@@ -637,6 +646,8 @@ export default function App() {
       const place = locationsRef.current.find((l) => l.id === spot.id);
       if (place) markFound([place], here);
       say(`ARRIVED: ${spot.name}`);
+      buzz('arrive');
+      if (soundRef.current) beep('arrive');
       setSceneId(spot.id);
       return;
     }
@@ -679,7 +690,7 @@ export default function App() {
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(''), 3200);
     setSceneId(t.spot.id);
-    sound('select');
+    sound('arrive');
   }, [sound, recordFound]);
 
   // auto-discover: while it is on, walking within about 120 m of a place fills it in on the map
@@ -704,6 +715,7 @@ export default function App() {
       },
       // only a refusal turns it off: a moment without a signal (a tunnel, a bad fix) must not end the navigation
       (code) => { if (code === 1) { setTracking(false); setMessage('ERROR: LOCATION PERMISSION DENIED'); } },
+      { background: { title: 'WastelandMaps is exploring', message: 'Discovering places as you move. Turn AUTO-DISCOVER off to stop.' } },
     ).then((off) => { if (cancelled) off(); else stop = off; });
     return () => { cancelled = true; stop?.(); };
   }, [tracking, markFound]);

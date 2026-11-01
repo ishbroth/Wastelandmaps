@@ -16,8 +16,13 @@ const config: CapacitorConfig = {
   },
   android: {
     backgroundColor: '#000a04',
+    // keeps position updates coming after five minutes in the background (needed by background discovery)
+    useLegacyBridge: true,
   },
   plugins: {
+    // web requests go through the phone's own networking: Android throttles the web view's requests after five minutes in the background, and the
+    // discoveries found while the phone is in a pocket have to reach the server
+    CapacitorHttp: { enabled: true },
     SplashScreen: {
       launchAutoHide: false,
       backgroundColor: '#000a04',

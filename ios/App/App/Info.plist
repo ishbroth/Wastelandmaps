@@ -26,6 +26,12 @@
 	<false/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>WastelandMaps uses your location to show where you are on the map, to discover places as you reach them, and to give you directions.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>WastelandMaps can keep discovering places as you walk or drive with your phone in your pocket. Your location is used only for that and for directions, and is never shared or sold.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>WastelandMaps saves the snapshots and videos you choose to your photos.</string>
 	<key>CFBundleURLTypes</key>
