@@ -210,7 +210,7 @@ export interface Location {
   /** A district of the city rather than a building. */
   neighborhood?: boolean;
   /** An address someone travelled to (their own pin, a little smaller): where it is, what kind of place it is, and whether they have reached it. */
-  personal?: { address: string; kind: PersonalKind; saved: boolean; /** Rendered by another survivor, shown because the whole metro is unlocked. */ atlas?: boolean };
+  personal?: { address: string; kind: PersonalKind; saved: boolean; /** Rendered by another survivor, shown because the whole metro is unlocked. */ atlas?: boolean; /** Their home: a vault on the map, with the number they chose. */ home?: boolean };
 }
 
 const THREATS: Location['threat'][] = ['Raiders', 'Raiders', 'Raiders', 'Raiders', 'Raiders', 'Feral Ghouls', 'Super Mutants', 'Radiation'];
@@ -339,6 +339,10 @@ function presentDay(plan: PlaceInhabitants): string {
 }
 
 export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabitants): string[] {
+  if (spot.personal?.home) {
+    const number = Number(spot.name.replace(/\D/g, '')) || 0;
+    return [`${spot.name}, ${regionName}. Your home: ${spot.personal.address}.`, ...vaultStory(`home-${number}`, number)];
+  }
   if (spot.personal) return describePersonal(spot.name, spot.personal.address, spot.personal.kind, regionName);
   const rand = seeded(hashString(`${spot.id}|journal`));
   if (spot.lore && !spot.vault) {

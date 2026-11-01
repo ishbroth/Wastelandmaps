@@ -42,7 +42,7 @@ export function assignVaults(metro: Metro, places: Location[]): Location[] {
   // the games' own vaults that stand in this metro
   let lore = 0;
   for (const v of LORE_VAULTS) {
-    if (distanceMeters({ lat: metro.lat, lng: metro.lng }, v) / 1000 > metro.radiusKm) continue;
+    if (v.metro !== metro.id) continue;
     lore++;
     taken.add(v.number);
     // does a place on the map stand where the vault does? then that place is its entrance

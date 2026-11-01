@@ -57,7 +57,7 @@ export default function LocationCard({ spot, from, here, visited, cleared, unloc
         <button type="button" className="rm-card-close" onClick={onClose} aria-label="Close">×</button>
       </div>
       <p className="rm-card-meta">
-        {spot.personal ? <>{cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : spot.personal.atlas ? 'ADDRESS ATLAS' : spot.personal.saved ? 'YOUR PLACE · DISCOVERED' : 'DESTINATION'}{enemies ? ` · ${enemies}` : ''}</> : <>{cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : visited ? 'DISCOVERED' : 'UNDISCOVERED'}{enemies ? ` · ${enemies}` : ''}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}</>}
+        {spot.personal ? <>{spot.personal.home ? 'YOUR HOME' : cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : spot.personal.atlas ? 'ADDRESS ATLAS' : spot.personal.saved ? 'YOUR PLACE · DISCOVERED' : 'DESTINATION'}{enemies ? ` · ${enemies}` : ''}</> : <>{cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : visited ? 'DISCOVERED' : 'UNDISCOVERED'}{enemies ? ` · ${enemies}` : ''}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}</>}
       </p>
       {!here && from && (
         <p className="rm-card-trip">

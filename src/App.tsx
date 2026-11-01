@@ -101,10 +101,10 @@ export default function App() {
   const [target, setTarget] = useState<PersonalPlace | null>(null);
   const personalLocs = useMemo(() => {
     const here = region?.center;
-    const mine = account.personal.filter((q) => !here || distanceMeters(here, { lat: q.lat, lng: q.lng }) < 150_000).map((q) => personalLocation(q, true));
+    const mine = account.personal.filter((q) => !here || distanceMeters(here, { lat: q.lat, lng: q.lng }) < 150_000).map((q) => personalLocation(q, true, account.home?.vaultNumber && account.home.placeId === q.placeId ? account.home.vaultNumber : undefined));
     if (target && !account.personal.some((q) => q.placeId === target.placeId)) mine.push(personalLocation(target, false));
     return mine;
-  }, [account.personal, target, region]);
+  }, [account.personal, account.home, target, region]);
   // the metro on the map (its address atlas), the addresses other survivors rendered there when this person has unlocked the metro, and the home prompt
   const [metroInfo, setMetroInfo] = useState<{ id: string; name: string } | null>(null);
   const [atlas, setAtlas] = useState<AtlasPlace[]>([]);
@@ -485,14 +485,17 @@ export default function App() {
     setSelectedId(personalId(place.placeId));
   }, [show, search]);
   /** Home chosen (here or typed): remembered, shown as a place of their own named Home, and the map goes there. */
-  const chooseHome = useCallback(async (place: PickedPlace) => {
+  const chooseHome = useCallback(async (place: PickedPlace, vaultNumber: number): Promise<string | null> => {
     const who = accountRef.current?.session;
-    if (!who) return;
-    await saveHome(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, skipped: false });
+    if (!who) return 'Sign in first.';
+    const saved = await saveHome(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, skipped: false, vaultNumber });
+    if (saved === 'taken') return `Vault ${vaultNumber} already belongs to another survivor. Pick a different number.`;
+    if (saved === 'error') return 'That could not be saved. Try again in a moment.';
     await savePersonalPlace(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, kind: 'house' });
     await accountRef.current?.refresh();
     setHomeOpen(false);
-    await show(() => geocodeQuery(place.address).catch(() => geocodeLatLng(place.position)), 'HOME');
+    await show(() => geocodeQuery(place.address).catch(() => geocodeLatLng(place.position)), `VAULT ${vaultNumber}`);
+    return null;
   }, [show]);
   const skipHome = useCallback(async () => {
     setHomeSkipped(true);
@@ -816,7 +819,7 @@ export default function App() {
           )}
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
-              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = allLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas ? (name) => void renameSpot(selectedSpot, name) : undefined}
+              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = allLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
               traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}
@@ -824,11 +827,18 @@ export default function App() {
             <SceneModal
               metroId={metroInfo?.id}
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)}
-              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.personal) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)}
+              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || (place.personal && !place.personal.home)) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)}
             />
           )}
           {accountOpen && !account.session && <AccountModal onClose={() => setAccountOpen(false)} />}
-          {((account.session && account.homeLoaded && !account.home && !homeSkipped) || homeOpen) && <HomePrompt onChosen={(place) => void chooseHome(place)} onSkip={() => void skipHome()} />}
+          {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && !account.home.vaultNumber)) && !homeSkipped) || homeOpen) && (
+            <HomePrompt
+              key={homeOpen ? 'change' : 'first'}
+              onChosen={chooseHome} onSkip={() => void skipHome()} number={account.home?.vaultNumber}
+              startWith={!homeOpen && account.home?.address && !account.home.vaultNumber && account.home.lat !== undefined && account.home.lng !== undefined
+                ? { placeId: account.home.placeId ?? '', name: 'Home', address: account.home.address, position: { lat: account.home.lat, lng: account.home.lng }, kind: 'house' } : undefined}
+            />
+          )}
 
           <div className="rm-status" role="status">
             <span className={busy || travel ? 'rm-blink' : ''}>{message}</span>

@@ -7,6 +7,8 @@
 
 export interface LoreVault {
   number: number;
+  /** The one metro it is placed in (the metros around it do not get it as well). */
+  metro: string;
   game: string;
   lat: number;
   lng: number;
@@ -20,7 +22,7 @@ export interface LoreVault {
 export const LORE_VAULTS: LoreVault[] = [
   // ---- Fallout: the Necropolis ghouls' vault, under Bakersfield
   {
-    number: 12, game: 'Fallout', lat: 35.3733, lng: -119.0187, approximate: true,
+    number: 12, metro: 'us-ca-bakersfield', game: 'Fallout', lat: 35.3733, lng: -119.0187, approximate: true,
     lore: 'Beneath Necropolis. Sold as a well-equipped shelter, it was built to study radiation on its people, and its door was made never to close. Its people became ghouls.',
     story: [
       'Vault 12 was sold as a well-stocked shelter and built as a radiation study: its great door was made so that it could never fully close.',
@@ -30,7 +32,7 @@ export const LORE_VAULTS: LoreVault[] = [
   },
   // ---- Fallout 4: the Commonwealth (Boston)
   {
-    number: 111, game: 'Fallout 4', lat: 42.47, lng: -71.37, approximate: true,
+    number: 111, metro: 'us-ma-boston', game: 'Fallout 4', lat: 42.47, lng: -71.37, approximate: true,
     lore: 'Overlooking Sanctuary Hills. Its people were told it was a shelter and were frozen instead: a Vault-Tec experiment in cryogenics. One of them walked out, two hundred years later.',
     story: [
       'Vault 111 stands above Sanctuary Hills. The neighbors who ran to it were told the pods were for decontamination; they were frozen to see what long sleep would do.',
@@ -39,7 +41,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 81, game: 'Fallout 4', lat: 42.346, lng: -71.17, approximate: true,
+    number: 81, metro: 'us-ma-boston', game: 'Fallout 4', lat: 42.346, lng: -71.17, approximate: true,
     lore: 'West of the Fens. Built to test a universal cure; the Overseer sabotaged the experiments, and the research wing went to the mole rats.',
     story: [
       'Vault 81 was built to find a cure for every disease, using its own residents as unwitting patients; the diseases were to be released through hidden nozzles in their homes.',
@@ -48,7 +50,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 88, game: 'Fallout 4', lat: 42.286, lng: -71.047, approximate: false,
+    number: 88, metro: 'us-ma-boston', game: 'Fallout 4', lat: 42.286, lng: -71.047, approximate: false,
     lore: 'Under the Quincy Quarries. A testing ground for prototype devices, never finished; it sealed itself when the bombs fell and the ghouls took it.',
     story: [
       'Vault 88 was meant to be the place where Vault-Tec tested its prototype devices before they went into other vaults, built over a rich seam of uranium.',
@@ -57,7 +59,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 114, game: 'Fallout 4', lat: 42.3564, lng: -71.0624, approximate: false,
+    number: 114, metro: 'us-ma-boston', game: 'Fallout 4', lat: 42.3564, lng: -71.0624, approximate: false,
     lore: 'In Park Street Station. A vault for the wealthy, meant to see how the privileged cope with less; never finished, and now a gangster\'s.',
     story: [
       'Vault 114 was begun inside Park Street Station for a hundred and twenty of Boston\'s wealthy and powerful, who were to be packed several families to a room to see how the privileged cope with less.',
@@ -66,7 +68,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 75, game: 'Fallout 4', lat: 42.4251, lng: -71.0662, approximate: true,
+    number: 75, metro: 'us-ma-boston', game: 'Fallout 4', lat: 42.4251, lng: -71.0662, approximate: true,
     lore: 'Under Malden Middle School. Meant to refine human genetics through children alone; the adults were removed, and the "graduates" were harvested.',
     story: [
       'Vault 75 was dug under a school and sold as a shelter for its students. When the bombs fell the children were separated from their families and the adults were taken away.',
@@ -75,7 +77,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 95, game: 'Fallout 4', lat: 42.2, lng: -71.19, approximate: true,
+    number: 95, metro: 'us-ma-boston', game: 'Fallout 4', lat: 42.2, lng: -71.19, approximate: true,
     lore: 'At the edge of the Glowing Sea. A rehabilitation vault for addicts, with a hidden stash to see what would happen when it was found.',
     story: [
       'Vault 95 was a rehabilitation program for chem addicts, sealed for five years of treatment.',
@@ -85,7 +87,7 @@ export const LORE_VAULTS: LoreVault[] = [
   },
   // ---- Fallout 3: the Capital Wasteland (Washington, D.C.)
   {
-    number: 101, game: 'Fallout 3', lat: 38.84, lng: -77.3, approximate: true,
+    number: 101, metro: 'us-dc-washington', game: 'Fallout 3', lat: 38.84, lng: -77.3, approximate: true,
     lore: 'Northwest of Megaton. The door closed in the Great War and, the Overseer swore, never opened. Someone left anyway, looking for their father.',
     story: [
       'Vault 101 was a social experiment in a door that would never open: a closed community, with a planted Overseer, to see how it behaves.',
@@ -94,7 +96,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 87, game: 'Fallout 3', lat: 38.93, lng: -77.42, approximate: true,
+    number: 87, metro: 'us-dc-washington', game: 'Fallout 3', lat: 38.93, lng: -77.42, approximate: true,
     lore: 'Northwest of Little Lamplight. Built to study the Forced Evolutionary Virus on people; its residents became super mutants.',
     story: [
       'Vault 87 was built for the Forced Evolutionary Virus program: the Overseer and the guards knew from the beginning that the residents were test subjects.',
@@ -103,7 +105,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 92, game: 'Fallout 3', lat: 39.2, lng: -77.16, approximate: true,
+    number: 92, metro: 'us-dc-washington', game: 'Fallout 3', lat: 39.2, lng: -77.16, approximate: true,
     lore: 'Northwest of Old Olney. A vault of musicians used to test white-noise mind control, which drove them to murder.',
     story: [
       'Vault 92 was built for two hundred and forty-five musicians under cover of preserving musical talent.',
@@ -112,7 +114,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 106, game: 'Fallout 3', lat: 38.77, lng: -77.1, approximate: true,
+    number: 106, metro: 'us-dc-washington', game: 'Fallout 3', lat: 38.77, lng: -77.1, approximate: true,
     lore: 'Southeast of Arefu. Psychoactive drugs were released into its air from the tenth day; the survivors are still hallucinating.',
     story: [
       'Ten days after Vault 106 was sealed, its Overseer began releasing psychoactive drugs through the air filters, and ordered the guards to say all was well.',
@@ -121,7 +123,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 108, game: 'Fallout 3', lat: 38.82, lng: -77.21, approximate: true,
+    number: 108, metro: 'us-dc-washington', game: 'Fallout 3', lat: 38.82, lng: -77.21, approximate: true,
     lore: 'South of Canterbury Commons. A vault run on leadership conflict, where the scientists cloned a man named Gary until nobody could stand him.',
     story: [
       'Vault 108 was built for four hundred and seventy-five people for thirty-eight years, with every position left for the Overseer to assign personally, triple the usual defenses, and no entertainment of any kind.',
@@ -130,7 +132,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 112, game: 'Fallout 3', lat: 38.7, lng: -77.38, approximate: true,
+    number: 112, metro: 'us-dc-washington', game: 'Fallout 3', lat: 38.7, lng: -77.38, approximate: true,
     lore: 'West of Evergreen Mills. Its residents sleep in pods, living a simulated life, and their keeper has been playing with them for two hundred years.',
     story: [
       'Vault 112 held eighty-five residents, not living but sleeping: asleep in pods with their minds in a virtual neighborhood, a perfect suburb, at the pleasure of a doctor.',
@@ -140,7 +142,7 @@ export const LORE_VAULTS: LoreVault[] = [
   },
   // ---- Fallout: New Vegas: the Mojave (Las Vegas)
   {
-    number: 21, game: 'Fallout: New Vegas', lat: 36.1147, lng: -115.1728, approximate: false,
+    number: 21, metro: 'us-nv-las-vegas', game: 'Fallout: New Vegas', lat: 36.1147, lng: -115.1728, approximate: false,
     lore: 'On the Strip, where it is a hotel now. A vault that settled every argument by gambling, and still does, for caps.',
     story: [
       'Vault 21 was a vault that settled every dispute by chance, on the theory that a community living by the luck of the draw would be an equal one.',
@@ -149,7 +151,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 19, game: 'Fallout: New Vegas', lat: 36.046, lng: -115.395, approximate: false,
+    number: 19, metro: 'us-nv-las-vegas', game: 'Fallout: New Vegas', lat: 36.046, lng: -115.395, approximate: false,
     lore: 'The Blue Diamond Mine. A social experiment that split the residents into Reds and Blues and let them go to war. Nobody calls it a success.',
     story: [
       'Vault 19 was a test of paranoia without violence or drugs: the residents were split into red and blue halves and kept apart.',
@@ -158,7 +160,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 34, game: 'Fallout: New Vegas', lat: 36.152, lng: -115.032, approximate: false,
+    number: 34, metro: 'us-nv-las-vegas', game: 'Fallout: New Vegas', lat: 36.152, lng: -115.032, approximate: false,
     lore: 'The Frenchman Mine, by Nellis. Stocked with weapons and short on water, until the radiation leaked and its people became ghouls.',
     story: [
       'Vault 34 was a test of overcrowding with an open armory: too many people, too little room (the pool took the space), and every one of them armed.',
@@ -167,7 +169,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 3, game: 'Fallout: New Vegas', lat: 36.075, lng: -115.215, approximate: true,
+    number: 3, metro: 'us-nv-las-vegas', game: 'Fallout: New Vegas', lat: 36.075, lng: -115.215, approximate: true,
     lore: 'South Vegas, west of the airport. A control vault with no experiment, taken by the Fiends after a flood.',
     story: [
       'Vault 3 was one of the control vaults: no experiment at all, just a community living in an orderly, democratic way for generations.',
@@ -176,7 +178,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 11, game: 'Fallout: New Vegas', lat: 35.84, lng: -115.0, approximate: true,
+    number: 11, metro: 'us-nv-las-vegas', game: 'Fallout: New Vegas', lat: 35.84, lng: -115.0, approximate: true,
     lore: 'West of Boulder City. Every year the residents had to choose one of their own to die, and the vault ate itself arguing over who.',
     story: [
       'Vault 11 asked its residents for one life a year: a person chosen to die, or the computer would shut off the life support.',
@@ -185,7 +187,7 @@ export const LORE_VAULTS: LoreVault[] = [
     ],
   },
   {
-    number: 22, game: 'Fallout: New Vegas', lat: 36.19, lng: -115.47, approximate: true,
+    number: 22, metro: 'us-nv-las-vegas', game: 'Fallout: New Vegas', lat: 36.19, lng: -115.47, approximate: true,
     lore: 'West of Las Vegas, east of Jacobstown. A garden vault where a fungus escaped and turned the residents into spore carriers.',
     story: [
       'Vault 22 was a green vault: its scientists worked to improve crops and fight hunger, and after the war they meant to feed everyone from the vault\'s own plants.',

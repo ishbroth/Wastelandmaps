@@ -3,22 +3,34 @@ import { reverseGeocode, resolveSuggestion, suggest, type PickedPlace, type Sugg
 import { currentFix } from '../lib/navigation';
 import { locationState } from '../lib/geo';
 
-type Step = 'ask' | 'type';
+type Step = 'ask' | 'type' | 'number';
 
 /**
- * Asked once, when someone signs in for the first time: where is home? With location on they can use where they are standing; otherwise (or if they would rather)
- * they type an address. They can skip it.
+ * Asked once, when someone signs in for the first time: where is home, and which vault number is it? With location on they can use where they are standing;
+ * otherwise (or if they would rather) they type an address. Then they pick a four-digit number: their home is a vault on the map, and no other vault on the
+ * whole map has four digits. They can skip it.
  */
-export default function HomePrompt({ onChosen, onSkip }: { onChosen: (place: PickedPlace) => void; onSkip: () => void }) {
-  const [step, setStep] = useState<Step | null>(null);
+export default function HomePrompt({ onChosen, onSkip, startWith, number: startNumber }: {
+  /** Saves the home; returns a message if it could not be (the number is taken), or null when it is done. */
+  onChosen: (place: PickedPlace, vaultNumber: number) => Promise<string | null>;
+  onSkip: () => void;
+  /** A home already chosen that still needs its number. */
+  startWith?: PickedPlace;
+  /** The number to start from (their current one, when changing home). */
+  number?: number;
+}) {
+  const [step, setStep] = useState<Step | null>(startWith ? 'number' : null);
+  const [picked, setPicked] = useState<PickedPlace | null>(startWith ?? null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [value, setValue] = useState('');
+  const [digits, setDigits] = useState(startNumber ? String(startNumber) : '');
   const [items, setItems] = useState<Suggestion[]>([]);
   const latest = useRef(0);
 
   // location available and not refused: offer it; otherwise go straight to typing an address
   useEffect(() => {
+    if (startWith) return;
     let cancelled = false;
     const decide = async () => {
       const state = await locationState();
@@ -26,7 +38,7 @@ export default function HomePrompt({ onChosen, onSkip }: { onChosen: (place: Pic
     };
     void decide().then((s) => { if (!cancelled) setStep(s as Step); });
     return () => { cancelled = true; };
-  }, []);
+  }, [startWith]);
 
   useEffect(() => {
     if (step !== 'type') return;
@@ -37,6 +49,11 @@ export default function HomePrompt({ onChosen, onSkip }: { onChosen: (place: Pic
     return () => window.clearTimeout(timer);
   }, [value, step]);
 
+  const picks = (place: PickedPlace) => {
+    setPicked(place);
+    setNote('');
+    setStep('number');
+  };
   const useHere = async () => {
     setBusy(true);
     setNote('');
@@ -48,17 +65,27 @@ export default function HomePrompt({ onChosen, onSkip }: { onChosen: (place: Pic
       setStep('type');
       return;
     }
-    onChosen(place);
+    picks(place);
   };
   const choose = async (s: Suggestion) => {
     setBusy(true);
     setItems([]);
     try {
-      onChosen(await resolveSuggestion(s));
+      picks(await resolveSuggestion(s));
     } catch {
       setNote('That address could not be found. Try another.');
-      setBusy(false);
     }
+    setBusy(false);
+  };
+
+  const number = Number(digits);
+  const valid = /^\d{4}$/.test(digits) && number >= 1000 && number <= 9999;
+  const build = async () => {
+    if (!picked || !valid) return;
+    setBusy(true);
+    setNote('');
+    const problem = await onChosen(picked, number);
+    if (problem) { setNote(problem); setBusy(false); }
   };
 
   return (
@@ -66,8 +93,8 @@ export default function HomePrompt({ onChosen, onSkip }: { onChosen: (place: Pic
       <div className="rm-modal-card rm-account rm-home" onClick={(e) => e.stopPropagation()}>
         <div className="rm-modal-head">
           <div>
-            <h2>WHERE IS HOME?</h2>
-            <p>Your vault door: where your map begins</p>
+            <h2>{step === 'number' ? 'YOUR VAULT NUMBER' : 'WHERE IS HOME?'}</h2>
+            <p>{step === 'number' ? 'Your home is a vault on the map' : 'Your vault door: where your map begins'}</p>
           </div>
         </div>
         <div className="rm-account-body">
@@ -94,6 +121,19 @@ export default function HomePrompt({ onChosen, onSkip }: { onChosen: (place: Pic
                   ))}
                 </ul>
               )}
+            </>
+          )}
+          {step === 'number' && picked && (
+            <>
+              <p>{picked.address}</p>
+              <p>Pick a four-digit number (1000 to 9999) for your vault. It is yours alone: nobody else can have the same one.</p>
+              <input
+                autoFocus value={digits} inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="1234" autoComplete="off" aria-label="Vault number"
+                onChange={(e) => setDigits(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                onKeyDown={(e) => { if (e.key === 'Enter') void build(); }}
+              />
+              <button type="button" className="rm-btn" disabled={busy || !valid} onClick={() => void build()}>{busy ? 'BUILDING…' : valid ? `BUILD VAULT ${digits}` : 'ENTER FOUR DIGITS'}</button>
+              {!startWith && <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { setStep('type'); setPicked(null); }}>CHOOSE A DIFFERENT ADDRESS</button>}
             </>
           )}
           {note && <p className="rm-account-note">{note}</p>}

@@ -37,18 +37,18 @@ export function kindFromTypes(types: string[], name: string): PersonalKind {
 }
 
 /** The map pin for a personal place: `saved` once it has been reached; until then it is only the destination. */
-export function personalLocation(p: PersonalPlace, saved: boolean): Location {
+export function personalLocation(p: PersonalPlace, saved: boolean, homeVault?: number): Location {
   return {
     id: personalId(p.placeId),
     oldName: p.name,
-    name: p.name,
+    name: homeVault ? `VAULT ${homeVault}` : p.name,
     category: PERSONAL_CATEGORY[p.kind],
     position: { lat: p.lat, lng: p.lng },
     loot: 'Whatever the years left in the cupboards',
     threat: 'Quiet',
     rads: 0,
-    icon: PERSONAL_ICON[p.kind],
-    personal: { address: p.address, kind: p.kind, saved },
+    icon: homeVault ? 'vault' : PERSONAL_ICON[p.kind],
+    personal: { address: p.address, kind: p.kind, saved, ...(homeVault ? { home: true } : {}) },
   };
 }
 

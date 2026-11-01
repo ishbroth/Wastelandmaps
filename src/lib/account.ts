@@ -30,7 +30,7 @@ export const PACK = PACKS[0];
 /** Unlocking every rendered address in one metro. */
 export const METRO_COST = 48;
 
-export interface Home { placeId?: string; name?: string; address?: string; lat?: number; lng?: number; skipped: boolean }
+export interface Home { placeId?: string; name?: string; address?: string; lat?: number; lng?: number; skipped: boolean; /** The four-digit number of their home vault. */ vaultNumber?: number }
 
 export interface Account {
   /** Where home is (null until they have said or skipped), and whether that is known yet. */
@@ -105,10 +105,10 @@ export function useAccount(): Account {
     });
     void db().from('raid_runs').select('place_id').eq('user_id', s.user.id).eq('won', true).then((r) => setCleared(new Set(((r.data ?? []) as { place_id: string }[]).map((x) => x.place_id))));
     void db().from('personal_places').select('place_id,name,address,lat,lng,kind').eq('user_id', s.user.id).order('created_at').then((r) => setPersonal(((r.data ?? []) as { place_id: string; name: string; address: string; lat: number; lng: number; kind: PersonalPlace['kind'] }[]).map((x) => ({ placeId: x.place_id, name: x.name, address: x.address, lat: x.lat, lng: x.lng, kind: x.kind }))));
-    void db().from('user_home').select('place_id,name,address,lat,lng,skipped').eq('user_id', s.user.id).maybeSingle().then((r) => {
+    void db().from('user_home').select('place_id,name,address,lat,lng,skipped,vault_number').eq('user_id', s.user.id).maybeSingle().then((r) => {
       // if the table is not there yet, do not nag about it
       if (r.error) setHome({ skipped: true });
-      else setHome(r.data ? { placeId: r.data.place_id ?? undefined, name: r.data.name ?? undefined, address: r.data.address ?? undefined, lat: r.data.lat ?? undefined, lng: r.data.lng ?? undefined, skipped: !!r.data.skipped } : null);
+      else setHome(r.data ? { placeId: r.data.place_id ?? undefined, name: r.data.name ?? undefined, address: r.data.address ?? undefined, lat: r.data.lat ?? undefined, lng: r.data.lng ?? undefined, skipped: !!r.data.skipped, vaultNumber: r.data.vault_number ?? undefined } : null);
       setHomeLoaded(true);
     });
     void db().from('metro_unlocks').select('metro_id').eq('user_id', s.user.id).then((r) => setMetros(new Set(((r.data ?? []) as { metro_id: string }[]).map((x) => x.metro_id))));
@@ -326,9 +326,14 @@ export async function atlasList(metroId: string): Promise<AtlasPlace[]> {
   return error || !data?.places ? [] : (data.places as AtlasPlace[]);
 }
 
-/** Remembers where home is, or that they chose not to say. */
-export async function saveHome(userId: string, home: Home): Promise<void> {
-  await db().from('user_home').upsert({ user_id: userId, place_id: home.placeId ?? null, name: home.name ?? null, address: home.address ?? null, lat: home.lat ?? null, lng: home.lng ?? null, skipped: home.skipped }, { onConflict: 'user_id' });
+/** Remembers where home is and its vault number, or that they chose not to say. 'taken': another survivor already has that number. */
+export async function saveHome(userId: string, home: Home): Promise<'ok' | 'taken' | 'error'> {
+  const { error } = await db().from('user_home').upsert({
+    user_id: userId, place_id: home.placeId ?? null, name: home.name ?? null, address: home.address ?? null, lat: home.lat ?? null, lng: home.lng ?? null,
+    skipped: home.skipped, vault_number: home.vaultNumber ?? null,
+  }, { onConflict: 'user_id' });
+  if (!error) return 'ok';
+  return error.code === '23505' ? 'taken' : 'error';
 }
 
 /** The app was opened by the sign-in email's link (com.wastelandmaps.app://auth#access_token=...): finish signing in with it. */

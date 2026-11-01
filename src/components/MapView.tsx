@@ -287,7 +287,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
     for (const loc of inView) {
       if (pins.current.has(loc.id)) continue;
       const free = freeRenderFor(loc.id); // the always-free landmarks: drawn as themselves, and a little larger
-      const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free ? 'rm-pin-landmark' : loc.famous ? 'rm-pin-famous' : '', loc.personal ? 'rm-pin-personal' : '', loc.personal && !loc.personal.saved ? 'rm-pin-target' : ''].filter(Boolean).join(' '));
+      const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free ? 'rm-pin-landmark' : loc.famous ? 'rm-pin-famous' : '', loc.personal?.home ? 'rm-pin-landmark' : loc.personal ? 'rm-pin-personal' : '', loc.personal && !loc.personal.saved ? 'rm-pin-target' : ''].filter(Boolean).join(' '));
       el.classList.toggle('rm-pin-visited', visitedRef.current.has(loc.id));
       markCleared(el, clearedRef.current.has(loc.id));
       const brandNew = !everShown.current.has(loc.id);
