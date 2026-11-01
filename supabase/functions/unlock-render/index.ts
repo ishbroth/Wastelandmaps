@@ -11,37 +11,23 @@
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
 import { renderPrompt } from '../_shared/renderPrompt.ts';
+import { findPhotoFor } from '../_shared/photoSources.ts';
 
 const UA = { 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' };
-const ALLOWED_LICENSE = /^(CC BY(?!-NC)(?!-ND)|CC BY-SA(?!-NC)|CC0|Public domain|PD)/i;
 const STALE_AFTER_MS = 150_000; // a render "being made" for longer than this is taken to have been abandoned
-
-const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 
 interface Photo { bytes: Uint8Array; mime: string; title: string; author: string; license: string; page: string }
 
-/** The photo Wikidata lists for a place, if it is freely licensed. */
-async function wikidataPhoto(entity: string): Promise<Photo | null> {
-  const claims = await (await fetch(`https://www.wikidata.org/w/api.php?${new URLSearchParams({ action: 'wbgetclaims', entity, property: 'P18', format: 'json' })}`, { headers: UA })).json();
-  const file: string | undefined = claims.claims?.P18?.[0]?.mainsnak?.datavalue?.value;
-  if (!file) return null;
-  const data = await (await fetch(`https://commons.wikimedia.org/w/api.php?${new URLSearchParams({
-    action: 'query', format: 'json', titles: `File:${file}`, prop: 'imageinfo', iiprop: 'url|extmetadata|mime', iiurlwidth: '1280',
-  })}`, { headers: UA })).json();
-  const info = (Object.values(data.query?.pages ?? {}) as { imageinfo?: Record<string, any>[] }[])[0]?.imageinfo?.[0];
-  if (!info?.thumburl || !/^image\/(jpeg|png)$/.test(info.mime ?? '')) return null;
-  const license = stripHtml(info.extmetadata?.LicenseShortName?.value ?? '');
-  if (!ALLOWED_LICENSE.test(license)) return null;
-  const image = await fetch(info.thumburl, { headers: UA });
-  if (!image.ok) return null;
-  return {
-    bytes: new Uint8Array(await image.arrayBuffer()),
-    mime: info.mime,
-    title: stripHtml(file.replace(/\.[a-z]+$/i, '')),
-    author: stripHtml(info.extmetadata?.Artist?.value ?? 'Unknown photographer'),
-    license,
-    page: info.descriptionurl ?? 'https://commons.wikimedia.org',
-  };
+/** The photo for a place (Wikidata's picture, Wikipedia's, Wikimedia Commons, Openverse: see _shared/photoSources.ts), downloaded. Null if there is none that may be used. */
+async function fetchPhoto(entity: string, name: string): Promise<Photo | null> {
+  const hit = await findPhotoFor({ entityId: entity, name }, UA);
+  if (!hit) return null;
+  const image = await fetch(hit.imageUrl, { headers: UA });
+  const mime = (image.headers.get('content-type') ?? '').split(';')[0];
+  if (!image.ok || !/^image\/(jpeg|png)$/.test(mime)) return null;
+  const bytes = new Uint8Array(await image.arrayBuffer());
+  if (bytes.length > 12_000_000) return null;
+  return { bytes, mime, title: hit.title, author: hit.author, license: hit.license, page: hit.pageUrl };
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -114,7 +100,7 @@ Deno.serve(async (req) => {
         : await db.from('renders').insert({ place_id: placeId, status: 'generating', place_name: placeName, started_at: now }).select();
       if (claim.error || !claim.data || claim.data.length === 0) return reply(req, { status: 'working' }); // someone else just claimed it
 
-      const photo = await wikidataPhoto(entity);
+      const photo = await fetchPhoto(entity, placeName).catch(() => null);
       if (!photo) {
         await db.from('renders').delete().eq('place_id', placeId);
         await giveBack();

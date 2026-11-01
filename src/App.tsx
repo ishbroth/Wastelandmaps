@@ -824,7 +824,7 @@ export default function App() {
             <SceneModal
               metroId={metroInfo?.id}
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)}
-              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.vault ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.personal) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)}
+              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.personal) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)}
             />
           )}
           {accountOpen && !account.session && <AccountModal onClose={() => setAccountOpen(false)} />}

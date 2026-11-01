@@ -4,6 +4,7 @@
 //
 // Only landmarks that someone has photographed and shared show up, so many places will have no snapshot and keep the drawn scene.
 
+import { findPhotoFor, photoIsOf } from '../../supabase/functions/_shared/photoSources';
 import { SCENE_H, SCENE_W } from './scene';
 import { seeded } from './wasteland';
 import type { LatLng } from './wasteland';
@@ -19,76 +20,11 @@ export interface Snapshot {
   listed?: boolean;
 }
 
-const SEARCH_RADIUS_METERS = 300;
-// licenses we may adapt and show commercially: no NonCommercial, no NoDerivatives
-const ALLOWED = /^(CC BY(?!-NC)(?!-ND)|CC BY-SA(?!-NC)|CC0|Public domain|PD)/i;
-const CACHE = 'wastelandmaps:snapshot:v3:';
+const CACHE = 'wastelandmaps:snapshot:v4:';
 
-const FILLER = new Set(['the', 'and', 'of', 'at', 'in', 'on', 'a', 'an', 'inc', 'llc', 'ltd', 'co', 'company', 'corp', 'file', 'jpg', 'jpeg', 'png']);
+export { photoIsOf };
 
-/** The words of a name that tell places apart, lowercased: "Hyatt Regency Boston" becomes hyatt, regency, boston. */
-function words(text: string): string[] {
-  return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !FILLER.has(w));
-}
-
-/**
- * Does this photo's title (or description) say it is of this place? A photo only counts if most of the place's name appears in it, so the
- * Commons picture of a shrub that happens to be growing near City Hall Plaza is not offered as City Hall Plaza.
- */
-export function photoIsOf(placeName: string, photoText: string): boolean {
-  const wanted = words(placeName);
-  if (wanted.length === 0) return false;
-  const have = new Set(words(photoText));
-  const hits = wanted.filter((w) => have.has(w)).length;
-  const hasLongHit = wanted.some((w) => w.length >= 5 && have.has(w));
-  return hits / wanted.length >= 0.75 && hasLongHit;
-}
-
-interface CommonsPage {
-  title?: string;
-  imageinfo?: {
-    thumburl?: string;
-    descriptionurl?: string;
-    mime?: string;
-    thumbwidth?: number;
-    extmetadata?: Record<string, { value?: string }>;
-  }[];
-}
-
-const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
-
-/** The photo Wikidata itself lists for a place (its "image" property), if it is freely licensed. This is the picture Wikipedia uses for it. */
-async function wikidataPhoto(entityId: string): Promise<Snapshot | null> {
-  try {
-    const claims = await (await fetch('https://www.wikidata.org/w/api.php?' + new URLSearchParams({
-      action: 'wbgetclaims', entity: entityId, property: 'P18', format: 'json', origin: '*',
-    }))).json() as { claims?: { P18?: { mainsnak?: { datavalue?: { value?: string } } }[] } };
-    const file = claims.claims?.P18?.[0]?.mainsnak?.datavalue?.value;
-    if (!file) return null;
-    const data = await (await fetch('https://commons.wikimedia.org/w/api.php?' + new URLSearchParams({
-      action: 'query', format: 'json', origin: '*', titles: `File:${file}`, prop: 'imageinfo',
-      iiprop: 'url|extmetadata|mime|size', iiurlwidth: '1200',
-    }))).json() as { query?: { pages?: Record<string, CommonsPage> } };
-    const page = Object.values(data.query?.pages ?? {})[0];
-    const info = page?.imageinfo?.[0];
-    if (!info?.thumburl || !/^image\/(jpeg|png)$/.test(info.mime ?? '')) return null;
-    const meta = info.extmetadata ?? {};
-    const license = stripHtml(meta.LicenseShortName?.value ?? '');
-    if (!ALLOWED.test(license)) return null;
-    return {
-      imageUrl: info.thumburl,
-      title: stripHtml(file.replace(/\.[a-z]+$/i, '')),
-      author: stripHtml(meta.Artist?.value ?? 'Unknown photographer'),
-      license,
-      pageUrl: info.descriptionurl ?? 'https://commons.wikimedia.org',
-      listed: true,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/** The best freely licensed photo of this place: the one Wikidata lists for it, else one taken close to this spot, or null. */
+/** The best freely licensed photo of this place (Wikidata's picture, Wikipedia's, Wikimedia Commons, Openverse; see supabase/functions/_shared/photoSources.ts), or null. */
 export async function findSnapshot(position: LatLng, placeName: string, entityId?: string): Promise<Snapshot | null> {
   const key = `${CACHE}${position.lat.toFixed(4)},${position.lng.toFixed(4)}:${placeName.toLowerCase()}`;
   try {
@@ -96,43 +32,10 @@ export async function findSnapshot(position: LatLng, placeName: string, entityId
     if (cached) return cached === 'none' ? null : (JSON.parse(cached) as Snapshot);
   } catch { /* storage unavailable */ }
 
-  if (entityId && /^Q\d+$/.test(entityId)) {
-    const listed = await wikidataPhoto(entityId);
-    if (listed) {
-      try { sessionStorage.setItem(key, JSON.stringify(listed)); } catch { /* full */ }
-      return listed;
-    }
-  }
-
-  const url = 'https://commons.wikimedia.org/w/api.php?' + new URLSearchParams({
-    action: 'query', format: 'json', origin: '*', generator: 'geosearch', ggscoord: `${position.lat}|${position.lng}`,
-    ggsradius: String(SEARCH_RADIUS_METERS), ggslimit: '30', ggsnamespace: '6', prop: 'imageinfo',
-    iiprop: 'url|extmetadata|mime|size', iiurlwidth: '1000',
-  });
   let result: Snapshot | null = null;
   try {
-    const res = await fetch(url);
-    if (res.ok) {
-      const data = await res.json() as { query?: { pages?: Record<string, CommonsPage> } };
-      for (const page of Object.values(data.query?.pages ?? {})) {
-        const info = page.imageinfo?.[0];
-        if (!info?.thumburl || !/^image\/(jpeg|png)$/.test(info.mime ?? '')) continue;
-        if ((info.thumbwidth ?? 0) < 600) continue;
-        const meta = info.extmetadata ?? {};
-        const license = stripHtml(meta.LicenseShortName?.value ?? '');
-        if (!ALLOWED.test(license)) continue;
-        const text = `${page.title ?? ''} ${stripHtml(meta.ImageDescription?.value ?? '')} ${stripHtml(meta.ObjectName?.value ?? '')}`;
-        if (!photoIsOf(placeName, text)) continue;
-        result = {
-          imageUrl: info.thumburl,
-          title: stripHtml((page.title ?? 'Photo').replace(/^File:/, '').replace(/\.[a-z]+$/i, '')),
-          author: stripHtml(meta.Artist?.value ?? 'Unknown photographer'),
-          license,
-          pageUrl: info.descriptionurl ?? 'https://commons.wikimedia.org',
-        };
-        break;
-      }
-    }
+    const hit = await findPhotoFor({ entityId, name: placeName, lat: position.lat, lng: position.lng });
+    if (hit) result = { imageUrl: hit.imageUrl, title: hit.title, author: hit.author, license: hit.license, pageUrl: hit.pageUrl, listed: true };
   } catch { /* offline or blocked: no snapshot */ }
   try { sessionStorage.setItem(key, result ? JSON.stringify(result) : 'none'); } catch { /* full */ }
   return result;

@@ -4,6 +4,7 @@ import { accountsEnabled, checkAddress, PACK, type Account } from '../lib/accoun
 import { freeRenderFor } from '../lib/renders';
 import { usePaidRender } from '../lib/usePaidRender';
 import { findSnapshot, type Snapshot } from '../lib/snapshot';
+import { sourceLabel } from '../../supabase/functions/_shared/photoSources';
 import { streetViewAvailable } from '../lib/addressSearch';
 import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } from '../lib/wasteland';
 import type { LookId } from '../lib/looks';
@@ -168,7 +169,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
         {tab === 'snapshot' && reveal && !personal && (
           <p className="rm-modal-credit">
             Made from “{reveal.credit.photo}” by {reveal.credit.author}, {reveal.credit.license}, via{' '}
-            <a href={reveal.credit.page} target="_blank" rel="noreferrer">Wikimedia Commons</a>. Shared under the same license.
+            <a href={reveal.credit.page} target="_blank" rel="noreferrer">{sourceLabel(reveal.credit.page)}</a>. Shared under the same license.
           </p>
         )}
 

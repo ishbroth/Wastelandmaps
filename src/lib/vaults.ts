@@ -2,7 +2,8 @@
 // that stops having a new wasteland name and becomes the entrance to a numbered vault ("Entrance to Vault 042. Formerly ..."). The games' own vaults
 // (see loreVaults.ts) are put in first, where they stand.
 
-import { LORE_VAULTS } from './loreVaults';
+import { LORE_VAULTS, RESERVED_VAULT_NUMBERS } from './loreVaults';
+import { vaultStory } from './vaultStories';
 import { isFamous } from './placeNames';
 import { FREE_RENDERS } from './renders';
 import { distanceMeters, hashString, seeded, type Location } from './wasteland';
@@ -18,7 +19,7 @@ export const vaultCount = (country: string, population: number): number =>
 
 interface Metro { id: string; lat: number; lng: number; radiusKm: number; pop: number; country: string }
 
-const LORE_NUMBERS = new Set(LORE_VAULTS.map((v) => v.number));
+const LORE_NUMBERS = new Set([...LORE_VAULTS.map((v) => v.number), ...RESERVED_VAULT_NUMBERS]);
 
 /** Returns the metro's places with its vaults in: lore vaults where they stand, and local places turned into entrances. */
 export function assignVaults(metro: Metro, places: Location[]): Location[] {
@@ -32,8 +33,8 @@ export function assignVaults(metro: Metro, places: Location[]): Location[] {
     }
     return 999;
   };
-  const makeVault = (p: Location, number: number, lore?: string) => {
-    p.vault = { number, ...(lore ? { lore } : {}) };
+  const makeVault = (p: Location, number: number, lore?: string, story?: string[]) => {
+    p.vault = { number, ...(lore ? { lore } : {}), story: story ?? vaultStory(metro.id, number) };
     p.icon = 'vault';
     p.name = p.oldName ? `VAULT ${String(number).padStart(3, '0')} (${p.oldName})` : `VAULT ${String(number).padStart(3, '0')}`;
   };
@@ -51,11 +52,11 @@ export function assignVaults(metro: Metro, places: Location[]): Location[] {
       const d = distanceMeters(p.position, v);
       if (d < best && !p.vault) { best = d; near = p; }
     }
-    if (near) makeVault(near, v.number, v.lore);
+    if (near) makeVault(near, v.number, v.lore, v.story);
     else {
       out.push({
         id: `vault:${v.number}`, oldName: '', name: `VAULT ${String(v.number).padStart(3, '0')}`, category: 'other', position: { lat: v.lat, lng: v.lng },
-        loot: 'Not much anyone has come back to tell', threat: 'Quiet', rads: 0, icon: 'vault', vault: { number: v.number, lore: v.lore },
+        loot: 'Not much anyone has come back to tell', threat: 'Quiet', rads: 0, icon: 'vault', vault: { number: v.number, lore: v.lore, story: v.story },
       });
     }
   }

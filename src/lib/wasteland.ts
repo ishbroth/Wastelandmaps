@@ -29,6 +29,8 @@ export function seeded(seed: number): () => number {
 }
 
 import { describePersonal, type PersonalKind } from './personal';
+import { RESERVED_VAULT_NUMBERS } from './loreVaults';
+import { vaultStory } from './vaultStories';
 import { neighborhoodIcon, pickIcon, type IconId } from './placeIcons';
 import { backstoryFor } from './backstories';
 import { enemyById, type BossId, type EnemyId } from './raid/enemies';
@@ -144,6 +146,15 @@ export interface Wasteland {
 const metersToDegLat = (m: number) => m / 111_320;
 const metersToDegLng = (m: number, lat: number) => m / (111_320 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)));
 
+/** A vault number for a city's own vault: never one of the numbers the games use. */
+function homeVaultNumber(rand: () => number): string {
+  for (let tries = 0; tries < 50; tries++) {
+    const n = 1 + Math.floor(rand() * 998);
+    if (!RESERVED_VAULT_NUMBERS.includes(n)) return String(n).padStart(3, '0');
+  }
+  return '999';
+}
+
 /** The wasteland version of a city: its name, a vault, and a few irradiated zones, placed around the center. */
 export function generateWasteland(cityName: string, center: LatLng, spreadMeters: number, regionName?: string): Wasteland {
   const seed = hashString(`${cityName.toLowerCase()}|${center.lat.toFixed(2)},${center.lng.toFixed(2)}`);
@@ -170,7 +181,7 @@ export function generateWasteland(cityName: string, center: LatLng, spreadMeters
   }
   return {
     regionName: regionName ?? `The ${cityName} Wasteland`,
-    vault: { position: vault, number: String(1 + Math.floor(rand() * 998)).padStart(3, '0') },
+    vault: { position: vault, number: homeVaultNumber(rand) },
     zones,
   };
 }
@@ -193,7 +204,7 @@ export interface Location {
   /** A place from the games' stories (not a real building): the town it belongs to and what the story says. */
   lore?: { town: string; text: string };
   /** This place is the entrance to a vault. `lore` is a line from the games' story when it is one of theirs. */
-  vault?: { number: number; lore?: string };
+  vault?: { number: number; lore?: string; story?: string[] };
   /** One of the world's most famous buildings: drawn as itself, a little larger than its neighbors, and worth more points. */
   famous?: boolean;
   /** A district of the city rather than a building. */
@@ -336,13 +347,14 @@ export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabit
   if (spot.vault) {
     const number = String(spot.vault.number).padStart(3, '0');
     return [
-      spot.oldName ? `Entrance to Vault ${number}, ${regionName}. Formerly ${spot.oldName}.` : `Vault ${number}, ${regionName}.`,
-      VAULT_LINES[Math.floor(rand() * VAULT_LINES.length)],
-      spot.vault.lore ?? 'Whether anyone is still down there is a question for braver survivors.',
+      `Entrance to Vault ${number}, ${regionName}.`,
+      ...(spot.vault.story ?? [VAULT_LINES[Math.floor(rand() * VAULT_LINES.length)], spot.vault.lore ?? 'Whether anyone is still down there is a question for braver survivors.']),
+      ...(plan ? [presentDay(plan)] : []),
     ];
   }
   if (spot.kind === 'vault') {
-    return [`${spot.name}, ${regionName}.`, VAULT_LINES[Math.floor(rand() * VAULT_LINES.length)], 'Home, for some of us. Safe, for now.'];
+    const number = Number(spot.name.replace(/\D/g, '')) || 0;
+    return [`${spot.name}, ${regionName}. Home, for some of us.`, ...vaultStory(regionName, number)];
   }
   const openers = OPENERS[spot.kind] ?? OPENERS.other;
   const story = backstoryFor(spot.id, spot.oldName);
