@@ -33,7 +33,7 @@ export interface EnemyType {
 export const ENEMIES: Record<EnemyId, EnemyType> = {
   raider: { id: 'raider', name: 'Raider', plural: 'raiders', hp: Math.round(30 * HP_SCALE), speed: 0.05, bite: 6, every: 1.6, size: 1, ranged: true, now: 'A raider gang has made a fort of it, with scrap armor, pipe guns and bad tempers.' },
   bloatfly: { id: 'bloatfly', name: 'Bloatfly', plural: 'bloatflies', hp: Math.round(35 * HP_SCALE), speed: 0.11, bite: 4, every: 1.2, size: 0.45, flying: true, now: 'Bloatflies drift in clouds through the broken glass, spitting at anything that moves.' },
-  radroach: { id: 'radroach', name: 'Radroach', plural: 'radroaches', hp: Math.round(40 * HP_SCALE), speed: 0.09, bite: 5, every: 1, size: 0.6, now: 'Radroaches pour out of the walls the moment anyone steps inside.' },
+  radroach: { id: 'radroach', name: 'Radroach', plural: 'radroaches', hp: Math.round(28 * HP_SCALE), speed: 0.09, bite: 5, every: 1, size: 0.6, now: 'Radroaches pour out of the walls the moment anyone steps inside.' },
   molerat: { id: 'molerat', name: 'Mole Rat', plural: 'mole rats', hp: Math.round(45 * HP_SCALE), speed: 0.08, bite: 6, every: 1.1, size: 0.7, now: 'Mole rats have undermined the foundations and come up through the floor.' },
   ghoul: { id: 'ghoul', name: 'Feral Ghoul', plural: 'feral ghouls', hp: Math.round(60 * HP_SCALE), speed: 0.07, bite: 8, every: 1.2, size: 1, now: 'Feral ghouls shamble through the ruins, as many as the radiation ever made.' },
   robot: { id: 'robot', name: 'Robot', plural: 'robots', hp: Math.round(100 * HP_SCALE), speed: 0.05, bite: 10, every: 1.4, size: 1.2, ranged: true, now: 'Old Protectrons and Mr. Gutsys still patrol it, running orders nobody remembers giving.' },

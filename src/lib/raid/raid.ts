@@ -77,6 +77,11 @@ export function planFor(id: string, worth: number): RaidPlan {
   return { worth, enemies, boss, waves: wavesFor(total), total, lootTypes: loot, lootRange: lootRangeFor(worth) };
 }
 
+/** The first fight every survivor has: their own home vault, with four radroaches, the weakest enemy there is. */
+export function homePlan(): RaidPlan {
+  return { worth: 10, enemies: ['radroach'], boss: null, waves: wavesFor(4), total: 4, lootTypes: ['steel', 'wood', 'screws'], lootRange: lootRangeFor(10) };
+}
+
 /** The plan for a place on the map. */
 export const raidFor = (loc: Location): RaidPlan => planFor(loc.id, pointsFor(loc));
 

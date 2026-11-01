@@ -22,10 +22,10 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ spot, regionName, look, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
+export default function SceneModal({ onNeedDiscover, spot, regionName, look, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
   /** The metro the map is showing: an address rendered here belongs to its atlas. */
   metroId?: string | null;
-  spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void;
+  spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void; /** Tried to loot a place that has not been discovered. */ onNeedDiscover: () => void;
 }) {
   const render = useMemo(() => freeRenderFor(spot.id), [spot.id]);
   const [tab, setTab] = useState<Tab>(render ? 'snapshot' : 'scene');
@@ -145,7 +145,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
             {!render && searching ? 'SNAPSHOT…' : snapshotAvailable ? (locked ? 'SNAPSHOT ★' : 'SNAPSHOT') : 'NO SNAPSHOT'}
           </button>
           {reveal && raid && (
-            <button type="button" className="rm-tab-loot" disabled={account.cleared.has(spot.id)} onClick={() => setRaiding(true)} title={account.cleared.has(spot.id) ? 'Already cleared' : 'Fight what lives there and loot it'}>{account.cleared.has(spot.id) ? 'CLEARED' : 'LOOT'}</button>
+            <button type="button" className={`rm-tab-loot${visited || render || spot.personal ? '' : ' rm-tab-loot-faded'}`} disabled={account.cleared.has(spot.id)} onClick={() => (visited || render || spot.personal ? setRaiding(true) : onNeedDiscover())} title={account.cleared.has(spot.id) ? 'Already cleared' : 'Fight what lives there and loot it'}>{account.cleared.has(spot.id) ? 'CLEARED' : 'LOOT'}</button>
           )}
         </div>
 

@@ -321,9 +321,15 @@ export async function startRaid(placeId: string, worth: number, enemies: number,
 }
 
 /** Ends a raid. A win pays the loot the server decided at the start. */
-export async function finishRaid(runId: string, won: boolean): Promise<{ won: boolean; loot?: LootBag; lost?: LootBag }> {
+export async function finishRaid(runId: string, won: boolean): Promise<{ won: boolean; loot?: LootBag; lost?: LootBag; /** A permanent landmark fought from afar: the loot waits until it is discovered. */ pending?: boolean }> {
   const { data, error } = await db().functions.invoke('raid', { body: { action: 'finish', runId, won } });
-  return error || !data?.ok ? { won: false } : { won: data.won === true, loot: data.loot as LootBag | undefined, lost: data.lost as LootBag | undefined };
+  return error || !data?.ok ? { won: false } : { won: data.won === true, loot: data.loot as LootBag | undefined, lost: data.lost as LootBag | undefined, pending: data.pending === true };
+}
+
+/** A landmark fought from afar has now been discovered: pays the loot that was waiting for it (nothing if none was). */
+export async function claimLoot(placeId: string): Promise<{ claimed: number; loot: LootBag }> {
+  const { data, error } = await db().functions.invoke('raid', { body: { action: 'claim', placeId } });
+  return error || !data?.ok ? { claimed: 0, loot: {} } : { claimed: Number(data.claimed ?? 0), loot: (data.loot ?? {}) as LootBag };
 }
 
 /** Keeps an address they reached on their own map. */

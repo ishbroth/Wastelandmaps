@@ -20,13 +20,15 @@ import type { Region } from '../lib/google';
 
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
-export function LocationsPanel({ region, locations, hidden, onToggleCategory, selectedId, visited, onSelect }: {
+export function LocationsPanel({ region, locations, hidden, onToggleCategory, selectedId, visited, cleared, onSelect }: {
   region: Region | null;
   locations: Location[];
   hidden: Set<CategoryId>;
   onToggleCategory: (id: CategoryId) => void;
   selectedId: string | null;
   visited: Set<string>;
+  /** Places already looted. */
+  cleared: Set<string>;
   onSelect: (id: string) => void;
 }) {
   const rows = useMemo(() => {
@@ -75,9 +77,9 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
         {rows.map(({ l, d }) => (
           <li key={l.id} ref={l.id === selectedId ? selectedRow : null}>
             <button type="button" className={`rm-row ${l.id === selectedId ? 'rm-row-selected' : ''}`} onClick={() => onSelect(l.id)}>
-              <span className="rm-row-icon" dangerouslySetInnerHTML={{ __html: iconHtmlFor(l.id, placeIcon(l.icon)) }} />
+              <span className={`rm-row-icon${visited.has(l.id) ? ' rm-icon-filled' : ''}`} dangerouslySetInnerHTML={{ __html: iconHtmlFor(l.id, placeIcon(l.icon)) }} />
               <span className="rm-row-text">
-                <b>{l.name}{visited.has(l.id) ? ' ✓' : ''}</b>
+                <b>{l.name}{visited.has(l.id) ? ' ✓' : ''}{cleared.has(l.id) ? ' [CLEARED]' : ''}</b>
                 <i>{subtitle(l)}</i>
                 <small>{enemiesLine(l)}{l.rads > 60 ? ` · ${l.rads} RADS` : ''} · loot: {l.loot}</small>
               </span>
@@ -105,35 +107,23 @@ function SnapshotIcon() {
   );
 }
 
-const countryName = (iso: string | null) => {
-  if (!iso) return '';
-  try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(iso) ?? iso; } catch { return iso; }
-};
 
-/** The Data tab: credits, and every place found, grouped by city; a place opens on the map, and an unlocked snapshot opens ready to play. */
-export function AccountPanel({ account, found, metro, onChangeHome, onAccount, onGoTo, onSnapshot }: {
+/** The Data tab: credits, and every place found, newest first; a place opens on the map, and an unlocked snapshot opens ready to play. */
+export function AccountPanel({ account, found, iconOf, metro, onChangeHome, onAccount, onGoTo, onSnapshot }: {
   account: Account;
   /** The metro the map is showing, for its address atlas. */
   metro?: { id: string; name: string };
   onChangeHome: () => void;
   found: FoundPlace[];
+  /** The icon (as drawn on the map) of a found place. */
+  iconOf: (id: string) => string;
   onAccount: () => void;
   onGoTo: (place: FoundPlace) => void;
   onSnapshot: (place: FoundPlace) => void;
 }) {
-  const [open, setOpen] = useState<Set<string>>(new Set());
-  const groups = useMemo(() => {
-    const byCity = new Map<string, { key: string; title: string; places: FoundPlace[]; latest: string }>();
-    for (const p of found) {
-      const key = p.metroId ?? `${p.city ?? 'unknown'}|${p.country ?? ''}`;
-      const title = [p.city ?? 'Somewhere in the wasteland', p.state, countryName(p.country)].filter(Boolean).join(', ');
-      const g = byCity.get(key) ?? { key, title, places: [], latest: '' };
-      g.places.push(p);
-      if (p.foundAt > g.latest) g.latest = p.foundAt;
-      byCity.set(key, g);
-    }
-    return [...byCity.values()].sort((x, y) => (y.latest > x.latest ? 1 : -1));
-  }, [found]);
+  const [expanded, setExpanded] = useState(false);
+  const recent = useMemo(() => [...found].sort((x, y) => (y.foundAt > x.foundAt ? 1 : y.foundAt < x.foundAt ? -1 : 0)), [found]);
+  const shown = expanded ? recent : recent.slice(0, 10);
 
   if (!account.session) {
     return (
@@ -212,40 +202,28 @@ export function AccountPanel({ account, found, metro, onChangeHome, onAccount, o
       </ul>
 
       <h3>PLACES YOU HAVE FOUND ({found.length})</h3>
-      {groups.length === 0 && <p className="rm-empty">Nothing found yet. Fast travel to a place, or turn on AUTO-DISCOVER and go for a walk.</p>}
-      {groups.map((g) => {
-        const isOpen = open.has(g.key);
-        return (
-          <div key={g.key} className="rm-found-city">
-            <button
-              type="button"
-              className="rm-found-head"
-              aria-expanded={isOpen}
-              onClick={() => setOpen((prev) => { const next = new Set(prev); if (next.has(g.key)) next.delete(g.key); else next.add(g.key); return next; })}
-            >
-              <span><b>{g.title}</b><small>{g.places.length} found</small></span>
-              <span aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
+      {recent.length === 0 && <p className="rm-empty">Nothing found yet. Fast travel to a place, or turn on AUTO-DISCOVER and go for a walk.</p>}
+      <ul className="rm-found-places rm-found-recent">
+        {shown.map((p) => (
+          <li key={p.id} className="rm-found-place">
+            <span className="rm-found-icon rm-icon-filled" dangerouslySetInnerHTML={{ __html: iconOf(p.id) }} />
+            <button type="button" className="rm-found-go" onClick={() => onGoTo(p)}>
+              <b>{p.name}{account.cleared.has(p.id) ? ' [CLEARED]' : ''}</b>
+              <i>{[p.city, p.state].filter(Boolean).join(', ')}{p.oldName && p.oldName !== p.name ? ` · formerly ${p.oldName}` : ''}</i>
             </button>
-            {isOpen && (
-              <ul className="rm-found-places">
-                {g.places.map((p) => (
-                  <li key={p.id} className="rm-found-place">
-                    <button type="button" className="rm-found-go" onClick={() => onGoTo(p)}>
-                      <b>{p.name}</b>
-                      {p.oldName && p.oldName !== p.name && <i>formerly {p.oldName}</i>}
-                    </button>
-                    {(account.unlocked.has(p.id) || freeRenderFor(p.id)) && (
-                      <button type="button" className="rm-found-snap" onClick={() => onSnapshot(p)} title="Open the snapshot" aria-label={`Open the snapshot of ${p.name}`}>
-                        <SnapshotIcon />
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+            {(account.unlocked.has(p.id) || freeRenderFor(p.id)) && (
+              <button type="button" className="rm-found-snap" onClick={() => onSnapshot(p)} title="Open the snapshot" aria-label={`Open the snapshot of ${p.name}`}>
+                <SnapshotIcon />
+              </button>
             )}
-          </div>
-        );
-      })}
+          </li>
+        ))}
+      </ul>
+      {recent.length > 10 && (
+        <button type="button" className="rm-btn rm-btn-ghost rm-found-more" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
+          {expanded ? 'SHOW FEWER' : `SHOW ALL ${recent.length}`}
+        </button>
+      )}
       <p className="rm-fine rm-privacy-line"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a></p>
       <DeleteLine />
     </div>

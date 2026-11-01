@@ -3,15 +3,17 @@ import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
-import { accountsEnabled, atlasList, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import { accountsEnabled, atlasList, claimLoot, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { getFix, locationState, watchFixes, type GeoError } from './lib/geo';
 import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
 import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
+import { iconHtmlFor } from './lib/landmarkIcons';
+import { placeIcon } from './lib/placeIcons';
 import { personalId, personalLocation, type PersonalPlace } from './lib/personal';
 import { enableNotifications, pushNotice } from './lib/notify';
 import { levelInfo, pointsFor } from './lib/points';
-import { enemiesLine, raidFor } from './lib/raid/raid';
+import { enemiesLine, homePlan, raidFor } from './lib/raid/raid';
 import { freeRenderFor } from './lib/renders';
 import { GLOBAL_LANDMARKS } from './lib/globalLandmarks';
 import { photoIsOf } from './lib/snapshot';
@@ -28,8 +30,9 @@ import { LOOKS, type LookId } from './lib/looks';
 import { readShareState } from './lib/share';
 import { beep, type BeepKind } from './lib/sound';
 import { buzz } from './lib/haptics';
-import { START_MINUTES, formatClock, type TravelRun } from './lib/travel';
+import { START_MINUTES, type TravelRun } from './lib/travel';
 import NavBanner from './components/NavBanner';
+import { setVoiceEnabled, speak, spokenDistance, stopSpeaking, voiceEnabled } from './lib/voice';
 import { currentFix, flightsUrl, isOverseas, progressAlong, requestRoute, type NavRoute } from './lib/navigation';
 import {
   VAULT_ID, distanceMeters, generateWasteland, spotFromLocation, vaultSpot,
@@ -60,8 +63,8 @@ export default function App() {
   // the survivor: where they stand, what time it is, how irradiated they are, what they have seen
   const [player, setPlayer] = useState<LatLng | null>(null);
   const [hereId, setHereId] = useState<string | null>(null);
-  const [clock, setClock] = useState(START_MINUTES);
-  const [rads, setRads] = useState(0);
+  const [, setClock] = useState(START_MINUTES);
+  const [, setRads] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const [tracking, setTracking] = useState(false);
   // where the device is now (while AUTO-DISCOVER is on), and the driving navigation to a place
@@ -135,6 +138,11 @@ export default function App() {
     const have = new Set(allLocations.map((l) => l.id));
     return [...allLocations, ...GLOBAL_LANDMARKS.filter((g) => !have.has(g.id))];
   }, [allLocations]);
+  /** The icon of a found place, for the Data tab's list: the place's own when it is on the loaded map, the landmark's when it is a permanent one. */
+  const iconOfFound = useCallback((id: string): string => {
+    const loc = mapLocations.find((l) => l.id === id);
+    return iconHtmlFor(id, placeIcon(loc?.icon ?? 'monument'));
+  }, [mapLocations]);
   const atlasOwned = !!metroInfo && account.metros.has(metroInfo.id);
   useEffect(() => {
     if (!account.session || !metroInfo || !atlasOwned) { setAtlas([]); return; }
@@ -155,6 +163,8 @@ export default function App() {
     }
   }, []);
   const trip = useRef<Trip | null>(null);
+  const homeId = account.home?.placeId ? personalId(account.home.placeId) : null;
+  const shownVisited = useMemo(() => (homeId ? new Set(visited).add(homeId) : visited), [visited, homeId]);
   const visitedRef = useRef(visited);
   const toastTimer = useRef<number | undefined>(undefined);
 
@@ -226,7 +236,7 @@ export default function App() {
     foundRef.current = [...fresh, ...foundRef.current];
     setFound(foundRef.current);
     const who = accountRef.current?.session;
-    if (who) void saveFoundPlaces(who.user.id, fresh);
+    return who ? saveFoundPlaces(who.user.id, fresh) : undefined;
   }, []);
 
   /** Marks places as discovered (filled in on the map) and remembers them in this browser, per city. */
@@ -254,7 +264,21 @@ export default function App() {
     visitedRef.current = next;
     setVisited(next);
     try { localStorage.setItem(foundKey.current, JSON.stringify([...next])); } catch { /* storage unavailable */ }
-    void recordFound(fresh);
+    // a permanent landmark fought from afar pays its waiting loot now that it has been discovered
+    void Promise.resolve(recordFound(fresh)).then(async () => {
+      if (!accountRef.current?.session) return;
+      for (const p of fresh.filter((q) => freeRenderFor(q.id))) {
+        const paid = await claimLoot(p.id);
+        if (paid.claimed > 0) {
+          const list = Object.entries(paid.loot).filter(([, n]) => (n ?? 0) > 0).map(([id, n]) => `+${n} ${id.toUpperCase()}`).join(' ');
+          setToast(`LOOT AWARDED FROM ${p.name.toUpperCase()}: ${list || 'PACK FULL'}`);
+          window.clearTimeout(toastTimer.current);
+          toastTimer.current = window.setTimeout(() => setToast(''), 6000);
+          void pushNotice('Loot awarded', `You discovered ${p.name}: ${list || 'your pack was full'}`);
+          void accountRef.current?.refresh();
+        }
+      }
+    });
     // "Discovered: <new name>, formerly <old name>", in the page and, if allowed, as a notification
     const said = fresh.map((p) => (p.oldName && p.oldName !== p.name ? `${p.name}, formerly ${p.oldName}` : p.name));
     setToast(`DISCOVERED: ${said.join(' | ')}`);
@@ -540,6 +564,35 @@ export default function App() {
     const t = window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
     return () => window.clearTimeout(t);
   }, [!!nav]);
+  // the voice: the first instruction of a route, every new turn, and the turn again when it is close
+  const spoken = useRef<{ route: unknown; step: number; near: boolean; rerouting: boolean } | null>(null);
+  useEffect(() => {
+    if (!nav) { spoken.current = null; stopSpeaking(); return; }
+    const said = spoken.current;
+    if (nav.busy === 'REROUTING') {
+      if (!said?.rerouting) speak('Recalculating route.');
+      if (said) said.rerouting = true;
+      return;
+    }
+    if (!nav.route || nav.busy) return;
+    const next = nav.route.steps[nav.step + 1]?.text ?? 'Continue to your destination';
+    const plain = next.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    const lower = plain.charAt(0).toLowerCase() + plain.slice(1);
+    if (!said || said.route !== nav.route) {
+      speak(`${said ? 'Route updated.' : `Navigation online. Destination: ${nav.spot.name}.`} ${nav.toTurn !== null ? `In ${spokenDistance(nav.toTurn)}, ` : ''}${lower}.`);
+      spoken.current = { route: nav.route, step: nav.step, near: false, rerouting: false };
+      return;
+    }
+    if (said.step !== nav.step) {
+      speak(`${nav.toTurn !== null && nav.toTurn > 120 ? `In ${spokenDistance(nav.toTurn)}, ` : ''}${lower}.`);
+      spoken.current = { ...said, step: nav.step, near: false };
+      return;
+    }
+    if (!said.near && nav.toTurn !== null && nav.toTurn < 130) {
+      speak(`${plain}. Now.`);
+      spoken.current = { ...said, near: true };
+    }
+  }, [nav]);
   const skipHome = useCallback(async () => {
     setHomeSkipped(true);
     if (homeOpen) { setHomeOpen(false); return; }
@@ -640,7 +693,12 @@ export default function App() {
     say(`OVERSEAS: FLIGHTS TO ${place.toUpperCase()}`);
   }, [say]);
 
+  const [voiceOn, setVoiceOn] = useState(voiceEnabled());
+  const toggleVoice = useCallback(() => {
+    setVoiceOn((on) => { setVoiceEnabled(!on); return !on; });
+  }, []);
   const endNavigation = useCallback(() => {
+    if (navRef.current) speak('Navigation terminated.');
     setNav(null);
     navRef.current = null;
   }, []);
@@ -703,6 +761,7 @@ export default function App() {
       const place = locationsRef.current.find((l) => l.id === spot.id);
       if (place) markFound([place], here);
       say(`ARRIVED: ${spot.name}`);
+      speak(`Destination reached: ${spot.name}.`);
       buzz('arrive');
       if (soundRef.current) beep('arrive');
       setSceneId(spot.id);
@@ -798,7 +857,6 @@ export default function App() {
     sound('tick');
   };
 
-  const total = locations.length;
   const navView = useMemo(() => (nav?.route ? { path: nav.route.path, steps: nav.route.steps, step: nav.step } : null), [nav?.route, nav?.step]);
 
   return (
@@ -826,7 +884,7 @@ export default function App() {
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={mapLocations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={visited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
+              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
@@ -853,6 +911,8 @@ export default function App() {
               seconds={nav.route && nav.remaining !== null && nav.route.meters > 0 ? (nav.remaining / nav.route.meters) * nav.route.seconds : null}
               busy={nav.busy}
               onEnd={endNavigation}
+              voiceOn={voiceOn}
+              onVoice={toggleVoice}
             />
           )}
           {travel && (
@@ -863,15 +923,15 @@ export default function App() {
           )}
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
-              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = allLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
+              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = allLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
               traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
             <SceneModal
               metroId={metroInfo?.id}
-              spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)}
-              account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || (place.personal && !place.personal.home)) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)}
+              spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={shownVisited.has(sceneSpot.id)}
+              account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || place.personal) ? (place.personal?.home ? homePlan() : raidFor(place)) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)} onNeedDiscover={() => say('YOU MUST DISCOVER THIS LOCATION FIRST', true)}
             />
           )}
           {accountOpen && !account.session && <AccountModal onClose={() => setAccountOpen(false)} />}
@@ -884,16 +944,11 @@ export default function App() {
             />
           )}
 
-          <div className="rm-status" role="status">
-            <span className={busy || travel ? 'rm-blink' : ''}>{message}</span>
-            {wasteland && (
-              <span className="rm-stats">
-                <b>{formatClock(clock)}</b>
-                <b className={rads >= 300 ? 'rm-hot' : ''}>RADS {rads}</b>
-                <b>{visited.size}/{total} FOUND</b>
-              </span>
-            )}
-          </div>
+          {message && !nav && (
+            <div className="rm-status" role="status">
+              <span className={busy || travel ? 'rm-blink' : ''}>{message}</span>
+            </div>
+          )}
         </div>
 
         <aside className="rm-side">
@@ -908,11 +963,11 @@ export default function App() {
           <section className="rm-panel" role="tabpanel">
             {tab === 'locations' && (
               <LocationsPanel
-                region={region} locations={locations} hidden={hidden} onToggleCategory={toggleCategory} selectedId={selectedId} visited={visited}
+                region={region} locations={locations} hidden={hidden} onToggleCategory={toggleCategory} selectedId={selectedId} visited={shownVisited} cleared={account.cleared}
                 onSelect={(id) => { setSelectedId(id); sound('select'); }}
               />
             )}
-            {tab === 'data' && <AccountPanel account={account} found={found} metro={metroInfo ?? undefined} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
+            {tab === 'data' && <AccountPanel account={account} found={found} iconOf={iconOfFound} metro={metroInfo ?? undefined} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
             {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} soundOn={soundOn} onToggleSound={() => setSoundOn((s) => !s)} />}
           </section>
         </aside>

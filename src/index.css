@@ -602,7 +602,7 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-buy-card .rm-packs { margin-top: 10px; }
 
 /* a phone turned sideways while navigating: the map takes the whole screen, over the Pip-Boy's info side */
-@media (max-width: 960px) and (orientation: landscape) and (max-height: 620px) {
+@media (max-width: 960px) {
   .rm-app.rm-navigating { padding: 0; max-width: none; }
   .rm-app.rm-navigating .rm-head, .rm-app.rm-navigating .rm-foot, .rm-app.rm-navigating .rm-side { display: none; }
   .rm-app.rm-navigating .rm-device { grid-template-columns: minmax(0, 1fr); padding: 0; border: none; border-radius: 0; box-shadow: none; gap: 0; }
@@ -620,3 +620,19 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 
 .rm-raid-downed { z-index: 6; }
 .rm-raid-downed .rm-btn { margin: 0 6px; }
+
+/* the navigation: the turn at the top; distance, voice and END in a bar along the bottom */
+.rm-nav { top: max(10px, env(safe-area-inset-top)); }
+.rm-nav-bottom { position: absolute; left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 14; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 0 0 20px var(--glow); padding: 8px 12px; font-family: var(--font-display); font-size: 20px; letter-spacing: 1px; }
+.rm-nav-bottom small { color: var(--ink-dim); font-size: 14px; letter-spacing: 1px; }
+.rm-nav-buttons { display: flex; gap: 8px; }
+.rm-nav-bottom .rm-btn { font-size: 16px; padding: 2px 14px; }
+
+/* discovered places are filled in, on the map's pins and in the lists */
+.rm-icon-filled svg .f { fill: currentColor; }
+.rm-icon-filled svg .d { stroke: var(--on-ink); stroke-width: 1.9; }
+.rm-found-icon { flex: none; width: 30px; height: 30px; color: var(--ink); }
+.rm-found-more { width: 100%; margin-top: 8px; }
+.rm-found-recent { padding-left: 0; }
+
+.rm-tab-loot-faded { opacity: 0.45; }
