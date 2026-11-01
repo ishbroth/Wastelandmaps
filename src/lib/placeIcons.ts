@@ -35,7 +35,7 @@ export type FamousIconId =
   | 'fortknox' | 'sunsphere' | 'maclellan' | 'cadetchapel' | 'pacificsw' | 'devontower'
   | 'southboston320' | 'nebcapitol' | 'mutualomaha' | 'epiccenter' | 'mscapitol' | 'alcapitol'
   | 'wattsbuilding' | 'regionsharbert' | 'shangrila' | 'paradox' | 'vancouverhouse' | 'saddledome'
-  | 'telussky' | 'bowcalgary' | 'epcortower' | 'stantectower' | 'mosaicregina' | 'nutrientower'
+  | 'telussky' | 'bowcalgary' | 'epcortower' | 'stantectower' | 'skleg' | 'nutrientower'
   | 'main300' | 'parliamentcanada' | 'maryqueen' | 'notredamemontreal' | 'maestria' | 'quebecparliament'
   | 'chateaufrontenac' | 'halifaxclock' | 'customhouseme' | 'industrialtrust' | 'travelerstower' | 'buffalocityhall'
   | 'empirestateplaza';

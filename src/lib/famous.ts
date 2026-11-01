@@ -166,7 +166,7 @@ export const FAMOUS: Famous[] = [
   { match: /the bow\b/i, name: 'The Bow', lat: 51.0476, lng: -114.0652, icon: 'bowcalgary', qid: 'Q1229086' },
   { match: /epcor tower/i, name: 'EPCOR Tower', lat: 53.5473, lng: -113.494, icon: 'epcortower', qid: 'Q1346703' },
   { match: /stantec tower/i, name: 'Stantec Tower', lat: 53.5465, lng: -113.4895, icon: 'stantectower', qid: 'Q21092654' },
-  { match: /mosaic (?:potash )?tower|mosaic potash|hill cent(?:re|er)/i, name: 'Hill Centre III (Mosaic Tower)', lat: 50.4486, lng: -104.614, icon: 'mosaicregina' },
+  { match: /saskatchewan legislative building|legislative building,? regina/i, name: 'Saskatchewan Legislative Building', lat: 50.4324, lng: -104.615, icon: 'skleg', qid: 'Q3579114' },
   { match: /nutrien tower|potashcorp tower/i, name: 'Nutrien Tower', lat: 52.1275, lng: -106.67, icon: 'nutrientower', qid: 'Q134881839' },
   { match: /300 main/i, name: '300 Main', lat: 49.8935, lng: -97.1393, icon: 'main300', qid: 'Q4635641' },
   { match: /parliament (?:hill|buildings?)|parliament of canada|peace tower/i, name: 'Parliament of Canada', lat: 45.4236, lng: -75.7009, icon: 'parliamentcanada', qid: 'Q1589289' },

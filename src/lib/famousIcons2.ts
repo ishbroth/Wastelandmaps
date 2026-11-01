@@ -137,7 +137,7 @@ const ICONS: Record<string, string> = {
   bowcalgary: svg(f('M8.5 21V4.4C13.4 6 16 8.4 16 12.6S13.4 19.4 8.5 21Z') + d('M8.5 8.6 14.4 9.6M8.5 12.4 15.4 12.8M8.5 16.2 14.4 15.4')),
   epcortower: tower({ w: 6, top: 8, crown: 'antenna', detail: 'bands' }),
   stantectower: tower({ w: 5.4, top: 7, crown: 'spire', detail: 'ribs', base: 'podium' }),
-  mosaicregina: tower({ w: 6, top: 8, crown: 'flat', detail: 'ribs' }),
+  skleg: domeHall({ wide: true, cross: false }),
   nutrientower: tower({ w: 6, top: 8, crown: 'flat', detail: 'bands', base: 'podium' }),
   main300: tower({ w: 6, top: 9, crown: 'flat', detail: 'bands' }),
   parliamentcanada: svg(f('M10 21V8.4h4V21Z') + f('M9.2 8.4h5.6L12 2.6Z') + s('M12 2.6V1') + d('M12 11.2a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2Z') + f('M2.5 21v-7h7.5v7ZM14 21v-7h7.5v7Z') + f('M2.5 14l1.6-2 1.6 2ZM18.3 14l1.6-2 1.6 2Z') + d('M4.6 17.4h.01M7.4 17.4h.01M16.6 17.4h.01M19.4 17.4h.01')),
