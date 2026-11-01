@@ -128,6 +128,16 @@ export default function App() {
   }, [account.session, metroInfo, atlasOwned]);
 
   const [accountOpen, setAccountOpen] = useState(false);
+  /** Anything about the account: signed out, the sign-in; signed in, the Data tab (credits, packs, home, sign out and delete are all there). */
+  const openAccount = useCallback(() => {
+    if (accountRef.current?.session) {
+      setSceneId(null);
+      setTab('data');
+      document.querySelector('.rm-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      setAccountOpen(true);
+    }
+  }, []);
   const trip = useRef<Trip | null>(null);
   const visitedRef = useRef(visited);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -752,10 +762,8 @@ export default function App() {
           <h1>WASTELAND<span>MAPS</span></h1>
           <p>See where you live after the bombs fell</p>
         </div>
-        {accountsEnabled && (
-          <button type="button" className="rm-account-btn" onClick={() => setAccountOpen(true)}>
-            {account.session ? `${account.credits ?? '…'} CREDITS` : 'SIGN IN'}
-          </button>
+        {accountsEnabled && !account.session && (
+          <button type="button" className="rm-account-btn" onClick={() => setAccountOpen(true)}>SIGN IN</button>
         )}
         <div className="rm-looks" role="group" aria-label="Map look">
           {(Object.keys(LOOKS) as LookId[]).map((id) => (
@@ -815,10 +823,10 @@ export default function App() {
             <SceneModal
               metroId={metroInfo?.id}
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)}
-              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.personal) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={() => setAccountOpen(true)} onClose={() => setSceneId(null)}
+              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.personal) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)}
             />
           )}
-          {accountOpen && <AccountModal account={account} onClose={() => setAccountOpen(false)} />}
+          {accountOpen && !account.session && <AccountModal onClose={() => setAccountOpen(false)} />}
           {((account.session && account.homeLoaded && !account.home && !homeSkipped) || homeOpen) && <HomePrompt onChosen={(place) => void chooseHome(place)} onSkip={() => void skipHome()} />}
 
           <div className="rm-status" role="status">

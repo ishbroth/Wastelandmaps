@@ -46,3 +46,25 @@ npm run app:sync        # type-checks, builds the site, copies it into android/ 
 - **Account deletion** (required by both stores): Account > Delete my account (`delete-account` function). **Privacy policy:** `/privacy.html` (replace the contact address with a real one before submitting).
 - **iOS privacy manifest:** `ios/App/App/PrivacyInfo.xcprivacy` is added to the Xcode project's resources. In Xcode, Product > Archive, then check "Generate Privacy Report" lists nothing undeclared.
 - **Reviewer login:** the sign-in is an emailed link, which a store reviewer cannot open. Before submitting, add a review account they can use (for example a fixed email with a password sign-in only that account can use) and put it in the review notes.
+
+## iOS without a Mac: build in the cloud and send to TestFlight
+
+There is no CocoaPods step: Capacitor 8 uses Swift Package Manager, and every plugin here supports it. The packages are resolved from `node_modules` when Xcode builds, so `npm install` (or `npm ci`) must run first; the workflow does that.
+
+`.github/workflows/ios-testflight.yml` builds the app on a GitHub-hosted Mac, signs it with Apple's cloud signing, and uploads it to App Store Connect. (Xcode Cloud, Apple's own service, does the same job but its first setup needs Xcode on a Mac; use it instead if you are renting one anyway.)
+
+One-time setup:
+1. Enrol in the **Apple Developer Program** (developer.apple.com, $99/year; approval can take a day or two).
+2. developer.apple.com > Identifiers: register the App ID `com.wastelandmaps.app`. Turn on **Push Notifications** is not needed; nothing else is.
+3. App Store Connect > Apps > + New App: name WastelandMaps, bundle ID `com.wastelandmaps.app`, any SKU.
+4. App Store Connect > Users and Access > Integrations > **App Store Connect API**: create a key with the **Admin** role (cloud signing needs it). Download the `.p8` file once. Note the Key ID and the Issuer ID, and your Team ID (developer.apple.com > Membership).
+5. GitHub > repo Settings > Secrets and variables > Actions: add `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_KEY_P8` (the .p8 file's contents, base64-encoded: `base64 -w0 AuthKey_XXXX.p8`). `VITE_GOOGLE_MAPS_API_KEY` and `VITE_SUPABASE_ANON_KEY` are already there from the website build.
+
+Each build: GitHub > Actions > **iOS build to TestFlight** > Run workflow. After about 15 minutes of building, App Store Connect processes the build (10 to 30 minutes more) and it appears under TestFlight.
+
+TestFlight:
+- Internal testers (people you add under Users and Access, up to 100) can install straight away, with no review: they install Apple's TestFlight app and accept the invite.
+- External testers (anyone, by email or public link, up to 10,000) need a short Beta App Review, usually under a day.
+- Before TestFlight accepts a first external build, App Store Connect asks for the app's privacy answers and a test contact.
+
+The workflow has not been run yet; the first run may need small fixes (a missing capability, a signing complaint). Paste the error and it can be adjusted.

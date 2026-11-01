@@ -578,3 +578,6 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-delete-line button { background: none; border: none; padding: 4px; color: var(--ink-dim); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
 .rm-delete-confirm { margin-top: 18px; padding: 12px; border: 1px solid #ff6a3d; border-radius: 8px; }
 .rm-delete-confirm p { font-size: 14px; }
+
+.rm-acct-who { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; font-size: 14px; color: var(--ink-dim); overflow-wrap: anywhere; }
+.rm-privacy-line { text-align: center; margin-top: 18px; }

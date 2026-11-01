@@ -3,7 +3,8 @@ import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } 
 import { freeRenderFor } from '../lib/renders';
 import { LOOT_CAP } from '../lib/raid/loot';
 import { hapticsAvailable, hapticsEnabled, setHaptics } from '../lib/haptics';
-import { METRO_COST, PACK, atlasCount, atlasUnlock, craftWeapon, deleteAccount, type Account, type FoundPlace } from '../lib/account';
+import { purchasesAvailable } from '../lib/native';
+import { METRO_COST, PACKS, atlasCount, atlasUnlock, buyPack, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag } from '../lib/raid/loot';
 import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt } from '../lib/raid/weapons';
@@ -150,10 +151,14 @@ export function AccountPanel({ account, found, metro, onChangeHome, onAccount, o
         </div>
         <p className="rm-fine">{level.toGo} XP to level {level.level + 1}</p>
       </div>
+      <div className="rm-acct-who">
+        <span>{account.email}</span>
+        <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void signOut()}>SIGN OUT</button>
+      </div>
       <div className="rm-acct-credits">
         <div><b>{account.credits === null ? '…' : account.credits}</b> <span>SNAPSHOT CREDITS</span></div>
-        <button type="button" className="rm-btn rm-btn-ghost" onClick={onAccount} title={`${PACK.credits} snapshots for ${PACK.price}`}>BUY MORE</button>
       </div>
+      <Packs />
 
       <h3>HOME</h3>
       <div className="rm-acct-credits">
@@ -228,6 +233,7 @@ export function AccountPanel({ account, found, metro, onChangeHome, onAccount, o
           </div>
         );
       })}
+      <p className="rm-fine rm-privacy-line"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a></p>
       <DeleteLine />
     </div>
   );
@@ -323,6 +329,31 @@ function DeleteLine() {
         </button>
         <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setAsking(false)}>CANCEL</button>
       </div>
+      {note && <p className="rm-account-note">{note}</p>}
+    </div>
+  );
+}
+
+/** Buying credits: three packs on the website; in the app the stores' own purchase system will be used (not added yet). */
+function Packs() {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+  if (!purchasesAvailable()) {
+    return <p className="rm-fine">Credits cannot be bought inside the app yet. The ones you have, and the free ones from levelling up, work here.</p>;
+  }
+  const buy = async (pack: string) => {
+    setBusy(true);
+    const problem = await buyPack(pack);
+    if (problem) { setNote(problem); setBusy(false); }
+  };
+  return (
+    <div>
+      <div className="rm-packs">
+        {PACKS.map((pk) => (
+          <button key={pk.id} type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void buy(pk.id)}>BUY {pk.credits} CREDITS: {pk.price}</button>
+        ))}
+      </div>
+      <p className="rm-fine">Pay by card, Apple Pay or Google Pay through Stripe. A render that cannot be made gives your credit back.</p>
       {note && <p className="rm-account-note">{note}</p>}
     </div>
   );
