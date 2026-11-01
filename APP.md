@@ -30,7 +30,7 @@ npm run app:sync        # type-checks, builds the site, copies it into android/ 
 - **Sign-in links.** The email link opens the app through `com.wastelandmaps.app://auth`. That address must be in the Supabase project's allowed redirect URLs (it is in `supabase/auth/auth-settings.toml`; push the config with `supabase config push`).
 - **Server origins.** The functions allow the app's origins (`capacitor://localhost`, `https://localhost`) in `supabase/functions/_shared/common.ts`. Redeploy the functions after that file changes.
 - **Google key.** Inside the app the pages come from `capacitor://localhost` / `https://localhost`, which a website-restricted Google key refuses. Use a key for the app that is restricted by API only (Maps JavaScript, Places, Geocoding, Directions, Street View Static) and set quotas and a billing alert, since it ships inside the app.
-- **Privacy.** Both stores need a privacy policy URL and answers about location, account email and purchases. Location is used while the app is open only (no background location).
+- **Privacy.** Both stores need a privacy policy URL and answers about location, account email and purchases. Location is also used in the background while AUTO-DISCOVER is on (see the last section).
 - **Icons and splash.** Placeholder art from `_tools/make-app-art.mjs` into `resources/`; replace the PNGs there and run `npm run app:assets` to regenerate every size.
 
 ## What is app-aware in the code
