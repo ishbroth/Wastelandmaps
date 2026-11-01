@@ -59,6 +59,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
   const [wheelOpen, setWheelOpen] = useState(false);
   const [stims, setStims] = useState(account.stimpaks);
   const [healing, setHealing] = useState(false);
+  const [downed, setDowned] = useState(false);
   const [loot, setLoot] = useState<LootBag | null>(null);
   const [lost, setLost] = useState<LootBag>({});
   const finished = useRef(false);
@@ -126,6 +127,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
       const before = g.killed;
       const hitsBefore = g.hits;
       g.update(dt);
+      if (g.downed) setDowned(true);
       if (g.killed > before) { playSound('kill', sound); buzz('kill'); }
       if (g.hits > hitsBefore) { playSound('hurt', sound); buzz('hurt'); }
       if (pointer.current.down) shoot();
@@ -397,6 +399,33 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
     pointer.current.y = e.clientY - r.top;
   };
 
+  useEffect(() => { if (game.current) game.current.canRevive = stims > 0; }, [stims, phase]);
+  const reviveYes = async () => {
+    const g = game.current;
+    if (!g || healing) return;
+    setHealing(true);
+    const result = await useStimpak();
+    if (result.ok) {
+      g.heal();
+      g.downed = false;
+      g.paused = false;
+      setStims(result.qty ?? Math.max(0, stims - 1));
+      setHud((h) => (h ? { ...h, hits: 0 } : h));
+      setDowned(false);
+      void account.refresh();
+    } else {
+      reviveNo();
+    }
+    setHealing(false);
+  };
+  function reviveNo() {
+    const g = game.current;
+    if (!g) return;
+    g.downed = false;
+    g.paused = false;
+    g.outcome = 'lost';
+    setDowned(false);
+  }
   const openWheel = () => {
     if (!game.current) return;
     game.current.paused = true;
@@ -457,9 +486,17 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
           {hud.banner && <div className="rm-raid-banner" key={hud.banner}>{hud.banner}</div>}
           {hud.ammo !== null && <div className="rm-raid-ammo">AMMO {hud.ammo}</div>}
           <div className="rm-raid-bar">
-            <button type="button" className="rm-btn rm-raid-btn" onClick={openWheel} disabled={wheelOpen}>WEAPONS</button>
-            <button type="button" className="rm-btn rm-raid-btn" onClick={() => void heal()} disabled={wheelOpen || healing || stims <= 0 || hud.hits <= 0} title="Take back all your strikes">STIMPAK ×{stims}</button>
+            <button type="button" className="rm-btn rm-raid-btn" onClick={openWheel} disabled={wheelOpen || downed}>WEAPONS</button>
+            <button type="button" className="rm-btn rm-raid-btn" onClick={() => void heal()} disabled={wheelOpen || downed || healing || stims <= 0 || hud.hits <= 0} title="Take back all your strikes">STIMPAK ×{stims}</button>
           </div>
+          {downed && (
+            <div className="rm-raid-center rm-raid-downed">
+              <h2>YOU ARE DOWN</h2>
+              <p>Use a stimpak and get back in the fight? You have {stims}.</p>
+              <button type="button" className="rm-btn" disabled={healing} onClick={() => void reviveYes()}>USE STIMPAK</button>
+              <button type="button" className="rm-btn rm-btn-ghost" disabled={healing} onClick={reviveNo}>GIVE UP</button>
+            </div>
+          )}
           {wheelOpen && (
             <div className="rm-wheel-overlay" onClick={closeWheel}>
             <div className="rm-raid-wheel" role="group" aria-label="Weapons" onClick={(e) => e.stopPropagation()}>

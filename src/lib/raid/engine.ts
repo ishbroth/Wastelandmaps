@@ -100,6 +100,10 @@ export class Game {
   hits = 0;
   /** The action is stopped (the weapon wheel is open). */
   paused = false;
+  /** The survivor carries a stimpak: the third strike does not kill them yet, the fight stops and they are asked. */
+  canRevive = false;
+  /** Struck down the third time and waiting to answer whether to use a stimpak. */
+  downed = false;
   enemies: Enemy[] = [];
   effects: Effect[] = [];
   strikes: Strike[] = [];
@@ -305,7 +309,9 @@ export class Game {
     this.hits++;
     this.hitFlash = 1;
     this.shake = Math.max(this.shake, kind === 'blast' ? 1 : 0.6);
-    if (this.hits >= MAX_HITS) this.outcome = 'lost';
+    if (this.hits >= MAX_HITS) {
+      if (this.canRevive) { this.downed = true; this.paused = true; } else this.outcome = 'lost';
+    }
   }
 
   /** An enemy's box in the picture's coordinates: [left, top, right, bottom], given the picture's width and height in pixels (for the shape). */

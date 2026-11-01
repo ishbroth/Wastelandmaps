@@ -617,3 +617,6 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-me span { font-size: 20px; line-height: 16px; }
 .rm-me small { font-size: 11px; letter-spacing: 1px; line-height: 11px; }
 .rm-me:disabled { opacity: 0.5; cursor: default; }
+
+.rm-raid-downed { z-index: 6; }
+.rm-raid-downed .rm-btn { margin: 0 6px; }
