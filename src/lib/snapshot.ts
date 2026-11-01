@@ -34,9 +34,12 @@ export async function findSnapshot(position: LatLng, placeName: string, entityId
 
   let result: Snapshot | null = null;
   try {
-    const hit = await findPhotoFor({ entityId, name: placeName, lat: position.lat, lng: position.lng });
+    const hit = await findPhotoFor({ entityId, name: placeName, lat: position.lat, lng: position.lng, throwOnFailure: true });
     if (hit) result = { imageUrl: hit.imageUrl, title: hit.title, author: hit.author, license: hit.license, pageUrl: hit.pageUrl, listed: true };
-  } catch { /* offline or blocked: no snapshot */ }
+  } catch {
+    // offline, refused or busy: no snapshot for now, but do not remember that: the next look tries again
+    return null;
+  }
   try { sessionStorage.setItem(key, result ? JSON.stringify(result) : 'none'); } catch { /* full */ }
   return result;
 }

@@ -23,6 +23,8 @@ export interface PhotoQuery {
   name: string;
   lat?: number;
   lng?: number;
+  /** Throw (instead of answering null) when no photo was found AND a search was refused or failed, so the caller does not remember "no photo" for a hiccup. */
+  throwOnFailure?: boolean;
 }
 
 const ALLOWED = /^(CC BY(?!-NC)(?!-ND)|CC BY-SA(?!-NC)|CC0|Public domain|PD)/i;
@@ -52,7 +54,9 @@ interface CommonsPage {
 }
 
 const json = async (url: string, headers: Headers) => {
-  const res = await fetch(url, { headers });
+  let res = await fetch(url, { headers });
+  // busy (rate limited): wait a moment and ask once more
+  if (res.status === 429 || res.status === 503) { await new Promise((r) => setTimeout(r, 1500)); res = await fetch(url, { headers }); }
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
 };
@@ -149,17 +153,23 @@ async function openverse(name: string, headers: Headers): Promise<PhotoHit | nul
 export async function findPhotoFor(q: PhotoQuery, headers: Headers = {}): Promise<PhotoHit | null> {
   let lat = q.lat;
   let lng = q.lng;
+  let failed = false;
+  const attempt = async (run: () => Promise<PhotoHit | null>): Promise<PhotoHit | null> => {
+    try { return await run(); } catch { failed = true; return null; }
+  };
   let facts: Awaited<ReturnType<typeof entityFacts>> = {};
   if (q.entityId && /^Q\d+$/.test(q.entityId)) {
-    try { facts = await entityFacts(q.entityId, headers); } catch { /* try the rest */ }
+    try { facts = await entityFacts(q.entityId, headers); } catch { failed = true; }
     lat ??= facts.lat;
     lng ??= facts.lng;
-    if (facts.p18) { try { const hit = await commonsFile(facts.p18, 'wikidata', headers); if (hit) return hit; } catch { /* next */ } }
-    if (facts.wiki) { try { const hit = await wikipediaLead(facts.wiki, headers); if (hit) return hit; } catch { /* next */ } }
-    if (facts.category) { try { const hit = await commonsCategory(facts.category, headers); if (hit) return hit; } catch { /* next */ } }
+    if (facts.p18) { const hit = await attempt(() => commonsFile(facts.p18 as string, 'wikidata', headers)); if (hit) return hit; }
+    if (facts.wiki) { const hit = await attempt(() => wikipediaLead(facts.wiki as string, headers)); if (hit) return hit; }
+    if (facts.category) { const hit = await attempt(() => commonsCategory(facts.category as string, headers)); if (hit) return hit; }
   }
-  if (lat !== undefined && lng !== undefined) { try { const hit = await commonsNear(lat, lng, q.name, headers); if (hit) return hit; } catch { /* next */ } }
-  try { return await openverse(q.name, headers); } catch { return null; }
+  if (lat !== undefined && lng !== undefined) { const hit = await attempt(() => commonsNear(lat as number, lng as number, q.name, headers)); if (hit) return hit; }
+  const hit = await attempt(() => openverse(q.name, headers));
+  if (!hit && failed && q.throwOnFailure) throw new Error('the photo search was refused or failed');
+  return hit;
 }
 
 /** A short name for where a photo page lives ("Wikimedia Commons", "Flickr"), for the credit line. */
