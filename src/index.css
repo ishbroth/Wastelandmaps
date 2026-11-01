@@ -649,3 +649,27 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-raid-center { max-height: calc(100% - 24px); overflow-y: auto; }
 @media (max-height: 520px) { .rm-raid-center { padding: 10px 16px; } .rm-raid-center h2 { font-size: 28px; letter-spacing: 3px; margin-bottom: 4px; } .rm-raid-center p { font-size: 16px; margin-bottom: 8px; } .rm-raid-loot { font-size: 18px; margin-bottom: 8px; } }
 .rm-raid-loot small { font-size: 12px; color: #c9b87a; letter-spacing: 2px; }
+
+/* ---- a slimmer banner on phones (upright and sideways), more room for the map, and a narrower info side ---- */
+@media (max-width: 960px) {
+  .rm-app { padding-top: max(4px, env(safe-area-inset-top)); padding-bottom: 8px; }
+  .rm-head { margin-bottom: 4px; gap: 8px; flex-wrap: nowrap; align-items: center; }
+  .rm-title { gap: 8px; flex-wrap: nowrap; }
+  .rm-title h1 { font-size: 24px; letter-spacing: 2px; text-shadow: 0 0 8px var(--glow); }
+  .rm-title p { display: none; }
+  .rm-title-mark { width: 20px; height: 20px; }
+  .rm-title-mark::after { inset: 4px; }
+  .rm-looks { border-width: 1px; border-radius: 6px; }
+  .rm-looks button { padding: 2px 9px; font-size: 15px; letter-spacing: 1px; }
+  .rm-account-btn { padding: 3px 8px; font-size: 12px; letter-spacing: 1px; }
+  .rm-device { padding: 8px; border-radius: 18px; }
+  .rm-screen { height: 68vh; height: 68dvh; }
+}
+@media (max-width: 960px) and (orientation: landscape) and (max-height: 620px) {
+  .rm-device { grid-template-columns: minmax(0, 1fr) minmax(250px, calc(36% - 16px)); gap: 8px; padding: 6px; }
+  .rm-screen { height: calc(100vh - 60px); height: calc(100dvh - 60px); min-height: 220px; }
+  .rm-side { max-height: calc(100vh - 60px); max-height: calc(100dvh - 60px); }
+  .rm-app { padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+}
+/* the desktop: the info side a little narrower, the map wider */
+@media (min-width: 961px) { .rm-device { grid-template-columns: minmax(0, 1fr) 340px; } }
