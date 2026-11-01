@@ -179,7 +179,7 @@ export type UnlockResult =
   | { kind: 'error'; reason: 'no_credits' | 'no_photo' | 'busy' | 'failed' | 'sign_in' | 'server' };
 
 /** Unlocks a place (one credit, once) and returns the render. 'working' means it is still being made: ask again in a few seconds, free. */
-export async function unlockRender(placeId: string, name: string, extra?: { kind?: string; metroId?: string | null }): Promise<UnlockResult> {
+export async function unlockRender(placeId: string, name: string, extra?: { kind?: string; metroId?: string | null; home?: boolean }): Promise<UnlockResult> {
   const { data, error } = await db().functions.invoke(placeId.startsWith('me:') ? 'unlock-streetview' : 'unlock-render', { body: { placeId, name, ...extra } });
   if (error) {
     // the function answers with an error code in the body even on a 4xx/5xx
@@ -296,8 +296,8 @@ export async function renamePersonalPlace(userId: string, placeId: string, name:
 }
 
 /** Has anyone already rendered this address, and can this person see it without paying? (Free to ask.) */
-export async function checkAddress(placeId: string): Promise<{ exists: boolean; owned: boolean }> {
-  const { data, error } = await db().functions.invoke('unlock-streetview', { body: { action: 'check', placeId } });
+export async function checkAddress(placeId: string, home = false): Promise<{ exists: boolean; owned: boolean }> {
+  const { data, error } = await db().functions.invoke('unlock-streetview', { body: { action: 'check', placeId, home } });
   return error || !data ? { exists: false, owned: false } : { exists: data.exists === true, owned: data.owned === true };
 }
 

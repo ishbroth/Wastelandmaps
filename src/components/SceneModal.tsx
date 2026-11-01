@@ -46,20 +46,21 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
   useEffect(() => {
     if (!spot.personal || !account.session) return;
     let cancelled = false;
-    void checkAddress(spot.id.slice(3)).then((r) => { if (!cancelled) setAddress({ id: spot.id, ...r }); });
+    void checkAddress(spot.id.slice(3), !!spot.personal?.home).then((r) => { if (!cancelled) setAddress({ id: spot.id, ...r }); });
     return () => { cancelled = true; };
   }, [spot, account.session]);
   const rendered = address?.id === spot.id ? address : null;
   const streetState = !personal ? null : street?.id === spot.id ? (street.ok ? 'yes' : 'no') : 'checking';
   const searching = personal ? streetState === 'checking' : snapshot === 'searching';
   const cost = personal ? 4 : 1;
+  const home = !!spot.personal?.home;
   const sceneCanvas = useRef<HTMLCanvasElement>(null);
   const seed = useMemo(() => hashString(spot.id), [spot.id]);
   const journal = useMemo(() => describeSpot(spot, regionName, plan), [spot, regionName, plan]);
 
   // the paid snapshot: for places with a freely licensed photo listed on Wikidata that are not among the free few
   const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || (personal && (streetState === 'yes' || !!rendered?.exists)));
-  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId } : undefined, !!rendered?.owned);
+  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home } : undefined, !!rendered?.owned);
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
   const locked = canPay && !paidReady;
@@ -145,7 +146,9 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
           {tab === 'snapshot' && locked && (
             <div className="rm-locked">
               <b>SNAPSHOT SEALED</b>
-              {personal
+              {home
+                ? <p>Blow up your own home. The Street View picture of your address is turned into the ruin it would be: rubble, with your vault door in the ground and your number on it. Made just for you, yours to download and share. It costs {cost} credits.</p>
+                : personal
                 ? <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share. It costs {cost} credits.</p>
                 : <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>}
               {paid.state.kind === 'error' && <p className="rm-account-note">{paid.state.message}</p>}
@@ -156,7 +159,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
               ) : (account.credits ?? 0) < cost ? (
                 <button type="button" className="rm-btn" onClick={onAccount}>{personal ? `YOU NEED ${cost} CREDITS · ` : ''}BUY {PACK.credits} SNAPSHOTS: {PACK.price}</button>
               ) : (
-                <button type="button" className="rm-btn" onClick={() => void paid.run()}>UNLOCK FOR {cost} CREDIT{cost > 1 ? 'S' : ''}</button>
+                <button type="button" className="rm-btn" onClick={() => void paid.run()}>{home ? 'BLOW UP MY HOME' : 'UNLOCK'} FOR {cost} CREDIT{cost > 1 ? 'S' : ''}</button>
               )}
             </div>
           )}

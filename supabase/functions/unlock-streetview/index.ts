@@ -7,6 +7,7 @@
 //
 // The Street View picture is used once to make the render and is not stored: only the finished render is kept.
 //
+// POST { ..., home: true }  the person's own saved home with their vault door drawn in (see homeFlow); same replies, kept per person
 // POST { action: 'check', placeId }                     ->  { exists, owned }          (free)
 // POST { action?: 'unlock', placeId, kind?, metroId? }  ->  { status: 'ready', url } | { status: 'working' } | { error }
 // Secrets: GEMINI_API_KEY, STREETVIEW_API_KEY (Street View Static API and Places API (New) switched on).  Optional: GEMINI_MODEL, DAILY_RENDER_CAP.
@@ -60,7 +61,7 @@ async function streetPicture(lat: number, lng: number): Promise<{ bytes: Uint8Ar
   return { bytes: new Uint8Array(await res.arrayBuffer()), mime: res.headers.get('content-type') ?? 'image/jpeg' };
 }
 
-async function generate(picture: { bytes: Uint8Array; mime: string }, kind: string, name: string): Promise<Uint8Array> {
+async function generate(picture: { bytes: Uint8Array; mime: string }, kind: string, name: string, vaultNumber?: number): Promise<Uint8Array> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) throw new Error('image generation is not set up');
   const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
@@ -68,7 +69,7 @@ async function generate(picture: { bytes: Uint8Array; mime: string }, kind: stri
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: streetPrompt(kind, name) }, { inline_data: { mime_type: picture.mime, data: toBase64(picture.bytes) } }] }],
+      contents: [{ parts: [{ text: streetPrompt(kind, name, vaultNumber) }, { inline_data: { mime_type: picture.mime, data: toBase64(picture.bytes) } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     }),
   });
@@ -80,17 +81,80 @@ async function generate(picture: { bytes: Uint8Array; mime: string }, kind: stri
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
+// Their own home, blown up with their vault door in it: kept per person (the number on the door is theirs), 4 credits, charged first and refunded on failure.
+// Only the home they saved (and its vault number) can be rendered this way: both come from their account, never from the browser.
+// deno-lint-ignore no-explicit-any
+async function homeFlow(req: Request, db: any, user: string, googleId: string, checkOnly: boolean): Promise<Response> {
+  const { data: home } = await db.from('user_home').select('place_id,vault_number').eq('user_id', user).maybeSingle();
+  if (!home || home.place_id !== googleId || !home.vault_number) return reply(req, { error: 'bad_place' }, 400);
+  const number = home.vault_number as number;
+  const unlockKey = `vault:${googleId}:${number}`;
+  const { data: existing } = await db.from('home_renders').select('*').eq('user_id', user).maybeSingle();
+  const mine = existing && existing.google_id === googleId && existing.vault_number === number ? existing : null;
+  const ready = mine?.status === 'ready' && !!mine.storage_path;
+  if (checkOnly) return reply(req, { exists: ready, owned: ready });
+  const signed = async (path: string) => {
+    const s = await db.storage.from('renders').createSignedUrl(path, 3600);
+    return s.error || !s.data ? null : (s.data.signedUrl as string);
+  };
+  if (ready) {
+    const url = await signed(mine.storage_path as string);
+    return url ? reply(req, { status: 'ready', url, charged: false }) : reply(req, { error: 'server' }, 500);
+  }
+  if (mine?.status === 'generating' && Date.now() - new Date(mine.started_at as string).getTime() < STALE_AFTER_MS) return reply(req, { status: 'working' });
+
+  let details;
+  try { details = await placeDetails(googleId); } catch { return reply(req, { error: 'server' }, 500); }
+  if (!details) return reply(req, { error: 'unknown_place' }, 404);
+
+  const { data: spent, error: spendError } = await db.rpc('unlock_personal', { p_user: user, p_place: unlockKey, p_cost: COST });
+  if (spendError) return reply(req, { error: 'server' }, 500);
+  if (spent === 'no_credits') return reply(req, { error: 'no_credits' }, 402);
+  const giveBack = async () => { if (spent === 'spent') await db.rpc('refund_personal', { p_user: user, p_place: unlockKey, p_cost: COST }); };
+  try {
+    const cap = Number(Deno.env.get('DAILY_RENDER_CAP') ?? '150');
+    const since = new Date(); since.setUTCHours(0, 0, 0, 0);
+    const counts = await Promise.all(['renders', 'address_renders', 'home_renders'].map((t) => db.from(t).select('*', { count: 'exact', head: true }).gte('started_at', since.toISOString())));
+    if (counts.reduce((n: number, c: { count: number | null }) => n + (c.count ?? 0), 0) >= cap) { await giveBack(); return reply(req, { error: 'busy' }, 503); }
+    const row = { user_id: user, google_id: googleId, vault_number: number, status: 'generating', storage_path: null, started_at: new Date().toISOString() };
+    const claim = existing
+      ? await db.from('home_renders').update(row).eq('user_id', user).eq('started_at', existing.started_at).select()
+      : await db.from('home_renders').insert(row).select();
+    if (claim.error || !claim.data || claim.data.length === 0) { await giveBack(); return reply(req, { status: 'working' }); }
+    const picture = await streetPicture(details.lat, details.lng);
+    if (!picture) {
+      await db.from('home_renders').delete().eq('user_id', user);
+      await giveBack();
+      return reply(req, { error: 'no_streetview' }, 404);
+    }
+    const png = await generate(picture, 'house', details.name, number);
+    const path = `home/${user}.png`;
+    const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
+    if (up.error) throw new Error('could not store the image');
+    await db.from('home_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString() }).eq('user_id', user);
+    const url = await signed(path);
+    if (!url) throw new Error('no link');
+    return reply(req, { status: 'ready', url, charged: spent === 'spent' });
+  } catch (e) {
+    await db.from('home_renders').update({ status: 'failed' }).eq('user_id', user);
+    await giveBack();
+    console.error('home render failed', googleId, e instanceof Error ? e.message : e);
+    return reply(req, { error: 'failed' }, 502);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
   if (req.method !== 'POST') return reply(req, { error: 'POST only' }, 405);
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
 
-  const body = (await req.json().catch(() => ({}))) as { action?: string; placeId?: string; kind?: string; metroId?: string };
+  const body = (await req.json().catch(() => ({}))) as { action?: string; placeId?: string; kind?: string; metroId?: string; home?: boolean };
   if (!body.placeId || !/^me:[A-Za-z0-9_-]{10,200}$/.test(body.placeId)) return reply(req, { error: 'bad_place' }, 400);
   const placeId = body.placeId;
   const googleId = placeId.slice(3);
   const db = serviceClient();
+  if (body.home === true) return homeFlow(req, db, user, googleId, body.action === 'check');
 
   const { data: existing } = await db.from('address_renders').select('*').eq('place_id', googleId).maybeSingle();
   const { data: unlocked } = await db.from('unlocks').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
