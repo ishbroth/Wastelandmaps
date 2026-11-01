@@ -514,7 +514,8 @@ export default function App() {
     if (saved === 'error') return 'That could not be saved. Try again in a moment.';
     await savePersonalPlace(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, kind: 'house' });
     // the vault number is also the password they sign in with from now on
-    if (await setVaultPassword()) localStorage.setItem(`rm-pw-${who.user.id}`, String(vaultNumber));
+    localStorage.setItem(`rm-pw-${who.user.id}`, String(vaultNumber));
+    if (!(await setVaultPassword(who.user.email, vaultNumber))) localStorage.removeItem(`rm-pw-${who.user.id}`);
     await accountRef.current?.refresh();
     setHomeOpen(false);
     await show(() => geocodeQuery(place.address).catch(() => geocodeLatLng(place.position)), `VAULT ${String(vaultNumber).padStart(4, '0')}`);
@@ -525,7 +526,8 @@ export default function App() {
     const who = account.session?.user.id;
     const number = account.home?.vaultNumber;
     if (!who || number === undefined || localStorage.getItem(`rm-pw-${who}`) === String(number)) return;
-    void setVaultPassword().then((ok) => { if (ok) localStorage.setItem(`rm-pw-${who}`, String(number)); });
+    localStorage.setItem(`rm-pw-${who}`, String(number));
+    void setVaultPassword(account.session?.user.email, number).then((ok) => { if (!ok) localStorage.removeItem(`rm-pw-${who}`); });
   }, [account.session, account.home?.vaultNumber]);
   // navigation takes over the whole phone screen when it is turned sideways: let the map notice its new size
   useEffect(() => {

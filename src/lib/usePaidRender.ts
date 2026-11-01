@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNative, saveBlob } from './native';
-import { unlockRender, type Account, type Unlocked } from './account';
+import { recoverSession, unlockRender, type Account, type Unlocked } from './account';
 
 export type PaidState =
   | { kind: 'idle' }
@@ -51,6 +51,7 @@ export function usePaidRender(spotId: string, name: string, account: Account, en
         return;
       }
       if (result.kind === 'error') {
+        if (result.reason === 'sign_in' && account.session) await recoverSession();
         setState({ kind: 'error', message: MESSAGES[result.reason] ?? MESSAGES.server });
         running.current = false;
         void account.refresh();

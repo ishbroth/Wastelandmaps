@@ -176,9 +176,18 @@ export async function signInWithVault(email: string, digits: string): Promise<st
 }
 
 /** Makes the vault number the account's password (the server reads the number from the saved home). */
-export async function setVaultPassword(): Promise<boolean> {
+export async function setVaultPassword(email?: string | null, vaultNumber?: number): Promise<boolean> {
   const { data, error } = await db().functions.invoke('set-vault-password', { body: {} });
-  return !error && data?.ok === true;
+  const ok = !error && data?.ok === true;
+  // changing a password can end the sessions that were open before it: sign in again with the new one so this device keeps a working session
+  if (ok && email && vaultNumber !== undefined) await db().auth.signInWithPassword({ email, password: `vault-${String(vaultNumber).padStart(4, '0')}` });
+  return ok;
+}
+
+/** A call was refused as not signed in although the page thinks it is: the saved session is dead. Try to renew it; if that fails, sign out so signing in again is offered. */
+export async function recoverSession(): Promise<void> {
+  const { data, error } = await db().auth.refreshSession();
+  if (error || !data.session) await db().auth.signOut();
 }
 
 export const signOut = () => db().auth.signOut();
