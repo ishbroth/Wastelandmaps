@@ -593,3 +593,6 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-cap-icon { flex: none; vertical-align: -0.12em; }
 .rm-acct-credits b.rm-caps-big { display: inline-flex; align-items: center; gap: 10px; }
 .rm-acct-credits b.rm-caps-big .rm-cap-icon { width: 34px; height: 34px; }
+
+.rm-buy-card { width: min(420px, 100%); display: block; }
+.rm-buy-card .rm-packs { margin-top: 10px; }
