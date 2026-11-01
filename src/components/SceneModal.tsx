@@ -7,7 +7,7 @@ import { freeRenderFor } from '../lib/renders';
 import { usePaidRender } from '../lib/usePaidRender';
 import { findSnapshot, type Snapshot } from '../lib/snapshot';
 import { sourceLabel } from '../../supabase/functions/_shared/photoSources';
-import { streetViewAvailable } from '../lib/addressSearch';
+import { streetViewAvailable, streetViewPictureUrl } from '../lib/addressSearch';
 import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } from '../lib/wasteland';
 import type { LookId } from '../lib/looks';
 import BlowApart from './BlowApart';
@@ -44,6 +44,13 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
     void streetViewAvailable(spot.position).then((ok) => { if (!cancelled) setStreet({ id: spot.id, ok }); });
     return () => { cancelled = true; };
   }, [spot]);
+  const [beforeStreet, setBeforeStreet] = useState<{ id: string; url: string | null } | null>(null);
+  useEffect(() => {
+    if (!spot.personal) return;
+    let cancelled = false;
+    void streetViewPictureUrl(spot.position).then((url) => { if (!cancelled) setBeforeStreet({ id: spot.id, url }); });
+    return () => { cancelled = true; };
+  }, [spot]);
   // has anyone rendered this address already (then only the unlock is paid for), and is it theirs to see?
   const [address, setAddress] = useState<{ id: string; exists: boolean; owned: boolean } | null>(null);
   useEffect(() => {
@@ -71,7 +78,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
   // what the reveal plays between: the real photo, and the finished picture
   const reveal = render
     ? { before: render.before, after: render.url, name: render.name, file: `${render.name.replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`, credit: { photo: render.photo, author: render.author, license: render.license, page: render.page } }
-    : paidReady && personal ? { before: '', after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit }
+    : paidReady && personal ? (beforeStreet?.id === spot.id ? { before: beforeStreet.url ?? '', after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit } : null)
     : paidReady && photo ? { before: photo.imageUrl, after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit } : null;
 
   // the drawn scene
@@ -144,7 +151,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
         <div className="rm-modal-view">
           {tab === 'scene' && <canvas ref={sceneCanvas} className="rm-modal-canvas" aria-label={`Illustration of ${spot.name}`} />}
           {tab === 'snapshot' && reveal && (
-            <BlowApart key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} />
+            <BlowApart key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={personal ? spot.id : undefined} />
           )}
           {tab === 'snapshot' && locked && (
             <div className="rm-locked">
@@ -166,7 +173,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
         </div>
 
         {tab === 'snapshot' && reveal && personal && (
-          <p className="rm-modal-credit">Made from Google Street View imagery. The original picture is not kept; only this render is, and only you can open it.</p>
+          <p className="rm-modal-credit">Made from Google Street View imagery. The original is shown straight from Google and is not kept by us; only this render is kept, and only you can open it.</p>
         )}
         {tab === 'snapshot' && reveal && !personal && (
           <p className="rm-modal-credit">

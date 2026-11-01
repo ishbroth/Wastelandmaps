@@ -298,14 +298,14 @@ function draw(
   ctx.restore();
 }
 
-export default function BlowApart({ beforeUrl, afterUrl, name, file, seed }: { beforeUrl: string; afterUrl: string; name: string; file: string; seed: number }) {
+export default function BlowApart({ beforeUrl, afterUrl, name, file, seed, seenId }: { beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const images = useRef<{ before: HTMLImageElement; after: HTMLImageElement; plan: ReturnType<typeof plan>; sky: Sky; cloud: CanvasRenderingContext2D | null; width: number; height: number } | null>(null);
   const frame = useRef(0);
   const [state, setState] = useState<'loading' | 'playing' | 'done' | 'plain'>('loading');
   const [recording, setRecording] = useState(false);
   const canRecord = typeof MediaRecorder !== 'undefined' && typeof HTMLCanvasElement !== 'undefined' && 'captureStream' in HTMLCanvasElement.prototype;
-  const seenKey = `wastelandmaps:seen:${afterUrl}`;
+  const seenKey = `wastelandmaps:seen:${seenId ?? afterUrl}`;
 
   const finish = useCallback(() => {
     const el = canvas.current;

@@ -75,6 +75,33 @@ export async function streetViewAvailable(position: LatLng): Promise<boolean> {
   }
 }
 
+/** The compass heading from one point to another. */
+function headingTo(from: LatLng, to: LatLng): number {
+  const r = Math.PI / 180;
+  const y = Math.sin((to.lng - from.lng) * r) * Math.cos(to.lat * r);
+  const x = Math.cos(from.lat * r) * Math.sin(to.lat * r) - Math.sin(from.lat * r) * Math.cos(to.lat * r) * Math.cos((to.lng - from.lng) * r);
+  return Math.round((Math.atan2(y, x) / r + 360) % 360);
+}
+
+/**
+ * The Street View picture of a place (Google's own image, fetched fresh each time it is shown and never kept by us): what the snapshot shows before the blast.
+ * Looks at the place from where the street picture was taken. Null when there is none.
+ */
+export async function streetViewPictureUrl(position: LatLng): Promise<string | null> {
+  const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+  if (!key) return null;
+  try {
+    const { StreetViewService, StreetViewSource } = (await google.maps.importLibrary('streetView')) as google.maps.StreetViewLibrary;
+    const result = await new StreetViewService().getPanorama({ location: position, radius: 60, source: StreetViewSource.OUTDOOR });
+    const at = result.data?.location?.latLng;
+    if (!at) return null;
+    const params = new URLSearchParams({ size: '640x640', location: `${at.lat()},${at.lng()}`, heading: String(headingTo({ lat: at.lat(), lng: at.lng() }, position)), pitch: '6', fov: '90', source: 'outdoor', key });
+    return `https://maps.googleapis.com/maps/api/streetview?${params}`;
+  } catch {
+    return null;
+  }
+}
+
 /** The address where someone is standing (for setting it as home). */
 export async function reverseGeocode(position: LatLng): Promise<PickedPlace | null> {
   try {

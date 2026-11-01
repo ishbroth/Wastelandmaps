@@ -50,7 +50,7 @@ export function personalLocation(p: PersonalPlace, saved: boolean, homeVault?: n
     loot: 'Whatever the years left in the cupboards',
     threat: 'Quiet',
     rads: 0,
-    icon: homeVault !== undefined ? 'vault' : PERSONAL_ICON[p.kind],
+    icon: homeVault !== undefined ? 'homevault' : PERSONAL_ICON[p.kind],
     personal: { address: p.address, kind: p.kind, saved, ...(homeVault !== undefined ? { home: true } : {}) },
   };
 }
