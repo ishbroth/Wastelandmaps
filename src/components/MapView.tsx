@@ -52,16 +52,16 @@ const LABEL_ZOOM = 16;
 
 /**
  * How far in the map has to be (Google zoom level) before a place gets a marker, so a big metro does not clutter the screen or slow the map:
- * the permanent-snapshot landmarks, your home and the place you picked are always there; the famous second-tier landmarks show from state or county
- * level; then, as you come in, the places that are worth more first (city level), and the smallest ones, your own places and the atlas only at
+ * the permanent-snapshot landmarks, your home and the place you picked are always there; the famous second-tier landmarks show from state level
+ * (zoom 6); then, as you come in, the places that are worth more first (city level), and the smallest ones, your own places and the atlas only at
  * neighborhood level. Zooming back out takes them away again.
  */
 function minZoomFor(loc: Location, selectedId: string | null): number {
   if (loc.personal?.home || freeRenderFor(loc.id) || loc.id === selectedId || (loc.personal && !loc.personal.saved)) return 0;
-  if (loc.personal) return 14;
-  if (loc.famous) return 7;
+  if (loc.personal) return 12;
+  if (loc.famous) return 6;
   const pts = pointsFor(loc);
-  return pts >= 30 ? 11 : pts >= 20 ? 12 : pts >= 15 ? 13 : 14;
+  return pts >= 30 ? 9 : pts >= 20 ? 10 : pts >= 15 ? 11 : 12;
 }
 
 /**

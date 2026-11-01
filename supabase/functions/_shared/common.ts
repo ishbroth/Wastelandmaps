@@ -37,7 +37,7 @@ export async function callerId(req: Request): Promise<string | null> {
 
 /** What a pack costs and gives. The server decides this; the browser only asks for a pack by name. */
 export const PACKS: Record<string, { credits: number; cents: number; label: string }> = {
-  eight: { credits: 8, cents: 199, label: '8 snapshot credits' },
-  twentyfour: { credits: 24, cents: 499, label: '24 snapshot credits' },
-  fiftytwo: { credits: 52, cents: 999, label: '52 snapshot credits' },
+  eight: { credits: 8, cents: 199, label: '800 caps' },
+  twentyfour: { credits: 24, cents: 499, label: '2,400 caps' },
+  fiftytwo: { credits: 52, cents: 999, label: '5,200 caps' },
 };

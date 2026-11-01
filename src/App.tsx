@@ -13,6 +13,7 @@ import { enableNotifications, pushNotice } from './lib/notify';
 import { levelInfo, pointsFor } from './lib/points';
 import { enemiesLine, raidFor } from './lib/raid/raid';
 import { freeRenderFor } from './lib/renders';
+import { GLOBAL_LANDMARKS } from './lib/globalLandmarks';
 import { photoIsOf } from './lib/snapshot';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
@@ -129,6 +130,11 @@ export default function App() {
       return { ...loc, personal: { ...(loc.personal as NonNullable<Location['personal']>), atlas: true } };
     }), [atlas, account.personal]);
   const allLocations = useMemo(() => [...locations, ...personalLocs, ...atlasLocs], [locations, personalLocs, atlasLocs]);
+  // what the map draws and what can be opened: the loaded city's places plus the permanent landmarks of the rest of the world
+  const mapLocations = useMemo(() => {
+    const have = new Set(allLocations.map((l) => l.id));
+    return [...allLocations, ...GLOBAL_LANDMARKS.filter((g) => !have.has(g.id))];
+  }, [allLocations]);
   const atlasOwned = !!metroInfo && account.metros.has(metroInfo.id);
   useEffect(() => {
     if (!account.session || !metroInfo || !atlasOwned) { setAtlas([]); return; }
@@ -297,9 +303,9 @@ export default function App() {
   const spotFor = useCallback((id: string | null): Spot | null => {
     if (!id) return null;
     if (id === VAULT_ID) return wasteland ? vaultSpot(wasteland) : null;
-    const loc = allLocations.find((l) => l.id === id);
+    const loc = mapLocations.find((l) => l.id === id);
     return loc ? spotFromLocation(loc) : null;
-  }, [wasteland, allLocations]);
+  }, [wasteland, mapLocations]);
   const selectedSpot = useMemo(() => spotFor(selectedId), [spotFor, selectedId]);
   const sceneSpot = useMemo(() => spotFor(sceneId), [spotFor, sceneId]);
 
@@ -819,7 +825,7 @@ export default function App() {
           {status === 'ready' ? (
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
-              look={LOOKS[look]} region={region} wasteland={wasteland} locations={allLocations} hiddenCategories={hidden}
+              look={LOOKS[look]} region={region} wasteland={wasteland} locations={mapLocations} hiddenCategories={hidden}
               selectedId={selectedId} visited={visited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
@@ -865,7 +871,7 @@ export default function App() {
             <SceneModal
               metroId={metroInfo?.id}
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)}
-              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || (place.personal && !place.personal.home)) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)}
+              account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || (place.personal && !place.personal.home)) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)}
             />
           )}
           {accountOpen && !account.session && <AccountModal onClose={() => setAccountOpen(false)} />}

@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       price_data: {
         currency: 'usd',
         unit_amount: chosen.cents,
-        product_data: { name: `WastelandMaps: ${chosen.label}`, description: 'Each credit unlocks one place\'s post-apocalyptic game-style render, to view, download and share.' },
+        product_data: { name: `WastelandMaps: ${chosen.label}`, description: 'Bottle caps to spend on post-apocalyptic game-style snapshots of places: 100 caps unlock a landmark or place, 400 a street-level snapshot of any address.' },
       },
     }],
     metadata: { user_id: user, credits: String(chosen.credits) },
