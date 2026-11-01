@@ -5,6 +5,7 @@ import { iconFor } from '../lib/icons';
 import { placeIcon } from '../lib/placeIcons';
 import { landmarkIcon } from '../lib/landmarkIcons';
 import { freeRenderFor } from '../lib/renders';
+import { pointsFor } from '../lib/points';
 import type { Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
@@ -48,6 +49,20 @@ interface Props {
 const MAX_PINS = 450;
 const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
 const LABEL_ZOOM = 16;
+
+/**
+ * How far in the map has to be (Google zoom level) before a place gets a marker, so a big metro does not clutter the screen or slow the map:
+ * the permanent-snapshot landmarks, your home and the place you picked are always there; the famous second-tier landmarks show from state or county
+ * level; then, as you come in, the places that are worth more first (city level), and the smallest ones, your own places and the atlas only at
+ * neighborhood level. Zooming back out takes them away again.
+ */
+function minZoomFor(loc: Location, selectedId: string | null): number {
+  if (loc.personal?.home || freeRenderFor(loc.id) || loc.id === selectedId || (loc.personal && !loc.personal.saved)) return 0;
+  if (loc.personal) return 14;
+  if (loc.famous) return 7;
+  const pts = pointsFor(loc);
+  return pts >= 30 ? 11 : pts >= 20 ? 12 : pts >= 15 ? 13 : 14;
+}
 
 /**
  * Makes a marker respond to a press: a click (mouse, keyboard) and also a tap (touch or pen), which is read from the finger going down and up in
@@ -283,11 +298,14 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     const padLng = view ? (view.east - view.west) * 0.3 : 0;
     const centerLat = view ? (view.north + view.south) / 2 : 0;
     const centerLng = view ? (view.east + view.west) / 2 : 0;
-    let inView = locations.filter((l) => !hiddenCategories.has(l.category) && (!view || (
+    const zoom = zoomNow;
+    let inView = locations.filter((l) => !hiddenCategories.has(l.category) && zoom >= minZoomFor(l, selectedId) && (!view || (
       l.position.lat <= view.north + padLat && l.position.lat >= view.south - padLat &&
       l.position.lng <= view.east + padLng && l.position.lng >= view.west - padLng)));
     if (inView.length > MAX_PINS) {
-      inView = inView.sort((a, b) => Math.hypot(a.position.lat - centerLat, a.position.lng - centerLng) - Math.hypot(b.position.lat - centerLat, b.position.lng - centerLng)).slice(0, MAX_PINS);
+      const dist = (l: Location) => Math.hypot(l.position.lat - centerLat, l.position.lng - centerLng);
+      // the always-there ones first, then the nearest to the middle of the screen
+      inView = inView.sort((a, b) => (minZoomFor(a, selectedId) === 0 ? 0 : 1) - (minZoomFor(b, selectedId) === 0 ? 0 : 1) || dist(a) - dist(b)).slice(0, MAX_PINS);
     }
     const wanted = new Set(inView.map((l) => l.id));
     pins.current.forEach((p, id) => {
@@ -319,7 +337,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       handle.setMap(map);
       pins.current.set(loc.id, { handle, el, position: loc.position });
     }
-  }, [locations, hiddenCategories, view]);
+  }, [locations, hiddenCategories, view, zoomNow, selectedId]);
 
   // standing water on the coast: a few flooded patches, in the look's water color
   useEffect(() => {

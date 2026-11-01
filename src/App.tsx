@@ -13,6 +13,7 @@ import { enableNotifications, pushNotice } from './lib/notify';
 import { levelInfo, pointsFor } from './lib/points';
 import { enemiesLine, raidFor } from './lib/raid/raid';
 import { freeRenderFor } from './lib/renders';
+import { photoIsOf } from './lib/snapshot';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { AccountPanel, LocationsPanel, SharePanel } from './components/Panels';
@@ -99,9 +100,17 @@ export default function App() {
   const account = useAccount();
   // an address picked from the search that has not been reached yet (only a destination), and the person's own places near this map
   const [target, setTarget] = useState<PersonalPlace | null>(null);
+  useEffect(() => {
+    if (!target) return;
+    const here = { lat: target.lat, lng: target.lng };
+    const landmark = locations.find((l) => !l.personal && (l.famous || freeRenderFor(l.id)) && (distanceMeters(l.position, here) < 40 || (distanceMeters(l.position, here) < 250 && photoIsOf(l.oldName || l.name, target.name))));
+    if (!landmark) return;
+    setTarget(null);
+    setSelectedId(landmark.id);
+  }, [target, locations]);
   const personalLocs = useMemo(() => {
     const here = region?.center;
-    const mine = account.personal.filter((q) => !here || distanceMeters(here, { lat: q.lat, lng: q.lng }) < 150_000).map((q) => personalLocation(q, true, account.home?.vaultNumber !== undefined && account.home.placeId === q.placeId ? account.home.vaultNumber : undefined));
+    const mine = account.personal.filter((q) => !here || distanceMeters(here, { lat: q.lat, lng: q.lng }) < 150_000 || account.home?.placeId === q.placeId).map((q) => personalLocation(q, true, account.home?.vaultNumber !== undefined && account.home.placeId === q.placeId ? account.home.vaultNumber : undefined));
     if (target && !account.personal.some((q) => q.placeId === target.placeId)) mine.push(personalLocation(target, false));
     return mine;
   }, [account.personal, account.home, target, region]);
