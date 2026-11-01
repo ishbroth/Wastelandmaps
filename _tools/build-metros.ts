@@ -317,6 +317,9 @@ async function fetchDowntownRows(metro: Metro): Promise<Row[]> {
   return rows;
 }
 
+/** Not wanted on any map (the Statue of Liberty National Monument is the same spot as the Statue of Liberty). */
+const DROPPED_ITEMS = new Set(['Q359939']);
+
 function candidatesOf(metro: Metro, rows: Row[]): Place[] {
   const byItem = new Map<string, { row: Row; classes: string[] }>();
   for (const r of rows) {
@@ -326,6 +329,7 @@ function candidatesOf(metro: Metro, rows: Row[]): Place[] {
   }
   const out: Place[] = [];
   for (const { row, classes } of byItem.values()) {
+    if (DROPPED_ITEMS.has(row.item)) continue;
     if (/^Q\d+$/.test(row.label)) continue; // no readable name
     if (NOT_A_PLACE_NAME.test(row.label)) continue;
     if (distanceMeters(metro.city, row) / 1000 > metro.radiusKm) continue;

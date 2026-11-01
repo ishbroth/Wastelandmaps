@@ -11,7 +11,8 @@ import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addr
 import { personalId, personalLocation, type PersonalPlace } from './lib/personal';
 import { enableNotifications, pushNotice } from './lib/notify';
 import { levelInfo, pointsFor } from './lib/points';
-import { raidFor } from './lib/raid/raid';
+import { enemiesLine, raidFor } from './lib/raid/raid';
+import { freeRenderFor } from './lib/renders';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { AccountPanel, LocationsPanel, SharePanel } from './components/Panels';
@@ -27,7 +28,7 @@ import { beep, type BeepKind } from './lib/sound';
 import { buzz } from './lib/haptics';
 import { START_MINUTES, formatClock, type TravelRun } from './lib/travel';
 import NavBanner from './components/NavBanner';
-import { currentFix, flightsUrl, googleMapsUrl, isOverseas, progressAlong, requestRoute, type NavRoute } from './lib/navigation';
+import { currentFix, flightsUrl, isOverseas, progressAlong, requestRoute, type NavRoute } from './lib/navigation';
 import {
   VAULT_ID, distanceMeters, generateWasteland, spotFromLocation, vaultSpot,
   type CategoryId, type LatLng, type Location, type Spot, type Wasteland,
@@ -630,10 +631,10 @@ export default function App() {
       return;
     }
     if (answer.kind === 'unavailable') {
-      // Google's directions cannot be used from here (the service is not switched on for this key): hand over to Google Maps itself
+      // no route service could be reached: say so, and stay on the Pip-Boy map (the navigation is ours; it never hands over to another app)
       setNav(null);
-      void openExternal(googleMapsUrl(spot.position));
-      say('NAVIGATION OPENED IN GOOGLE MAPS');
+      say('COULD NOT GET DIRECTIONS RIGHT NOW. TRY AGAIN IN A MOMENT', true);
+      sound('error');
       return;
     }
     lastReroute.current = Date.now();
@@ -815,7 +816,7 @@ export default function App() {
           )}
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
-              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas ? (name) => void renameSpot(selectedSpot, name) : undefined}
+              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={visited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = allLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas ? (name) => void renameSpot(selectedSpot, name) : undefined}
               traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
             />
           )}
@@ -823,7 +824,7 @@ export default function App() {
             <SceneModal
               metroId={metroInfo?.id}
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={visited.has(sceneSpot.id)}
-              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.personal) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)}
+              account={account} plan={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.vault ? raidFor(place) : undefined; })()} raid={(() => { const place = allLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.personal) ? raidFor(place) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)}
             />
           )}
           {accountOpen && !account.session && <AccountModal onClose={() => setAccountOpen(false)} />}

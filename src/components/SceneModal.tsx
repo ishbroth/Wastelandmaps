@@ -10,7 +10,7 @@ import type { LookId } from '../lib/looks';
 import BlowApart from './BlowApart';
 import RaidScreen from './RaidScreen';
 import { spawnsFor } from '../lib/raid/spawnData';
-import type { RaidPlan } from '../lib/raid/raid';
+import { planEnemies, type RaidPlan } from '../lib/raid/raid';
 
 type Tab = 'scene' | 'snapshot';
 
@@ -176,7 +176,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
         <div className="rm-modal-text">
           {journal.map((line, i) => <p key={i}>{line}</p>)}
           <dl>
-            <div><dt>THREAT</dt><dd>{spot.threat}</dd></div>
+            <div><dt>ENEMIES</dt><dd>{plan ? planEnemies(plan) : spot.kind === 'vault' ? 'None' : spot.threat}</dd></div>
             <div><dt>RADS</dt><dd>{spot.rads}</dd></div>
             <div><dt>LOOT</dt><dd>{spot.loot}</dd></div>
           </dl>

@@ -184,7 +184,7 @@ export interface Location {
   category: CategoryId;
   position: LatLng;
   loot: string;
-  threat: 'Quiet' | 'Scavengers' | 'Raiders' | 'Feral Ghouls' | 'Super Mutants' | 'Radiation';
+  threat: 'Quiet' | 'Raiders' | 'Feral Ghouls' | 'Super Mutants' | 'Radiation';
   rads: number;
   /** The picture on the map: what the place actually is. */
   icon: IconId;
@@ -202,7 +202,7 @@ export interface Location {
   personal?: { address: string; kind: PersonalKind; saved: boolean; /** Rendered by another survivor, shown because the whole metro is unlocked. */ atlas?: boolean };
 }
 
-const THREATS: Location['threat'][] = ['Quiet', 'Quiet', 'Scavengers', 'Scavengers', 'Raiders', 'Feral Ghouls', 'Super Mutants', 'Radiation'];
+const THREATS: Location['threat'][] = ['Raiders', 'Raiders', 'Raiders', 'Raiders', 'Raiders', 'Feral Ghouls', 'Super Mutants', 'Radiation'];
 
 /** Gives a real place its wasteland identity. */
 export function toLocation(place: { id: string; name: string; position: LatLng; primaryType?: string | null; types?: string[] | null }): Location {
@@ -274,7 +274,6 @@ const OPENERS: Record<CategoryId, string[]> = {
 
 const THREAT_LINES: Record<Location['threat'], string> = {
   Quiet: 'Nothing moves. That is either very good or very bad.',
-  Scavengers: 'Scavengers work the area, and they will trade if you do not look hungry.',
   Raiders: 'Raiders have claimed the place. Come armed, or come quietly.',
   'Feral Ghouls': 'Feral ghouls shuffle in the dark. Do not make noise.',
   'Super Mutants': 'Super mutants hold this ground, and they do not share.',
@@ -325,7 +324,7 @@ function presentDay(plan: PlaceInhabitants): string {
   const boss = plan.boss ? ` ${enemyById(plan.boss).now}` : '';
   const names = plan.lootTypes.map((l) => lootName(l).toLowerCase());
   const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
-  return `${who}${boss} Scavengers say it is worth the risk for ${list}.`;
+  return `${who}${boss} Survivors say it is worth the risk for ${list}.`;
 }
 
 export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabitants): string[] {

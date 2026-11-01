@@ -6,7 +6,7 @@ import { distanceMeters, subtitle, type LatLng, type Spot, type Wasteland } from
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
 /** The card that opens on the map when a place is selected: what it is, what it would cost to get there, and the two things to do about it. */
-export default function LocationCard({ spot, from, here, visited, cleared, onRename, traveling, onTravel, onScene, onClose }: {
+export default function LocationCard({ spot, from, here, visited, cleared, unlocked, enemies, onRename, traveling, onTravel, onScene, onClose }: {
   spot: Spot;
   /** Where the device is (while AUTO-DISCOVER is on), or null. */
   from: LatLng | null;
@@ -14,6 +14,10 @@ export default function LocationCard({ spot, from, here, visited, cleared, onRen
   here: boolean;
   visited: boolean;
   cleared?: boolean;
+  /** Its snapshot is unlocked (a permanent one, or opened with a credit). */
+  unlocked?: boolean;
+  /** What lives there, as the shooting gallery will send it. */
+  enemies?: string;
   /** Given for the person's own places: double-tapping the name lets them rename it. */
   onRename?: (name: string) => void;
   traveling: boolean;
@@ -53,7 +57,7 @@ export default function LocationCard({ spot, from, here, visited, cleared, onRen
         <button type="button" className="rm-card-close" onClick={onClose} aria-label="Close">×</button>
       </div>
       <p className="rm-card-meta">
-        {spot.personal ? (spot.personal.atlas ? 'ADDRESS ATLAS' : spot.personal.saved ? 'YOUR PLACE · DISCOVERED' : 'DESTINATION') : <>{visited ? 'DISCOVERED' : 'UNDISCOVERED'} · {spot.threat}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}</>}
+        {spot.personal ? <>{cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : spot.personal.atlas ? 'ADDRESS ATLAS' : spot.personal.saved ? 'YOUR PLACE · DISCOVERED' : 'DESTINATION'}{enemies ? ` · ${enemies}` : ''}</> : <>{cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : visited ? 'DISCOVERED' : 'UNDISCOVERED'}{enemies ? ` · ${enemies}` : ''}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}</>}
       </p>
       {!here && from && (
         <p className="rm-card-trip">

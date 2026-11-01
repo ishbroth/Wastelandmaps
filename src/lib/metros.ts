@@ -22,6 +22,8 @@ export interface MetroEntry {
 }
 
 /** Things on Wikidata with coordinates that are not places on a map: electoral districts, telephone area codes and the like. */
+/** Places that are not wanted on the map at all (the Statue of Liberty National Monument is the same spot as the Statue of Liberty). */
+const HIDDEN_IDS = new Set(['wd:Q359939']);
 const NOT_A_PLACE = /congressional district|legislative district|school district|electoral|area codes?|zip codes?|postal code|time zone|telephone|numbering plan/i;
 
 const base = `${import.meta.env.BASE_URL}data/`;
@@ -154,7 +156,7 @@ export function loadMetro(metro: MetroEntry): Promise<Location[]> {
     hit = fetch(`${base}metros/${id}.json`)
       .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string, number?, number?][] }>) : { places: [] }))
       .then((m) => m.places.map(([pid, name, lat, lng, category, fame, area]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0, area === 1)))
-      .then((places) => places.filter((p) => !NOT_A_PLACE.test(p.oldName)))
+      .then((places) => places.filter((p) => !NOT_A_PLACE.test(p.oldName) && !HIDDEN_IDS.has(p.id)))
       .then(async (places) => withLocals(places, (await loadLocals())[metro.id] ?? []))
       .then((places) => assignVaults(metro, withLoreSites(metro, withFamous(metro, withFreeLandmarks(metro, places)))))
       .catch(() => [] as Location[]);

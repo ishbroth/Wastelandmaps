@@ -99,3 +99,12 @@ export function rollLoot(plan: RaidPlan, random: () => number = Math.random): Pa
 
 /** A health bar that grows with the survivor's level. */
 export const maxHealth = (level: number): number => 100 + 10 * level;
+
+const cap = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** What is in a place, as it is shown on its card: the kinds of enemy (and the boss) that the shooting gallery there will actually send. */
+export const planEnemies = (plan: { enemies: EnemyId[]; boss: BossId | null }): string => {
+  const list = plan.enemies.map((e) => cap(enemyById(e).plural)).join(', ');
+  return plan.boss ? `${list} · Boss: ${enemyById(plan.boss).name}` : list;
+};
+export const enemiesLine = (loc: Location): string => planEnemies(raidFor(loc));

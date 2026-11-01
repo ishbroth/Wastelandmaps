@@ -390,10 +390,10 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-pin-selected .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.2); height: calc(var(--pin-size, 36px) * 1.2); }
 .rm-pin-vault .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.1); height: calc(var(--pin-size, 36px) * 1.1); }
 .rm-pin-rad .rm-pin-icon { width: 30px; height: 30px; }
-.rm-pin-landmark .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.7); height: calc(var(--pin-size, 36px) * 1.7); }
-.rm-pin-landmark.rm-pin-selected .rm-pin-icon { width: calc(var(--pin-size, 36px) * 2); height: calc(var(--pin-size, 36px) * 2); }
-.rm-pin-famous .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.22); height: calc(var(--pin-size, 36px) * 1.22); }
-.rm-pin-famous.rm-pin-selected .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.45); height: calc(var(--pin-size, 36px) * 1.45); }
+.rm-pin-landmark .rm-pin-icon { width: calc(var(--pin-size, 36px) * 2.04); height: calc(var(--pin-size, 36px) * 2.04); }
+.rm-pin-landmark.rm-pin-selected .rm-pin-icon { width: calc(var(--pin-size, 36px) * 2.4); height: calc(var(--pin-size, 36px) * 2.4); }
+.rm-pin-famous .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.46); height: calc(var(--pin-size, 36px) * 1.46); }
+.rm-pin-famous.rm-pin-selected .rm-pin-icon { width: calc(var(--pin-size, 36px) * 1.74); height: calc(var(--pin-size, 36px) * 1.74); }
 
 /* the SNAPSHOT tab: no text column, the whole sequence (photo, blast, destroyed render) gets the full width */
 .rm-modal-card.rm-modal-wide { width: min(1240px, 100%); grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "tabs" "view" "credit"; gap: 6px; }

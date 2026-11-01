@@ -5,13 +5,12 @@ import { saveBlob } from '../lib/native';
 
 /**
  * The reveal: the real photograph, then a bomb. A flash of white, a mushroom cloud rising over the sky in the photo (when it has open sky), the
- * shock wave arriving as a wall of dust that rips the picture into pieces and blows them away, a second whiteout, and then, as the white clears,
+ * shock wave arriving as a rush of dust and flying debris at the screen that swallows the picture, a second whiteout, and then, as the white clears,
  * the destroyed render. Drawn on a canvas, so the whole thing can also be recorded and saved as a short video.
  * It plays the first time someone sees a place; after that they get the finished picture, with REPLAY.
  */
 
 const DURATION = 7600; // milliseconds
-const COLS = 18;
 
 const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const ease = (x: number) => x * x * (3 - 2 * x);
@@ -35,12 +34,11 @@ function stream(seed: number) {
   };
 }
 
-// The blast comes from behind the picture, where the mushroom cloud stands, and travels toward the viewer: everything flies outward from that point
-// on the screen and grows as it nears the glass.
-interface Tile { x: number; y: number; w: number; h: number; push: number; zoom: number; drift: number; spin: number; start: number }
-interface Chunk { angle: number; speed: number; size: number; start: number; hue: number; spin: number; r0: number }
-interface Streak { angle: number; speed: number; length: number; thick: number; offset: number; alpha: number }
+// After the flash and the mushroom cloud the shock wave arrives as a wall of dust rushing at the viewer from behind the picture (where the cloud stands),
+// carrying specks of debris that swell as they come at the glass. The real photograph is lost in the dust and the destroyed picture is there when it thins.
+interface Chunk { angle: number; speed: number; size: number; start: number; shade: number; round: boolean; r0: number; spin: number }
 interface Puff { angle: number; speed: number; radius: number; start: number; shade: number; r0: number }
+interface Giant { dx: number; dy: number; radius: number; start: number }
 interface Sky { mask: HTMLCanvasElement | null; hasSky: boolean; cloudX: number; horizon: number }
 
 /** Finds the open sky in the photograph (bright, bluish or grey, near the top), so the mushroom cloud can rise behind the landmark and not in front of it. */
@@ -99,37 +97,19 @@ function findSky(before: HTMLImageElement, width: number, height: number): Sky {
 
 function plan(width: number, height: number, seed: number, ox: number, oy: number) {
   const rand = stream(seed);
-  const rows = Math.max(6, Math.round((COLS * height) / width));
-  const tw = width / COLS;
-  const th = height / rows;
   const reach = Math.max(Math.hypot(ox, oy), Math.hypot(width - ox, oy), Math.hypot(ox, height - oy), Math.hypot(width - ox, height - oy));
-  const tiles: Tile[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const cx = (c + 0.5) * tw;
-      const cy = (r + 0.5) * th;
-      tiles.push({
-        x: c * tw, y: r * th, w: tw, h: th,
-        push: 1.3 + rand() * 1.4, // how far it travels out from the blast point, as a multiple of its distance from it
-        zoom: 2.2 + rand() * 3.2, // how much bigger it gets as it flies at the viewer
-        drift: (rand() - 0.3) * 0.25,
-        spin: (rand() - 0.5) * 3.5,
-        // the shock front spreads out from the blast point: the pieces nearest it are ripped off first
-        start: 0.47 + (Math.hypot(cx - ox, cy - oy) / reach) * 0.12 + rand() * 0.025,
-      });
-    }
-  }
-  const chunks: Chunk[] = Array.from({ length: 170 }, () => ({
-    angle: rand() * Math.PI * 2, speed: 0.5 + rand() * 1.1, size: 3 + rand() * 9, start: 0.47 + rand() * 0.14,
-    hue: 20 + rand() * 25, spin: (rand() - 0.5) * 14, r0: rand() * reach * 0.12,
+  // specks of debris and grit
+  const chunks: Chunk[] = Array.from({ length: 260 }, () => ({
+    angle: rand() * Math.PI * 2, speed: 0.45 + rand() * 1.1, size: 1.4 + rand() * 4.2, start: 0.47 + rand() * 0.2, shade: rand(), round: rand() < 0.55,
+    r0: rand() * reach * 0.12, spin: (rand() - 0.5) * 8,
   }));
-  const streaks: Streak[] = Array.from({ length: 90 }, () => ({
-    angle: rand() * Math.PI * 2, speed: 0.7 + rand() * 1.0, length: reach * (0.18 + rand() * 0.4), thick: 2 + rand() * 9, offset: rand() * 0.2, alpha: 0.18 + rand() * 0.32,
+  // the billows of dust
+  const puffs: Puff[] = Array.from({ length: 90 }, () => ({
+    angle: rand() * Math.PI * 2, speed: 0.3 + rand() * 0.9, radius: reach * (0.06 + rand() * 0.11), start: 0.44 + rand() * 0.12, shade: rand(), r0: rand() * reach * 0.1,
   }));
-  const puffs: Puff[] = Array.from({ length: 46 }, () => ({
-    angle: rand() * Math.PI * 2, speed: 0.35 + rand() * 0.9, radius: reach * (0.07 + rand() * 0.12), start: 0.45 + rand() * 0.1, shade: rand(), r0: rand() * reach * 0.1,
-  }));
-  return { tiles, chunks, streaks, puffs, ox, oy, reach, rand: stream(seed ^ 0x5bd1e995) };
+  // a few huge soft clouds that swell until they fill the screen
+  const giants: Giant[] = Array.from({ length: 7 }, () => ({ dx: (rand() - 0.5) * reach * 0.5, dy: (rand() - 0.5) * reach * 0.35, radius: reach * (0.7 + rand() * 0.5), start: 0.46 + rand() * 0.1 }));
+  return { chunks, puffs, giants, ox, oy, reach };
 }
 
 /** The mushroom cloud: a fireball at the base, a stem, and a billowing cap, grown from nothing and then breaking up in the dust. */
@@ -205,58 +185,24 @@ function draw(
   ctx.save();
   ctx.clearRect(0, 0, width, height);
 
-  // the picture shakes: a tremble as the light grows, hard when the blast arrives, settling afterward
+  // the picture trembles as the light grows and when the wave arrives, settling afterward
   let quake = 0;
-  if (t > 0.3 && t < 0.47) quake = ease(clamp((t - 0.3) / 0.17)) * 4;
-  else if (t >= 0.47) quake = Math.max(0, 1 - (t - 0.47) / 0.3) * 26;
+  if (t > 0.3 && t < 0.47) quake = ease(clamp((t - 0.3) / 0.17)) * 3;
+  else if (t >= 0.47) quake = Math.max(0, 1 - (t - 0.47) / 0.3) * 5;
   ctx.translate((Math.sin(t * 210) + Math.sin(t * 337)) * 0.5 * quake, (Math.cos(t * 180) + Math.sin(t * 281)) * 0.5 * quake);
-  // the blast shoves the whole picture at the viewer, then it settles back
-  if (t >= 0.46 && t < 0.62) {
-    const push = 1 + 0.07 * Math.sin(clamp((t - 0.46) / 0.16) * Math.PI);
-    ctx.translate(p.ox, p.oy);
-    ctx.scale(push, push);
-    ctx.translate(-p.ox, -p.oy);
-  }
 
-  // underneath: the destroyed picture, hidden in darkness and dust until the real one is torn away
+  // underneath: the destroyed picture, in darkness until the dust has taken the real one
   ctx.drawImage(after, 0, 0, width, height);
-  const revealed = ease(clamp((t - 0.52) / 0.24));
+  const revealed = ease(clamp((t - 0.6) / 0.2));
   ctx.fillStyle = 'rgba(25,14,4,' + (1 - revealed) * 0.92 + ')';
   ctx.fillRect(-40, -40, width + 80, height + 80);
 
-  // the real photograph, then the pieces of it as they are ripped off
-  if (t < 0.8) {
+  // the real photograph, scorched by the heat and then lost in the dust
+  if (t < 0.7) {
     const scorch = ease(clamp((t - 0.27) / 0.22));
+    ctx.globalAlpha = 1 - ease(clamp((t - 0.54) / 0.12));
     ctx.drawImage(before, 0, 0, width, height);
-    for (const tile of p.tiles) {
-      const s = clamp((t - tile.start) / 0.3);
-      if (s <= 0) continue;
-      const move = Math.pow(s, 1.55);
-      // under the tile that is leaving, the destroyed picture shows through
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(tile.x, tile.y, tile.w + 1, tile.h + 1);
-      ctx.clip();
-      ctx.drawImage(after, 0, 0, width, height);
-      ctx.fillStyle = 'rgba(25,14,4,' + (1 - revealed) * 0.92 + ')';
-      ctx.fillRect(tile.x - 2, tile.y - 2, tile.w + 4, tile.h + 4);
-      ctx.restore();
-      if (s >= 1) continue;
-      // it flies straight out from the blast point and grows as it comes at the viewer
-      const cx = tile.x + tile.w / 2, cy = tile.y + tile.h / 2;
-      const out = 1 + move * tile.push;
-      ctx.save();
-      ctx.globalAlpha = 1 - Math.pow(s, 2.2);
-      ctx.translate(p.ox + (cx - p.ox) * out, p.oy + (cy - p.oy) * out + move * move * height * tile.drift);
-      ctx.rotate(tile.spin * move);
-      const grow = 1 + move * tile.zoom;
-      ctx.scale(grow, grow);
-      ctx.drawImage(before, (tile.x / width) * before.width, (tile.y / height) * before.height, (tile.w / width) * before.width + 1, (tile.h / height) * before.height + 1, -tile.w / 2, -tile.h / 2, tile.w + 1.5, tile.h + 1.5);
-      ctx.fillStyle = 'rgba(70,35,8,' + scorch * 0.5 + ')';
-      ctx.fillRect(-tile.w / 2, -tile.h / 2, tile.w + 1.5, tile.h + 1.5);
-      ctx.restore();
-    }
-    // before the tiles go, the whole picture is already scorched by the heat
+    ctx.globalAlpha = 1;
     if (t > 0.27 && t < 0.62) {
       ctx.fillStyle = 'rgba(70,35,8,' + scorch * 0.28 * (1 - ease(clamp((t - 0.5) / 0.12))) + ')';
       ctx.fillRect(0, 0, width, height);
@@ -285,74 +231,56 @@ function draw(
     ctx.fillRect(-40, -40, width + 80, height + 80);
   }
 
-  // the blast reaching the viewer: a ring of shock spreading from the blast point, dust billowing out of it toward the glass, rays of grit, and the debris it throws
-  if (t > 0.44 && t < 0.86) {
-    const q = clamp((t - 0.44) / 0.42);
+  // the wall of dust rushing at the screen
+  if (t > 0.44 && t < 0.88) {
+    const q = clamp((t - 0.44) / 0.44);
     const haze = Math.sin(q * Math.PI);
-    // the ring
-    const ring = p.reach * 1.25 * Math.pow(q, 0.75);
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,235,200,' + haze * 0.22 + ')';
-    ctx.lineWidth = 6 + q * 40;
-    ctx.beginPath();
-    ctx.arc(p.ox, p.oy, ring, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-    // a warm haze that is thickest at the blast point and washes outward
-    const wash = ctx.createRadialGradient(p.ox, p.oy, 0, p.ox, p.oy, p.reach * (0.3 + q * 1.1));
-    wash.addColorStop(0, 'rgba(235,200,150,' + haze * 0.65 + ')');
-    wash.addColorStop(1, 'rgba(200,165,120,' + haze * 0.3 + ')');
+    const wash = ctx.createRadialGradient(p.ox, p.oy, 0, p.ox, p.oy, p.reach * (0.35 + q * 1.1));
+    wash.addColorStop(0, 'rgba(214,180,138,' + haze * 0.7 + ')');
+    wash.addColorStop(1, 'rgba(190,156,114,' + haze * 0.42 + ')');
     ctx.fillStyle = wash;
     ctx.fillRect(-40, -40, width + 80, height + 80);
-    // billows of dust, swelling as they come at the viewer
-    for (const puff of p.puffs) {
-      const age = clamp((t - puff.start) / 0.34);
-      if (age <= 0) continue;
-      const dist = puff.r0 + p.reach * puff.speed * Math.pow(age, 0.8);
-      const x = p.ox + Math.cos(puff.angle) * dist;
-      const y = p.oy + Math.sin(puff.angle) * dist * 0.85;
-      const r = puff.radius * (0.6 + age * 4.2);
-      const a = Math.sin(Math.min(1, age) * Math.PI) * 0.75;
-      const tone = 150 + Math.round(puff.shade * 70);
+    const blob = (x: number, y: number, r: number, a: number, tone: number) => {
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, 'rgba(' + tone + ',' + (tone - 28) + ',' + (tone - 62) + ',' + a + ')');
-      g.addColorStop(1, 'rgba(' + tone + ',' + (tone - 28) + ',' + (tone - 62) + ',0)');
+      g.addColorStop(0, 'rgba(' + tone + ',' + (tone - 26) + ',' + (tone - 60) + ',' + a + ')');
+      g.addColorStop(1, 'rgba(' + tone + ',' + (tone - 26) + ',' + (tone - 60) + ',0)');
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
-    }
-    // rays of grit streaming out of the blast point
-    for (const s of p.streaks) {
-      const age = clamp((q - s.offset) / 0.7);
+    };
+    for (const gi of p.giants) {
+      const age = clamp((t - gi.start) / 0.34);
       if (age <= 0) continue;
-      const r1 = p.reach * s.speed * Math.pow(age, 0.9);
-      const r0 = Math.max(0, r1 - s.length * (0.4 + age));
-      const dx = Math.cos(s.angle), dy = Math.sin(s.angle);
-      const a = s.alpha * Math.sin(Math.min(1, age) * Math.PI) * 0.9;
-      const g = ctx.createLinearGradient(p.ox + dx * r0, p.oy + dy * r0, p.ox + dx * r1, p.oy + dy * r1);
-      g.addColorStop(0, 'rgba(215,180,135,0)');
-      g.addColorStop(1, 'rgba(225,190,145,' + a + ')');
-      ctx.strokeStyle = g;
-      ctx.lineWidth = s.thick * (0.5 + age * 2.2);
-      ctx.beginPath();
-      ctx.moveTo(p.ox + dx * r0, p.oy + dy * r0);
-      ctx.lineTo(p.ox + dx * r1, p.oy + dy * r1);
-      ctx.stroke();
+      blob(p.ox + gi.dx * age, p.oy + gi.dy * age, gi.radius * (0.25 + age * 1.1), Math.sin(Math.min(1, age) * Math.PI) * 0.5, 184);
+    }
+    for (const puff of p.puffs) {
+      const age = clamp((t - puff.start) / 0.36);
+      if (age <= 0) continue;
+      const dist = puff.r0 + p.reach * puff.speed * Math.pow(age, 0.8);
+      blob(p.ox + Math.cos(puff.angle) * dist, p.oy + Math.sin(puff.angle) * dist * 0.85, puff.radius * (0.6 + age * 5), Math.sin(Math.min(1, age) * Math.PI) * 0.6, 150 + Math.round(puff.shade * 70));
     }
   }
+
+  // specks of debris and grit flying out at the viewer, growing as they come
   for (const c of p.chunks) {
     const age = t - c.start;
-    if (age < 0 || age > 0.3) continue;
-    const s = age / 0.3;
-    const dist = c.r0 + p.reach * c.speed * Math.pow(s, 1.3);
-    const scale = 0.6 + s * 6; // it is coming at the viewer
+    if (age < 0 || age > 0.24) continue;
+    const s = age / 0.24;
+    const dist = c.r0 + p.reach * c.speed * Math.pow(s, 1.2);
+    const size = c.size * (1 + s * 5);
     ctx.save();
-    ctx.globalAlpha = Math.min(1, s * 6) * (1 - s * s);
-    ctx.translate(p.ox + Math.cos(c.angle) * dist, p.oy + Math.sin(c.angle) * dist * 0.9 + s * s * height * 0.12);
+    ctx.globalAlpha = Math.min(1, s * 8) * (1 - s * s) * 0.9;
+    ctx.translate(p.ox + Math.cos(c.angle) * dist, p.oy + Math.sin(c.angle) * dist * 0.9);
     ctx.rotate(c.spin * s);
-    ctx.fillStyle = 'hsl(' + c.hue + ',32%,' + (22 + (c.size % 5) * 6) + '%)';
-    ctx.fillRect((-c.size * scale) / 2, (-c.size * scale) / 3, c.size * scale, (c.size * scale * 2) / 3);
+    ctx.fillStyle = 'hsl(' + (24 + c.shade * 16) + ',' + (14 + c.shade * 16) + '%,' + (24 + c.shade * 30) + '%)';
+    if (c.round) {
+      ctx.beginPath();
+      ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(-size / 2, -size / 3, size, (size * 2) / 3);
+    }
     ctx.restore();
   }
 
