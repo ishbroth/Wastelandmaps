@@ -22,10 +22,19 @@ const FREE = new Set([
 ]);
 const MAX_RAIDS_PER_HOUR = 30;
 
-/** The loot a win pays: 3 pieces at least, up to 4 + worth / 12.5 (at most 10), at least one of every kind the place has. */
+/** The least and most pieces a win pays, by the place's worth (the same table as lootRangeFor in src/lib/raid/raid.ts). */
+function pieceRange(worth: number): [number, number] {
+  if (worth >= 75) return [7, 10];
+  if (worth >= 50) return [5, 8];
+  if (worth >= 30) return [4, 5];
+  if (worth >= 15) return [3, 4];
+  return [2, 2];
+}
+
+/** The loot a win pays: a number of pieces within the range for the place's worth, at least one of every kind the place has. */
 function roll(worth: number, types: string[]): Record<string, number> {
-  const max = Math.min(10, 4 + Math.floor(worth / 12.5));
-  const pieces = 3 + Math.floor(Math.random() * (max - 3 + 1));
+  const [min, max] = pieceRange(worth);
+  const pieces = Math.max(types.length, min + Math.floor(Math.random() * (max - min + 1)));
   const out: Record<string, number> = {};
   types.forEach((t) => { out[t] = 1; });
   for (let i = types.length; i < pieces; i++) {

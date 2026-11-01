@@ -35,9 +35,13 @@ function poolFor(worth: number): EnemyId[] {
 /** Worth for the top two tiers: they have a boss. */
 const BOSS_FROM = 50;
 
-/** The least and most pieces of loot for a place of this worth: 3 to 4 at the bottom, 3 to 10 at the top. */
+/** The least and most pieces of loot a win pays, by the place's worth: 2 for the smallest, 3-4 for small and mid, 4-5 for larger buildings, 5-8 for the famous, 7-10 for the permanent landmarks. (The server has the same table.) */
 export function lootRangeFor(worth: number): [number, number] {
-  return [3, Math.min(10, 4 + Math.floor(worth / 12.5))];
+  if (worth >= 75) return [7, 10];
+  if (worth >= 50) return [5, 8];
+  if (worth >= 30) return [4, 5];
+  if (worth >= 15) return [3, 4];
+  return [2, 2];
 }
 
 /** One wave after another: a single enemy, then two, then growing until the rest arrive together. */
@@ -72,14 +76,15 @@ export function planFor(id: string, worth: number): RaidPlan {
   let total = Math.max(least, Math.min(40, Math.round((boss ? budget * 0.6 : budget) / avgHp)));
   if (boss) total = Math.max(3, Math.min(total, 24));
 
-  const kinds = 1 + Math.floor(rand() * 3);
+  // never more kinds than pieces (a win pays at least one of each kind)
+  const kinds = Math.min(lootRangeFor(worth)[0], 1 + Math.floor(rand() * 3));
   const loot = [...LOOT_TYPES].map((l) => l.id).sort(() => rand() - 0.5).slice(0, kinds) as LootId[];
   return { worth, enemies, boss, waves: wavesFor(total), total, lootTypes: loot, lootRange: lootRangeFor(worth) };
 }
 
 /** The first fight every survivor has: their own home vault, with four radroaches, the weakest enemy there is. */
 export function homePlan(): RaidPlan {
-  return { worth: 10, enemies: ['radroach'], boss: null, waves: wavesFor(4), total: 4, lootTypes: ['steel', 'wood', 'screws'], lootRange: lootRangeFor(10) };
+  return { worth: 10, enemies: ['radroach'], boss: null, waves: wavesFor(4), total: 4, lootTypes: ['steel', 'wood'], lootRange: lootRangeFor(10) };
 }
 
 /** The plan for a place on the map. */
