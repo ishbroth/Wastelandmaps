@@ -3,7 +3,7 @@ import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
-import { accountsEnabled, atlasList, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import { accountsEnabled, atlasList, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { getFix, locationState, watchFixes, type GeoError } from './lib/geo';
 import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
@@ -101,7 +101,7 @@ export default function App() {
   const [target, setTarget] = useState<PersonalPlace | null>(null);
   const personalLocs = useMemo(() => {
     const here = region?.center;
-    const mine = account.personal.filter((q) => !here || distanceMeters(here, { lat: q.lat, lng: q.lng }) < 150_000).map((q) => personalLocation(q, true, account.home?.vaultNumber && account.home.placeId === q.placeId ? account.home.vaultNumber : undefined));
+    const mine = account.personal.filter((q) => !here || distanceMeters(here, { lat: q.lat, lng: q.lng }) < 150_000).map((q) => personalLocation(q, true, account.home?.vaultNumber !== undefined && account.home.placeId === q.placeId ? account.home.vaultNumber : undefined));
     if (target && !account.personal.some((q) => q.placeId === target.placeId)) mine.push(personalLocation(target, false));
     return mine;
   }, [account.personal, account.home, target, region]);
@@ -501,14 +501,28 @@ export default function App() {
     const who = accountRef.current?.session;
     if (!who) return 'Sign in first.';
     const saved = await saveHome(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, skipped: false, vaultNumber });
-    if (saved === 'taken') return `Vault ${vaultNumber} already belongs to another survivor. Pick a different number.`;
+    if (saved === 'taken') return `Vault ${String(vaultNumber).padStart(4, '0')} already belongs to another survivor. Pick a different number.`;
     if (saved === 'error') return 'That could not be saved. Try again in a moment.';
     await savePersonalPlace(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, kind: 'house' });
+    // the vault number is also the password they sign in with from now on
+    if (await setVaultPassword()) localStorage.setItem(`rm-pw-${who.user.id}`, String(vaultNumber));
     await accountRef.current?.refresh();
     setHomeOpen(false);
-    await show(() => geocodeQuery(place.address).catch(() => geocodeLatLng(place.position)), `VAULT ${vaultNumber}`);
+    await show(() => geocodeQuery(place.address).catch(() => geocodeLatLng(place.position)), `VAULT ${String(vaultNumber).padStart(4, '0')}`);
     return null;
   }, [show]);
+  // people who chose their number before passwords existed get theirs set once
+  useEffect(() => {
+    const who = account.session?.user.id;
+    const number = account.home?.vaultNumber;
+    if (!who || number === undefined || localStorage.getItem(`rm-pw-${who}`) === String(number)) return;
+    void setVaultPassword().then((ok) => { if (ok) localStorage.setItem(`rm-pw-${who}`, String(number)); });
+  }, [account.session, account.home?.vaultNumber]);
+  // navigation takes over the whole phone screen when it is turned sideways: let the map notice its new size
+  useEffect(() => {
+    const t = window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+    return () => window.clearTimeout(t);
+  }, [!!nav]);
   const skipHome = useCallback(async () => {
     setHomeSkipped(true);
     if (homeOpen) { setHomeOpen(false); return; }
@@ -771,7 +785,7 @@ export default function App() {
   const navView = useMemo(() => (nav?.route ? { path: nav.route.path, steps: nav.route.steps, step: nav.step } : null), [nav?.route, nav?.step]);
 
   return (
-    <div className="rm-app">
+    <div className={`rm-app${nav ? ' rm-navigating' : ''}`}>
       <header className="rm-head">
         <div className="rm-title">
           <span className="rm-title-mark" aria-hidden="true" />
@@ -793,6 +807,7 @@ export default function App() {
           {(wasteland || zoomName) && <div className="rm-poster-title" key={zoomName ?? (liveName || wasteland?.regionName)} aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}</div>}
           {status === 'ready' ? (
             <MapView
+              onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={allLocations} hiddenCategories={hidden}
               selectedId={selectedId} visited={visited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
             />
@@ -843,11 +858,11 @@ export default function App() {
             />
           )}
           {accountOpen && !account.session && <AccountModal onClose={() => setAccountOpen(false)} />}
-          {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && !account.home.vaultNumber)) && !homeSkipped) || homeOpen) && (
+          {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped) || homeOpen) && (
             <HomePrompt
               key={homeOpen ? 'change' : 'first'}
               onChosen={chooseHome} onSkip={() => void skipHome()} number={account.home?.vaultNumber}
-              startWith={!homeOpen && account.home?.address && !account.home.vaultNumber && account.home.lat !== undefined && account.home.lng !== undefined
+              startWith={!homeOpen && account.home?.address && account.home.vaultNumber === undefined && account.home.lat !== undefined && account.home.lng !== undefined
                 ? { placeId: account.home.placeId ?? '', name: 'Home', address: account.home.address, position: { lat: account.home.lat, lng: account.home.lng }, kind: 'house' } : undefined}
             />
           )}
@@ -865,7 +880,7 @@ export default function App() {
         </div>
 
         <aside className="rm-side">
-          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onPick={(s) => void pickSuggestion(s)} onLocate={locateMe} tracking={tracking} onToggleTracking={toggleTracking} />
+          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onPick={(s) => void pickSuggestion(s)} tracking={tracking} onToggleTracking={toggleTracking} />
           <nav className="rm-tabs" role="tablist" aria-label="Pip-Boy menu">
             {(['locations', 'data', 'share'] as Tab[]).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); sound('tick'); }}>

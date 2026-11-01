@@ -164,7 +164,7 @@ export function AccountPanel({ account, found, metro, onChangeHome, onAccount, o
 
       <h3>HOME</h3>
       <div className="rm-acct-credits">
-        <div><span>{account.home?.address ? `${account.home.vaultNumber ? `VAULT ${account.home.vaultNumber} · ` : ''}${account.home.address}` : 'Not set'}</span></div>
+        <div><span>{account.home?.address ? `${account.home.vaultNumber !== undefined ? `VAULT ${String(account.home.vaultNumber).padStart(4, '0')} · ` : ''}${account.home.address}` : 'Not set'}</span></div>
         <button type="button" className="rm-btn rm-btn-ghost" onClick={onChangeHome}>{account.home?.address ? 'CHANGE' : 'SET HOME'}</button>
       </div>
       {metro && <AtlasBox account={account} metro={metro} />}

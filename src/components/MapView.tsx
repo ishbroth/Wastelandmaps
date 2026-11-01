@@ -19,6 +19,9 @@ interface Props {
   wasteland: Wasteland | null;
   locations: Location[];
   hiddenCategories: Set<CategoryId>;
+  /** The ME button on the map, above the zoom buttons: go to where the device is. */
+  onLocate: () => void;
+  locateDisabled: boolean;
   selectedId: string | null;
   visited: Set<string>;
   /** Places already looted: their label says [Cleared]. */
@@ -126,8 +129,14 @@ function morphLabel(el: HTMLElement, from: string, to: string) {
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
-export default function MapView({ look, region, wasteland, locations, hiddenCategories, selectedId, visited, cleared, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, flood, startView }: Props) {
+export default function MapView({ onLocate, locateDisabled, look, region, wasteland, locations, hiddenCategories, selectedId, visited, cleared, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, flood, startView }: Props) {
   const holder = useRef<HTMLDivElement>(null);
+  const locateRef = useRef(onLocate);
+  const meButton = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    locateRef.current = onLocate;
+    if (meButton.current) meButton.current.disabled = locateDisabled;
+  }, [onLocate, locateDisabled]);
   const [view, setView] = useState<google.maps.LatLngBoundsLiteral | null>(null);
   const everShown = useRef(new Set<string>());
   const [zoomNow, setZoomNow] = useState(4);
@@ -161,6 +170,7 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       zoom: WORLD_VIEW.zoom,
       disableDefaultUI: true,
       zoomControl: true,
+      zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
       gestureHandling: 'greedy',
       clickableIcons: false,
       styles: look.mapStyles,
@@ -168,6 +178,15 @@ export default function MapView({ look, region, wasteland, locations, hiddenCate
       minZoom: 3,
     });
     mapRef.current = map;
+    // ME: a small square the width of the zoom buttons, above them (the crosshair with ME under it)
+    const me = document.createElement('button');
+    me.type = 'button';
+    me.className = 'rm-me';
+    me.title = 'Use my current position';
+    me.innerHTML = '<span>⌖</span><small>ME</small>';
+    me.addEventListener('click', () => locateRef.current());
+    meButton.current = me;
+    map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(me);
     if (import.meta.env.DEV) (window as unknown as { __wlmap?: google.maps.Map }).__wlmap = map; // for the browser checks in _tools
     const markClose = () => {
       const zoom = map.getZoom() ?? 0;

@@ -37,18 +37,21 @@ export function kindFromTypes(types: string[], name: string): PersonalKind {
 }
 
 /** The map pin for a personal place: `saved` once it has been reached; until then it is only the destination. */
+/** A home vault's number as it is shown: always four digits, so 0730 is not Vault 730. */
+export const homeNumberText = (n: number): string => String(n).padStart(4, '0');
+
 export function personalLocation(p: PersonalPlace, saved: boolean, homeVault?: number): Location {
   return {
     id: personalId(p.placeId),
     oldName: p.name,
-    name: homeVault ? `VAULT ${homeVault}` : p.name,
+    name: homeVault !== undefined ? `VAULT ${homeNumberText(homeVault)}` : p.name,
     category: PERSONAL_CATEGORY[p.kind],
     position: { lat: p.lat, lng: p.lng },
     loot: 'Whatever the years left in the cupboards',
     threat: 'Quiet',
     rads: 0,
-    icon: homeVault ? 'vault' : PERSONAL_ICON[p.kind],
-    personal: { address: p.address, kind: p.kind, saved, ...(homeVault ? { home: true } : {}) },
+    icon: homeVault !== undefined ? 'vault' : PERSONAL_ICON[p.kind],
+    personal: { address: p.address, kind: p.kind, saved, ...(homeVault !== undefined ? { home: true } : {}) },
   };
 }
 

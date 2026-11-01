@@ -163,6 +163,18 @@ export async function sendSignInLink(email: string): Promise<string | null> {
   return error ? error.message : null;
 }
 
+/** Signs in with the email and the four-digit vault number (the password is "vault-" and those digits; the auth system wants six characters or more). Null when it worked. */
+export async function signInWithVault(email: string, digits: string): Promise<string | null> {
+  const { error } = await db().auth.signInWithPassword({ email, password: `vault-${digits}` });
+  return error ? 'That email and vault number do not match. If this is your first time, or you forgot the number, use the email link.' : null;
+}
+
+/** Makes the vault number the account's password (the server reads the number from the saved home). */
+export async function setVaultPassword(): Promise<boolean> {
+  const { data, error } = await db().functions.invoke('set-vault-password', { body: {} });
+  return !error && data?.ok === true;
+}
+
 export const signOut = () => db().auth.signOut();
 
 /** Starts the Stripe checkout for a pack and sends the browser there. */

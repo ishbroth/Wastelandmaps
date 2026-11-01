@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { finishRaid, startRaid, type Account } from '../lib/account';
 import { loadRaidAssets, type RaidAssets } from '../lib/raid/assets';
 import { playSound } from '../lib/raid/audio';
@@ -265,10 +266,10 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
       // the gun, bottom of the screen, turning toward where the survivor is aiming
       const weapon = g.weapon;
       const gunArt = weapon ? assets.current.guns[weapon.id] : undefined;
-      const gh = Math.min(cssH * 0.46, 440);
+      const gh = Math.min(cssH * 0.34, 330);
       const gw = gunArt ? gh * (gunArt.image.naturalWidth / gunArt.image.naturalHeight) : gh * 0.5;
       // anchored to the bottom right with its edges off screen (the pictures are cut off at their edges), turning a little toward where the survivor aims
-      const pivotX = Math.max(gw * 0.5, cssW - gw * 0.44), pivotY = cssH + gh * 0.1;
+      const pivotX = Math.max(gw * 0.5, cssW - gw * 0.44), pivotY = Math.min(cssH, vy + vh) + gh * 0.2;
       const aim = Math.max(-0.12, Math.min(0.12, Math.atan2(pointer.current.x - pivotX, pivotY - pointer.current.y) * 0.3));
       ctx.save();
       ctx.translate(pivotX, pivotY + g.recoil * 22);
@@ -397,7 +398,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
     if (game.current?.select(cls)) setHud((h) => (h ? { ...h, selected: cls } : h));
   };
 
-  return (
+  return createPortal(
     <div className="rm-raid" role="dialog" aria-label="Looting" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
       <canvas
         ref={canvas}
@@ -470,7 +471,8 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
           <button type="button" className="rm-btn" onClick={onExit}>{phase === 'won' ? 'CONTINUE' : 'BACK'}</button>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

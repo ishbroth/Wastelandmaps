@@ -4,14 +4,15 @@ import { shuffledShowcase } from '../lib/showcase';
 import { suggest, type Suggestion } from '../lib/addressSearch';
 
 /** Cities with a permanent landmark snapshot, as one-click starting points (a different order each visit, three showing at a time). Typing also suggests real addresses. */
-export default function SearchBar({ busy, disabled, initial, onSearch, onPick, onLocate, tracking, onToggleTracking }: {
-  busy: boolean; disabled: boolean; initial: string; onSearch: (q: string) => void; onPick: (s: Suggestion) => void; onLocate: () => void; tracking: boolean; onToggleTracking: () => void;
+export default function SearchBar({ busy, disabled, initial, onSearch, onPick, tracking, onToggleTracking }: {
+  busy: boolean; disabled: boolean; initial: string; onSearch: (q: string) => void; onPick: (s: Suggestion) => void; tracking: boolean; onToggleTracking: () => void;
 }) {
   const off = busy || disabled;
   const [value, setValue] = useState(initial);
   const [items, setItems] = useState<Suggestion[]>([]);
   const [active, setActive] = useState(-1);
   const typed = useRef(false);
+  const input = useRef<HTMLInputElement>(null);
   const latest = useRef(0);
   const cities = useMemo(() => shuffledShowcase(), []);
 
@@ -66,6 +67,7 @@ export default function SearchBar({ busy, disabled, initial, onSearch, onPick, o
         <span className="rm-prompt" aria-hidden="true">&gt;</span>
         <input
           id="rm-q"
+          ref={input}
           value={value}
           onChange={(e) => { typed.current = true; setValue(e.target.value); }}
           onKeyDown={onKey}
@@ -78,8 +80,8 @@ export default function SearchBar({ busy, disabled, initial, onSearch, onPick, o
           aria-autocomplete="list"
           disabled={off}
         />
+        {value && !off && <button type="button" className="rm-clear" aria-label="Clear" title="Clear" onMouseDown={(e) => e.preventDefault()} onClick={() => { close(); setValue(''); input.current?.focus(); }}>×</button>}
         <button type="submit" className="rm-btn" disabled={off || !value.trim()}>{busy ? 'SCANNING…' : 'SCAN'}</button>
-        <button type="button" className="rm-btn rm-btn-ghost" disabled={off} onClick={onLocate} title="Use my current position">⌖ ME</button>
       </form>
       {items.length > 0 && (
         <ul className="rm-suggest" role="listbox">

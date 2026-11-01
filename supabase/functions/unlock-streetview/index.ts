@@ -61,7 +61,7 @@ async function streetPicture(lat: number, lng: number): Promise<{ bytes: Uint8Ar
   return { bytes: new Uint8Array(await res.arrayBuffer()), mime: res.headers.get('content-type') ?? 'image/jpeg' };
 }
 
-async function generate(picture: { bytes: Uint8Array; mime: string }, kind: string, name: string, vaultNumber?: number): Promise<Uint8Array> {
+async function generate(picture: { bytes: Uint8Array; mime: string }, kind: string, name: string, vaultNumber?: string): Promise<Uint8Array> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) throw new Error('image generation is not set up');
   const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
@@ -86,7 +86,7 @@ async function generate(picture: { bytes: Uint8Array; mime: string }, kind: stri
 // deno-lint-ignore no-explicit-any
 async function homeFlow(req: Request, db: any, user: string, googleId: string, checkOnly: boolean): Promise<Response> {
   const { data: home } = await db.from('user_home').select('place_id,vault_number').eq('user_id', user).maybeSingle();
-  if (!home || home.place_id !== googleId || !home.vault_number) return reply(req, { error: 'bad_place' }, 400);
+  if (!home || home.place_id !== googleId || home.vault_number === null || home.vault_number === undefined) return reply(req, { error: 'bad_place' }, 400);
   const number = home.vault_number as number;
   const unlockKey = `vault:${googleId}:${number}`;
   const { data: existing } = await db.from('home_renders').select('*').eq('user_id', user).maybeSingle();
@@ -127,7 +127,7 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
       await giveBack();
       return reply(req, { error: 'no_streetview' }, 404);
     }
-    const png = await generate(picture, 'house', details.name, number);
+    const png = await generate(picture, 'house', details.name, String(number).padStart(4, '0'));
     const path = `home/${user}.png`;
     const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
     if (up.error) throw new Error('could not store the image');

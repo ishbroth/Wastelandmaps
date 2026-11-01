@@ -24,7 +24,7 @@ export default function HomePrompt({ onChosen, onSkip, startWith, number: startN
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [value, setValue] = useState('');
-  const [digits, setDigits] = useState(startNumber ? String(startNumber) : '');
+  const [digits, setDigits] = useState(startNumber !== undefined ? String(startNumber).padStart(4, '0') : '');
   const [items, setItems] = useState<Suggestion[]>([]);
   const latest = useRef(0);
 
@@ -79,7 +79,7 @@ export default function HomePrompt({ onChosen, onSkip, startWith, number: startN
   };
 
   const number = Number(digits);
-  const valid = /^\d{4}$/.test(digits) && number >= 1000 && number <= 9999;
+  const valid = /^\d{4}$/.test(digits);
   const build = async () => {
     if (!picked || !valid) return;
     setBusy(true);
@@ -126,7 +126,7 @@ export default function HomePrompt({ onChosen, onSkip, startWith, number: startN
           {step === 'number' && picked && (
             <>
               <p>{picked.address}</p>
-              <p>Pick a four-digit number (1000 to 9999) for your vault. It is yours alone: nobody else can have the same one.</p>
+              <p>Pick a four-digit number (0000 to 9999) for your vault; it may start with a zero, and 0730 is not the same as Vault 730. It is yours alone: nobody else can have the same one.</p>
               <input
                 autoFocus value={digits} inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="1234" autoComplete="off" aria-label="Vault number"
                 onChange={(e) => setDigits(e.target.value.replace(/\D/g, '').slice(0, 4))}
