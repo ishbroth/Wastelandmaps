@@ -262,8 +262,11 @@ html[data-look='parchment'] .rm-player { color: #a3401f; }
 
 /* like the game's map: a place you have not found yet is an outline; once found, the icon is filled in solid */
 .rm-pin-icon svg .f, .rm-pin-icon svg .d, .rm-pin-icon svg .s { fill: none; }
+/* discovered = the icon inverted: the light lines turn dark and the empty spaces inside the outline turn solid light (lines out in the open stay light) */
+.rm-pin-visited .rm-pin-icon svg { stroke: var(--on-ink); stroke-width: 0.9; }
 .rm-pin-visited .rm-pin-icon svg .f { fill: currentColor; }
-.rm-pin-visited .rm-pin-icon svg .d { stroke: var(--on-ink); stroke-width: 1.9; }
+.rm-pin-visited .rm-pin-icon svg .d { stroke: var(--on-ink); stroke-width: 1.5; }
+.rm-pin-visited .rm-pin-icon svg .s { stroke: currentColor; }
 .rm-pin-vaultentrance { color: #d8ff6a; }
 html[data-look='parchment'] .rm-pin-vaultentrance { color: #1f5f8a; }
 .rm-track { font: inherit; font-size: 12px; letter-spacing: 1px; padding: 2px 8px; background: transparent; color: var(--ink-dim); border: 1px dashed var(--line); cursor: pointer; }
@@ -629,8 +632,10 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-nav-bottom .rm-btn { font-size: 16px; padding: 2px 14px; }
 
 /* discovered places are filled in, on the map's pins and in the lists */
+.rm-icon-filled svg { stroke: var(--on-ink); stroke-width: 0.9; }
 .rm-icon-filled svg .f { fill: currentColor; }
-.rm-icon-filled svg .d { stroke: var(--on-ink); stroke-width: 1.9; }
+.rm-icon-filled svg .d { stroke: var(--on-ink); stroke-width: 1.5; }
+.rm-icon-filled svg .s { stroke: currentColor; }
 .rm-found-icon { flex: none; width: 30px; height: 30px; color: var(--ink); }
 .rm-found-more { width: 100%; margin-top: 8px; }
 .rm-found-recent { padding-left: 0; }
