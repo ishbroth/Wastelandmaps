@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sceneFontsReady, startScene } from '../lib/scene';
-import { accountsEnabled, checkAddress, PACK, type Account } from '../lib/account';
+import Caps from './Caps';
+import { accountsEnabled, caps, checkAddress, PACK, type Account } from '../lib/account';
 import { freeRenderFor } from '../lib/renders';
 import { usePaidRender } from '../lib/usePaidRender';
 import { findSnapshot, type Snapshot } from '../lib/snapshot';
@@ -147,19 +148,19 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
             <div className="rm-locked">
               <b>SNAPSHOT SEALED</b>
               {home
-                ? <p>Blow up your own home. The Street View picture of your address is turned into the ruin it would be: rubble, with your vault door in the ground and your number on it. Made just for you, yours to download and share. It costs {cost} credits.</p>
+                ? <p>Blow up your own home. The Street View picture of your address is turned into the ruin it would be: rubble, with your vault door in the ground and your number on it. Made just for you, yours to download and share. It costs <Caps n={caps(cost)} />.</p>
                 : personal
-                ? <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share. It costs {cost} credits.</p>
+                ? <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share. It costs <Caps n={caps(cost)} />.</p>
                 : <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>}
               {paid.state.kind === 'error' && <p className="rm-account-note">{paid.state.message}</p>}
               {paid.state.kind === 'working' ? (
                 <button type="button" className="rm-btn" disabled>DEVELOPING… ABOUT 20 SECONDS</button>
               ) : !account.session ? (
-                <button type="button" className="rm-btn" onClick={onAccount}>SIGN IN TO UNLOCK · {PACK.credits} SNAPSHOTS FOR {PACK.price}</button>
+                <button type="button" className="rm-btn" onClick={onAccount}>SIGN IN TO UNLOCK · <Caps n={caps(PACK.credits)} /> FOR {PACK.price}</button>
               ) : (account.credits ?? 0) < cost ? (
-                <button type="button" className="rm-btn" onClick={onAccount}>{personal ? `YOU NEED ${cost} CREDITS · ` : ''}BUY {PACK.credits} SNAPSHOTS: {PACK.price}</button>
+                <button type="button" className="rm-btn" onClick={onAccount}>YOU NEED <Caps n={caps(cost)} /> · BUY <Caps n={caps(PACK.credits)} /> FOR {PACK.price}</button>
               ) : (
-                <button type="button" className="rm-btn" onClick={() => void paid.run()}>{home ? 'BLOW UP MY HOME' : 'UNLOCK'} FOR {cost} CREDIT{cost > 1 ? 'S' : ''}</button>
+                <button type="button" className="rm-btn" onClick={() => void paid.run()}>{home ? 'BLOW UP MY HOME' : 'UNLOCK'} FOR <Caps n={caps(cost)} /></button>
               )}
             </div>
           )}

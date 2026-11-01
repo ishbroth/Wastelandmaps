@@ -20,6 +20,10 @@ export function db(): SupabaseClient {
   return client;
 }
 
+/** The money of the wasteland: bottle caps. The server counts whole credits (what a basic snapshot costs); one credit is 100 caps, and every price and balance is shown in caps. */
+export const CAPS_PER_CREDIT = 100;
+export const caps = (credits: number): number => credits * CAPS_PER_CREDIT;
+
 export const PACKS = [
   { id: 'eight', credits: 8, price: '$1.99' },
   { id: 'twentyfour', credits: 24, price: '$4.99' },

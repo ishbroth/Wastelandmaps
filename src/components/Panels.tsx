@@ -5,7 +5,8 @@ import { LOOT_CAP } from '../lib/raid/loot';
 import { enemiesLine } from '../lib/raid/raid';
 import { hapticsAvailable, hapticsEnabled, setHaptics } from '../lib/haptics';
 import { purchasesAvailable } from '../lib/native';
-import { METRO_COST, PACKS, atlasCount, atlasUnlock, buyPack, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
+import Caps, { CapIcon } from './Caps';
+import { METRO_COST, PACKS, caps, atlasCount, atlasUnlock, buyPack, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag } from '../lib/raid/loot';
 import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt } from '../lib/raid/weapons';
@@ -157,7 +158,7 @@ export function AccountPanel({ account, found, metro, onChangeHome, onAccount, o
         <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void signOut()}>SIGN OUT</button>
       </div>
       <div className="rm-acct-credits">
-        <div><b>{account.credits === null ? '…' : account.credits}</b> <span>SNAPSHOT CREDITS</span></div>
+        <div><b className="rm-caps-big"><CapIcon />{account.credits === null ? '…' : caps(account.credits).toLocaleString('en-US')}</b> <span>CAPS</span></div>
       </div>
       <Packs />
 
@@ -287,7 +288,7 @@ function AtlasBox({ account, metro }: { account: Account; metro: { id: string; n
     setBusy(true);
     setNote('');
     const result = await atlasUnlock(metro.id);
-    setNote(result === 'no_credits' ? `You need ${METRO_COST} credits.` : result === 'error' ? 'That did not go through. Nothing was charged.' : '');
+    setNote(result === 'no_credits' ? `You need ${caps(METRO_COST)} caps.` : result === 'error' ? 'That did not go through. Nothing was charged.' : '');
     setBusy(false);
     await account.refresh();
   };
@@ -298,11 +299,11 @@ function AtlasBox({ account, metro }: { account: Account; metro: { id: string; n
         <p className="rm-fine">Unlocked. Every address rendered here{count ? ` (${count} so far)` : ''}, including ones added later, is on your map; open one to see it and loot it.</p>
       ) : (
         <>
-          <p className="rm-fine">{count === null ? 'Counting…' : count === 0 ? 'No addresses are rendered here yet.' : `${count} address${count === 1 ? '' : 'es'} here have been rendered by other survivors.`} Unlock them all, now and in the future, for {METRO_COST} credits.</p>
+          <p className="rm-fine">{count === null ? 'Counting…' : count === 0 ? 'No addresses are rendered here yet.' : `${count} address${count === 1 ? '' : 'es'} here have been rendered by other survivors.`} Unlock them all, now and in the future, for <Caps n={caps(METRO_COST)} />.</p>
           <button type="button" className="rm-btn rm-btn-ghost" disabled={busy || (account.credits ?? 0) < METRO_COST} onClick={() => void unlock()}>
-            UNLOCK THE WHOLE METRO · {METRO_COST} CREDITS
+            UNLOCK THE WHOLE METRO · <Caps n={caps(METRO_COST)} />
           </button>
-          {(account.credits ?? 0) < METRO_COST && <p className="rm-fine">You have {account.credits ?? 0}. Buy a pack to get more.</p>}
+          {(account.credits ?? 0) < METRO_COST && <p className="rm-fine">You have <Caps n={caps(account.credits ?? 0)} />. Buy a pack to get more.</p>}
         </>
       )}
       {note && <p className="rm-account-note">{note}</p>}
@@ -320,7 +321,7 @@ function DeleteLine() {
   }
   return (
     <div className="rm-delete-confirm" role="alertdialog" aria-label="Delete my account">
-      <p><b>Delete your account?</b> You will lose all your progress: the places you have found, your level and XP, your credits, loot and guns, your home and your own places. This cannot be undone. You can sign up again with the same email, but you will start from the beginning.</p>
+      <p><b>Delete your account?</b> You will lose all your progress: the places you have found, your level and XP, your caps, loot and guns, your home and your own places. This cannot be undone. You can sign up again with the same email, but you will start from the beginning.</p>
       <div className="rm-row-buttons">
         <button
           type="button" className="rm-btn rm-danger" disabled={busy}
@@ -340,7 +341,7 @@ function Packs() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   if (!purchasesAvailable()) {
-    return <p className="rm-fine">Credits cannot be bought inside the app yet. The ones you have, and the free ones from levelling up, work here.</p>;
+    return <p className="rm-fine">Caps cannot be bought inside the app yet. The ones you have, and the free ones from levelling up, work here.</p>;
   }
   const buy = async (pack: string) => {
     setBusy(true);
@@ -351,10 +352,10 @@ function Packs() {
     <div>
       <div className="rm-packs">
         {PACKS.map((pk) => (
-          <button key={pk.id} type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void buy(pk.id)}>BUY {pk.credits} CREDITS: {pk.price}</button>
+          <button key={pk.id} type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void buy(pk.id)}><Caps n={caps(pk.credits)} /> FOR {pk.price}</button>
         ))}
       </div>
-      <p className="rm-fine">Pay by card, Apple Pay or Google Pay through Stripe. A render that cannot be made gives your credit back.</p>
+      <p className="rm-fine">Pay by card, Apple Pay or Google Pay through Stripe. A render that cannot be made gives your caps back.</p>
       {note && <p className="rm-account-note">{note}</p>}
     </div>
   );

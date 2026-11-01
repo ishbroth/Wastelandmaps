@@ -587,3 +587,9 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-raid-strikes i { width: 26px; height: 26px; border: 2px solid #c9b87a; border-radius: 50%; background: rgba(0, 0, 0, 0.55); position: relative; box-shadow: 0 0 6px rgba(0, 0, 0, 0.6); }
 .rm-raid-strikes i.hit { background: #8a1c14; border-color: #ff7a60; }
 .rm-raid-strikes i.hit::after { content: '✕'; position: absolute; inset: 0; display: grid; place-items: center; color: #ffe0d0; font-size: 16px; font-style: normal; }
+
+/* bottle caps: the cap, then the amount */
+.rm-caps { display: inline-flex; align-items: center; gap: 0.3em; white-space: nowrap; }
+.rm-cap-icon { flex: none; vertical-align: -0.12em; }
+.rm-acct-credits b.rm-caps-big { display: inline-flex; align-items: center; gap: 10px; }
+.rm-acct-credits b.rm-caps-big .rm-cap-icon { width: 34px; height: 34px; }

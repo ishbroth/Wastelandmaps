@@ -11,14 +11,14 @@ export type PaidState =
   | { kind: 'error'; message: string };
 
 const MESSAGES: Record<string, string> = {
-  no_credits: 'You do not have enough credits.',
+  no_credits: 'You do not have enough caps.',
   no_streetview: 'There is no Street View picture of this address to make a snapshot from. Nothing was charged.',
   unknown_place: 'That place could not be found. Nothing was charged.',
   no_photo: 'There is no free photo of this place to render from. Nothing was charged.',
   busy: 'Rendering is paused for today. Nothing was charged; try again tomorrow.',
-  failed: 'The render did not come out. Your credit was returned. Try again.',
+  failed: 'The render did not come out. Your caps were returned. Try again.',
   sign_in: 'Sign in to unlock renders.',
-  server: 'Something went wrong. If a credit was taken it was returned. Try again in a moment.',
+  server: 'Something went wrong. If caps were taken they were returned. Try again in a moment.',
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

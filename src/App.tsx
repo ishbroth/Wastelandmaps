@@ -175,7 +175,7 @@ export default function App() {
     const result = params.get('purchase');
     if (!result) return;
     window.history.replaceState(null, '', window.location.pathname);
-    setToast(result === 'success' ? 'PAYMENT RECEIVED: YOUR CREDITS ARE ON THE WAY' : 'CHECKOUT CANCELLED');
+    setToast(result === 'success' ? 'PAYMENT RECEIVED: YOUR CAPS ARE ON THE WAY' : 'CHECKOUT CANCELLED');
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(''), 4500);
     if (result === 'success') {
@@ -274,12 +274,12 @@ export default function App() {
           window.setTimeout(() => {
             buzz('levelup');
             if (soundRef.current) beep('levelup');
-            setToast(`LEVEL UP${level ? `: LEVEL ${level}` : ''}. ${credits} FREE SNAPSHOT CREDIT${credits > 1 ? 'S' : ''} EARNED`);
+            setToast(`LEVEL UP${level ? `: LEVEL ${level}` : ''}. ${credits * 100} FREE CAPS EARNED`);
             window.clearTimeout(toastTimer.current);
             toastTimer.current = window.setTimeout(() => setToast(''), 5200);
           }, 1400);
         }
-        void pushNotice(credits > 0 ? 'Level up' : 'Discovered', [...said, added > 0 ? `+${added} XP` : '', credits > 0 ? `Level up: ${credits} free snapshot credit${credits > 1 ? 's' : ''}` : ''].filter(Boolean).join('\n'));
+        void pushNotice(credits > 0 ? 'Level up' : 'Discovered', [...said, added > 0 ? `+${added} XP` : '', credits > 0 ? `Level up: ${credits * 100} free caps` : ''].filter(Boolean).join('\n'));
         void accountRef.current?.refresh();
       })();
     }
