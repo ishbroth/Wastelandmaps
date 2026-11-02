@@ -1,4 +1,5 @@
-// Vaults in a metro: one for every 250,000 people (1,000,000 outside the richer countries), at least one. Each is a local place, not a famous one,
+// Vaults in a metro. Richer countries: one for every 250,000 people up to 3 million, then one for every 500,000 (12 million: 30). Elsewhere: two for every
+// million up to 5 million, then one for every million. At least one. The games' own vaults count toward the total and are never removed. Each is a local place, not a famous one,
 // that stops having a new wasteland name and becomes the entrance to a numbered vault ("Entrance to Vault 042. Formerly ..."). The games' own vaults
 // (see loreVaults.ts) are put in first, where they stand.
 
@@ -14,8 +15,12 @@ const RICH = new Set([
   'MT', 'MD', 'MC', 'ME', 'NL', 'MK', 'NO', 'PL', 'PT', 'RO', 'RU', 'SM', 'RS', 'SK', 'SI', 'ES', 'SE', 'CH', 'UA', 'GB', 'VA', 'AU', 'CN', 'HK', 'MO', 'JP', 'KR', 'NZ', 'AR', 'UY', 'BR',
 ]);
 
-export const vaultCount = (country: string, population: number): number =>
-  Math.max(1, Math.floor(population / (RICH.has(country) ? 250_000 : 1_000_000)));
+export const vaultCount = (country: string, population: number): number => {
+  const n = RICH.has(country)
+    ? population <= 3_000_000 ? population / 250_000 : 12 + (population - 3_000_000) / 500_000
+    : population <= 5_000_000 ? population / 500_000 : 10 + (population - 5_000_000) / 1_000_000;
+  return Math.max(1, Math.floor(n));
+};
 
 interface Metro { id: string; lat: number; lng: number; radiusKm: number; pop: number; country: string }
 
