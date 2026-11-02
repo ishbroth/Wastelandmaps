@@ -35,4 +35,5 @@ export const MORE_RENDERS: Record<string, FreeRender> = {
   Q494895: { name: "Lotte World Tower", photo: "Lotte World morning view 8", author: "kallerna", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Lotte_World_morning_view_8.jpg", lat: 37.5125, lng: 127.1025 },
   Q548679: { name: "Marina Bay Sands", photo: "Singapore (SG), Marina Bay Sands Hotel -- 2019 -- 4462", author: "Dietmar Rabich", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Singapore_(SG),_Marina_Bay_Sands_Hotel_--_2019_--_4462.jpg", lat: 1.2825, lng: 103.86 },
   Q12506: { name: "Hagia Sophia", photo: "Hagia Sophia Mars 2013", author: "Arild Vågen", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Hagia_Sophia_Mars_2013.jpg", lat: 41.0086, lng: 28.9802 },
+  Q214855: { name: "Bank of China Tower", photo: "Bank of China Tower (Hong Kong) 20170808", author: "Suicasmo", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Bank_of_China_Tower_(Hong_Kong)_20170808.jpg", lat: 22.2792, lng: 114.1614 },
 };
