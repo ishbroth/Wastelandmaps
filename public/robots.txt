@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /?purchase=
+
+Sitemap: https://wastelandmaps.com/sitemap.xml

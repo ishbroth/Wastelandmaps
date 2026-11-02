@@ -3,15 +3,80 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Turn the city you live in into a Fallout-style wasteland map. An unofficial fan project." />
-    <title>WastelandMaps: your city after the bombs</title>
+    <meta name="theme-color" content="#031209" />
+    <title>WastelandMaps: the Fallout map of the real world, your city after the bombs</title>
+    <meta name="description" content="Turn your city into a Fallout-style wasteland map: vaults from the games, destroyed landmarks, irradiated zones, bosses, loot and a Pip-Boy to fast travel with. An unofficial Fallout fan project covering thousands of real cities." />
+    <meta name="keywords" content="fallout map, fallout world map, fallout map of the real world, real world fallout map, fallout wasteland map, fallout vault locations, fallout vaults real world, fallout lore map, fallout canon locations, vault 111, vault 101, vault 76, vault 13, vault 21, vault 88, vault 114, diamond city map, new vegas map, megaton, the commonwealth map, capital wasteland map, mojave wasteland map, appalachia map, fallout pip-boy map, interactive fallout map, post-apocalyptic map, your city after the bombs, destroyed landmarks, post apocalyptic city names, fallout fan project, fallout fan game, fallout location based game, wasteland maps" />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta name="author" content="WastelandMaps" />
+    <link rel="canonical" href="https://wastelandmaps.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="WastelandMaps" />
+    <meta property="og:title" content="WastelandMaps: the Fallout map of the real world" />
+    <meta property="og:description" content="Your city after the bombs: vaults from the games, destroyed landmarks, bosses, loot and a Pip-Boy to fast travel with. An unofficial fan project." />
+    <meta property="og:url" content="https://wastelandmaps.com/" />
+    <meta property="og:image" content="https://wastelandmaps.com/og.jpg" />
+    <meta property="og:image:alt" content="The Statue of Liberty destroyed, in a Fallout-style render from WastelandMaps" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="WastelandMaps: the Fallout map of the real world" />
+    <meta name="twitter:description" content="Your city after the bombs: vaults, destroyed landmarks, bosses, loot and a Pip-Boy to fast travel with." />
+    <meta name="twitter:image" content="https://wastelandmaps.com/og.jpg" />
+    <meta name="apple-mobile-web-app-title" content="WastelandMaps" />
+    <meta name="application-name" content="WastelandMaps" />
+    <script type="application/ld+json">
+      [
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "name": "WastelandMaps",
+          "alternateName": ["Wasteland Maps", "WastelandMaps Fallout map"],
+          "url": "https://wastelandmaps.com/",
+          "description": "An unofficial Fallout-style map of the real world: your city after the bombs.",
+          "inLanguage": "en",
+          "potentialAction": { "@type": "SearchAction", "target": { "@type": "EntryPoint", "urlTemplate": "https://wastelandmaps.com/?q={search_term_string}" }, "query-input": "required name=search_term_string" }
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "WastelandMaps",
+          "url": "https://wastelandmaps.com/",
+          "applicationCategory": "GameApplication",
+          "applicationSubCategory": "Map, location-based game",
+          "operatingSystem": "Any (web browser), iOS, Android",
+          "browserRequirements": "Requires JavaScript",
+          "description": "Turn any city into a Fallout-style wasteland: vaults and towns from the games, post-apocalyptic names for real places, destroyed snapshots of landmarks, irradiated zones, flooded coasts, a first-person shooting gallery with loot, and a Pip-Boy to navigate with.",
+          "image": "https://wastelandmaps.com/og.jpg",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD", "description": "Free to use; bottle caps are optional in-app currency for unlocking snapshots." },
+          "keywords": "fallout, fallout map, vault, wasteland, pip-boy, post-apocalyptic, real world map"
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": "WastelandMaps",
+          "url": "https://wastelandmaps.com/",
+          "logo": "https://wastelandmaps.com/icon-512.png"
+        }
+      ]
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <h1>WastelandMaps: the Fallout map of the real world</h1>
+      <p>WastelandMaps turns any real city into a Fallout-style wasteland: the vaults and towns from the games placed on the real map, destroyed renders of famous landmarks, irradiated zones, bosses, loot and a Pip-Boy to fast travel with. It needs JavaScript to run the map. An unofficial fan project, not affiliated with Bethesda.</p>
+      <ul>
+        <li><a href="/places/">Landmarks after the bombs</a></li>
+        <li><a href="/vaults/">Every Fallout vault on the real map</a></li>
+        <li><a href="/lore/">Fallout towns and lore locations</a></li>
+        <li><a href="/cities/">Every city as a wasteland</a></li>
+      </ul>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

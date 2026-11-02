@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "seo": "npx --yes esbuild _tools/build-seo.ts --bundle --platform=node --format=esm --define:import.meta.env={} --log-level=error --outfile=_data/build-seo.mjs && node _data/build-seo.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
     "app:sync": "npm run build && cap sync",

@@ -340,6 +340,19 @@ export default function App() {
   }, [wasteland, mapLocations]);
   const selectedSpot = useMemo(() => spotFor(selectedId), [spotFor, selectedId]);
   const sceneSpot = useMemo(() => spotFor(sceneId), [spotFor, sceneId]);
+  // the page's title and description follow what is on the screen (search engines that run the page, and anyone sharing or bookmarking it, see where they are)
+  useEffect(() => {
+    const where = liveName || wasteland?.regionName || '';
+    const spot = sceneSpot ?? selectedSpot;
+    const title = spot && !spot.personal ? `${spot.name}${where ? ` in ${where}` : ''} | WastelandMaps` : where ? `${where}: the city after the bombs | WastelandMaps` : 'WastelandMaps: the Fallout map of the real world, your city after the bombs';
+    document.title = title;
+    document.querySelector('meta[property="og:title"]')?.setAttribute('content', title);
+    const description = where ? `${where} as a Fallout-style wasteland on WastelandMaps: vaults, destroyed landmarks, irradiated zones, bosses and loot. An unofficial fan project.` : '';
+    if (description) {
+      document.querySelector('meta[name="description"]')?.setAttribute('content', description);
+      document.querySelector('meta[property="og:description"]')?.setAttribute('content', description);
+    }
+  }, [liveName, wasteland, sceneSpot, selectedSpot]);
 
   const show = useCallback(async (resolveRegion: () => Promise<Region>, label: string) => {
     setBusy(true);
