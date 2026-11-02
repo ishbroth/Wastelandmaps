@@ -34,4 +34,6 @@ export const MORE_RENDERS: Record<string, FreeRender> = {
   Q83101: { name: "Taipei 101", photo: "Taipei 101 2009 amk", author: "AngMoKio", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Taipei_101_2009_amk.jpg", lat: 25.0336, lng: 121.5647 },
   Q189476: { name: "Makkah Royal Clock Tower", photo: "Makkah Royal Clock Tower in 2012", author: "King Eliot", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Makkah_Royal_Clock_Tower_in_2012.jpg", lat: 21.4189, lng: 39.8264 },
   Q102281065: { name: "Iconic Tower", photo: "Iconic Tower Egypt(18-6-2023) (cropped)", author: "Mohamed Ouda", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Iconic_Tower_Egypt(18-6-2023)_(cropped).jpg", lat: 30.0128, lng: 31.6939 },
+  Q494895: { name: "Lotte World Tower", photo: "Lotte World morning view 8", author: "kallerna", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Lotte_World_morning_view_8.jpg", lat: 37.5125, lng: 127.1025 },
+  Q548679: { name: "Marina Bay Sands", photo: "Singapore (SG), Marina Bay Sands Hotel -- 2019 -- 4462", author: "Dietmar Rabich", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Singapore_(SG),_Marina_Bay_Sands_Hotel_--_2019_--_4462.jpg", lat: 1.2825, lng: 103.86 },
 };

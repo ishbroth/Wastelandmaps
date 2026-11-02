@@ -64,6 +64,10 @@ const LANDMARK_ICONS: Record<string, string> = {
   Q189476: svg(f('M3.5 21v-8h4.6v8ZM15.9 21v-8h4.6v8Z') + f('M8.8 21V9.5h6.4V21Z') + f('M8 9.5h8V5.5H8Z') + d('M12 6.1a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8Z') + s('M12 5.5V3.2M12 3.2a1.2 1.2 0 1 1 1.2 1.2')),
   // the Iconic Tower: a tall rounded tower of stacked bands with a glass edge
   Q102281065: svg(f('M9.5 21V6.2C9.5 4.9 10.5 4 12 4s2.5.9 2.5 2.2V21Z') + d('M9.8 8.5h4.4M9.8 11h4.4M9.8 13.5h4.4M9.8 16h4.4M9.8 18.5h4.4') + s('M8.2 21V8.5')),
+  // the Lotte World Tower: a smooth tapering tower with a notched crown
+  Q494895: svg(f('M8.6 21 10.3 7.5 12 2.5l1.7 5L15.4 21Z') + d('M10.9 12.5h2.2M10.2 16.8h3.6') + s('M12 2.5V1.4')),
+  // Marina Bay Sands: three slanted towers under one long curved roof
+  Q548679: svg(f('M5 21V10.4h3.6V21ZM10.2 21V10.4h3.6V21ZM15.4 21V10.4H19V21Z') + f('M2.5 8.2c4.6 1 12.4 1.2 19-.8v3H2.5Z') + d('M6.8 13.5v4M12 13.5v4M17.2 13.5v4')),
   // the first seven, which already have their own drawings
   // Big Ben: the Elizabeth Tower with a wing of the palace
   Q41225: svg(f('M9 21V9l1.2-3.5L12 3l1.8 2.5L15 9v12Z') + f('M2.5 21v-5h6.5v5ZM15 21v-5h6.5v5Z') + d('M12 9.5V11l1 .7M11 21v-3h2v3') + s('M12 3V1.5')),
