@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # every morning, so the pages for the places people rendered in the last day are on the site
+  schedule:
+    - cron: '17 6 * * *'
 
 permissions:
   contents: read

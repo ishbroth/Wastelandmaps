@@ -112,6 +112,8 @@ Deno.serve(async (req) => {
         const path = `${entity}.png`;
         const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
         if (up.error) throw new Error('could not store the image');
+        // the render is part of the public atlas: a copy goes where its page can show it
+        await db.storage.from('public-renders').upload(`wd/${entity}.png`, png, { contentType: 'image/png', upsert: true }).catch(() => null);
         const done = await db.from('renders').update({
           status: 'ready', storage_path: path, place_name: placeName, photo_title: photo.title, photo_author: photo.author,
           photo_license: photo.license, photo_page: photo.page, created_at: new Date().toISOString(),

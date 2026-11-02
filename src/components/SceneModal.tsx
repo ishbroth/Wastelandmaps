@@ -196,7 +196,7 @@ export default function SceneModal({ startOn = 'scene', spot, regionName, look, 
         </div>
 
         {tab === 'snapshot' && reveal && personal && (
-          <p className="rm-modal-credit">Made from Google Street View imagery. The original is shown straight from Google and is not kept by us; only this render is kept, and only you can open it.</p>
+          <p className="rm-modal-credit">{home ? 'Made from Google Street View imagery. The original is shown straight from Google and is not kept by us; only this render is kept, and only you can open it.' : 'Made from Google Street View imagery. The original is shown straight from Google and is not kept by us. This render is part of the public atlas: everyone who unlocks this address sees the same picture, and it has a page of its own on the site.'}</p>
         )}
         {tab === 'snapshot' && reveal && !personal && (
           <p className="rm-modal-credit">

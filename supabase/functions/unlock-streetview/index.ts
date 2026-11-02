@@ -239,6 +239,8 @@ Deno.serve(async (req) => {
     const path = `address/${googleId}.png`;
     const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
     if (up.error) throw new Error('could not store the image');
+    // a shared address render is part of the public atlas: a copy goes where its page can show it
+    await db.storage.from('public-renders').upload(path, png, { contentType: 'image/png', upsert: true }).catch(() => null);
     await db.from('address_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString() }).eq('place_id', googleId);
     const url = await signed(path);
     if (!url) throw new Error('no link');

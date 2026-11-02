@@ -5,10 +5,13 @@
 //   /vault/<number>/ one for every vault from the games' stories, with its story
 //   /lore/<town>/    one for every town from the games' stories that is on the map, with its buildings
 //   /city/<id>/      one for every metro on the map (its wasteland name, and the landmarks and vaults in it)
+//   /address/<address>/  one for every address in the atlas, and /atlas/ lists them
 //   /places/, /vaults/, /lore/, /cities/   the lists that link to all of the above
 //   /sitemap.xml
 //
-// Only public places are published. A person's own address, their home vault and the renders they make of them are private and never get a page.
+// The atlas is public: every address and place that someone has unlocked a render of gets a page too (/address/<address>/ and /place/<name>/), built from what the
+// public-atlas function lists (the address, where it is, and the render kept for everyone). Nothing about the person who made a render is in it, and a person's own
+// home render (which carries their vault number) is not part of the atlas.
 //   npm run seo        (SEO_OUT=path to write somewhere else)
 
 import fs from 'node:fs';
@@ -132,7 +135,26 @@ const li = (href: string, text: string, extra = '') => `<li><a href="${esc(href)
 const openQuery = (q: string) => `/?q=${encodeURIComponent(q)}`;
 
 // ---- the landmarks (permanent snapshots first, then the famous ones)
-interface Landmark { slug: string; name: string; real: string; qid?: string; lat: number; lng: number; metro: Metro; permanent: boolean; render?: { photo: string; author: string; license: string; page: string }; wastelandName?: string }
+interface Landmark { slug: string; name: string; real: string; qid?: string; lat: number; lng: number; metro: Metro; permanent: boolean; render?: { photo: string; author: string; license: string; page: string }; wastelandName?: string; /** The render someone unlocked, kept for everyone (second-tier landmarks). */ pubImage?: string }
+
+// ---- what people have rendered: the public atlas
+interface AtlasAddress { id: string; name: string; address: string; lat: number; lng: number; kind: string; metro: string | null; image: string; at: string }
+interface AtlasPlace { id: string; name: string; image: string; photo: string; author: string; license: string; page: string; at: string }
+async function fetchAtlas(): Promise<{ addresses: AtlasAddress[]; places: AtlasPlace[] }> {
+  const base = process.env.VITE_SUPABASE_URL || 'https://tdwikatzogfwfssyzmlw.supabase.co';
+  // SEO_ATLAS_FILE: read the list from a file instead (for trying the pages out)
+  if (process.env.SEO_ATLAS_FILE) return JSON.parse(fs.readFileSync(process.env.SEO_ATLAS_FILE, 'utf8')) as { addresses: AtlasAddress[]; places: AtlasPlace[] };
+  try {
+    const res = await fetch(`${base}/functions/v1/public-atlas`);
+    if (!res.ok) throw new Error(String(res.status));
+    return (await res.json()) as { addresses: AtlasAddress[]; places: AtlasPlace[] };
+  } catch (e) {
+    console.log('seo: the public atlas could not be read, so its pages are skipped this time:', e instanceof Error ? e.message : e);
+    return { addresses: [], places: [] };
+  }
+}
+const atlas = await fetchAtlas();
+const atlasPlaces = new Map(atlas.places.map((p) => [p.id, p]));
 const landmarks: Landmark[] = [];
 const seen = new Set<string>();
 const slugs = new Set<string>();
@@ -147,7 +169,8 @@ for (const g of GLOBAL_LANDMARKS) {
 }
 for (const f of FAMOUS) {
   if (f.qid && seen.has(f.qid)) continue;
-  landmarks.push({ slug: uniqueSlug(slugOf(f.name), f.qid), name: f.name, real: f.name, qid: f.qid, lat: f.lat, lng: f.lng, metro: f.metro ? (metros.find((m) => m.id === f.metro) ?? metroOf(f.lat, f.lng)) : metroOf(f.lat, f.lng), permanent: false });
+  const pub = f.qid ? atlasPlaces.get(f.qid) : undefined;
+  landmarks.push({ slug: uniqueSlug(slugOf(f.name), f.qid), name: f.name, real: f.name, qid: f.qid, lat: f.lat, lng: f.lng, metro: f.metro ? (metros.find((m) => m.id === f.metro) ?? metroOf(f.lat, f.lng)) : metroOf(f.lat, f.lng), permanent: false, pubImage: pub?.image, render: pub ? { photo: pub.photo, author: pub.author, license: pub.license, page: pub.page } : undefined });
 }
 
 const mapsLink = (l: { lat: number; lng: number }) => `https://www.openstreetmap.org/?mlat=${l.lat}&mlon=${l.lng}#map=17/${l.lat}/${l.lng}`;
@@ -157,7 +180,7 @@ for (const l of landmarks) {
   const country = countryName(l.metro.country);
   const where = `${city}, ${country}`;
   const url = `/place/${l.slug}/`;
-  const image = l.qid && l.permanent ? `${SITE}/renders/${l.qid}.png` : undefined;
+  const image = l.qid && l.permanent ? `${SITE}/renders/${l.qid}.png` : l.pubImage;
   const title = l.permanent
     ? `${l.name} destroyed: ${where} after the bombs | Fallout-style render | WastelandMaps`
     : `${l.name}, ${where}: on the Fallout-style wasteland map | WastelandMaps`;
@@ -275,6 +298,71 @@ write('/places/', render({
   jsonLd: [{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Landmarks after the bombs', url: `${SITE}/places/` }, breadcrumb([['WastelandMaps', '/'], ['Landmarks', '/places/']])],
 }));
 
+// ---- the addresses in the atlas, and the places people have rendered that are not among the landmarks
+const addressSlugs = new Set<string>();
+const addressPages: { slug: string; a: AtlasAddress; metro: Metro }[] = [];
+const KIND: Record<string, string> = { house: 'house or home', park: 'park', office: 'office building', church: 'church', medical: 'medical building', gov: 'government building' };
+for (const a of atlas.addresses) {
+  const metro = (a.metro && metros.find((m) => m.id === a.metro)) || metroOf(a.lat, a.lng);
+  let slug = `${slugOf(a.address || a.name)}-${a.id.slice(-5).toLowerCase()}`;
+  if (addressSlugs.has(slug)) slug += '-2';
+  addressSlugs.add(slug);
+  addressPages.push({ slug, a, metro });
+  const url = `/address/${slug}/`;
+  const label = a.address || a.name;
+  const title = `${label}: destroyed in the wasteland | Fallout-style render | WastelandMaps`;
+  const description = `${label} as it looks 200 years after the bombs: a Fallout-style destroyed render of this ${KIND[a.kind] ?? 'place'} in ${metro.name}, ${countryName(metro.country)}, part of the WastelandMaps atlas of destroyed addresses.`;
+  const near = addressPages.filter((o) => o.a !== a && o.metro.id === metro.id).slice(0, 6);
+  const body = `
+<p>${esc(label)} is a ${esc(KIND[a.kind] ?? 'place')} in ${esc(metro.name)}, ${esc(countryName(metro.country))}. This is how it looks in the wasteland, in <a href="/city/${esc(metro.id)}/">${esc(metro.title)}</a>: a game-style render of the street view of the address, made by a WastelandMaps survivor and kept in the atlas for everyone.</p>
+<figure><img src="${esc(a.image)}" alt="${esc(`${label} destroyed in a post-apocalyptic, Fallout-style render`)}" width="1024" loading="eager"><figcaption>${esc(label)} after the bombs. Made from Google Street View imagery.</figcaption></figure>
+<h2>About this address</h2>
+<ul>
+<li>Address: ${esc(label)} (${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}). <a href="${esc(mapsLink(a))}" rel="noopener">Show on OpenStreetMap</a></li>
+<li>In the wasteland: ${esc(metro.name)} is <a href="/city/${esc(metro.id)}/">${esc(metro.title)}</a>.</li>
+<li>On WastelandMaps you can unlock the destroyed snapshot of any address, fight what lives there and loot it.</li>
+</ul>
+${near.length ? `<h2>More destroyed addresses in ${esc(metro.name)}</h2><ul>${near.map((o) => li(`/address/${o.slug}/`, o.a.address || o.a.name)).join('')}</ul>` : ''}
+<p class="fine">The atlas of destroyed addresses is built by the survivors who unlock them. WastelandMaps is an unofficial fan project.</p>`;
+  write(url, render({
+    title, description, canonical: url, image: a.image, imageAlt: `${label} destroyed, Fallout-style render`, open: openQuery(label), heading: label, body,
+    keywords: [label, `${label} destroyed`, `${label} after the bombs`, `${label} fallout`, a.name, `${metro.name} fallout map`, `${metro.name} wasteland`, metro.title, 'destroyed address', 'post apocalyptic house', 'fallout style house render', 'my house destroyed'],
+    jsonLd: [{
+      '@context': 'https://schema.org', '@type': ['Place', 'LocalBusiness'].slice(0, 1), name: a.name, description,
+      address: { '@type': 'PostalAddress', streetAddress: label, addressLocality: metro.name, addressCountry: metro.country },
+      geo: { '@type': 'GeoCoordinates', latitude: a.lat, longitude: a.lng }, hasMap: mapsLink(a), url: `${SITE}${url}`,
+      image: { '@type': 'ImageObject', contentUrl: a.image, name: `${label} destroyed (Fallout-style render)`, creditText: 'WastelandMaps survivors, from Google Street View imagery', creator: { '@type': 'Organization', name: 'WastelandMaps' } },
+      isPartOf: { '@type': 'WebSite', name: 'WastelandMaps', url: SITE },
+    }, breadcrumb([['WastelandMaps', '/'], ['Atlas of destroyed addresses', '/atlas/'], [label, url]])],
+  }));
+}
+// places someone has rendered that are not among the landmarks above
+const known = new Set(landmarks.map((l) => l.qid).filter(Boolean));
+const extraPlaces = atlas.places.filter((p) => !known.has(p.id));
+const extraPages: { slug: string; p: AtlasPlace }[] = [];
+for (const p of extraPlaces) {
+  const slug = uniqueSlug(slugOf(p.name), p.id);
+  extraPages.push({ slug, p });
+  const url = `/place/${slug}/`;
+  const description = `${p.name} as it looks 200 years after the bombs: a Fallout-style destroyed render made by a WastelandMaps survivor, part of the atlas of destroyed places.`;
+  const body = `
+<p>${esc(p.name)} after the bombs, as a game-style render made by a WastelandMaps survivor and kept in the atlas for everyone.</p>
+<figure><img src="${esc(p.image)}" alt="${esc(`${p.name} destroyed in a post-apocalyptic, Fallout-style render`)}" width="1200" loading="eager"><figcaption>${esc(p.name)} after the bombs, made from the photograph “${esc(p.photo ?? '')}” by ${esc(p.author ?? '')} (${esc(p.license ?? '')}, <a href="${esc(p.page ?? '#')}" rel="noopener">source</a>), shared under the same license.</figcaption></figure>
+<ul><li><a href="https://www.wikidata.org/wiki/${esc(p.id)}" rel="noopener">${esc(p.name)} on Wikidata</a></li><li>Find it on the map, fight what lives there and loot it.</li></ul>`;
+  write(url, render({
+    title: `${p.name} destroyed: Fallout-style render | WastelandMaps`, description, canonical: url, image: p.image, imageAlt: `${p.name} destroyed, Fallout-style render`, open: openQuery(p.name), heading: `${p.name}, after the bombs`, body,
+    keywords: [p.name, `${p.name} destroyed`, `${p.name} fallout`, `${p.name} post-apocalyptic`, 'destroyed landmark'],
+    jsonLd: [{ '@context': 'https://schema.org', '@type': 'Place', name: p.name, sameAs: [`https://www.wikidata.org/wiki/${p.id}`], url: `${SITE}${url}`, image: { '@type': 'ImageObject', contentUrl: p.image, name: `${p.name} destroyed (Fallout-style render)`, creditText: `${p.author} / ${p.photo}`, license: p.page } }, breadcrumb([['WastelandMaps', '/'], ['Atlas of destroyed places', '/atlas/'], [p.name, url]])],
+  }));
+}
+write('/atlas/', render({
+  title: 'The atlas of destroyed addresses and places | WastelandMaps', canonical: '/atlas/', open: '/', heading: 'The atlas of destroyed places',
+  description: `${addressPages.length + extraPages.length} real addresses and places that survivors have turned into Fallout-style destroyed renders, built a render at a time by the people who play WastelandMaps.`,
+  keywords: ['destroyed addresses', 'post apocalyptic house render', 'my street after the bombs', 'fallout style house', 'destroyed places atlas'],
+  body: `<p>Every address and place a survivor unlocks joins the atlas, and everyone who looks it up sees the same picture.</p>${addressPages.length ? `<h2>Addresses</h2><ul class="cols">${addressPages.map((o) => li(`/address/${o.slug}/`, o.a.address || o.a.name, o.metro.name)).join('')}</ul>` : ''}${extraPages.length ? `<h2>Places</h2><ul class="cols">${extraPages.map((o) => li(`/place/${o.slug}/`, o.p.name)).join('')}</ul>` : ''}`,
+  jsonLd: [{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'The atlas of destroyed places', url: `${SITE}/atlas/` }, breadcrumb([['WastelandMaps', '/'], ['Atlas', '/atlas/']])],
+}));
+
 // ---- the cities
 const landmarksByMetro = new Map<string, Landmark[]>();
 for (const l of landmarks) landmarksByMetro.set(l.metro.id, [...(landmarksByMetro.get(l.metro.id) ?? []), l]);
@@ -308,9 +396,14 @@ write('/cities/', render({
 }));
 
 // ---- the sitemap
-const urls = ['/', '/places/', '/vaults/', '/lore/', '/cities/', ...written.filter((u) => !['/places/', '/vaults/', '/lore/', '/cities/'].includes(u))];
-const priority = (u: string) => (u === '/' ? '1.0' : /^\/(places|vaults|lore|cities)\/$/.test(u) ? '0.8' : /^\/(place|vault|lore)\//.test(u) ? '0.7' : '0.5');
-const imageOf = new Map(landmarks.filter((l) => l.permanent && l.qid).map((l) => [`/place/${l.slug}/`, `${SITE}/renders/${l.qid}.png`]));
+const urls = ['/', '/places/', '/vaults/', '/lore/', '/cities/', '/atlas/', ...written.filter((u) => !['/places/', '/vaults/', '/lore/', '/cities/', '/atlas/'].includes(u))];
+const priority = (u: string) => (u === '/' ? '1.0' : /^\/(places|vaults|lore|cities|atlas)\/$/.test(u) ? '0.8' : /^\/(place|vault|lore|address)\//.test(u) ? '0.7' : '0.5');
+const imageOf = new Map<string, string>([
+  ...landmarks.filter((l) => l.permanent && l.qid).map((l) => [`/place/${l.slug}/`, `${SITE}/renders/${l.qid}.png`] as [string, string]),
+  ...landmarks.filter((l) => !l.permanent && l.pubImage).map((l) => [`/place/${l.slug}/`, l.pubImage as string] as [string, string]),
+  ...addressPages.map((o) => [`/address/${o.slug}/`, o.a.image] as [string, string]),
+  ...extraPages.map((o) => [`/place/${o.slug}/`, o.p.image] as [string, string]),
+]);
 const entry = (u: string) => `<url><loc>${SITE}${u}</loc><lastmod>${TODAY}</lastmod><priority>${priority(u)}</priority>${imageOf.has(u) ? `<image:image><image:loc>${imageOf.get(u)}</image:loc></image:image>` : ''}</url>`;
 fs.writeFileSync(path.join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${[...new Set(urls)].map(entry).join('\n')}\n</urlset>\n`);
-console.log(`seo: ${written.length} pages (${landmarks.length} landmarks, ${LORE_VAULTS.length} vaults, ${LORE_TOWNS.length} towns, ${metros.length} cities) + sitemap.xml in ${OUT}`);
+console.log(`seo: ${written.length} pages (${addressPages.length} addresses, ${extraPages.length} more places, ${landmarks.length} landmarks, ${LORE_VAULTS.length} vaults, ${LORE_TOWNS.length} towns, ${metros.length} cities) + sitemap.xml in ${OUT}`);
