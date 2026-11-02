@@ -24,13 +24,15 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ spot, regionName, look, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
+export default function SceneModal({ startOn = 'scene', spot, regionName, look, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
   /** The metro the map is showing: an address rendered here belongs to its atlas. */
   metroId?: string | null;
+  /** Which tab opens first: the scene (the place's info), unless they asked for its snapshot (from the Data tab). */
+  startOn?: 'scene' | 'snapshot';
   spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void; /** Kept for callers; the message is shown over the picture now. */ onNeedDiscover?: () => void;
 }) {
   const render = useMemo(() => freeRenderFor(spot.id), [spot.id]);
-  const [tab, setTab] = useState<Tab>(render ? 'snapshot' : 'scene');
+  const [tab, setTab] = useState<Tab>(startOn === 'snapshot' ? 'snapshot' : 'scene');
   const [raiding, setRaiding] = useState(false);
   const [buying, setBuying] = useState(false);
   // the reason the LOOT button will not work yet, flashed over the picture

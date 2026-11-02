@@ -100,6 +100,8 @@ export default function App() {
   const travelRef = useRef(false);
   const [travel, setTravel] = useState<TravelRun | null>(null);
   const [sceneId, setSceneId] = useState<string | null>(null);
+  // a place opens on its info (the scene); only the Data tab's snapshot button opens it on the snapshot
+  const [sceneStart, setSceneStart] = useState<'scene' | 'snapshot'>('scene');
   const [toast, setToast] = useState('');
   const account = useAccount();
   // an address picked from the search that has not been reached yet (only a destination), and the person's own places near this map
@@ -664,14 +666,14 @@ export default function App() {
     if (!p || busy || !locations.some((l) => l.id === p.id)) return;
     pendingOpen.current = null;
     setSelectedId(p.id);
-    if (p.scene) setSceneId(p.id);
+    if (p.scene) { setSceneStart('snapshot'); setSceneId(p.id); }
   }, [locations, busy]);
   const openFound = useCallback(async (place: FoundPlace, scene: boolean) => {
     // on a phone the map is above the tabs: bring it into view
     document.querySelector('.rm-screen')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (locationsRef.current.some((l) => l.id === place.id)) {
       setSelectedId(place.id);
-      if (scene) setSceneId(place.id);
+      if (scene) { setSceneStart('snapshot'); setSceneId(place.id); }
       return;
     }
     pendingOpen.current = { id: place.id, scene };
@@ -770,6 +772,7 @@ export default function App() {
       speak(`Destination reached: ${spot.name}.`);
       buzz('arrive');
       if (soundRef.current) beep('arrive');
+      setSceneStart('scene');
       setSceneId(spot.id);
       return;
     }
@@ -811,6 +814,7 @@ export default function App() {
     setToast(first ? `LOCATION DISCOVERED: ${t.spot.name}` : `ARRIVED: ${t.spot.name}`);
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(''), 3200);
+    setSceneStart('scene');
     setSceneId(t.spot.id);
     sound('arrive');
   }, [sound, recordFound]);
@@ -930,11 +934,12 @@ export default function App() {
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
               spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = allLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
-              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => setSceneId(selectedSpot.id)} onClose={() => setSelectedId(null)}
+              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { setSceneStart('scene'); setSceneId(selectedSpot.id); }} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
             <SceneModal
+              startOn={sceneStart}
               metroId={metroInfo?.id}
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={shownVisited.has(sceneSpot.id)}
               account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || place.personal) ? (place.personal?.home ? homePlan() : raidFor(place)) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)} onNeedDiscover={() => say('YOU MUST DISCOVER THIS LOCATION FIRST', true)}
