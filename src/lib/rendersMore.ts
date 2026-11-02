@@ -31,4 +31,7 @@ export const MORE_RENDERS: Record<string, FreeRender> = {
   Q183536: { name: "Tokyo Tower", photo: "Tokyo Tower 2023", author: "Akonnchiroll", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Tokyo_Tower_2023.jpg", lat: 35.658611111111114, lng: 139.74555555555557 },
   Q178114: { name: "Washington Monument", photo: "Washington 250424 Washington Monument 01", author: "Oren Rozen", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Washington_250424_Washington_Monument_01.jpg", lat: 38.889475, lng: -77.035244444444 },
   Q29294: { name: "Willis Tower", photo: "Chicago Sears Tower", author: "Daniel Schwen", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Chicago_Sears_Tower.jpg", lat: 41.878611, lng: -87.635833 },
+  Q83101: { name: "Taipei 101", photo: "Taipei 101 2009 amk", author: "AngMoKio", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Taipei_101_2009_amk.jpg", lat: 25.0336, lng: 121.5647 },
+  Q189476: { name: "Makkah Royal Clock Tower", photo: "Makkah Royal Clock Tower in 2012", author: "King Eliot", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Makkah_Royal_Clock_Tower_in_2012.jpg", lat: 21.4189, lng: 39.8264 },
+  Q102281065: { name: "Iconic Tower", photo: "Iconic Tower Egypt(18-6-2023) (cropped)", author: "Mohamed Ouda", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Iconic_Tower_Egypt(18-6-2023)_(cropped).jpg", lat: 30.0128, lng: 31.6939 },
 };

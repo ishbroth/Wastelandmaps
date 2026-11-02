@@ -27,7 +27,7 @@ const ORIGINAL_RENDERS: Record<string, FreeRender> = {
   Q41225: { name: "Big Ben", photo: "Elizabeth Tower and the north front of the Palace of Westminster, London", author: "Christian David", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Elizabeth_Tower_and_the_north_front_of_the_Palace_of_Westminster,_London.jpg" },
   Q45178: { name: "Sydney Opera House", photo: "00 1375 Sydney Opera House (Australia)", author: "W. Bulach", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:00_1375_Sydney_Opera_House_(Australia).jpg" },
   Q79961: { name: "Christ the Redeemer", photo: "Christ the Redeemer - Cristo Redentor", author: "Arne Müseler", license: "CC BY-SA 3.0 de", page: "https://commons.wikimedia.org/wiki/File:Christ_the_Redeemer_-_Cristo_Redentor.jpg" },
-  Q133274: { name: "The Kremlin, Moscow", photo: "Moscow 05-2012 Kremlin 22", author: "A.Savin", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Moscow_05-2012_Kremlin_22.jpg" },
+  Q133274: { name: "The Kremlin, Moscow", photo: "Moscow 05-2012 StBasilCathedral", author: "A.Savin", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Moscow_05-2012_StBasilCathedral.jpg" },
 };
 
 /** Every landmark with a free snapshot: the first seven, then the ones added since (rendersMore.ts, made by _tools/add-landmarks.mjs). */
