@@ -375,13 +375,13 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       if (shapes.has(key)) return;
       shapes.set(key, new google.maps.Polygon({
         map, paths: patchOutline(patch), clickable: false, zIndex: 2,
-        fillColor: look.floodFill, fillOpacity: 1, strokeColor: look.floodStroke, strokeOpacity: 0.7, strokeWeight: 1,
+        fillColor: look.floodFill, fillOpacity: 1, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // one color, no outline: it reads as the coast itself having moved
       }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allFlood, view, zoomNow]);
   useEffect(() => {
-    floodShapes.current.forEach((shape) => shape.setOptions({ fillColor: look.floodFill, strokeColor: look.floodStroke }));
+    floodShapes.current.forEach((shape) => shape.setOptions({ fillColor: look.floodFill, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0 }));
   }, [look]);
 
   // zoomed out past the city: its irradiated zones clear off the map, and come back as you zoom in
