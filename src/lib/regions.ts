@@ -29,7 +29,7 @@ const SUPER: Record<string, { name: string; at: LatLng }> = {
   amazon: { name: 'The Burnt Amazon', at: { lat: -4, lng: -60 } },
   cone: { name: 'Tierra del Fuego', at: { lat: -41, lng: -66 } },
   oldworld: { name: 'The Old Continent', at: { lat: 49, lng: 15 } },
-  cold: { name: 'The Coldlands', at: { lat: 63, lng: 17 } },
+  cold: { name: 'The Köldlands', at: { lat: 63, lng: 33 } },
   sands: { name: 'The Sands', at: { lat: 26, lng: 22 } },
   congo: { name: 'The Burnt Congo', at: { lat: -8, lng: 24 } },
   subcontinent: { name: 'The Subcontinent', at: { lat: 22, lng: 79 } },
