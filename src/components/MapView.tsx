@@ -49,6 +49,8 @@ interface Props {
 const MAX_PINS = 450;
 const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
 const LABEL_ZOOM = 16;
+/** Below this zoom (zoomed out past a city) the irradiated zones and the flooded patches are taken off the map: they only belong to the city you are looking at. */
+const CITY_ZOOM = 9;
 
 /**
  * How far in the map has to be (Google zoom level) before a place gets a marker, so a big metro does not clutter the screen or slow the map:
@@ -363,6 +365,19 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
   useEffect(() => {
     floodShapes.current.forEach((shape) => shape.setOptions({ fillColor: look.floodFill, strokeColor: look.floodStroke }));
   }, [look]);
+
+  // zoomed out past the city: its irradiated zones and flooded patches clear off the map, and come back as you zoom in
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const target = zoomNow >= CITY_ZOOM ? map : null;
+    extras.current.forEach((x) => {
+      x.handle?.setMap(target);
+      x.circle?.setMap(target);
+      x.clouds?.forEach((c) => c.setMap(target));
+    });
+    floodShapes.current.forEach((shape) => shape.setMap(target));
+  }, [zoomNow, wasteland, look, flood]);
 
   // the names of the big regions, while zoomed out: continents, then countries, then states
   useEffect(() => {
