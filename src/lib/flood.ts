@@ -32,3 +32,16 @@ export function patchOutline([lat, lng, radius, aspect, angle, seed]: FloodPatch
   }
   return points;
 }
+
+/** Is this point over one of the flooded patches? (The patch is taken as the plain oval, without its uneven edge.) */
+export function isFlooded(point: LatLng, patches: FloodPatch[]): boolean {
+  return patches.some(([lat, lng, radius, aspect, angle]) => {
+    const north = (point.lat - lat) * 111_320;
+    const east = (point.lng - lng) * 111_320 * Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+    if (Math.abs(north) > radius * aspect * 1.3 || Math.abs(east) > radius * aspect * 1.3) return false;
+    const turn = (-angle * Math.PI) / 180;
+    const x = east * Math.cos(turn) - north * Math.sin(turn);
+    const y = east * Math.sin(turn) + north * Math.cos(turn);
+    return (x / (radius * aspect)) ** 2 + (y / radius) ** 2 <= 1;
+  });
+}

@@ -8,6 +8,8 @@ import { usePaidRender } from '../lib/usePaidRender';
 import { findSnapshot, type Snapshot } from '../lib/snapshot';
 import { sourceLabel } from '../../supabase/functions/_shared/photoSources';
 import { streetViewAvailable, streetViewPictureUrl } from '../lib/addressSearch';
+import { isFlooded, loadFlood } from '../lib/flood';
+import { manualBefore } from '../lib/manualSources';
 import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } from '../lib/wasteland';
 import type { LookId } from '../lib/looks';
 import BlowApart from './BlowApart';
@@ -77,8 +79,17 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
   const journal = useMemo(() => describeSpot(spot, regionName, plan), [spot, regionName, plan]);
 
   // the paid snapshot: for places with a freely licensed photo listed on Wikidata that are not among the free few
-  const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned)));
-  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home } : undefined, !!rendered?.owned || homeOwned);
+  // standing over one of the flooded patches: the render shows the flooding too
+  const [floodedAt, setFloodedAt] = useState<{ id: string; flooded: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void loadFlood().then((byMetro) => { if (!cancelled) setFloodedAt({ id: spot.id, flooded: isFlooded(spot.position, Object.values(byMetro).flat()) }); });
+    return () => { cancelled = true; };
+  }, [spot]);
+  const flooded = floodedAt?.id === spot.id && floodedAt.flooded;
+  const supplied = manualBefore(spot.id);
+  const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || !!supplied || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned)));
+  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded } : { flooded }, !!rendered?.owned || homeOwned);
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
   const locked = canPay && !paidReady;
@@ -87,7 +98,7 @@ export default function SceneModal({ spot, regionName, look, visited, account, p
   const reveal = render
     ? { before: render.before, after: render.url, name: render.name, file: `${render.name.replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`, credit: { photo: render.photo, author: render.author, license: render.license, page: render.page } }
     : paidReady && personal ? (beforeStreet?.id === spot.id ? { before: beforeStreet.url ?? '', after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit } : null)
-    : paidReady && photo ? { before: photo.imageUrl, after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit } : null;
+    : paidReady && (photo || supplied) ? { before: photo?.imageUrl ?? supplied ?? '', after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit } : null;
 
   // the drawn scene
   useEffect(() => {

@@ -35,7 +35,6 @@ export const FAMOUS: Famous[] = [
   { match: /buckingham palace/i, name: 'Buckingham Palace', lat: 51.5014, lng: -0.1419, icon: 'buckingham', qid: 'Q42182' },
   { match: /brandenburg gate|brandenburger tor/i, name: 'Brandenburg Gate', lat: 52.5163, lng: 13.3777, icon: 'brandenburg', qid: 'Q82425' },
   { match: /parthenon|acropolis of athens/i, name: 'Parthenon', lat: 37.9715, lng: 23.7267, icon: 'parthenon', qid: 'Q10288' },
-  { match: /hagia sophia|ayasofya/i, name: 'Hagia Sophia', lat: 41.0086, lng: 28.9802, icon: 'hagiasophia', qid: 'Q12506' },
   { match: /saint basil|st\.? basil|pokrovsky|покровский/i, name: "Saint Basil's Cathedral", lat: 55.7525, lng: 37.6231, icon: 'stbasils', qid: 'Q129846' },
   { match: /^white house$|the white house/i, name: 'White House', lat: 38.8977, lng: -77.0365, icon: 'whitehouse', qid: 'Q35525' },
   { match: /lincoln memorial/i, name: 'Lincoln Memorial', lat: 38.8893, lng: -77.0502, icon: 'lincoln', qid: 'Q213559' },

@@ -3,8 +3,6 @@
 import type { FreeRender } from './renders';
 
 export const MORE_RENDERS: Record<string, FreeRender> = {
-  // a landmark with no Wikidata item: keyed by its map id, the photo was supplied by the site owner
-  'famous:east-county-courthouse-el-cajon-': { name: "East County Courthouse (El Cajon)", photo: "Superior Court, East County Division, El Cajon", author: "Supplied by WastelandMaps", license: "Provided by the site owner", page: "https://wastelandmaps.com" },
   Q2636724: { name: "Alamo Mission", photo: "Alamo Mission, San Antonio, Texas, USA", author: "Zygmunt Put Zetpe0202", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Alamo_Mission,_San_Antonio,_Texas,_USA.jpg", lat: 29.425833, lng: -98.486111 },
   Q12495: { name: "Burj Khalifa", photo: "Burj Khalifa and surrounding buildings during sunset", author: "Zeeeeeeeeeeeeeeeeeeeeeeeshan", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Burj_Khalifa_and_surrounding_buildings_during_sunset.jpg", lat: 25.197222222222223, lng: 55.274166666666666 },
   Q134883: { name: "CN Tower", photo: "CN Tower from Puente de Luz, Toronto, Ontario, 2025-08-25 01", author: "Chris Woodrich", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:CN_Tower_from_Puente_de_Luz,_Toronto,_Ontario,_2025-08-25_01.jpg", lat: 43.642752777778, lng: -79.387147222222 },
@@ -36,4 +34,5 @@ export const MORE_RENDERS: Record<string, FreeRender> = {
   Q102281065: { name: "Iconic Tower", photo: "Iconic Tower Egypt(18-6-2023) (cropped)", author: "Mohamed Ouda", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Iconic_Tower_Egypt(18-6-2023)_(cropped).jpg", lat: 30.0128, lng: 31.6939 },
   Q494895: { name: "Lotte World Tower", photo: "Lotte World morning view 8", author: "kallerna", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Lotte_World_morning_view_8.jpg", lat: 37.5125, lng: 127.1025 },
   Q548679: { name: "Marina Bay Sands", photo: "Singapore (SG), Marina Bay Sands Hotel -- 2019 -- 4462", author: "Dietmar Rabich", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Singapore_(SG),_Marina_Bay_Sands_Hotel_--_2019_--_4462.jpg", lat: 1.2825, lng: 103.86 },
+  Q12506: { name: "Hagia Sophia", photo: "Hagia Sophia Mars 2013", author: "Arild Vågen", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Hagia_Sophia_Mars_2013.jpg", lat: 41.0086, lng: 28.9802 },
 };

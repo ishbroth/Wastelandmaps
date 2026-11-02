@@ -36,7 +36,7 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-async function generate(photo: Photo, name: string, entity: string): Promise<Uint8Array> {
+async function generate(photo: Photo, name: string, entity: string, flooded: boolean): Promise<Uint8Array> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) throw new Error('image generation is not set up');
   const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
@@ -44,7 +44,7 @@ async function generate(photo: Photo, name: string, entity: string): Promise<Uin
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: renderPrompt(name, entity) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }],
+      contents: [{ parts: [{ text: renderPrompt(name, entity, flooded) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     }),
   });
@@ -63,8 +63,9 @@ Deno.serve(async (req) => {
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
 
-  const { placeId, name } = (await req.json().catch(() => ({}))) as { placeId?: string; name?: string };
-  if (!placeId || !/^wd:Q\d+$/.test(placeId)) return reply(req, { error: 'bad_place' }, 400);
+  const { placeId, name, flooded } = (await req.json().catch(() => ({}))) as { placeId?: string; name?: string; flooded?: boolean };
+  // a Wikidata place, or the one second-tier landmark whose render was supplied (see the renders row for it)
+  if (!placeId || !/^(wd:Q\d+|famous:east-county-courthouse-el-cajon-)$/.test(placeId)) return reply(req, { error: 'bad_place' }, 400);
   const entity = placeId.slice(3);
   const placeName = (name ?? '').slice(0, 120);
   const db = serviceClient();
@@ -107,7 +108,7 @@ Deno.serve(async (req) => {
         return reply(req, { error: 'no_photo' }, 404);
       }
       try {
-        const png = await generate(photo, placeName, entity);
+        const png = await generate(photo, placeName, entity, flooded === true);
         const path = `${entity}.png`;
         const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
         if (up.error) throw new Error('could not store the image');
