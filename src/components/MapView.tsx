@@ -9,7 +9,7 @@ import { pointsFor } from '../lib/points';
 import type { Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
-import { patchOutline, type FloodPatch } from '../lib/flood';
+import { loadFlood, patchOutline, type FloodPatch } from '../lib/flood';
 import { cloudOutline } from '../lib/zones';
 import { levelsAt, type RegionLabel } from '../lib/regions';
 import { VAULT_ID, distanceMeters, hashString, subtitle, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
@@ -49,7 +49,7 @@ interface Props {
 const MAX_PINS = 450;
 const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
 const LABEL_ZOOM = 16;
-/** Below this zoom (zoomed out past a city) the irradiated zones and the flooded patches are taken off the map: they only belong to the city you are looking at. */
+/** Below this zoom (zoomed out past a city) the irradiated zones are taken off the map: they only belong to the city you are looking at. */
 const CITY_ZOOM = 9;
 
 /**
@@ -146,7 +146,7 @@ function morphLabel(el: HTMLElement, from: string, to: string) {
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
-export default function MapView({ onLocate, locateDisabled, look, region, wasteland, locations, hiddenCategories, selectedId, visited, cleared, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, flood, startView }: Props) {
+export default function MapView({ onLocate, locateDisabled, look, region, wasteland, locations, hiddenCategories, selectedId, visited, cleared, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, startView }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const locateRef = useRef(onLocate);
   const meButton = useRef<HTMLButtonElement | null>(null);
@@ -341,32 +341,50 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     }
   }, [locations, hiddenCategories, view, zoomNow, selectedId]);
 
-  // standing water on the coast: a few flooded patches, in the look's water color
+  // standing water on the coast, wherever you are looking and at every zoom: only the patches on screen are drawn (the nearest few hundred), and when
+  // zoomed far out each is drawn larger, so the flooded coasts can still be seen from a continent away
+  const [allFlood, setAllFlood] = useState<FloodPatch[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void loadFlood().then((byMetro) => { if (!cancelled) setAllFlood(Object.values(byMetro).flat()); });
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const shapes = floodShapes.current;
-    const wanted = new Set(flood.map((p) => String(p[5])));
+    const padLat = view ? (view.north - view.south) * 0.2 : 0;
+    const padLng = view ? (view.east - view.west) * 0.2 : 0;
+    const cLat = view ? (view.north + view.south) / 2 : 0;
+    const cLng = view ? (view.east + view.west) / 2 : 0;
+    const visible = allFlood.filter((p) => !view || (p[0] <= view.north + padLat && p[0] >= view.south - padLat && p[1] <= view.east + padLng && p[1] >= view.west - padLng));
+    const near = visible.length > 500 ? visible.sort((x, y) => Math.hypot(x[0] - cLat, x[1] - cLng) - Math.hypot(y[0] - cLat, y[1] - cLng)).slice(0, 500) : visible;
+    const wanted = new Map<string, FloodPatch>();
+    for (const p of near) {
+      const metersPerPixel = (156543.03 * Math.cos((p[0] * Math.PI) / 180)) / 2 ** zoomNow;
+      const factor = Math.min(60, Math.max(1, (4 * metersPerPixel) / p[2]));
+      const bucket = Math.round(factor * 4) / 4;
+      wanted.set(`${p[5]}:${bucket}`, [p[0], p[1], p[2] * bucket, p[3], p[4], p[5]]);
+    }
     shapes.forEach((shape, key) => {
       if (wanted.has(key)) return;
       shape.setMap(null);
       shapes.delete(key);
     });
-    for (const patch of flood) {
-      const key = String(patch[5]);
-      if (shapes.has(key)) continue;
+    wanted.forEach((patch, key) => {
+      if (shapes.has(key)) return;
       shapes.set(key, new google.maps.Polygon({
         map, paths: patchOutline(patch), clickable: false, zIndex: 2,
         fillColor: look.floodFill, fillOpacity: 1, strokeColor: look.floodStroke, strokeOpacity: 0.7, strokeWeight: 1,
       }));
-    }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flood]);
+  }, [allFlood, view, zoomNow]);
   useEffect(() => {
     floodShapes.current.forEach((shape) => shape.setOptions({ fillColor: look.floodFill, strokeColor: look.floodStroke }));
   }, [look]);
 
-  // zoomed out past the city: its irradiated zones and flooded patches clear off the map, and come back as you zoom in
+  // zoomed out past the city: its irradiated zones clear off the map, and come back as you zoom in
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -376,8 +394,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       x.circle?.setMap(target);
       x.clouds?.forEach((c) => c.setMap(target));
     });
-    floodShapes.current.forEach((shape) => shape.setMap(target));
-  }, [zoomNow, wasteland, look, flood]);
+  }, [zoomNow, wasteland, look]);
 
   // the names of the big regions, while zoomed out: continents, then countries, then states
   useEffect(() => {
