@@ -63,7 +63,7 @@ function superOf(iso: string, p: LatLng, continent: string): string {
 const COUNTRY_NAMES: Record<string, string> = {
   US: 'The Commonwealths of America', CA: 'The Great White Wasteland', MX: 'The United Mexican States', BR: 'The Burnt Amazon', AR: 'The Pampas Ashes', CL: 'The Long Scorched Strip',
   PE: 'Peruvian Ruins', CO: 'Bogo-Boom Country', VE: 'The Dry Delta', CU: 'The Last Cigar', UY: 'Burntuguay', DO: 'Dominican Reclamation Zone', HT: 'The Haitian Refuge',
-  GB: 'Gutted Britannia', IE: 'The Emerald Embers', FR: 'Zone des Frites', DE: 'Deutschland Dust', ES: 'The Rainy Plains', PT: 'Portu-Gone', IT: 'New Roman Republic', CH: 'The Neutral Crater',
+  GB: 'The British Ex-pire', IE: 'The Emerald Embers', FR: 'Zone des Frites', DE: 'Deutschland Dust', ES: 'The Rainy Plains', PT: 'Portu-Gone', IT: 'New Roman Republic', CH: 'The Neutral Crater',
   AT: 'The Alpine Ashes', NL: 'The Drowned Lowlands', BE: 'The Waffle Wastes', PL: 'The Polish Pits', SE: 'The Swedish Cinders', NO: 'Fallout Fjords', FI: 'The Frozen Thousand Lakes',
   DK: 'The Danish Dead Zone', GR: 'The Classical Ruins', TR: 'The Burning Bridge', RU: 'The Ironed Curtain', BY: 'The Pale Plains', RO: 'The Carpathian Cinders',
   CN: 'The Red Wastes', JP: 'Jablam', KR: 'South Krater', KP: 'North Krater', IN: 'The Subcontinent', PK: 'The Indus Cinders', ID: 'The Ring of Fire Islands', TH: 'Bye-Land',
