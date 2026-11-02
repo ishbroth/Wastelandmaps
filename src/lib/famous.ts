@@ -79,7 +79,7 @@ export const FAMOUS: Famous[] = [
   { match: /400 west market|aegon center/i, name: '400 West Market (Aegon Center)', lat: 38.2566, lng: -85.7623, icon: 'aegon', qid: 'Q2748066' },
   { match: /bass pro shops? at the pyramid|memphis pyramid|pyramid arena|^the pyramid$/i, name: 'The Pyramid (Bass Pro Shops)', lat: 35.1594, lng: -90.0525, icon: 'basspro', qid: 'Q2226897' },
   { match: /at&t building|bellsouth (?:building|tower)|batman building|333 commerce/i, name: 'AT&T Building (the Batman Building)', lat: 36.1664, lng: -86.7803, icon: 'attbatman', qid: 'Q298562' },
-  { match: /ppg (?:place|building|plaza)/i, name: 'PPG Place', lat: 40.4413, lng: -80.0023, icon: 'ppgplace', qid: 'Q1322398' },
+  { match: /ppg (?:place|building|plaza)/i, name: 'One PPG Place', lat: 40.4398, lng: -80.0032, icon: 'ppgplace', qid: 'Q21075757', move: true },
   { match: /comcast technology center/i, name: 'Comcast Technology Center', lat: 39.955, lng: -75.1713, icon: 'comcastcenter', qid: 'Q16958963' },
   { match: /one liberty place/i, name: 'One Liberty Place', lat: 39.9521, lng: -75.1681, icon: 'oneliberty', qid: 'Q1449747' },
   { match: /bromo[- ]seltzer|emerson tower/i, name: 'Emerson Bromo-Seltzer Tower', lat: 39.288, lng: -76.6222, icon: 'bromoseltzer', qid: 'Q5370857', metro: 'us-md-baltimore' },

@@ -86,7 +86,8 @@ function withFamous(metro: MetroEntry, places: Location[]): Location[] {
     if (f.metro ? f.metro !== metro.id : distanceMeters({ lat: metro.lat, lng: metro.lng }, here) > metro.radiusKm * 1000 + 8000) continue;
     let spot = (f.qid ? places.find((p) => p.id === `wd:${f.qid}` && !p.famous) : undefined)
       ?? places.find((p) => !p.famous && (p.id.startsWith('wd:') || p.id.startsWith('famous:')) && f.match.test(p.oldName) && distanceMeters(p.position, here) < 2500);
-    spot ??= places.find((p) => !p.famous && !freeLandmark(p.id) && p.id.startsWith('wd:') && distanceMeters(p.position, here) < 120);
+    // (a landmark with its own Wikidata item is never taken to be some other building that happens to stand next to it)
+    spot ??= f.qid ? undefined : places.find((p) => !p.famous && !freeLandmark(p.id) && p.id.startsWith('wd:') && distanceMeters(p.position, here) < 120);
     if (!spot) {
       spot = locationFromData(f.qid ? `wd:${f.qid}` : `famous:${f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, f.name, here, 'other', 999);
       dropLeastOf(metro, places);
