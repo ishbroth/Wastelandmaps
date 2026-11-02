@@ -673,3 +673,8 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 }
 /* the desktop: the info side a little narrower, the map wider */
 @media (min-width: 961px) { .rm-device { grid-template-columns: minmax(0, 1fr) 340px; } }
+
+/* the scene tab: just the story, the enemies and the loot (the picture is on the snapshot tab) */
+.rm-modal-card { position: relative; }
+.rm-modal-view-hidden { display: none; }
+.rm-modal-card.rm-modal-scene { width: min(620px, 100%); grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "tabs" "text"; }

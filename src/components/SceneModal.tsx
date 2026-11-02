@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { sceneFontsReady, startScene } from '../lib/scene';
+import { useEffect, useMemo, useState } from 'react';
 import Caps from './Caps';
 import BuyCaps from './BuyCaps';
 import { accountsEnabled, caps, checkAddress, type Account } from '../lib/account';
@@ -24,7 +23,7 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ startOn = 'scene', spot, regionName, look, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
+export default function SceneModal({ startOn = 'scene', spot, regionName, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
   /** The metro the map is showing: an address rendered here belongs to its atlas. */
   metroId?: string | null;
   /** Which tab opens first: the scene (the place's info), unless they asked for its snapshot (from the Data tab). */
@@ -76,7 +75,6 @@ export default function SceneModal({ startOn = 'scene', spot, regionName, look, 
   const searching = personal ? streetState === 'checking' : snapshot === 'searching';
   const cost = personal ? 4 : 1;
   const home = !!spot.personal?.home;
-  const sceneCanvas = useRef<HTMLCanvasElement>(null);
   const seed = useMemo(() => hashString(spot.id), [spot.id]);
   const journal = useMemo(() => describeSpot(spot, regionName, plan), [spot, regionName, plan]);
 
@@ -101,21 +99,6 @@ export default function SceneModal({ startOn = 'scene', spot, regionName, look, 
     ? { before: render.before, after: render.url, name: render.name, file: `${render.name.replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`, credit: { photo: render.photo, author: render.author, license: render.license, page: render.page } }
     : paidReady && personal ? (beforeStreet?.id === spot.id ? { before: beforeStreet.url ?? '', after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit } : null)
     : paidReady && (photo || supplied) ? { before: photo?.imageUrl ?? supplied ?? '', after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit } : null;
-
-  // the drawn scene
-  useEffect(() => {
-    if (tab !== 'scene') return;
-    let stop = () => {};
-    let cancelled = false;
-    sceneFontsReady().then(() => {
-      if (cancelled || !sceneCanvas.current) return;
-      stop = startScene(sceneCanvas.current, { kind: spot.kind, seed, look, label: spot.kind === 'vault' ? spot.name : spot.kind === 'market' ? 'MARKET' : undefined });
-    });
-    return () => {
-      cancelled = true;
-      stop();
-    };
-  }, [tab, spot, seed, look]);
 
   // look for the photo of the place (the famous few already come with their snapshot)
   useEffect(() => {
@@ -147,7 +130,7 @@ export default function SceneModal({ startOn = 'scene', spot, regionName, look, 
 
   return (
     <div className="rm-modal" role="dialog" aria-modal="true" aria-label={spot.name} onClick={onClose}>
-      <div className={`rm-modal-card${tab === 'snapshot' ? ' rm-modal-wide' : ''}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`rm-modal-card${tab === 'snapshot' ? ' rm-modal-wide' : tab === 'scene' ? ' rm-modal-scene' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="rm-modal-head">
           <div>
             <h2>{spot.name}</h2>
@@ -170,8 +153,8 @@ export default function SceneModal({ startOn = 'scene', spot, regionName, look, 
           )}
         </div>
 
-        <div className="rm-modal-view">
-          {tab === 'scene' && <canvas ref={sceneCanvas} className="rm-modal-canvas" aria-label={`Illustration of ${spot.name}`} />}
+        {/* the scene tab is the story, the enemies and the loot: the picture belongs to the snapshot tab */}
+        <div className={`rm-modal-view${tab === 'scene' ? ' rm-modal-view-hidden' : ''}`}>
           {tab === 'snapshot' && reveal && (
             <BlowApart key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={personal ? spot.id : undefined} />
           )}
@@ -191,9 +174,9 @@ export default function SceneModal({ startOn = 'scene', spot, regionName, look, 
               )}
             </div>
           )}
-          {needDiscover > 0 && <div className="rm-modal-flash" key={needDiscover} role="alert">YOU MUST DISCOVER THIS LOCATION FIRST. GO THERE, OR FAST TRAVEL TO IT, THEN COME BACK TO LOOT IT.</div>}
           <div className="rm-modal-crt" aria-hidden="true" />
         </div>
+        {needDiscover > 0 && <div className="rm-modal-flash" key={needDiscover} role="alert">YOU MUST DISCOVER THIS LOCATION FIRST. GO THERE, OR FAST TRAVEL TO IT, THEN COME BACK TO LOOT IT.</div>}
 
         {tab === 'snapshot' && reveal && personal && (
           <p className="rm-modal-credit">{home ? 'Made from Google Street View imagery. The original is shown straight from Google and is not kept by us; only this render is kept, and only you can open it.' : 'Made from Google Street View imagery. The original is shown straight from Google and is not kept by us. This render is part of the public atlas: everyone who unlocks this address sees the same picture, and it has a page of its own on the site.'}</p>
