@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
 import { freeRenderFor } from '../lib/renders';
 import { LOOT_CAP } from '../lib/raid/loot';
-import { enemiesLine } from '../lib/raid/raid';
+import { enemiesLine, lootSummary, raidFor } from '../lib/raid/raid';
 import { hapticsAvailable, hapticsEnabled, setHaptics } from '../lib/haptics';
 import { purchasesAvailable } from '../lib/native';
 import Caps, { CapIcon } from './Caps';
@@ -81,7 +81,7 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
               <span className="rm-row-text">
                 <b>{l.name}{visited.has(l.id) ? ' ✓' : ''}{cleared.has(l.id) ? ' [CLEARED]' : ''}</b>
                 <i>{subtitle(l)}</i>
-                <small>{enemiesLine(l)}{l.rads > 60 ? ` · ${l.rads} RADS` : ''} · loot: {l.loot}</small>
+                <small>{enemiesLine(l)}{l.rads > 60 ? ` · ${l.rads} RADS` : ''} · loot: {lootSummary(raidFor(l))}</small>
               </span>
               <span className="rm-row-dist">{miles(d)}</span>
             </button>

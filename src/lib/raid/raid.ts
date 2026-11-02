@@ -87,8 +87,15 @@ export function homePlan(): RaidPlan {
   return { worth: 10, enemies: ['radroach'], boss: null, waves: wavesFor(4), total: 4, lootTypes: ['steel', 'wood'], lootRange: lootRangeFor(10) };
 }
 
-/** The plan for a place on the map. */
-export const raidFor = (loc: Location): RaidPlan => planFor(loc.id, pointsFor(loc));
+/** The plan for a place on the map (a person's own home vault is always the first fight: four radroaches). */
+export const raidFor = (loc: Location): RaidPlan => (loc.personal?.home ? homePlan() : planFor(loc.id, pointsFor(loc)));
+
+/** What a win there really pays, as a line: "Steel, Gears: 7 to 10 pieces". */
+export function lootSummary(plan: RaidPlan): string {
+  const [min, max] = plan.lootRange;
+  const names = plan.lootTypes.map((l) => LOOT_TYPES.find((t) => t.id === l)?.name ?? l).join(', ');
+  return `${names}: ${min === max ? min : `${min} to ${max}`} pieces`;
+}
 
 /**
  * What a win pays: a random number of pieces within the place's range, divided among its loot types (at least one of each). Pass a random function

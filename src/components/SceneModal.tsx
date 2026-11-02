@@ -14,7 +14,8 @@ import type { LookId } from '../lib/looks';
 import BlowApart from './BlowApart';
 import RaidScreen from './RaidScreen';
 import { spawnsFor } from '../lib/raid/spawnData';
-import { planEnemies, type RaidPlan } from '../lib/raid/raid';
+import { lootSummary, planEnemies, type RaidPlan } from '../lib/raid/raid';
+import { lootName } from '../lib/raid/loot';
 
 type Tab = 'scene' | 'snapshot';
 
@@ -194,7 +195,7 @@ export default function SceneModal({ startOn = 'scene', spot, regionName, visite
           <dl>
             <div><dt>ENEMIES</dt><dd>{plan ? planEnemies(plan) : spot.kind === 'vault' ? 'None' : spot.threat}</dd></div>
             <div><dt>RADS</dt><dd>{spot.rads}</dd></div>
-            <div><dt>LOOT</dt><dd>{spot.loot}</dd></div>
+            <div><dt>LOOT</dt><dd>{raid ? lootSummary(raid) : plan ? plan.lootTypes.map(lootName).join(', ') : spot.loot}</dd></div>
           </dl>
         </div>
         )}
