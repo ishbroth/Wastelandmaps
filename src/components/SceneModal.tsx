@@ -8,6 +8,7 @@ import { findSnapshot, type Snapshot } from '../lib/snapshot';
 import { sourceLabel } from '../../supabase/functions/_shared/photoSources';
 import { streetViewAvailable, streetViewPictureUrl } from '../lib/addressSearch';
 import { isFlooded, loadFlood } from '../lib/flood';
+import { isIrradiated } from '../lib/zones';
 import { manualBefore } from '../lib/manualSources';
 import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } from '../lib/wasteland';
 import type { LookId } from '../lib/looks';
@@ -24,9 +25,11 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ startOn = 'scene', spot, regionName, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
+export default function SceneModal({ zones = [], startOn = 'scene', spot, regionName, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
   /** The metro the map is showing: an address rendered here belongs to its atlas. */
   metroId?: string | null;
+  /** The radiation clouds on the map. */
+  zones?: { position: { lat: number; lng: number }; radiusMeters: number }[];
   /** Which tab opens first: the scene (the place's info), unless they asked for its snapshot (from the Data tab). */
   startOn?: 'scene' | 'snapshot';
   spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void; /** Kept for callers; the message is shown over the picture now. */ onNeedDiscover?: () => void;
@@ -88,9 +91,11 @@ export default function SceneModal({ startOn = 'scene', spot, regionName, visite
     return () => { cancelled = true; };
   }, [spot]);
   const flooded = floodedAt?.id === spot.id && floodedAt.flooded;
+  // standing under one of the radiation clouds: the render has the fallout haze and acid rain
+  const irradiated = isIrradiated(spot.position, zones);
   const supplied = manualBefore(spot.id);
   const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || !!supplied || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned)));
-  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded } : { flooded }, !!rendered?.owned || homeOwned);
+  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated }, !!rendered?.owned || homeOwned);
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
   const locked = canPay && !paidReady;

@@ -375,7 +375,8 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       if (shapes.has(key)) return;
       shapes.set(key, new google.maps.Polygon({
         map, paths: patchOutline(patch), clickable: false, zIndex: 2,
-        fillColor: look.floodFill, fillOpacity: 1, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // one color, no outline: it reads as the coast itself having moved
+        fillColor: look.floodFill, fillOpacity: 0.8, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // a little see-through: the main streets still show, faint, under the water
+         // one color, no outline: it reads as the coast itself having moved
       }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

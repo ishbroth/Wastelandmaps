@@ -23,7 +23,7 @@ const MESSAGES: Record<string, string> = {
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function usePaidRender(spotId: string, name: string, account: Account, enabled: boolean, extra?: { kind?: string; metroId?: string | null; home?: boolean; flooded?: boolean }, alsoOwned = false) {
+export function usePaidRender(spotId: string, name: string, account: Account, enabled: boolean, extra?: { kind?: string; metroId?: string | null; home?: boolean; flooded?: boolean; irradiated?: boolean }, alsoOwned = false) {
   const [state, setState] = useState<PaidState>({ kind: 'idle' });
   const alive = useRef(true);
   const running = useRef(false);
@@ -68,7 +68,7 @@ export function usePaidRender(spotId: string, name: string, account: Account, en
     }
     if (alive.current) setState({ kind: 'error', message: 'This one is taking a long time. Open it again in a minute; you will not be charged twice.' });
     running.current = false;
-  }, [spotId, name, account, extra?.kind, extra?.metroId, extra?.home, extra?.flooded]);
+  }, [spotId, name, account, extra?.kind, extra?.metroId, extra?.home, extra?.flooded, extra?.irradiated]);
 
   // already unlocked: show it without being asked (and without charge)
   const owned = account.unlocked.has(spotId) || alsoOwned;

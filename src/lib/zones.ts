@@ -36,3 +36,12 @@ export function cloudOutline(center: LatLng, radius: number, seed: number, layer
   }
   return points;
 }
+
+/** Is this point under one of the radiation clouds? (The cloud is drawn a little smaller than its radius, so a point well inside counts.) */
+export function isIrradiated(point: LatLng, zones: { position: LatLng; radiusMeters: number }[]): boolean {
+  return zones.some((z) => {
+    const north = (point.lat - z.position.lat) * 111_320;
+    const east = (point.lng - z.position.lng) * 111_320 * Math.max(0.2, Math.cos((z.position.lat * Math.PI) / 180));
+    return Math.hypot(north, east) <= z.radiusMeters * 0.85;
+  });
+}

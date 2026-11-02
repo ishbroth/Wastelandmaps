@@ -61,7 +61,7 @@ async function streetPicture(lat: number, lng: number): Promise<{ bytes: Uint8Ar
   return { bytes: new Uint8Array(await res.arrayBuffer()), mime: res.headers.get('content-type') ?? 'image/jpeg' };
 }
 
-async function generate(picture: { bytes: Uint8Array; mime: string }, kind: string, name: string, vaultNumber?: string, flooded = false): Promise<Uint8Array> {
+async function generate(picture: { bytes: Uint8Array; mime: string }, kind: string, name: string, vaultNumber?: string, flooded = false, irradiated = false): Promise<Uint8Array> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) throw new Error('image generation is not set up');
   const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
@@ -69,7 +69,7 @@ async function generate(picture: { bytes: Uint8Array; mime: string }, kind: stri
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: streetPrompt(kind, name, vaultNumber, flooded) }, { inline_data: { mime_type: picture.mime, data: toBase64(picture.bytes) } }] }],
+      contents: [{ parts: [{ text: streetPrompt(kind, name, vaultNumber, flooded, irradiated) }, { inline_data: { mime_type: picture.mime, data: toBase64(picture.bytes) } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     }),
   });
@@ -84,7 +84,7 @@ async function generate(picture: { bytes: Uint8Array; mime: string }, kind: stri
 // Their own home, blown up with their vault door in it: kept per person (the number on the door is theirs), 4 credits, charged first and refunded on failure.
 // Only the home they saved (and its vault number) can be rendered this way: both come from their account, never from the browser.
 // deno-lint-ignore no-explicit-any
-async function homeFlow(req: Request, db: any, user: string, googleId: string, checkOnly: boolean, flooded: boolean): Promise<Response> {
+async function homeFlow(req: Request, db: any, user: string, googleId: string, checkOnly: boolean, flooded: boolean, irradiated: boolean): Promise<Response> {
   const { data: home } = await db.from('user_home').select('place_id,vault_number').eq('user_id', user).maybeSingle();
   if (!home || home.place_id !== googleId || home.vault_number === null || home.vault_number === undefined) return reply(req, { error: 'bad_place' }, 400);
   const number = home.vault_number as number;
@@ -127,7 +127,7 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
       await giveBack();
       return reply(req, { error: 'no_streetview' }, 404);
     }
-    const png = await generate(picture, 'house', details.name, String(number).padStart(4, '0'), flooded);
+    const png = await generate(picture, 'house', details.name, String(number).padStart(4, '0'), flooded, irradiated);
     const path = `home/${user}.png`;
     const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
     if (up.error) throw new Error('could not store the image');
@@ -155,12 +155,12 @@ Deno.serve(async (req) => {
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
 
-  const body = (await req.json().catch(() => ({}))) as { action?: string; placeId?: string; kind?: string; metroId?: string; home?: boolean; flooded?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { action?: string; placeId?: string; kind?: string; metroId?: string; home?: boolean; flooded?: boolean; irradiated?: boolean };
   if (!body.placeId || !/^me:[A-Za-z0-9_-]{10,200}$/.test(body.placeId)) return reply(req, { error: 'bad_place' }, 400);
   const placeId = body.placeId;
   const googleId = placeId.slice(3);
   const db = serviceClient();
-  if (body.home === true) return homeFlow(req, db, user, googleId, body.action === 'check', body.flooded === true);
+  if (body.home === true) return homeFlow(req, db, user, googleId, body.action === 'check', body.flooded === true, body.irradiated === true);
 
   const { data: existing } = await db.from('address_renders').select('*').eq('place_id', googleId).maybeSingle();
   const { data: unlocked } = await db.from('unlocks').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
       await giveBack();
       return reply(req, { error: 'no_streetview' }, 404);
     }
-    const png = await generate(picture, kind, details.name, undefined, body.flooded === true);
+    const png = await generate(picture, kind, details.name, undefined, body.flooded === true, body.irradiated === true);
     const path = `address/${googleId}.png`;
     const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
     if (up.error) throw new Error('could not store the image');

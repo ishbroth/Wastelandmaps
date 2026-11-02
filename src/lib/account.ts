@@ -210,7 +210,7 @@ export type UnlockResult =
   | { kind: 'error'; reason: 'no_credits' | 'no_photo' | 'busy' | 'failed' | 'sign_in' | 'server' };
 
 /** Unlocks a place (one credit, once) and returns the render. 'working' means it is still being made: ask again in a few seconds, free. */
-export async function unlockRender(placeId: string, name: string, extra?: { kind?: string; metroId?: string | null; home?: boolean; flooded?: boolean }): Promise<UnlockResult> {
+export async function unlockRender(placeId: string, name: string, extra?: { kind?: string; metroId?: string | null; home?: boolean; flooded?: boolean; irradiated?: boolean }): Promise<UnlockResult> {
   const { data, error } = await db().functions.invoke(placeId.startsWith('me:') ? 'unlock-streetview' : 'unlock-render', { body: { placeId, name, ...extra } });
   if (error) {
     // the function answers with an error code in the body even on a 4xx/5xx

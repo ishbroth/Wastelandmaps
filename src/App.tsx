@@ -952,6 +952,7 @@ export default function App() {
           )}
           {sceneSpot && wasteland && (
             <SceneModal
+              zones={wasteland?.zones}
               startOn={sceneStart}
               metroId={metroInfo?.id}
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={shownVisited.has(sceneSpot.id)}
