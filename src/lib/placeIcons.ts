@@ -51,6 +51,20 @@ export const s = (p: string) => `<path class="s" d="${p}"/>`;
 export const svg = (inner: string) =>
   `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 
+/** The outline of a cog: a ring of teeth, like the door of a vault. */
+function gearPath(cx: number, cy: number, teeth: number, outer: number, root: number): string {
+  const step = (2 * Math.PI) / teeth;
+  let out = '';
+  for (let i = 0; i < teeth; i++) {
+    for (const [turn, r] of [[-0.3, root], [-0.17, outer], [0.17, outer], [0.3, root]] as [number, number][]) {
+      const t = i * step + turn * step;
+      out += `${out ? 'L' : 'M'}${Math.round((cx + Math.cos(t) * r) * 100) / 100} ${Math.round((cy + Math.sin(t) * r) * 100) / 100}`;
+    }
+  }
+  return out + 'Z';
+}
+const VAULT_GEAR = gearPath(12, 12, 12, 10.6, 8.6);
+
 const ICONS: Record<BaseIconId, string> = {
   school: svg(f('M2.5 9 12 4.5 21.5 9 12 13.5Z') + f('M6.5 11.2V16c0 1.4 2.5 2.6 5.5 2.6s5.5-1.2 5.5-2.6v-4.8L12 13.5Z') + s('M21.5 9v6')),
   church: svg(f('M5 21V12.5l7-4.5 7 4.5V21Z') + s('M12 8V2.5M9.8 4.6h4.4') + d('M10 21v-4a2 2 0 0 1 4 0v4')),
@@ -71,7 +85,7 @@ const ICONS: Record<BaseIconId, string> = {
   capitol: svg(f('M6 20v-7h12v7Z') + f('M7.4 13a4.6 4.6 0 0 1 9.2 0Z') + s('M12 8.4V4M4 21h16') + d('M9 15v3.4M12 15v3.4M15 15v3.4')),
   castle: svg(f('M4 21V6h4v3h2V6h4v3h2V6h4v15Z') + d('M10 21v-4.5a2 2 0 0 1 4 0V21M6 12.5h.01M18 12.5h.01')),
   bed: svg(f('M3 13h18v5H3Z') + f('M5.3 9a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6Z') + s('M3 18V6.5M21 13a3 3 0 0 0-3-3h-8v3')),
-  vault: svg(f('M12 2.8a9.2 9.2 0 1 0 0 18.4 9.2 9.2 0 0 0 0-18.4Z') + d('M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10ZM12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z') + d('M12 7v2.5M12 14.5V17M7 12h2.5M14.5 12H17') + s('M12 1.3v1.5M12 21.2v1.5M1.3 12h1.5M21.2 12h1.5')),
+  vault: svg(f(VAULT_GEAR) + d('M12 6.6a5.4 5.4 0 1 0 0 10.8 5.4 5.4 0 0 0 0-10.8Z') + d('M12 10.6a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8Z') + d('M12 6.6v4M12 13.4v4M6.6 12h4M13.4 12h4')),
   tower: svg(f('M10.8 21 11.4 11.5h1.2l.6 9.5Z') + f('M7.5 9.6c0-1.2 2-2.1 4.5-2.1s4.5.9 4.5 2.1-2 2.1-4.5 2.1-4.5-.9-4.5-2.1Z') + s('M12 7.5V2.5')),
   monument: svg(f('M12 2l2 5.2V19h-4V7.2Z') + s('M7 21h10M8.5 19h7')),
   arch: svg(f('M3 21V6h18v15h-4v-8a5 5 0 0 0-10 0v8Z') + d('M3 9.2h18')),
@@ -97,7 +111,7 @@ const ICONS: Record<BaseIconId, string> = {
   badge: svg(f('M12 2.5l2.5 5.3 5.8.7-4.3 4 1.1 5.7L12 15.3 6.9 18.2 8 12.5l-4.3-4 5.8-.7Z') + d('M12 9a2.2 2.2 0 1 0 0 4.4A2.2 2.2 0 0 0 12 9Z') + s('M12 18.5V21')),
   firebadge: svg(f('M12 2.6 4.6 5.5v6.6c0 4.2 3 7.4 7.4 9 4.4-1.6 7.4-4.8 7.4-9V5.5Z') + d('M12 7.2c2 2.4 3.1 4 3.1 6a3.1 3.1 0 0 1-6.2 0c0-1.4.7-2.3 1.4-3 .2 1 .6 1.5 1 1.6-.2-1.8.2-3.6.7-4.6Z')),
   fork: svg(f('M6.2 3v6.3a2.3 2.3 0 0 0 2.3 2.3V21h1.5v-9.4a2.3 2.3 0 0 0 2.3-2.3V3') + f('M17.5 3c-2 1.4-3 4-3 7v3.5h3V21H19V3Z') + d('M9.3 3v5.5')),
-  homevault: svg(f('M12 2.8a9.2 9.2 0 1 0 0 18.4 9.2 9.2 0 0 0 0-18.4Z') + f('M8 12.4 12 8.6l4 3.8v4.2H8Z') + d('M6.9 13.1 12 7.9l5.1 5.2') + d('M11 16.6v-2.7h2v2.7') + s('M12 1.3v1.5M12 21.2v1.5M1.3 12h1.5M21.2 12h1.5')),
+  homevault: svg(f(VAULT_GEAR) + f('M8 12.4 12 8.6l4 3.8v4.2H8Z') + d('M6.9 13.1 12 7.9l5.1 5.2') + d('M11 16.6v-2.7h2v2.7')),
   cart: svg(s('M2.5 4h3l2.3 11.2h10.2') + f('M6.4 6.8h14.2l-2 7.2H8Z') + f('M9.6 17.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2ZM16.6 17.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2Z') + d('M11 9v3M14 9v3M17 9v3')),
   theatre: svg(f('M3.5 4h9.5v7.8a4.75 4.75 0 0 1-9.5 0Z') + f('M11 9.5h9.5v6.8a4.75 4.75 0 0 1-9.5 0Z') + d('M6.2 8.5h.01M10.3 8.5h.01M5.8 12.2c.8.8 2.2.8 3 0M14 13.5h.01M18 13.5h.01M14.2 17.2c.8-.8 2.4-.8 3.2 0')),
   leafytree: svg(f('M12 2.8a5 5 0 0 0-4.6 6.9A4.3 4.3 0 0 0 8 18.2h3V21h2v-2.8h3a4.3 4.3 0 0 0 .6-8.5A5 5 0 0 0 12 2.8Z') + d('M12 18V11M12 13.5l-2-2M12 12l2-2')),
