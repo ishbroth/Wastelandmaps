@@ -239,7 +239,7 @@ export function AccountPanel({ account, found, iconOf, metroRows, metro, onChang
           {expanded ? 'SHOW FEWER' : `SHOW ALL ${recent.length}`}
         </button>
       )}
-      <p className="rm-fine rm-privacy-line"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a></p>
+      <p className="rm-fine rm-privacy-line"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a> · <a href="https://wastelandmaps.com/support.html" target="_blank" rel="noopener noreferrer">Support</a></p>
       <DeleteLine />
     </div>
   );
