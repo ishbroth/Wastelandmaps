@@ -63,7 +63,6 @@ function gearPath(cx: number, cy: number, teeth: number, outer: number, root: nu
   }
   return out + 'Z';
 }
-const VAULT_GEAR = gearPath(12, 12, 12, 10.6, 8.6);
 /** The Vault-Tec cog as on the map of the games: ten broad teeth on a thick rim, a round window cut out of it, and a hub in the middle. */
 const COG = gearPath(12, 12, 10, 11, 8.9, 0.2, 0.32);
 const cut = (cx: number, cy: number, r: number) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
