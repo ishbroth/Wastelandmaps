@@ -46,6 +46,8 @@ export interface Account {
   metrosCleared: Set<string>;
   /** The places they have looted, by the metro that was on the map at the time. */
   clearedByMetro: Map<string, Set<string>>;
+  /** The places looted whose loot has been delivered (all of them, except a permanent landmark fought from afar and not yet discovered). */
+  clearedPaid: Set<string>;
   /** Addresses they have travelled to: their own pins. */
   personal: PersonalPlace[];
   session: Session | null;
@@ -87,6 +89,7 @@ export function useAccount(): Account {
   const [homeLoaded, setHomeLoaded] = useState(false);
   const [metros, setMetros] = useState<Set<string>>(new Set());
   const [metrosCleared, setMetrosCleared] = useState<Set<string>>(new Set());
+  const [clearedPaid, setClearedPaid] = useState<Set<string>>(new Set());
   const [clearedByMetro, setClearedByMetro] = useState<Map<string, Set<string>>>(new Map());
 
   const load = async (s: Session | null) => {
@@ -105,6 +108,7 @@ export function useAccount(): Account {
       setMetros(new Set());
       setMetrosCleared(new Set());
       setClearedByMetro(new Map());
+      setClearedPaid(new Set());
       return;
     }
     // loot and guns (empty if the raids migration has not been run)
@@ -121,12 +125,15 @@ export function useAccount(): Account {
       setLoot(bag);
       setArsenal(guns);
     });
-    void db().from('raid_runs').select('place_id,metro_id').eq('user_id', s.user.id).eq('won', true).then((r) => {
-      const rows = (r.data ?? []) as { place_id: string; metro_id: string | null }[];
+    void db().from('raid_runs').select('place_id,metro_id,paid').eq('user_id', s.user.id).eq('won', true).then((r) => {
+      const rows = (r.data ?? []) as { place_id: string; metro_id: string | null; paid: boolean | null }[];
       setCleared(new Set(rows.map((x) => x.place_id)));
+      // looted AND delivered: a permanent landmark fought from afar is only delivered once it is discovered
+      const delivered = rows.filter((x) => x.paid !== false);
+      setClearedPaid(new Set(delivered.map((x) => x.place_id)));
       // the places looted in each metro (for the progress list)
       const byMetro = new Map<string, Set<string>>();
-      for (const x of rows) if (x.metro_id) byMetro.set(x.metro_id, (byMetro.get(x.metro_id) ?? new Set<string>()).add(x.place_id));
+      for (const x of delivered) if (x.metro_id) byMetro.set(x.metro_id, (byMetro.get(x.metro_id) ?? new Set<string>()).add(x.place_id));
       setClearedByMetro(byMetro);
     });
     void db().from('personal_places').select('place_id,name,address,lat,lng,kind').eq('user_id', s.user.id).order('created_at').then((r) => setPersonal(((r.data ?? []) as { place_id: string; name: string; address: string; lat: number; lng: number; kind: PersonalPlace['kind'] }[]).map((x) => ({ placeId: x.place_id, name: x.name, address: x.address, lat: x.lat, lng: x.lng, kind: x.kind }))));
@@ -176,7 +183,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, clearedPaid, refresh, loaded };
 }
 
 /** Emails a sign-in link. */

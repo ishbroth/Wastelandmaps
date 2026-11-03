@@ -157,7 +157,7 @@ export default function App() {
       // the ones on the map that can be looted (the vault entrances and story sites cannot)
       const shown = locations.filter((l) => base.has(l.id) && !l.vault && !l.lore).map((l) => l.id);
       if (shown.length === 0 || base.size - shown.length > Math.max(2, Math.floor(base.size * 0.15))) return;
-      if (!shown.every((id) => account.cleared.has(id))) return;
+      if (!shown.every((id) => account.clearedPaid.has(id))) return;
       claimingClear.current = metro;
       const result = await claimMetroClear(metro, shown);
       if (result.awarded) {
@@ -171,7 +171,7 @@ export default function App() {
       else claimingClear.current = null; // not confirmed yet: try again when something changes
     });
     return () => { cancelled = true; };
-  }, [account.session, account.cleared, account.metrosCleared, metroInfo, locations]);
+  }, [account.session, account.clearedPaid, account.metrosCleared, metroInfo, locations]);
   // how far along each metro is (the ones started or cleared), for the Data tab: its places that count, and how many of them are looted
   const [metroRows, setMetroRows] = useState<{ id: string; name: string; done: number; total: number; cleared: boolean }[]>([]);
   useEffect(() => {
@@ -186,13 +186,13 @@ export default function App() {
         const list = await loadClearable(id);
         const base = new Set(list.map((q) => `wd:${q}`));
         const done = new Set<string>([...(account.clearedByMetro.get(id) ?? [])].filter((p) => base.has(p)));
-        if (metroInfo?.id === id) for (const l of locations) if (base.has(l.id) && account.cleared.has(l.id)) done.add(l.id);
+        if (metroInfo?.id === id) for (const l of locations) if (base.has(l.id) && account.clearedPaid.has(l.id)) done.add(l.id);
         return { id, name: index.find((m) => m.id === id)?.title ?? id, done: done.size, total: base.size, cleared: account.metrosCleared.has(id) };
       }));
       if (!cancelled) setMetroRows(rows.filter((r) => r.total > 0 && (r.done > 0 || r.cleared)).sort((a, b) => Number(b.cleared) - Number(a.cleared) || b.done / b.total - a.done / a.total));
     })();
     return () => { cancelled = true; };
-  }, [account.session, account.clearedByMetro, account.metrosCleared, account.cleared, metroInfo, locations]);
+  }, [account.session, account.clearedByMetro, account.metrosCleared, account.clearedPaid, metroInfo, locations]);
   const atlasOwned = !!metroInfo && account.metros.has(metroInfo.id);
   useEffect(() => {
     if (!account.session || !metroInfo || !atlasOwned) { setAtlas([]); return; }

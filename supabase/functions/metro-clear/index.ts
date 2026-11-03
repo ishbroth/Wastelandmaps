@@ -46,10 +46,10 @@ Deno.serve(async (req) => {
   const { data: done } = await db.from('metro_clears').select('metro_id').eq('user_id', user).eq('metro_id', metroId).maybeSingle();
   if (done) return reply(req, { ok: true, awarded: false });
 
-  // every one of them must be a raid the survivor really won
+  // every one of them must be a raid the survivor really won AND whose loot was delivered (a permanent landmark fought from afar only counts once it is discovered)
   const won = new Set<string>();
   for (let i = 0; i < sent.length; i += 200) {
-    const { data } = await db.from('raid_runs').select('place_id').eq('user_id', user).eq('won', true).in('place_id', sent.slice(i, i + 200));
+    const { data } = await db.from('raid_runs').select('place_id').eq('user_id', user).eq('won', true).eq('paid', true).in('place_id', sent.slice(i, i + 200));
     for (const r of data ?? []) won.add(r.place_id as string);
   }
   if (sent.some((id) => !won.has(id))) return reply(req, { ok: false, reason: 'not_all_cleared' });
