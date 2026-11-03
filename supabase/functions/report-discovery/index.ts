@@ -23,7 +23,19 @@ Deno.serve(async (req) => {
   if (!user) return reply(req, { error: 'sign_in' }, 401);
 
   const b = (await req.json().catch(() => ({}))) as { placeId?: string; lat?: number; lng?: number; userLat?: number; userLng?: number; points?: number };
-  if (!b.placeId || !/^(wd:Q\d+|vault:\d+|famous:[a-z0-9-]+|lore:[a-z0-9-]+)$/.test(b.placeId)) return reply(req, { error: 'bad_place' }, 400);
+  const atlas = typeof b.placeId === 'string' && /^me:[A-Za-z0-9_-]{6,120}$/.test(b.placeId);
+  if (!b.placeId || !(atlas || /^(wd:Q\d+|vault:\d+|famous:[a-z0-9-]+|lore:[a-z0-9-]+)$/.test(b.placeId))) return reply(req, { error: 'bad_place' }, 400);
+  // an address from the atlas of a city they bought: somebody else's address, worth 1 point, at the position the server has for it
+  if (atlas) {
+    const db = serviceClient();
+    const { data: render } = await db.from('address_renders').select('metro_id,lat,lng,created_by').eq('place_id', b.placeId!.slice(3)).eq('status', 'ready').maybeSingle();
+    if (!render || render.created_by === user) return reply(req, { error: 'not_atlas' }, 400);
+    const { data: has } = await db.from('metro_unlocks').select('metro_id').eq('user_id', user).eq('metro_id', render.metro_id).maybeSingle();
+    if (!has) return reply(req, { error: 'not_atlas' }, 403);
+    b.lat = render.lat as number;
+    b.lng = render.lng as number;
+    b.points = 1;
+  }
   const nums = [b.lat, b.lng, b.userLat, b.userLng];
   if (nums.some((n) => typeof n !== 'number' || !Number.isFinite(n))) return reply(req, { error: 'bad_position' }, 400);
   if (meters(b.lat as number, b.lng as number, b.userLat as number, b.userLng as number) > REACH_METERS) return reply(req, { error: 'too_far' }, 400);

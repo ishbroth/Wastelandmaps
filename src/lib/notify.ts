@@ -28,12 +28,12 @@ export async function enableNotifications(): Promise<boolean> {
 }
 
 /** A system notification, if allowed and the page is not in front (the toast covers that case). */
-export async function pushNotice(title: string, body: string): Promise<void> {
+export async function pushNotice(title: string, body: string, clearId?: string): Promise<void> {
   if (isNative()) {
     if (!document.hidden) return;
     try {
       if ((await LocalNotifications.checkPermissions()).display !== 'granted') return;
-      await LocalNotifications.schedule({ notifications: [{ id: Math.floor(Date.now() % 2_000_000_000), title, body }] });
+      await LocalNotifications.schedule({ notifications: [{ id: Math.floor(Date.now() % 2_000_000_000), title, body, extra: clearId ? { clearId } : undefined }] });
     } catch { /* the toast already told them */ }
     return;
   }
@@ -43,4 +43,16 @@ export async function pushNotice(title: string, body: string): Promise<void> {
     if (registration) await registration.showNotification(title, { body, tag: 'discovery' });
     else new Notification(title, { body });
   } catch { /* the toast already told them */ }
+}
+
+/** Calls back with the place when someone taps a "clear the area now" notification (in the app; the page shows its own prompt). */
+export function onNoticeTapped(cb: (clearId: string) => void): () => void {
+  if (!isNative()) return () => {};
+  let handle: { remove: () => Promise<void> } | null = null;
+  let gone = false;
+  void LocalNotifications.addListener('localNotificationActionPerformed', (event) => {
+    const id = (event.notification.extra as { clearId?: string } | undefined)?.clearId;
+    if (id) cb(id);
+  }).then((h) => { if (gone) void h.remove(); else handle = h; });
+  return () => { gone = true; void handle?.remove(); };
 }

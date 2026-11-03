@@ -283,22 +283,26 @@ export interface FoundPlace {
   lat: number;
   lng: number;
   foundAt: string;
+  /** What the place is worth (its points); decides the enemies and loot. */
+  worth?: number | null;
 }
 
-interface FoundRow { place_id: string; name: string; old_name: string | null; metro_id: string | null; city: string | null; state: string | null; country: string | null; lat: number; lng: number; found_at: string }
+interface FoundRow { place_id: string; name: string; old_name: string | null; metro_id: string | null; city: string | null; state: string | null; country: string | null; lat: number; lng: number; found_at: string; worth?: number | null }
 
 /** Everything this person has found, newest first. Empty if the table is not there yet. */
 export async function loadFoundPlaces(userId: string): Promise<FoundPlace[]> {
-  const { data, error } = await db().from('found_places').select('place_id,name,old_name,metro_id,city,state,country,lat,lng,found_at').eq('user_id', userId).order('found_at', { ascending: false }).limit(5000);
+  const { data, error } = await db().from('found_places').select('*').eq('user_id', userId).order('found_at', { ascending: false }).limit(5000);
   if (error || !data) return [];
-  return (data as FoundRow[]).map((r) => ({ id: r.place_id, name: r.name, oldName: r.old_name, metroId: r.metro_id, city: r.city, state: r.state, country: r.country, lat: r.lat, lng: r.lng, foundAt: r.found_at }));
+  return (data as FoundRow[]).map((r) => ({ id: r.place_id, name: r.name, oldName: r.old_name, metroId: r.metro_id, city: r.city, state: r.state, country: r.country, lat: r.lat, lng: r.lng, foundAt: r.found_at, worth: r.worth ?? null }));
 }
 
 /** Remembers places on the account (a place already there is left as it is). */
 export async function saveFoundPlaces(userId: string, places: FoundPlace[]): Promise<void> {
   if (places.length === 0) return;
   const rows = places.map((p) => ({ user_id: userId, place_id: p.id, name: p.name, old_name: p.oldName, metro_id: p.metroId, city: p.city, state: p.state, country: p.country, lat: p.lat, lng: p.lng }));
-  await db().from('found_places').upsert(rows, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
+  const { error } = await db().from('found_places').upsert(rows.map((r, i) => ({ ...r, worth: places[i].worth ?? null })), { onConflict: 'user_id,place_id', ignoreDuplicates: true });
+  // the worth column may not be there yet
+  if (error) await db().from('found_places').upsert(rows, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
 }
 
 /** Whether AUTO-DISCOVER was left on. */

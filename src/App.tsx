@@ -11,7 +11,7 @@ import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addr
 import { iconHtmlFor } from './lib/landmarkIcons';
 import { placeIcon } from './lib/placeIcons';
 import { personalId, personalLocation, type PersonalPlace } from './lib/personal';
-import { enableNotifications, pushNotice } from './lib/notify';
+import { enableNotifications, onNoticeTapped, pushNotice } from './lib/notify';
 import { levelInfo, pointsFor } from './lib/points';
 import { enemiesLine, homePlan, raidFor } from './lib/raid/raid';
 import { freeRenderFor } from './lib/renders';
@@ -102,6 +102,10 @@ export default function App() {
   const [sceneId, setSceneId] = useState<string | null>(null);
   // a place opens on its info (the scene); only the Data tab's snapshot button opens it on the snapshot
   const [sceneStart, setSceneStart] = useState<'scene' | 'snapshot'>('scene');
+  /** Set when they said yes to "clear the area now": the place's scene opens straight into the fight. */
+  const [sceneRaid, setSceneRaid] = useState(false);
+  /** The question after discovering a place whose snapshot they have but whose enemies they have not cleared. */
+  const [clearAsk, setClearAsk] = useState<{ id: string; name: string } | null>(null);
   const [toast, setToast] = useState('');
   const account = useAccount();
   // an address picked from the search that has not been reached yet (only a destination), and the person's own places near this map
@@ -283,7 +287,7 @@ export default function App() {
       return {
         id: p.id, name: p.name, oldName: p.oldName && p.oldName !== p.name ? p.oldName : null, metroId: m?.id ?? null, city: m?.name ?? null,
         state: m && ['US', 'AU'].includes(m.country) && /^[a-z]{2,3}$/.test(code) ? code.toUpperCase() : null, country: m?.country ?? null,
-        lat: p.position.lat, lng: p.position.lng, foundAt: new Date().toISOString(),
+        lat: p.position.lat, lng: p.position.lng, foundAt: new Date().toISOString(), worth: pointsFor(p),
       };
     });
     const have = new Set(foundRef.current.map((f) => f.id));
@@ -308,6 +312,18 @@ export default function App() {
         void savePersonalPlace(who.user.id, { placeId: mine.id.slice(3), name: mine.name, address: mine.personal?.address ?? '', lat: mine.position.lat, lng: mine.position.lng, kind: mine.personal?.kind ?? 'house' })
           .then(() => accountRef.current?.refresh())
           .then(() => setToast(`DISCOVERED: ${mine.name}`));
+        void recordFound([mine]);
+        // an address from a city atlas they bought is worth exactly 1 XP (the server checks they own that atlas)
+        if (mine.personal?.atlas && onFoot) {
+          void reportDiscovery(mine.id, mine.position, onFoot, 1).then((result) => {
+            if (!result || !((result.added ?? 0) > 0)) return;
+            setXpFlash({ text: `+${result.added ?? 1} XP`, id: Date.now() });
+            buzz('xp');
+            window.clearTimeout(xpTimer.current);
+            xpTimer.current = window.setTimeout(() => setXpFlash(null), 2600);
+            void accountRef.current?.refresh();
+          });
+        }
       }
       window.clearTimeout(toastTimer.current);
       toastTimer.current = window.setTimeout(() => setToast(''), 4200);
@@ -323,6 +339,13 @@ export default function App() {
     // a permanent landmark fought from afar pays its waiting loot now that it has been discovered
     void Promise.resolve(recordFound(fresh)).then(async () => {
       if (!accountRef.current?.session) return;
+      const acc = accountRef.current;
+      // a place whose snapshot they hold (or a permanent landmark) that they have not cleared: ask whether to clear the area now
+      const ask = fresh.find((q) => (freeRenderFor(q.id) || acc.unlocked.has(q.id)) && !acc.cleared.has(q.id) && !q.lore && !q.vault);
+      if (ask) {
+        setClearAsk({ id: ask.id, name: ask.name });
+        void pushNotice(`Discovered ${ask.name}`, 'Clear the area now? Tap to open the fight.', ask.id);
+      }
       for (const p of fresh.filter((q) => freeRenderFor(q.id))) {
         const paid = await claimLoot(p.id);
         if (paid.claimed > 0) {
@@ -741,6 +764,17 @@ export default function App() {
     await show(() => geocodeLatLng({ lat: place.lat, lng: place.lng }), place.city ?? place.name);
   }, [show]);
 
+  /** "Clear the area now": opens the place and goes straight into the shooting gallery. */
+  const clearNow = useCallback((id: string) => {
+    setClearAsk(null);
+    setSelectedId(id);
+    setSceneStart('scene');
+    setSceneRaid(true);
+    setSceneId(id);
+  }, []);
+  // tapping the notification in the app does the same
+  useEffect(() => onNoticeTapped(clearNow), [clearNow]);
+
   // ---- fast travel: driving navigation (AUTO-DISCOVER must be on), or a flight search for a place overseas ----
   const say = useCallback((text: string, flashing = false) => {
     setToast(text);
@@ -968,6 +1002,16 @@ export default function App() {
           <div className="rm-crt" aria-hidden="true" />
 
           {xpFlash && <div className="rm-xp" key={xpFlash.id} role="status">{xpFlash.text}</div>}
+          {clearAsk && (
+            <div className="rm-clear-ask" role="alertdialog" aria-label={`Clear the area at ${clearAsk.name}`}>
+              <b>DISCOVERED: {clearAsk.name}</b>
+              <span>Clear the area now?</span>
+              <div>
+                <button type="button" className="rm-btn" onClick={() => clearNow(clearAsk.id)}>CLEAR IT</button>
+                <button type="button" className="rm-btn rm-btn-ghost" onClick={() => setClearAsk(null)}>LATER</button>
+              </div>
+            </div>
+          )}
           {toast && <div className={`rm-toast${flash ? ' rm-toast-flash' : ''}`} role="status">{toast}</div>}
           {flightLink && (
             <div className="rm-flights" role="status">
@@ -1005,9 +1049,10 @@ export default function App() {
             <SceneModal
               zones={wasteland?.zones}
               startOn={sceneStart}
+              startRaid={sceneRaid}
               metroId={metroInfo?.id}
               spot={sceneSpot} regionName={liveName || wasteland.regionName} look={look} visited={shownVisited.has(sceneSpot.id)}
-              account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || place.personal) ? (place.personal?.home ? homePlan() : raidFor(place)) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => setSceneId(null)} onNeedDiscover={() => say('YOU MUST DISCOVER THIS LOCATION FIRST', true)}
+              account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || place.personal) ? (place.personal?.home ? homePlan() : raidFor(place)) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => { setSceneId(null); setSceneRaid(false); }} onNeedDiscover={() => say('YOU MUST DISCOVER THIS LOCATION FIRST', true)}
             />
           )}
           {accountOpen && !account.session && <AccountModal onClose={() => setAccountOpen(false)} />}

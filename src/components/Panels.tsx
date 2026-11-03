@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
 import { freeRenderFor } from '../lib/renders';
 import { LOOT_CAP } from '../lib/raid/loot';
-import { enemiesLine, lootSummary, raidFor } from '../lib/raid/raid';
+import { enemiesLine, homePlan, lootSummary, planEnemies, planFor, raidFor } from '../lib/raid/raid';
+import { personalId } from '../lib/personal';
 import { hapticsAvailable, hapticsEnabled, setHaptics } from '../lib/haptics';
 import { purchasesAvailable } from '../lib/native';
 import Caps, { CapIcon } from './Caps';
@@ -124,8 +125,18 @@ export function AccountPanel({ account, found, iconOf, metroRows, metro, onChang
   onSnapshot: (place: FoundPlace) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const recent = useMemo(() => [...found].sort((x, y) => (y.foundAt > x.foundAt ? 1 : y.foundAt < x.foundAt ? -1 : 0)), [found]);
-  const shown = expanded ? recent : recent.slice(0, 10);
+  // every place found, in the order found, starting with home
+  const homeId = account.home?.placeId ? personalId(account.home.placeId) : null;
+  const recent = useMemo(() => {
+    const oldest = [...found].sort((x, y) => (x.foundAt > y.foundAt ? 1 : x.foundAt < y.foundAt ? -1 : 0));
+    if (!homeId || !account.home) return oldest;
+    const mine = oldest.find((p) => p.id === homeId) ?? {
+      id: homeId, name: account.home.name || account.home.address || 'Home', oldName: null, metroId: null, city: null, state: null, country: null,
+      lat: account.home.lat ?? 0, lng: account.home.lng ?? 0, foundAt: '', worth: 10,
+    };
+    return [mine, ...oldest.filter((p) => p.id !== homeId)];
+  }, [found, homeId, account.home]);
+  const shown = expanded ? recent : recent.slice(0, 5);
 
   if (!account.session) {
     return (
@@ -216,25 +227,30 @@ export function AccountPanel({ account, found, iconOf, metroRows, metro, onChang
         })}
       </ul>
 
-      <h3>PLACES YOU HAVE FOUND ({found.length})</h3>
+      <h3>PLACES YOU HAVE FOUND ({recent.length})</h3>
       {recent.length === 0 && <p className="rm-empty">Nothing found yet. Fast travel to a place, or turn on AUTO-DISCOVER and go for a walk.</p>}
-      <ul className="rm-found-places rm-found-recent">
-        {shown.map((p) => (
-          <li key={p.id} className="rm-found-place">
-            <span className="rm-found-icon rm-icon-filled" dangerouslySetInnerHTML={{ __html: iconOf(p.id) }} />
-            <button type="button" className="rm-found-go" onClick={() => onGoTo(p)}>
-              <b>{p.name}{account.cleared.has(p.id) ? ' [CLEARED]' : ''}</b>
-              <i>{[p.city, p.state].filter(Boolean).join(', ')}{p.oldName && p.oldName !== p.name ? ` · formerly ${p.oldName}` : ''}</i>
-            </button>
-            {(account.unlocked.has(p.id) || freeRenderFor(p.id)) && (
-              <button type="button" className="rm-found-snap" onClick={() => onSnapshot(p)} title="Open the snapshot" aria-label={`Open the snapshot of ${p.name}`}>
-                <SnapshotIcon />
+      <ul className={`rm-found-places rm-found-recent${expanded ? ' rm-found-window' : ''}`}>
+        {shown.map((p) => {
+          const unlocked = account.unlocked.has(p.id) || !!freeRenderFor(p.id);
+          const plan = p.id === homeId ? homePlan() : planFor(p.id, p.worth ?? 10);
+          const cleared = account.cleared.has(p.id);
+          return (
+            <li key={p.id} className="rm-found-place">
+              <span className="rm-found-icon rm-icon-filled" dangerouslySetInnerHTML={{ __html: iconOf(p.id) }} />
+              <button type="button" className="rm-found-go" onClick={() => onGoTo(p)}>
+                <b>{p.name}</b>
+                <i>{unlocked ? '\u{1F513}' : '\u{1F512}'} snapshot · {cleared ? '[CLEARED]' : `${planEnemies(plan)} · ${lootSummary(plan)}`}</i>
               </button>
-            )}
-          </li>
-        ))}
+              {unlocked && (
+                <button type="button" className="rm-found-snap" onClick={() => onSnapshot(p)} title="Open the snapshot" aria-label={`Open the snapshot of ${p.name}`}>
+                  <SnapshotIcon />
+                </button>
+              )}
+            </li>
+          );
+        })}
       </ul>
-      {recent.length > 10 && (
+      {recent.length > 5 && (
         <button type="button" className="rm-btn rm-btn-ghost rm-found-more" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
           {expanded ? 'SHOW FEWER' : `SHOW ALL ${recent.length}`}
         </button>

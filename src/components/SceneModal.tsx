@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Caps from './Caps';
 import BuyCaps from './BuyCaps';
 import { accountsEnabled, caps, checkAddress, type Account } from '../lib/account';
@@ -25,13 +25,15 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ zones = [], startOn = 'scene', spot, regionName, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
+export default function SceneModal({ zones = [], startOn = 'scene', startRaid = false, spot, regionName, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
   /** The metro the map is showing: an address rendered here belongs to its atlas. */
   metroId?: string | null;
   /** The radiation clouds on the map. */
   zones?: { position: { lat: number; lng: number }; radiusMeters: number }[];
   /** Which tab opens first: the scene (the place's info), unless they asked for its snapshot (from the Data tab). */
   startOn?: 'scene' | 'snapshot';
+  /** Go straight to the fight once the place's picture is ready ("clear the area now"). */
+  startRaid?: boolean;
   spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void; /** Kept for callers; the message is shown over the picture now. */ onNeedDiscover?: () => void;
 }) {
   const render = useMemo(() => freeRenderFor(spot.id), [spot.id]);
@@ -117,6 +119,12 @@ export default function SceneModal({ zones = [], startOn = 'scene', spot, region
       cancelled = true;
     };
   }, [spot, render]);
+
+  // "clear the area now": the fight starts by itself as soon as the picture it is played over is ready
+  const autoRaided = useRef(false);
+  useEffect(() => {
+    if (startRaid && reveal && raid && !autoRaided.current && !account.cleared.has(spot.id)) { autoRaided.current = true; setRaiding(true); }
+  }, [startRaid, reveal, raid, account.cleared, spot.id]);
 
   // a snapshot that has just been unlocked opens by itself
   useEffect(() => {

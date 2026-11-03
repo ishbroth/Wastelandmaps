@@ -27,6 +27,32 @@ function burst(c: AudioContext, seconds: number, volume: number, lowpass: number
   src.start();
 }
 
+/** A rush of flame: noise that swells in and fades out through a band that sweeps up then down, with a few crackles. */
+function whoosh(c: AudioContext) {
+  const seconds = 0.5;
+  const length = Math.floor(c.sampleRate * seconds);
+  const buffer = c.createBuffer(1, length, c.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < length; i++) {
+    const t = i / length;
+    const swell = Math.min(1, t / 0.25) * Math.pow(1 - t, 1.5);
+    const crackle = Math.random() < 0.004 ? (Math.random() * 2 - 1) * 2.5 : 0;
+    data[i] = ((Math.random() * 2 - 1) + crackle) * swell;
+  }
+  const src = c.createBufferSource();
+  src.buffer = buffer;
+  const band = c.createBiquadFilter();
+  band.type = 'bandpass';
+  band.Q.value = 0.7;
+  band.frequency.setValueAtTime(500, c.currentTime);
+  band.frequency.exponentialRampToValueAtTime(1800, c.currentTime + seconds * 0.3);
+  band.frequency.exponentialRampToValueAtTime(350, c.currentTime + seconds);
+  const gain = c.createGain();
+  gain.gain.value = 0.9;
+  src.connect(band).connect(gain).connect(c.destination);
+  src.start();
+}
+
 export type SoundKind = 'pistol' | 'automatic' | 'sniper' | 'explosive' | 'flame' | 'boom' | 'hurt' | 'kill' | 'empty';
 
 export function playSound(kind: SoundKind, on: boolean) {
@@ -38,7 +64,7 @@ export function playSound(kind: SoundKind, on: boolean) {
     case 'automatic': return burst(c, 0.09, 0.4, 6500, 0.3);
     case 'sniper': return burst(c, 0.45, 0.7, 3600, 0.08);
     case 'explosive': return burst(c, 0.5, 0.6, 1800, 0.15);
-    case 'flame': return burst(c, 0.12, 0.25, 2400);
+    case 'flame': return whoosh(c);
     case 'boom': return burst(c, 0.9, 0.9, 900, 0.1);
     case 'hurt': return burst(c, 0.25, 0.6, 500, 0.3);
     case 'kill': return burst(c, 0.14, 0.25, 1200, 0.4);

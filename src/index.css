@@ -688,3 +688,11 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-metro-progress li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
 .rm-metro-progress b { font-family: var(--font-display); font-weight: 400; }
 .rm-metro-done span { color: var(--ink); text-shadow: 0 0 6px var(--glow); }
+
+/* expanded list of places found: a window of ten rows that scrolls inside itself; the page still scrolls when touched outside it */
+.rm-found-window { max-height: 480px; overflow-y: auto; overscroll-behavior: auto; -webkit-overflow-scrolling: touch; border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+.rm-found-recent .rm-found-go i { display: block; }
+
+/* the question after discovering a place: clear the area now? */
+.rm-clear-ask { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 14; display: grid; gap: 8px; justify-items: center; padding: 12px 20px; max-width: calc(100% - 24px); background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 20px var(--glow); text-align: center; color: var(--ink); text-shadow: 0 0 8px var(--glow); }
+.rm-clear-ask div { display: flex; gap: 10px; }
