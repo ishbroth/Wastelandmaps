@@ -1,7 +1,7 @@
 // Personal places: an address someone has travelled to. They are the person's own pins (a little smaller than the standard ones), can be renamed, and are
 // kept on the account. What kind of place an address is decides its icon and its scene.
 
-import type { IconId } from './placeIcons';
+import { addressIcon, type IconId } from './placeIcons';
 import type { CategoryId, Location } from './wasteland';
 
 export type PersonalKind = 'house' | 'park' | 'office' | 'church' | 'medical' | 'gov';
@@ -50,7 +50,7 @@ export function personalLocation(p: PersonalPlace, saved: boolean, homeVault?: n
     loot: 'Whatever the years left in the cupboards',
     threat: 'Quiet',
     rads: 0,
-    icon: homeVault !== undefined ? 'homevault' : PERSONAL_ICON[p.kind],
+    icon: homeVault !== undefined ? 'homevault' : addressIcon(p.kind, p.name, p.address),
     personal: { address: p.address, kind: p.kind, saved, ...(homeVault !== undefined ? { home: true } : {}) },
   };
 }

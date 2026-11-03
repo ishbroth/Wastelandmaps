@@ -9,6 +9,7 @@ type BaseIconId =
   | 'school' | 'church' | 'cross' | 'cluster' | 'house' | 'smallbuilding' | 'museum' | 'clocktower' | 'hospital' | 'plane' | 'subway' | 'bridge'
   | 'anchor' | 'stadium' | 'tree' | 'shield' | 'capitol' | 'castle' | 'bed' | 'vault' | 'homevault' | 'tower' | 'monument' | 'arch'
   | 'book' | 'beaker' | 'houses' | 'skyscraper' | 'statue' | 'ringart' | 'flag' | 'column' | 'railcross' | 'tram' | 'mosque' | 'cathedral' | 'temple' | 'badge' | 'firebadge' | 'fork' | 'cart' | 'theatre' | 'leafytree' | 'fountain'
+  | 'factory' | 'apartment' | 'trailer'
   | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
 
 /** The world-famous buildings and monuments, drawn as themselves (famousIcons.ts). */
@@ -49,7 +50,7 @@ export const f = (d: string) => `<path class="f" d="${d}"/>`;
 export const d = (p: string) => `<path class="d" d="${p}"/>`;
 export const s = (p: string) => `<path class="s" d="${p}"/>`;
 export const svg = (inner: string) =>
-  `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 
 /** The outline of a cog: a ring of teeth, like the door of a vault. */
 function gearPath(cx: number, cy: number, teeth: number, outer: number, root: number, tooth = 0.17, flank = 0.3): string {
@@ -69,12 +70,12 @@ const cut = (cx: number, cy: number, r: number) => `M${cx - r} ${cy}a${r} ${r} 0
 const cog = `<path class="f" fill-rule="evenodd" d="${COG}${cut(12, 12, 5.8)}"/>` + f(cut(12, 12, 2.9)) + d(cut(12, 12, 4.3));
 
 const ICONS: Record<BaseIconId, string> = {
-  school: svg(f('M2.5 9 12 4.5 21.5 9 12 13.5Z') + f('M6.5 11.2V16c0 1.4 2.5 2.6 5.5 2.6s5.5-1.2 5.5-2.6v-4.8L12 13.5Z') + s('M21.5 9v6')),
-  church: svg(f('M5 21V12.5l7-4.5 7 4.5V21Z') + s('M12 8V2.5M9.8 4.6h4.4') + d('M10 21v-4a2 2 0 0 1 4 0v4')),
+  school: svg(f('M3.6 20.5v-9.4L12 7.6l8.4 3.5v9.4Z') + f('M10.4 7.6V4.6h3.2v3') + s('M12 4.6V2') + d('M10.6 20.5v-4.4h2.8v4.4') + d('M6.2 13.4h2.2M15.6 13.4h2.2')),
+  church: svg(f('M4.8 21v-9L12 7.8l7.2 4.2v9Z') + f('M10.6 8.2V5.8L12 3.4l1.4 2.4v2.4') + s('M12 3.4V1.6M10.9 2.5h2.2') + d('M10 21v-3.6a2 2 0 0 1 4 0V21') + d('M7 13.6h1.8M15.2 13.6H17')),
   cross: svg(f('M10 3h4v5h5v4h-5v9h-4v-9H5V8h5Z')),
   cluster: svg(f('M2.5 21V10h5.5v11Z') + f('M8 21V3.5h8V21Z') + f('M16 21v-8h5.5v8Z') + d('M10.2 7h3.6M10.2 11h3.6M10.2 15h3.6M4.5 13.5h1.5M4.5 17h1.5M18 16.5h1.5')),
-  house: svg(f('M4 11.5 12 4l8 7.5V20H4Z') + s('M2.5 12.7 12 3.6l9.5 9.1') + d('M10 20v-5h4v5')),
-  smallbuilding: svg(f('M4.5 20V8.5h15V20Z') + s('M3.5 8.5 5 4.5h14l1.5 4') + d('M9.7 20v-5.2h4.6V20M6.5 11.5h2.3M15.2 11.5h2.3')),
+  house: svg(f('M2.8 12.2 12 3.8l9.2 8.4h-2.7v8.3h-13V12.2Z') + f('M16.2 5.2h2.6v4.6l-2.6-2.3Z') + d('M10.2 20.5v-5.2h3.6v5.2') + d('M6.6 13.4h2.3v2.1H6.6ZM15.1 13.4h2.3v2.1h-2.3Z')),
+  smallbuilding: svg(f('M2.8 8.6 4.4 4h15.2l1.6 4.6Z') + f('M4.4 8.6V20.5h15.2V8.6Z') + d('M9.8 20.5v-6.4h4.4v6.4') + d('M6.4 11.6h2.2M15.4 11.6h2.2') + d('M8.2 4v4.6M12 4v4.6M15.8 4v4.6')),
   museum: svg(f('M3 9.2 12 3.5l9 5.7Z') + f('M5 10.8h2.2v7H5ZM9 10.8h2.2v7H9ZM12.8 10.8H15v7h-2.2ZM16.8 10.8H19v7h-2.2Z') + f('M3.5 18.5h17v2.2h-17Z')),
   clocktower: svg(f('M8.5 21V8.5L12 3l3.5 5.5V21Z') + d('M12 9.4V11l1.2.8') + d('M10.9 21v-3.4h2.2V21') + s('M12 3V1.2')),
   hospital: svg(f('M12 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19Z') + d('M12 6.8v10.4M6.8 12h10.4')),
@@ -92,6 +93,9 @@ const ICONS: Record<BaseIconId, string> = {
   tower: svg(f('M10.8 21 11.4 11.5h1.2l.6 9.5Z') + f('M7.5 9.6c0-1.2 2-2.1 4.5-2.1s4.5.9 4.5 2.1-2 2.1-4.5 2.1-4.5-.9-4.5-2.1Z') + s('M12 7.5V2.5')),
   monument: svg(f('M12 2l2 5.2V19h-4V7.2Z') + s('M7 21h10M8.5 19h7')),
   arch: svg(f('M3 21V6h18v15h-4v-8a5 5 0 0 0-10 0v8Z') + d('M3 9.2h18')),
+  factory: svg(f('M2.6 21V11.6l5.6 3.4v-3.4l5.6 3.4v-3.4l5.6 3.4V5.4h3V21Z') + d('M5.6 17.6h2M10.6 17.6h2M15.6 17.6h2M20.4 8.4v.01') + s('M19.2 4V2.6')),
+  apartment: svg(f('M4.8 21V3.6h14.4V21Z') + d('M8.2 7.4h2.4M13.4 7.4h2.4M8.2 11h2.4M13.4 11h2.4M8.2 14.6h2.4M13.4 14.6h2.4') + d('M10.4 21v-3.4h3.2V21')),
+  trailer: svg(f('M1.8 17V8.4a1.4 1.4 0 0 1 1.4-1.4h11.4c2.6 0 5.2 3.4 5.8 5.4l1.2.4V17Z') + d('M5 9.6h4.2v3.2H5ZM11.8 9.6h2.6l2 3.2h-4.6Z') + f('M7 17.6a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM16.6 17.6a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z')),
   eiffel: svg(f('M12 2l1.3 6 2.2 6 3 7h-3.2l-1.3-3h-4l-1.3 3H5.5l3-7 2.2-6Z') + d('M10.6 8.3h2.8M9.3 13h5.4') + s('M10.2 17.5h3.6')),
   liberty: svg(f('M9 21l1-9.3h4L15 21Z') + f('M12 6.8a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8Z') + f('M7 21h10v-1.8H7Z') + s('M13.6 11.5 17 5M17 5l.8-2.4M10.3 6.8 9 5.5M12 5V3.3M13.7 6.8l1.1-1.3')),
   spaceneedle: svg(f('M6 7.2c0-1.1 2.7-2 6-2s6 .9 6 2-2.7 2-6 2-6-.9-6-2Z') + f('M10.7 9.2h2.6L12.8 21h-1.6Z') + s('M12 5.2V1.8M9 21l1.8-6M15 21l-1.8-6')),
@@ -100,8 +104,8 @@ const ICONS: Record<BaseIconId, string> = {
   kremlin: svg(f('M12 2c1.9 2 2.7 3.6 2.7 5.3 0 1-1.2 1.7-2.7 1.7s-2.7-.7-2.7-1.7C9.3 5.6 10.1 4 12 2Z') + f('M5.4 8.5c1 1.2 1.5 2.1 1.5 3 0 .7-.7 1.1-1.5 1.1s-1.5-.4-1.5-1.1c0-.9.5-1.8 1.5-3Z') + f('M18.6 8.5c1 1.2 1.5 2.1 1.5 3 0 .7-.7 1.1-1.5 1.1s-1.5-.4-1.5-1.1c0-.9.5-1.8 1.5-3Z') + f('M3.5 21V13.2h17V21Z') + d('M9 21v-4a3 3 0 0 1 6 0v4M6.5 16.5h.01M17.5 16.5h.01')),
   book: svg(f('M3 5.5c3-1.1 6-1 9 1v13c-3-2-6-2.1-9-1Z') + f('M21 5.5c-3-1.1-6-1-9 1v13c3-2 6-2.1 9-1Z') + d('M5.5 9c1.7-.3 3.4-.2 5 .5M5.5 12.2c1.7-.3 3.4-.2 5 .5M18.5 9c-1.7-.3-3.4-.2-5 .5M18.5 12.2c-1.7-.3-3.4-.2-5 .5')),
   beaker: svg(f('M9.5 3.5h5V9l5 9.5c.6 1.4-.3 2.5-1.7 2.5H6.2c-1.4 0-2.3-1.1-1.7-2.5L9.5 9Z') + s('M8.3 3.5h7.4') + d('M7 15.5h10M11 12.5h.01M13.5 18h.01')),
-  houses: svg(f('M2.5 20.5v-6l3-2.6 3 2.6v6Z') + f('M8.5 20.5V11L12.7 7.4l4.2 3.6v9.5Z') + f('M16.5 20.5v-6l3-2.6 3 2.6v6Z') + d('M11.3 20.5V16h2.8v4.5')),
-  skyscraper: svg(f('M7.5 21V8l4.5-5 4.5 5v13Z') + d('M10 10.5h4M10 13.5h4M10 16.5h4') + s('M12 3V1.5')),
+  houses: svg(f('M1.8 20.5v-6.4l3.7-3.3 3.7 3.3v6.4Z') + f('M8.2 20.5V9.2L12.8 5l4.6 4.2v11.3Z') + f('M16.6 20.5v-6.4l3.1-2.8 3.1 2.8v6.4Z') + d('M11.3 20.5v-4.2h2.9v4.2') + d('M10.9 10.6h3.8')),
+  skyscraper: svg(f('M3.6 21V10.4h5.4V21Z') + f('M9 21V3.4h6.2V21Z') + f('M15.2 21v-8.6h5.2V21Z') + d('M10.8 6.6h2.6M10.8 10h2.6M10.8 13.4h2.6M10.8 16.8h2.6') + d('M5.2 13.4h2.2M5.2 16.8h2.2M16.8 15.4H19M16.8 18.4H19')),
   statue: svg(f('M12 2.5a2.1 2.1 0 1 0 0 4.2 2.1 2.1 0 0 0 0-4.2Z') + f('M9.2 17V9.8L12 7.6l2.8 2.2V17Z') + f('M7.5 21v-4h9v4Z') + s('M9.2 10.5 6.5 8.5M14.8 10.5l2.7-2')),
   ringart: svg(f('M12 3a6.8 6.8 0 1 0 0 13.6A6.8 6.8 0 0 0 12 3Z') + d('M12 7.3a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z') + f('M8 21v-3.2h8V21Z')),
   flag: svg(s('M6 21.5V2.5') + f('M6.5 3.5h12l-3.2 4 3.2 4h-12Z') + s('M3.5 21.5h5')),
@@ -207,4 +211,15 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (category === 'market') return mix(n, ['smallbuilding', 'cart', 'cart']);
   if (category === 'other') return mix(n, ['monument', 'column', 'flag', 'statue', 'ringart', 'skyscraper']);
   return CATEGORY_ICON[category];
+}
+
+/** The icon for an address someone has unlocked, from what it seems to be: an apartment block, a trailer, a factory, a shop and so on (the house is the fallback). */
+export function addressIcon(kind: 'house' | 'park' | 'office' | 'church' | 'medical' | 'gov', name: string, address: string): IconId {
+  const n = `${name} ${address}`.toLowerCase();
+  if (/trailer|mobile home|rv park|manufactured home/.test(n)) return 'trailer';
+  if (/factory|plant|mill|industrial|manufactur|refiner|foundry|warehouse|distribution cent|brewery|works/.test(n)) return 'factory';
+  if (kind === 'house') return /(?:apt|apartments?|unit|suite|ste|flat)|#s?d/.test(n) || /towers?|condos?|lofts?|residences/.test(n) ? 'apartment' : 'house';
+  const picked = pickIcon(kind === 'park' ? 'park' : kind === 'church' ? 'chapel' : kind === 'medical' ? 'medical' : kind === 'gov' ? 'guard' : 'other', name);
+  if (kind === 'office') return ['monument', 'column', 'flag', 'statue', 'ringart'].includes(picked) ? 'skyscraper' : picked;
+  return picked;
 }
