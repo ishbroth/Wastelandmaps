@@ -52,11 +52,11 @@ export const svg = (inner: string) =>
   `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 
 /** The outline of a cog: a ring of teeth, like the door of a vault. */
-function gearPath(cx: number, cy: number, teeth: number, outer: number, root: number): string {
+function gearPath(cx: number, cy: number, teeth: number, outer: number, root: number, tooth = 0.17, flank = 0.3): string {
   const step = (2 * Math.PI) / teeth;
   let out = '';
   for (let i = 0; i < teeth; i++) {
-    for (const [turn, r] of [[-0.3, root], [-0.17, outer], [0.17, outer], [0.3, root]] as [number, number][]) {
+    for (const [turn, r] of [[-flank, root], [-tooth, outer], [tooth, outer], [flank, root]] as [number, number][]) {
       const t = i * step + turn * step;
       out += `${out ? 'L' : 'M'}${Math.round((cx + Math.cos(t) * r) * 100) / 100} ${Math.round((cy + Math.sin(t) * r) * 100) / 100}`;
     }
@@ -64,6 +64,10 @@ function gearPath(cx: number, cy: number, teeth: number, outer: number, root: nu
   return out + 'Z';
 }
 const VAULT_GEAR = gearPath(12, 12, 12, 10.6, 8.6);
+/** The Vault-Tec cog as on the map of the games: ten broad teeth on a thick rim, a round window cut out of it, and a hub in the middle. */
+const COG = gearPath(12, 12, 10, 11, 8.9, 0.2, 0.32);
+const cut = (cx: number, cy: number, r: number) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
+const cog = `<path class="f" fill-rule="evenodd" d="${COG}${cut(12, 12, 5.8)}"/>` + f(cut(12, 12, 2.9)) + d(cut(12, 12, 4.3));
 
 const ICONS: Record<BaseIconId, string> = {
   school: svg(f('M2.5 9 12 4.5 21.5 9 12 13.5Z') + f('M6.5 11.2V16c0 1.4 2.5 2.6 5.5 2.6s5.5-1.2 5.5-2.6v-4.8L12 13.5Z') + s('M21.5 9v6')),
@@ -85,7 +89,7 @@ const ICONS: Record<BaseIconId, string> = {
   capitol: svg(f('M6 20v-7h12v7Z') + f('M7.4 13a4.6 4.6 0 0 1 9.2 0Z') + s('M12 8.4V4M4 21h16') + d('M9 15v3.4M12 15v3.4M15 15v3.4')),
   castle: svg(f('M4 21V6h4v3h2V6h4v3h2V6h4v15Z') + d('M10 21v-4.5a2 2 0 0 1 4 0V21M6 12.5h.01M18 12.5h.01')),
   bed: svg(f('M3 13h18v5H3Z') + f('M5.3 9a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6Z') + s('M3 18V6.5M21 13a3 3 0 0 0-3-3h-8v3')),
-  vault: svg(f(VAULT_GEAR) + d('M12 6.6a5.4 5.4 0 1 0 0 10.8 5.4 5.4 0 0 0 0-10.8Z') + d('M12 10.6a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8Z') + d('M12 6.6v4M12 13.4v4M6.6 12h4M13.4 12h4')),
+  vault: svg(cog),
   tower: svg(f('M10.8 21 11.4 11.5h1.2l.6 9.5Z') + f('M7.5 9.6c0-1.2 2-2.1 4.5-2.1s4.5.9 4.5 2.1-2 2.1-4.5 2.1-4.5-.9-4.5-2.1Z') + s('M12 7.5V2.5')),
   monument: svg(f('M12 2l2 5.2V19h-4V7.2Z') + s('M7 21h10M8.5 19h7')),
   arch: svg(f('M3 21V6h18v15h-4v-8a5 5 0 0 0-10 0v8Z') + d('M3 9.2h18')),
