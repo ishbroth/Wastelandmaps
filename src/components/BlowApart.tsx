@@ -397,11 +397,26 @@ export default function BlowApart({ sound = false, beforeUrl, afterUrl, name, fi
     play(() => setTimeout(() => recorder.stop(), 700), sink ?? undefined);
   };
 
+  const [big, setBig] = useState(false);
+  // the full-size view closes with Escape or a tap (it refits by itself when the phone is turned)
+  useEffect(() => {
+    if (!big) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setBig(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [big]);
+
   return (
     <>
       {state === 'plain'
-        ? <img src={afterUrl} className="rm-modal-canvas rm-modal-render" alt={`${name} in the wasteland`} />
-        : <canvas ref={canvas} className="rm-modal-canvas rm-modal-render" aria-label={`${name}: the photograph is hit by a bomb and torn apart to reveal it in the wasteland`} />}
+        ? <img src={afterUrl} className="rm-modal-canvas rm-modal-render rm-tap-big" alt={`${name} in the wasteland`} onClick={() => setBig(true)} />
+        : <canvas ref={canvas} className={`rm-modal-canvas rm-modal-render${state === 'done' ? ' rm-tap-big' : ''}`} onClick={() => { if (state === 'done') setBig(true); }} aria-label={`${name}: the photograph is hit by a bomb and torn apart to reveal it in the wasteland`} />}
+      {big && (
+        <div className="rm-lightbox" role="dialog" aria-label={`${name}, full size`} onClick={() => setBig(false)}>
+          <img src={afterUrl} alt={`${name} in the wasteland`} />
+          <button type="button" className="rm-lightbox-x" aria-label="Close">×</button>
+        </div>
+      )}
       <div className="rm-snap-actions">
         <ScrollRow label="Snapshot options">
           {state !== 'plain' && <button type="button" className="rm-btn rm-btn-ghost" disabled={state !== 'done' || recording} onClick={() => play()}>REPLAY</button>}

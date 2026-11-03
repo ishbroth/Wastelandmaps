@@ -651,6 +651,17 @@ export default function App() {
     localStorage.setItem(`rm-pw-${who}`, String(number));
     void setVaultPassword(account.session?.user.email, number).then((ok) => { if (!ok) localStorage.removeItem(`rm-pw-${who}`); });
   }, [account.session, account.home?.vaultNumber]);
+  // turning the phone: the page and the map are refitted, and the view is put back to the top-left of what it was (no stale enlarged layout)
+  useEffect(() => {
+    let t: number | undefined;
+    const refit = () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(() => { window.dispatchEvent(new Event('resize')); if (window.scrollX) window.scrollTo(0, window.scrollY); }, 250);
+    };
+    window.addEventListener('orientationchange', refit);
+    screen.orientation?.addEventListener?.('change', refit);
+    return () => { window.clearTimeout(t); window.removeEventListener('orientationchange', refit); screen.orientation?.removeEventListener?.('change', refit); };
+  }, []);
   // navigation takes over the whole phone screen when it is turned sideways: let the map notice its new size
   useEffect(() => {
     const t = window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
