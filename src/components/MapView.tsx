@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { createHtmlMarker, type HtmlMarkerHandle } from '../lib/htmlMarker';
-import { turnArrow } from '../lib/navigation';
 import { iconFor } from '../lib/icons';
 import { placeIcon } from '../lib/placeIcons';
 import { landmarkIcon } from '../lib/landmarkIcons';
@@ -533,7 +532,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
   }, [travel, look]);
 
   // driving navigation. The streets are not drawn on this map, so the way is: the whole route as a thin line, and ahead of you a bright path that
-  // pulses and runs with chevrons toward the next turns, with the turns marked on it.
+  // pulses and runs with chevrons toward the next turns.
   const ahead = useRef<{ halo: google.maps.Polyline; line: google.maps.Polyline } | null>(null);
   useEffect(() => {
     const map = mapRef.current;
@@ -573,7 +572,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     };
   }, [nav?.path, look]);
 
-  // the path ahead (from you to the turn after next, at most about a mile and a half) and a marker on each turn on it
+  // the path ahead: from you to the turn after next, at most about a mile and a half. The only turn arrow is the one in the navigation's top bar: none on the street corners.
   useEffect(() => {
     const map = mapRef.current;
     const live = ahead.current;
@@ -597,16 +596,6 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     }
     live.line.setPath(route);
     live.halo.setPath(route);
-    const handles = turns.map((turn, idx) => {
-      const el = document.createElement('div');
-      el.className = 'rm-turn-marker';
-      el.innerHTML = `<b>${turnArrow(turn.text)}</b><i></i>`;
-      (el.querySelector('i') as HTMLElement).textContent = idx === 0 ? 'NEXT' : '';
-      const handle = createHtmlMarker({ position: turn.at, element: el, zIndex: 60 });
-      handle.setMap(map);
-      return handle;
-    });
-    return () => handles.forEach((h) => h.setMap(null));
   }, [nav?.step, nav?.steps, player]);
 
   useEffect(() => {
