@@ -176,7 +176,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', spot, region
               {paid.state.kind === 'working' ? (
                 <button type="button" className="rm-btn" disabled>DEVELOPING… ABOUT 20 SECONDS</button>
               ) : (
-                <button type="button" className="rm-btn" onClick={() => (!account.session ? onAccount() : (account.credits ?? 0) < cost ? setBuying(true) : void paid.run())}>{home ? 'BLOW UP MY HOME' : 'UNLOCK'} FOR <Caps n={caps(cost)} /></button>
+                <button type="button" className="rm-btn" onClick={() => (!account.session ? onAccount() : (account.credits ?? 0) < cost ? setBuying(true) : void paid.run())}>{home ? 'BLOW UP MY HOME' : 'UNLOCK'} FOR <Caps n={account.session ? `${caps(cost)}/${caps(account.credits ?? 0).toLocaleString('en-US')}` : caps(cost)} /></button>
               )}
             </div>
           )}

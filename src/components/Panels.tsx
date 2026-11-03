@@ -163,7 +163,7 @@ export function AccountPanel({ account, found, iconOf, metro, onChangeHome, onAc
       <h3>LOOT</h3>
       <div className="rm-loot">
         {LOOT_TYPES.map((l) => (
-          <span key={l.id} className={`rm-loot-item${(account.loot[l.id] ?? 0) === 0 ? ' rm-loot-none' : ''}${(account.loot[l.id] ?? 0) >= LOOT_CAP ? ' rm-loot-full' : ''}`} title={`Storage holds ${LOOT_CAP} of each`}><b>{account.loot[l.id] ?? 0}</b>/{LOOT_CAP} {l.name}</span>
+          <span key={l.id} className={`rm-loot-item${(account.loot[l.id] ?? 0) === 0 ? ' rm-loot-none' : ''}${(account.loot[l.id] ?? 0) >= LOOT_CAP ? ' rm-loot-full' : ''}`} title={`Storage holds ${LOOT_CAP} of each`}><b>{account.loot[l.id] ?? 0}</b> {l.name}</span>
         ))}
       </div>
       <h3>STIMPAKS: {account.stimpaks}</h3>

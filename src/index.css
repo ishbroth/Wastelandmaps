@@ -678,3 +678,8 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-modal-card { position: relative; }
 .rm-modal-view-hidden { display: none; }
 .rm-modal-card.rm-modal-scene { width: min(620px, 100%); grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "tabs" "text"; }
+
+/* [CLEARED] under a metro's name, and the SIGN IN button beside AUTO-DISCOVER */
+.rm-poster-cleared { display: block; font-size: 0.5em; letter-spacing: 3px; color: var(--ink); text-shadow: 0 0 8px var(--glow); }
+.rm-quick .rm-signin { font: inherit; font-size: 12px; letter-spacing: 1px; padding: 2px 8px; background: transparent; color: var(--ink); border: 1px solid var(--ink); cursor: pointer; }
+.rm-quick .rm-signin:hover { background: var(--ink); color: var(--on-ink); }

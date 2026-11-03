@@ -4,8 +4,8 @@ import { shuffledShowcase } from '../lib/showcase';
 import { suggest, type Suggestion } from '../lib/addressSearch';
 
 /** Cities with a permanent landmark snapshot, as one-click starting points (a different order each visit, three showing at a time). Typing also suggests real addresses. */
-export default function SearchBar({ busy, disabled, initial, onSearch, onPick, tracking, onToggleTracking }: {
-  busy: boolean; disabled: boolean; initial: string; onSearch: (q: string) => void; onPick: (s: Suggestion) => void; tracking: boolean; onToggleTracking: () => void;
+export default function SearchBar({ busy, disabled, initial, onSearch, onPick, onSignIn, tracking, onToggleTracking }: {
+  busy: boolean; disabled: boolean; initial: string; onSearch: (q: string) => void; onPick: (s: Suggestion) => void; /** Present while signed out: the SIGN IN button beside AUTO-DISCOVER. */ onSignIn?: () => void; tracking: boolean; onToggleTracking: () => void;
 }) {
   const off = busy || disabled;
   const [value, setValue] = useState(initial);
@@ -99,6 +99,7 @@ export default function SearchBar({ busy, disabled, initial, onSearch, onPick, t
         <button type="button" className={`rm-track${tracking ? ' on' : ''}`} aria-pressed={tracking} onClick={onToggleTracking} title="Discover places automatically when you are near them">
           {tracking ? '◉ AUTO-DISCOVER ON' : '○ AUTO-DISCOVER OFF'}
         </button>
+        {onSignIn && <button type="button" className="rm-signin" onClick={onSignIn}>SIGN IN</button>}
       </div>
       <div className="rm-try">
         <span>TRY</span>

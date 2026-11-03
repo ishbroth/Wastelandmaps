@@ -42,6 +42,8 @@ export interface Account {
   homeLoaded: boolean;
   /** Metros whose rendered addresses they have all unlocked. */
   metros: Set<string>;
+  /** Metros they have cleared (every place that counts looted). */
+  metrosCleared: Set<string>;
   /** Addresses they have travelled to: their own pins. */
   personal: PersonalPlace[];
   session: Session | null;
@@ -82,6 +84,7 @@ export function useAccount(): Account {
   const [home, setHome] = useState<Home | null>(null);
   const [homeLoaded, setHomeLoaded] = useState(false);
   const [metros, setMetros] = useState<Set<string>>(new Set());
+  const [metrosCleared, setMetrosCleared] = useState<Set<string>>(new Set());
 
   const load = async (s: Session | null) => {
     if (!accountsEnabled || !s) {
@@ -97,6 +100,7 @@ export function useAccount(): Account {
       setHome(null);
       setHomeLoaded(false);
       setMetros(new Set());
+      setMetrosCleared(new Set());
       return;
     }
     // loot and guns (empty if the raids migration has not been run)
@@ -121,6 +125,7 @@ export function useAccount(): Account {
       else setHome(r.data ? { placeId: r.data.place_id ?? undefined, name: r.data.name ?? undefined, address: r.data.address ?? undefined, lat: r.data.lat ?? undefined, lng: r.data.lng ?? undefined, skipped: !!r.data.skipped, vaultNumber: r.data.vault_number ?? undefined } : null);
       setHomeLoaded(true);
     });
+    void db().from('metro_clears').select('metro_id').eq('user_id', s.user.id).then((r) => setMetrosCleared(new Set(((r.data ?? []) as { metro_id: string }[]).map((x) => x.metro_id))));
     void db().from('metro_unlocks').select('metro_id').eq('user_id', s.user.id).then((r) => setMetros(new Set(((r.data ?? []) as { metro_id: string }[]).map((x) => x.metro_id))));
     const [bal, owned, found] = await Promise.all([
       db().from('credits').select('balance').eq('user_id', s.user.id).maybeSingle(),
@@ -160,7 +165,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, arsenal, cleared, personal, home, homeLoaded, metros, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -410,4 +415,19 @@ export async function deleteAccount(): Promise<boolean> {
   if (error || !data?.ok) return false;
   await db().auth.signOut();
   return true;
+}
+
+/** Every place in a metro that counts has been looted: asks the server to confirm and pay the bonus (400 caps, once). */
+export async function claimMetroClear(metroId: string, ids: string[]): Promise<{ awarded: boolean; caps: number; reason?: string }> {
+  const { data, error } = await db().functions.invoke('metro-clear', { body: { metroId, ids } });
+  if (error || !data) return { awarded: false, caps: 0, reason: 'server' };
+  return { awarded: data.awarded === true, caps: Number(data.caps ?? 0), reason: data.ok === false ? String(data.reason ?? 'no') : undefined };
+}
+
+/** The places of a metro that count toward clearing it (Wikidata ids without the Q prefix removed: "Q123"). */
+export async function loadClearable(metroId: string): Promise<string[]> {
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}data/clear/${metroId}.json`);
+    return res.ok ? ((await res.json()) as string[]) : [];
+  } catch { return []; }
 }

@@ -3,7 +3,7 @@ import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
-import { accountsEnabled, atlasList, claimLoot, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import { accountsEnabled, atlasList, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { getFix, locationState, watchFixes, type GeoError } from './lib/geo';
 import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
@@ -145,6 +145,33 @@ export default function App() {
     const loc = mapLocations.find((l) => l.id === id);
     return iconHtmlFor(id, placeIcon(loc?.icon ?? 'monument'));
   }, [mapLocations]);
+  // every place of this metro that counts (buildings and landmarks with a photograph) looted: the metro is cleared, and 400 caps are paid, once
+  const claimingClear = useRef<string | null>(null);
+  useEffect(() => {
+    if (!account.session || !metroInfo || account.metrosCleared.has(metroInfo.id) || claimingClear.current === metroInfo.id) return;
+    const metro = metroInfo.id;
+    let cancelled = false;
+    void loadClearable(metro).then(async (list) => {
+      if (cancelled || list.length === 0) return;
+      const base = new Set(list.map((q) => `wd:${q}`));
+      // the ones on the map that can be looted (the vault entrances and story sites cannot)
+      const shown = locations.filter((l) => base.has(l.id) && !l.vault && !l.lore).map((l) => l.id);
+      if (shown.length === 0 || base.size - shown.length > Math.max(2, Math.floor(base.size * 0.15))) return;
+      if (!shown.every((id) => account.cleared.has(id))) return;
+      claimingClear.current = metro;
+      const result = await claimMetroClear(metro, shown);
+      if (result.awarded) {
+        setToast(`${(metroInfo.name || 'METRO').toUpperCase()} CLEARED: +${result.caps} CAPS`);
+        window.clearTimeout(toastTimer.current);
+        toastTimer.current = window.setTimeout(() => setToast(''), 6000);
+        buzz('levelup');
+        void pushNotice('Metro cleared', `You cleared every place in ${metroInfo.name}: +${result.caps} caps`);
+      }
+      if (result.awarded || !result.reason) void account.refresh();
+      else claimingClear.current = null; // not confirmed yet: try again when something changes
+    });
+    return () => { cancelled = true; };
+  }, [account.session, account.cleared, account.metrosCleared, metroInfo, locations]);
   const atlasOwned = !!metroInfo && account.metros.has(metroInfo.id);
   useEffect(() => {
     if (!account.session || !metroInfo || !atlasOwned) { setAtlas([]); return; }
@@ -890,9 +917,6 @@ export default function App() {
           <h1>WASTELAND<span>MAPS</span></h1>
           <p>See where you live after the bombs fell</p>
         </div>
-        {accountsEnabled && !account.session && (
-          <button type="button" className="rm-account-btn" onClick={() => setAccountOpen(true)}>SIGN IN</button>
-        )}
         <div className="rm-looks" role="group" aria-label="Map look">
           {(Object.keys(LOOKS) as LookId[]).map((id) => (
             <button key={id} type="button" className={look === id ? 'on' : ''} aria-pressed={look === id} onClick={() => chooseLook(id)}>{LOOKS[id].label}</button>
@@ -902,7 +926,7 @@ export default function App() {
 
       <main className="rm-device">
         <div className="rm-screen">
-          {(wasteland || zoomName) && <div className="rm-poster-title" key={zoomName ?? (liveName || wasteland?.regionName)} aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}</div>}
+          {(wasteland || zoomName) && <div className="rm-poster-title" key={zoomName ?? (liveName || wasteland?.regionName)} aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}{!zoomName && account.session && metroInfo && account.metrosCleared.has(metroInfo.id) && <small className="rm-poster-cleared">[CLEARED]</small>}</div>}
           {status === 'ready' ? (
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
@@ -977,7 +1001,7 @@ export default function App() {
         </div>
 
         <aside className="rm-side">
-          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onPick={(s) => void pickSuggestion(s)} tracking={tracking} onToggleTracking={toggleTracking} />
+          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onPick={(s) => void pickSuggestion(s)} onSignIn={accountsEnabled && !account.session ? () => setAccountOpen(true) : undefined} tracking={tracking} onToggleTracking={toggleTracking} />
           <nav className="rm-tabs" role="tablist" aria-label="Pip-Boy menu">
             {(['locations', 'data', 'share'] as Tab[]).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); sound('tick'); }}>
