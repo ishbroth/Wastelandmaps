@@ -38,7 +38,9 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
  * The shooting gallery: the destroyed picture blown up to the whole screen, the place's enemies walking out of the ground in waves, a gun at the bottom
  * and a wheel to switch between the four classes of weapon. Winning pays the loot the server decided; dying sends the survivor back to try again.
  */
-export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, sound, onExit }: {
+export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, account, sound, onExit }: {
+  /** The metro on the map, kept with the raid so progress toward clearing each metro can be listed. */
+  metroId?: string | null;
   plan: RaidPlan;
   placeId: string;
   imageUrl: string;
@@ -96,7 +98,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
       const [picture, art, started] = await Promise.all([
         loadImage(imageUrl),
         loadRaidAssets(ids, ownedGuns),
-        startRaid(placeId, plan.worth, plan.total + (plan.boss ? 1 : 0), plan.lootTypes),
+        startRaid(placeId, plan.worth, plan.total + (plan.boss ? 1 : 0), plan.lootTypes, metroId),
       ]);
       if (cancelled) return;
       if ('error' in started) {

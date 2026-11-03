@@ -172,6 +172,27 @@ export default function App() {
     });
     return () => { cancelled = true; };
   }, [account.session, account.cleared, account.metrosCleared, metroInfo, locations]);
+  // how far along each metro is (the ones started or cleared), for the Data tab: its places that count, and how many of them are looted
+  const [metroRows, setMetroRows] = useState<{ id: string; name: string; done: number; total: number; cleared: boolean }[]>([]);
+  useEffect(() => {
+    if (!account.session) { setMetroRows([]); return; }
+    let cancelled = false;
+    void (async () => {
+      const ids = new Set<string>([...account.clearedByMetro.keys(), ...account.metrosCleared]);
+      // the metro on the map counts too, even for places looted before progress was kept by metro
+      if (metroInfo) ids.add(metroInfo.id);
+      const index = await loadIndex();
+      const rows = await Promise.all([...ids].map(async (id) => {
+        const list = await loadClearable(id);
+        const base = new Set(list.map((q) => `wd:${q}`));
+        const done = new Set<string>([...(account.clearedByMetro.get(id) ?? [])].filter((p) => base.has(p)));
+        if (metroInfo?.id === id) for (const l of locations) if (base.has(l.id) && account.cleared.has(l.id)) done.add(l.id);
+        return { id, name: index.find((m) => m.id === id)?.title ?? id, done: done.size, total: base.size, cleared: account.metrosCleared.has(id) };
+      }));
+      if (!cancelled) setMetroRows(rows.filter((r) => r.total > 0 && (r.done > 0 || r.cleared)).sort((a, b) => Number(b.cleared) - Number(a.cleared) || b.done / b.total - a.done / a.total));
+    })();
+    return () => { cancelled = true; };
+  }, [account.session, account.clearedByMetro, account.metrosCleared, account.cleared, metroInfo, locations]);
   const atlasOwned = !!metroInfo && account.metros.has(metroInfo.id);
   useEffect(() => {
     if (!account.session || !metroInfo || !atlasOwned) { setAtlas([]); return; }
@@ -1016,7 +1037,7 @@ export default function App() {
                 onSelect={(id) => { setSelectedId(id); sound('select'); }}
               />
             )}
-            {tab === 'data' && <AccountPanel account={account} found={found} iconOf={iconOfFound} metro={metroInfo ?? undefined} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
+            {tab === 'data' && <AccountPanel account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} metro={metroInfo ?? undefined} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
             {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} soundOn={soundOn} onToggleSound={() => setSoundOn((s) => !s)} />}
           </section>
         </aside>

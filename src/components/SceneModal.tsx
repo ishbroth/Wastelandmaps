@@ -207,7 +207,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', spot, region
       </div>
       {buying && <BuyCaps onClose={() => setBuying(false)} />}
       {raiding && reveal && raid && (
-        <RaidScreen plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} sound={sound} onExit={() => setRaiding(false)} />
+        <RaidScreen metroId={metroId} plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} sound={sound} onExit={() => setRaiding(false)} />
       )}
     </div>
   );

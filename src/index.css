@@ -683,3 +683,8 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-poster-cleared { display: block; font-size: 0.5em; letter-spacing: 3px; color: var(--ink); text-shadow: 0 0 8px var(--glow); }
 .rm-quick .rm-signin { font: inherit; font-size: 12px; letter-spacing: 1px; padding: 2px 8px; background: transparent; color: var(--ink); border: 1px solid var(--ink); cursor: pointer; }
 .rm-quick .rm-signin:hover { background: var(--ink); color: var(--on-ink); }
+
+.rm-metro-progress { list-style: none; margin: 0 0 6px; padding: 0; }
+.rm-metro-progress li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.rm-metro-progress b { font-family: var(--font-display); font-weight: 400; }
+.rm-metro-done span { color: var(--ink); text-shadow: 0 0 6px var(--glow); }

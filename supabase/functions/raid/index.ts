@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
   const db = serviceClient();
-  const b = (await req.json().catch(() => ({}))) as { action?: string; placeId?: string; worth?: number; enemies?: number; lootTypes?: string[]; runId?: string; won?: boolean };
+  const b = (await req.json().catch(() => ({}))) as { action?: string; placeId?: string; worth?: number; enemies?: number; lootTypes?: string[]; runId?: string; won?: boolean; metroId?: string };
 
   if (b.action === 'start') {
     const placeId = String(b.placeId ?? '');
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     const { count } = await db.from('raid_runs').select('id', { count: 'exact', head: true }).eq('user_id', user).gte('started_at', since);
     if ((count ?? 0) >= MAX_RAIDS_PER_HOUR) return reply(req, { error: 'too_many' }, 429);
 
-    const { data, error } = await db.from('raid_runs').insert({ user_id: user, place_id: placeId, worth, enemies, loot: roll(worth, types) }).select('id').single();
+    const { data, error } = await db.from('raid_runs').insert({ user_id: user, place_id: placeId, worth, enemies, loot: roll(worth, types), metro_id: /^[a-z0-9-]{3,80}$/.test(String(b.metroId ?? '')) ? String(b.metroId) : null }).select('id').single();
     if (error || !data) return reply(req, { error: 'server' }, 500);
     return reply(req, { runId: data.id });
   }

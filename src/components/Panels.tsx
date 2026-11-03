@@ -109,12 +109,14 @@ function SnapshotIcon() {
 
 
 /** The Data tab: credits, and every place found, newest first; a place opens on the map, and an unlocked snapshot opens ready to play. */
-export function AccountPanel({ account, found, iconOf, metro, onChangeHome, onAccount, onGoTo, onSnapshot }: {
+export function AccountPanel({ account, found, iconOf, metroRows, metro, onChangeHome, onAccount, onGoTo, onSnapshot }: {
   account: Account;
   /** The metro the map is showing, for its address atlas. */
   metro?: { id: string; name: string };
   onChangeHome: () => void;
   found: FoundPlace[];
+  /** How far along each metro is: the places looted out of the places that count, and whether it is cleared. */
+  metroRows: { id: string; name: string; done: number; total: number; cleared: boolean }[];
   /** The icon (as drawn on the map) of a found place. */
   iconOf: (id: string) => string;
   onAccount: () => void;
@@ -163,9 +165,22 @@ export function AccountPanel({ account, found, iconOf, metro, onChangeHome, onAc
       <h3>LOOT</h3>
       <div className="rm-loot">
         {LOOT_TYPES.map((l) => (
-          <span key={l.id} className={`rm-loot-item${(account.loot[l.id] ?? 0) === 0 ? ' rm-loot-none' : ''}${(account.loot[l.id] ?? 0) >= LOOT_CAP ? ' rm-loot-full' : ''}`} title={`Storage holds ${LOOT_CAP} of each`}><b>{account.loot[l.id] ?? 0}</b> {l.name}</span>
+          <span key={l.id} className={`rm-loot-item${(account.loot[l.id] ?? 0) === 0 ? ' rm-loot-none' : ''}${(account.loot[l.id] ?? 0) >= LOOT_CAP ? ' rm-loot-full' : ''}`} title={`Storage holds ${LOOT_CAP} of each`}>{l.name} [<b>{account.loot[l.id] ?? 0}</b>]</span>
         ))}
       </div>
+      {metroRows.length > 0 && (
+        <>
+          <h3>METROS CLEARED</h3>
+          <ul className="rm-metro-progress">
+            {metroRows.map((m) => (
+              <li key={m.id} className={m.cleared ? 'rm-metro-done' : ''}>
+                <span>{m.name}{m.cleared ? ' [CLEARED]' : ''}</span>
+                <b>{m.cleared ? m.total : Math.min(m.done, m.total)}/{m.total}</b>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <h3>STIMPAKS: {account.stimpaks}</h3>
       <ul className="rm-arsenal">
         {STIMPAK_TRADES.map((t) => (

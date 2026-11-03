@@ -44,6 +44,8 @@ export interface Account {
   metros: Set<string>;
   /** Metros they have cleared (every place that counts looted). */
   metrosCleared: Set<string>;
+  /** The places they have looted, by the metro that was on the map at the time. */
+  clearedByMetro: Map<string, Set<string>>;
   /** Addresses they have travelled to: their own pins. */
   personal: PersonalPlace[];
   session: Session | null;
@@ -85,6 +87,7 @@ export function useAccount(): Account {
   const [homeLoaded, setHomeLoaded] = useState(false);
   const [metros, setMetros] = useState<Set<string>>(new Set());
   const [metrosCleared, setMetrosCleared] = useState<Set<string>>(new Set());
+  const [clearedByMetro, setClearedByMetro] = useState<Map<string, Set<string>>>(new Map());
 
   const load = async (s: Session | null) => {
     if (!accountsEnabled || !s) {
@@ -101,6 +104,7 @@ export function useAccount(): Account {
       setHomeLoaded(false);
       setMetros(new Set());
       setMetrosCleared(new Set());
+      setClearedByMetro(new Map());
       return;
     }
     // loot and guns (empty if the raids migration has not been run)
@@ -117,7 +121,14 @@ export function useAccount(): Account {
       setLoot(bag);
       setArsenal(guns);
     });
-    void db().from('raid_runs').select('place_id').eq('user_id', s.user.id).eq('won', true).then((r) => setCleared(new Set(((r.data ?? []) as { place_id: string }[]).map((x) => x.place_id))));
+    void db().from('raid_runs').select('place_id,metro_id').eq('user_id', s.user.id).eq('won', true).then((r) => {
+      const rows = (r.data ?? []) as { place_id: string; metro_id: string | null }[];
+      setCleared(new Set(rows.map((x) => x.place_id)));
+      // the places looted in each metro (for the progress list)
+      const byMetro = new Map<string, Set<string>>();
+      for (const x of rows) if (x.metro_id) byMetro.set(x.metro_id, (byMetro.get(x.metro_id) ?? new Set<string>()).add(x.place_id));
+      setClearedByMetro(byMetro);
+    });
     void db().from('personal_places').select('place_id,name,address,lat,lng,kind').eq('user_id', s.user.id).order('created_at').then((r) => setPersonal(((r.data ?? []) as { place_id: string; name: string; address: string; lat: number; lng: number; kind: PersonalPlace['kind'] }[]).map((x) => ({ placeId: x.place_id, name: x.name, address: x.address, lat: x.lat, lng: x.lng, kind: x.kind }))));
     void db().from('user_home').select('place_id,name,address,lat,lng,skipped,vault_number').eq('user_id', s.user.id).maybeSingle().then((r) => {
       // if the table is not there yet, do not nag about it
@@ -165,7 +176,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -314,8 +325,8 @@ export async function useStimpak(): Promise<{ ok: boolean; qty?: number }> {
 }
 
 /** Starts a raid on a place (the server checks the snapshot is theirs and decides the loot). Returns the run to finish, or the reason it cannot start. */
-export async function startRaid(placeId: string, worth: number, enemies: number, lootTypes: LootId[]): Promise<{ runId: string } | { error: string }> {
-  const { data, error } = await db().functions.invoke('raid', { body: { action: 'start', placeId, worth, enemies, lootTypes } });
+export async function startRaid(placeId: string, worth: number, enemies: number, lootTypes: LootId[], metroId?: string | null): Promise<{ runId: string } | { error: string }> {
+  const { data, error } = await db().functions.invoke('raid', { body: { action: 'start', placeId, worth, enemies, lootTypes, metroId } });
   if (error || !data?.runId) {
     let reason = 'server';
     const response = (error as { context?: Response } | null)?.context;
