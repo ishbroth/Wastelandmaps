@@ -105,7 +105,7 @@ export default function App() {
   /** Set when they said yes to "clear the area now": the place's scene opens straight into the fight. */
   const [sceneRaid, setSceneRaid] = useState(false);
   /** The question after discovering a place whose snapshot they have but whose enemies they have not cleared. */
-  const [clearAsk, setClearAsk] = useState<{ id: string; name: string } | null>(null);
+  const [clearAsk, setClearAsk] = useState<{ id: string; name: string; lat?: number; lng?: number; radiusKm?: number } | null>(null);
   const [toast, setToast] = useState('');
   const account = useAccount();
   // an address picked from the search that has not been reached yet (only a destination), and the person's own places near this map
@@ -125,7 +125,7 @@ export default function App() {
     return mine;
   }, [account.personal, account.home, target, region]);
   // the metro on the map (its address atlas), the addresses other survivors rendered there when this person has unlocked the metro, and the home prompt
-  const [metroInfo, setMetroInfo] = useState<{ id: string; name: string } | null>(null);
+  const [metroInfo, setMetroInfo] = useState<{ id: string; name: string; lat?: number; lng?: number; radiusKm?: number } | null>(null);
   const [atlas, setAtlas] = useState<AtlasPlace[]>([]);
   const [homeOpen, setHomeOpen] = useState(false);
   const [homeSkipped, setHomeSkipped] = useState(false);
@@ -443,7 +443,7 @@ export default function App() {
       if (madeZones) w.zones = madeZones.map(zoneFromEntry);
       scanId.current += 1;
       metroSeen.current = { current: home?.id ?? '', loaded: new Set(home ? [home.id] : []) };
-      setMetroInfo(home ? { id: home.id, name: home.name } : null);
+      setMetroInfo(home ? { id: home.id, name: home.name, lat: home.lat, lng: home.lng, radiusKm: home.radiusKm } : null);
       setLiveName(title);
       setWasteland(w);
       setQuery(r.address);
@@ -505,7 +505,7 @@ export default function App() {
     const near = under ?? metroAt(metros, center, 120);
     if (near && near.id !== seen.current) {
       seen.current = near.id;
-      setMetroInfo({ id: near.id, name: near.name });
+      setMetroInfo({ id: near.id, name: near.name, lat: near.lat, lng: near.lng, radiusKm: near.radiusKm });
       setLiveName(near.title);
       setToast(`ENTERING ${near.title.toUpperCase()}`);
       window.clearTimeout(toastTimer.current);
@@ -1111,6 +1111,7 @@ export default function App() {
           <section className="rm-panel" role="tabpanel">
             {tab === 'locations' && (
               <LocationsPanel
+                metro={metroInfo}
                 region={region} locations={locations} hidden={hidden} onToggleCategory={toggleCategory} selectedId={selectedId} visited={shownVisited} cleared={account.cleared}
                 onSelect={(id) => { setSelectedId(id); sound('select'); }}
               />

@@ -21,7 +21,9 @@ import type { Region } from '../lib/google';
 
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
-export function LocationsPanel({ region, locations, hidden, onToggleCategory, selectedId, visited, cleared, onSelect }: {
+export function LocationsPanel({ metro, region, locations: everywhere, hidden, onToggleCategory, selectedId, visited, cleared, onSelect }: {
+  /** The metro under the map: the list is its places only, and changes as the map moves to another metro. */
+  metro?: { lat?: number; lng?: number; radiusKm?: number } | null;
   region: Region | null;
   locations: Location[];
   hidden: Set<CategoryId>;
@@ -32,13 +34,19 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
   cleared: Set<string>;
   onSelect: (id: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  // only the places of the metro the map is over (a metro looked at earlier stays loaded on the map, but not in this list)
+  const here = metro?.lat !== undefined && metro.lng !== undefined && metro.radiusKm ? { lat: metro.lat, lng: metro.lng, reach: (metro.radiusKm + 3) * 1000 } : null;
+  const locations = useMemo(() => (here ? everywhere.filter((l) => distanceMeters(here, l.position) <= here.reach) : everywhere), [everywhere, here?.lat, here?.lng, here?.reach]); // eslint-disable-line react-hooks/exhaustive-deps
+  // distances are from where the search landed when that is in this metro, otherwise from the metro's middle
+  const from = region && (!here || distanceMeters(here, region.center) <= here.reach) ? region.center : here;
   const rows = useMemo(() => {
-    if (!region) return [];
+    if (!from) return [];
     return locations
       .filter((l) => !hidden.has(l.category))
-      .map((l) => ({ l, d: distanceMeters(region.center, l.position) }))
+      .map((l) => ({ l, d: distanceMeters(from, l.position) }))
       .sort((a, b) => a.d - b.d);
-  }, [locations, hidden, region]);
+  }, [locations, hidden, from?.lat, from?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => {
     const m = new Map<CategoryId, number>();
@@ -75,7 +83,7 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
         ))}
       </div>
       <ul className="rm-list">
-        {rows.map(({ l, d }) => (
+        {(open ? rows : rows.slice(0, 10)).map(({ l, d }) => (
           <li key={l.id} ref={l.id === selectedId ? selectedRow : null}>
             <button type="button" className={`rm-row ${l.id === selectedId ? 'rm-row-selected' : ''}`} onClick={() => onSelect(l.id)}>
               <span className={`rm-row-icon${visited.has(l.id) ? ' rm-icon-filled' : ''}`} dangerouslySetInnerHTML={{ __html: iconHtmlFor(l.id, placeIcon(l.icon)) }} />
@@ -90,6 +98,11 @@ export function LocationsPanel({ region, locations, hidden, onToggleCategory, se
         ))}
         {rows.length === 0 && <li className="rm-empty">Nothing here. Turn a category back on.</li>}
       </ul>
+      {rows.length > 10 && (
+        <button type="button" className="rm-btn rm-btn-ghost rm-found-more" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          {open ? 'SHOW FEWER' : `SHOW ALL ${rows.length}`}
+        </button>
+      )}
     </div>
   );
 }
