@@ -1,3 +1,4 @@
+import { blastFiles, nextBlast, playBlast, preloadSfx, recordingSink } from '../lib/sfx';
 import ScrollRow from './ScrollRow';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { downloadImage, shareImage } from '../lib/usePaidRender';
@@ -298,7 +299,7 @@ function draw(
   ctx.restore();
 }
 
-export default function BlowApart({ beforeUrl, afterUrl, name, file, seed, seenId }: { beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string }) {
+export default function BlowApart({ sound = false, beforeUrl, afterUrl, name, file, seed, seenId }: { /** Sound effects are on. */ sound?: boolean; beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const images = useRef<{ before: HTMLImageElement; after: HTMLImageElement; plan: ReturnType<typeof plan>; sky: Sky; cloud: CanvasRenderingContext2D | null; width: number; height: number } | null>(null);
   const frame = useRef(0);
@@ -317,7 +318,7 @@ export default function BlowApart({ beforeUrl, afterUrl, name, file, seed, seenI
     setState('done');
   }, []);
 
-  const play = useCallback((onEnd?: () => void) => {
+  const play = useCallback((onEnd?: () => void, recordInto?: AudioNode) => {
     const el = canvas.current;
     const data = images.current;
     if (!el || !data) return;
@@ -325,6 +326,8 @@ export default function BlowApart({ beforeUrl, afterUrl, name, file, seed, seenI
     if (!ctx) return;
     cancelAnimationFrame(frame.current);
     setState('playing');
+    // the blast: one of four recorded ones, taking turns; the sound starts with the picture and its burst lands with the burst of light
+    if (sound || recordInto) playBlast(nextBlast(seed), { speakers: sound, record: recordInto });
     const started = performance.now();
     const step = (now: number) => {
       const t = clamp((now - started) / DURATION);
@@ -336,12 +339,13 @@ export default function BlowApart({ beforeUrl, afterUrl, name, file, seed, seenI
       }
     };
     frame.current = requestAnimationFrame(step);
-  }, [finish, seed]);
+  }, [finish, seed, sound]);
 
   // load both pictures; the first time this place is seen, play the blast, otherwise just show the finished picture
   useEffect(() => {
     let cancelled = false;
     setState('loading');
+    preloadSfx(blastFiles());
     Promise.all([load(beforeUrl), load(afterUrl)])
       .then(([before, after]) => {
         if (cancelled || !canvas.current) return;
@@ -377,7 +381,11 @@ export default function BlowApart({ beforeUrl, afterUrl, name, file, seed, seenI
     const mime = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m));
     if (!mime) return;
     setRecording(true);
-    const recorder = new MediaRecorder(el.captureStream(30), { mimeType: mime, videoBitsPerSecond: 6_000_000 });
+    // the video carries the blast's sound too
+    const sink = recordingSink();
+    const stream = el.captureStream(30);
+    if (sink) sink.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
+    const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6_000_000 });
     const parts: Blob[] = [];
     recorder.ondataavailable = (e) => { if (e.data.size > 0) parts.push(e.data); };
     recorder.onstop = () => {
@@ -386,7 +394,7 @@ export default function BlowApart({ beforeUrl, afterUrl, name, file, seed, seenI
     };
     recorder.start();
     // play it again from the start while recording, and stop a moment after the finish
-    play(() => setTimeout(() => recorder.stop(), 700));
+    play(() => setTimeout(() => recorder.stop(), 700), sink ?? undefined);
   };
 
   return (

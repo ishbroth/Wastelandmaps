@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { finishRaid, startRaid, useStimpak, type Account } from '../lib/account';
 import { loadRaidAssets, type RaidAssets } from '../lib/raid/assets';
 import { playSound } from '../lib/raid/audio';
+import { enemyFiles, hasVoice, playEnemy, preloadSfx } from '../lib/sfx';
 import { buzz } from '../lib/haptics';
 import { enemyById } from '../lib/raid/enemies';
 import { Game, MAX_HITS, type Enemy, type Spawns } from '../lib/raid/engine';
@@ -56,6 +57,8 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
   const [phase, setPhase] = useState<'loading' | 'fighting' | 'won' | 'lost' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [hud, setHud] = useState<Hud | null>(null);
+  // what each enemy was doing last frame, so a new strike or a death is heard once
+  const lastState = useRef(new Map<number, string>());
   const [wheelOpen, setWheelOpen] = useState(false);
   const [stims, setStims] = useState(account.stimpaks);
   const [healing, setHealing] = useState(false);
@@ -88,6 +91,7 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
     let last = performance.now();
 
     const start = async () => {
+      preloadSfx(enemyFiles());
       const ids = [...plan.enemies, ...(plan.boss ? [plan.boss] : [])];
       const [picture, art, started] = await Promise.all([
         loadImage(imageUrl),
@@ -130,7 +134,17 @@ export default function RaidScreen({ plan, placeId, imageUrl, spawns, account, s
       const hitsBefore = g.hits;
       g.update(dt);
       if (g.downed) setDowned(true);
-      if (g.killed > before) { playSound('kill', sound); buzz('kill'); }
+      // the creatures' own voices: a growl or squeal as one strikes, another as it dies (raiders and robots keep the shot and the crackle)
+      let voicedDeath = false;
+      for (const e of g.enemies) {
+        const was = lastState.current.get(e.id);
+        if (e.state !== was) {
+          lastState.current.set(e.id, e.state);
+          if (e.state === 'striking' && hasVoice(e.type.id)) playEnemy(e.type.id, 'strike', sound);
+          if (e.state === 'dying' && hasVoice(e.type.id)) { playEnemy(e.type.id, 'die', sound); voicedDeath = true; }
+        }
+      }
+      if (g.killed > before) { if (!voicedDeath) playSound('kill', sound); buzz('kill'); }
       if (g.hits > hitsBefore) { playSound('hurt', sound); buzz('hurt'); }
       if (pointer.current.down) shoot();
       draw(c, g, now / 1000);

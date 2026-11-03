@@ -1,0 +1,8 @@
+Sound effects in this folder are all CC0 1.0 (public domain dedication) from OpenGameArt.org. Credit is not required; it is given here anyway.
+blast-distant.mp3  "Muffled Distant Explosion" by NenadSimic  https://opengameart.org/content/muffled-distant-explosion
+blast-big.mp3      "Explosions" (explosion1) by EZduzziteh   https://opengameart.org/content/explosions-4
+blast-crack.mp3    "Explosions" (explosion3) by EZduzziteh   https://opengameart.org/content/explosions-4
+blast-charge.mp3   "Dynamite sound effect" by Listener        https://opengameart.org/content/dynamite-sound-effect
+big-*.mp3          "Monster Sound Effects Pack" (monster_sfx_pack) by Ogrebane  https://opengameart.org/content/monster-sound-effects-pack
+small-*.mp3        "Monster Sound Pack, Volume 1" (Monster-Sounds-Volume-2) by Ogrebane  https://opengameart.org/content/monster-sound-pack-volume-1
+Each page showed the CC0 license (creativecommons.org/publicdomain/zero/1.0/) when downloaded on 2026-11-02. The files were converted to mono MP3 and loudness-matched.
