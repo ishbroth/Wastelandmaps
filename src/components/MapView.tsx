@@ -58,6 +58,8 @@ const CITY_ZOOM = 9;
  * neighborhood level. Zooming back out takes them away again.
  */
 function minZoomFor(loc: Location, selectedId: string | null): number {
+  // vaults drop off the map 16 zoom steps out from the closest view (zoom 5 and below: continents), unless one is the place picked
+  if (loc.vault && !loc.personal?.home && loc.id !== selectedId) return 6;
   if (loc.personal?.home || freeRenderFor(loc.id) || loc.id === selectedId || (loc.personal && !loc.personal.saved)) return 0;
   if (loc.personal) return 11;
   if (loc.famous) return 6;
