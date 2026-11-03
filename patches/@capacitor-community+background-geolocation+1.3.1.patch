@@ -1,0 +1,62 @@
+diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
+index a92fcf9..483555f 100644
+--- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
++++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
+@@ -159,7 +159,8 @@ public class BackgroundGeolocation extends Plugin {
+         service.addWatcher(
+                 call.getCallbackId(),
+                 backgroundNotification,
+-                call.getFloat("distanceFilter", 0f)
++                call.getFloat("distanceFilter", 0f),
++                Boolean.TRUE.equals(call.getBoolean("lowPower", false))
+         );
+     }
+ 
+diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java
+index 2c5de94..0b58526 100644
+--- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java
++++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java
+@@ -86,15 +86,18 @@ public class BackgroundGeolocationService extends Service {
+         void addWatcher(
+                 final String id,
+                 Notification backgroundNotification,
+-                float distanceFilter
++                float distanceFilter,
++                boolean lowPower
+         ) {
+             FusedLocationProviderClient client = LocationServices.getFusedLocationProviderClient(
+                     BackgroundGeolocationService.this
+             );
+             LocationRequest locationRequest = new LocationRequest();
+-            locationRequest.setMaxWaitTime(1000);
+-            locationRequest.setInterval(1000);
+-            locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
++            // lowPower: a position every 15 seconds at most, from the balanced sources (Wi-Fi, cell towers, GPS only when it is cheap) instead of every second from the GPS chip
++            locationRequest.setMaxWaitTime(lowPower ? 30000 : 1000);
++            locationRequest.setInterval(lowPower ? 15000 : 1000);
++            locationRequest.setFastestInterval(lowPower ? 10000 : 1000);
++            locationRequest.setPriority(lowPower ? LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY : LocationRequest.PRIORITY_HIGH_ACCURACY);
+             locationRequest.setSmallestDisplacement(distanceFilter);
+ 
+             LocationCallback callback = new LocationCallback(){
+diff --git a/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift b/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift
+index d4a5965..2cd00fb 100644
+--- a/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift
++++ b/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift
+@@ -98,10 +98,13 @@ public class BackgroundGeolocation: CAPPlugin,
+                 .full,
+                 .charging
+             ].contains(UIDevice.current.batteryState)
++            let lowPower = call.getBool("lowPower") ?? false
+             manager.desiredAccuracy = (
+-                externalPower
+-                ? kCLLocationAccuracyBestForNavigation
+-                : kCLLocationAccuracyBest
++                lowPower
++                ? kCLLocationAccuracyHundredMeters
++                : (externalPower
++                    ? kCLLocationAccuracyBestForNavigation
++                    : kCLLocationAccuracyBest)
+             )
+             var distanceFilter = call.getDouble("distanceFilter")
+             // It appears that setting manager.distanceFilter to 0 can prevent

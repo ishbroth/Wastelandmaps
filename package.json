@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "postinstall": "patch-package",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "seo": "npx --yes esbuild _tools/build-seo.ts --bundle --platform=node --format=esm --define:import.meta.env={} --log-level=error --outfile=_data/build-seo.mjs && node _data/build-seo.mjs",
@@ -42,6 +43,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.89.0",
+    "patch-package": "^8.0.0",
     "sharp": "^0.35.5",
     "typescript": "~7.0.2",
     "vite": "^8.3.5"

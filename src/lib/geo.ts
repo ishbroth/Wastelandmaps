@@ -9,7 +9,7 @@ import { isNative } from './native';
 // notification on Android; the "location" background mode on iOS)
 interface BackgroundPlugin {
   addWatcher(
-    options: { backgroundTitle?: string; backgroundMessage?: string; requestPermissions?: boolean; stale?: boolean; distanceFilter?: number },
+    options: { backgroundTitle?: string; backgroundMessage?: string; requestPermissions?: boolean; stale?: boolean; distanceFilter?: number; /** (our patch of the plugin) a position to within a block or so, from Wi-Fi and cell towers, instead of the GPS chip running flat out */ lowPower?: boolean },
     callback: (location?: { latitude: number; longitude: number; accuracy: number }, error?: { code?: string; message?: string }) => void,
   ): Promise<string>;
   removeWatcher(options: { id: string }): Promise<void>;
@@ -41,7 +41,7 @@ const codeOf = (e: unknown): 1 | 2 | 3 => {
   return 2;
 };
 
-export interface GeoOptions { timeout?: number; maximumAge?: number; highAccuracy?: boolean; /** Keep watching with the phone locked or the app in the background (app only). */ background?: { title: string; message: string } }
+export interface GeoOptions { /** Save the battery: positions to within a block or so, less often (enough to discover places while the phone is in a pocket; not for turn-by-turn). */ lowPower?: boolean; timeout?: number; maximumAge?: number; highAccuracy?: boolean; /** Keep watching with the phone locked or the app in the background (app only). */ background?: { title: string; message: string } }
 
 /** Where the device is now (throws a GeoError). */
 export async function getFix(options: GeoOptions = {}): Promise<GeoFix> {
@@ -67,7 +67,7 @@ export async function getFix(options: GeoOptions = {}): Promise<GeoFix> {
 export async function watchFixes(onFix: (fix: GeoFix) => void, onError: (code: 1 | 2 | 3) => void, options: GeoOptions = {}): Promise<() => void> {
   if (isNative() && options.background) {
     const id = await BackgroundGeolocation.addWatcher(
-      { backgroundTitle: options.background.title, backgroundMessage: options.background.message, requestPermissions: true, stale: false, distanceFilter: 10 },
+      { backgroundTitle: options.background.title, backgroundMessage: options.background.message, requestPermissions: true, stale: false, distanceFilter: options.lowPower ? 40 : 10, lowPower: options.lowPower === true },
       (location, error) => {
         if (location) onFix({ lat: location.latitude, lng: location.longitude, accuracy: location.accuracy });
         else if (error) onError(error.code === 'NOT_AUTHORIZED' ? 1 : 2);

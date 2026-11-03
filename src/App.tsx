@@ -880,14 +880,20 @@ export default function App() {
     sound('arrive');
   }, [sound, recordFound]);
 
-  // auto-discover: while it is on, walking within about 120 m of a place fills it in on the map
+  // auto-discover: while it is on, walking within about 120 m of a place fills it in on the map. It listens gently (a block's accuracy, now and then, which saves
+  // the battery) except while navigating, which needs a position every second.
+  const navigating = !!nav;
   useEffect(() => {
     if (!tracking) return;
     let stop: (() => void) | null = null;
     let cancelled = false;
+    let lastWork = 0;
     void watchFixes(
       (pos) => {
         const here = { lat: pos.lat, lng: pos.lng };
+        // with the screen off, the map and the list of nearby places are looked at every ten seconds at most
+        if (document.hidden && !navRef.current && Date.now() - lastWork < 10_000) { fixRef.current = here; return; }
+        lastWork = Date.now();
         const moved = !fixRef.current || distanceMeters(fixRef.current, here) > 12;
         fixRef.current = here;
         if (moved) {
@@ -902,10 +908,10 @@ export default function App() {
       },
       // only a refusal turns it off: a moment without a signal (a tunnel, a bad fix) must not end the navigation
       (code) => { if (code === 1) { setTracking(false); setMessage('ERROR: LOCATION PERMISSION DENIED'); } },
-      { background: { title: 'WastelandMaps is exploring', message: 'Discovering places as you move. Turn AUTO-DISCOVER off to stop.' } },
+      { lowPower: !navigating, background: { title: 'WastelandMaps is exploring', message: 'Discovering places as you move. Turn AUTO-DISCOVER off to stop.' } },
     ).then((off) => { if (cancelled) off(); else stop = off; });
     return () => { cancelled = true; stop?.(); };
-  }, [tracking, markFound]);
+  }, [tracking, markFound, navigating]);
 
   const toggleTracking = () => {
     const next = !tracking;
