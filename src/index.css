@@ -704,3 +704,9 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-lightbox-x { position: absolute; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); width: 44px; height: 44px; font-size: 30px; line-height: 1; color: var(--ink); background: var(--panel); border: 2px solid var(--ink); border-radius: 50%; cursor: pointer; }
 /* turning the phone must not leave the page enlarged (iOS grows the text of a page turned sideways) */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* the share icon beside the map's title */
+.rm-poster-title { display: flex; align-items: center; gap: 10px; }
+.rm-poster-share { pointer-events: auto; flex: none; width: 28px; height: 28px; padding: 3px; display: grid; place-items: center; color: var(--ink); background: transparent; border: 1px solid var(--ink); border-radius: 4px; cursor: pointer; }
+.rm-poster-share svg { width: 100%; height: 100%; }
+.rm-poster-share:hover { background: var(--ink); color: var(--on-ink); }

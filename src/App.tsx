@@ -27,7 +27,7 @@ import { loadFlood, type FloodPatch } from './lib/flood';
 import { loadZones, zoneFromEntry } from './lib/zones';
 import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORTH_AMERICA, type RegionLabel } from './lib/regions';
 import { LOOKS, type LookId } from './lib/looks';
-import { readShareState } from './lib/share';
+import { readShareState, shareMapView } from './lib/share';
 import { beep, type BeepKind } from './lib/sound';
 import { buzz } from './lib/haptics';
 import { START_MINUTES, type TravelRun } from './lib/travel';
@@ -534,7 +534,9 @@ export default function App() {
     }
   }, [show]);
 
+  const viewNow = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
   const onViewport = useCallback((center: LatLng, zoom: number) => {
+    viewNow.current = { lat: center.lat, lng: center.lng, zoom };
     window.clearTimeout(viewTimer.current);
     viewTimer.current = window.setTimeout(() => {
       if (travelRef.current || busyRef.current) return;
@@ -607,6 +609,13 @@ export default function App() {
       setStartView({ kind: 'bounds', bounds: (regions && countryBounds(regions, deviceCountry())) || NORTH_AMERICA });
     })();
   }, [status, account, show]);
+
+  const shareMap = useCallback(async () => {
+    const view = viewNow.current ?? undefined;
+    const result = await shareMapView({ query: view && view.zoom >= 9 ? '' : query, look, view });
+    if (result === 'failed') return;
+    if (result === 'copied') { setToast('LINK COPIED'); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 3000); }
+  }, [query, look]);
 
   const search = useCallback((q: string) => show(() => geocodeQuery(q), q), [show]);
 
@@ -737,7 +746,14 @@ export default function App() {
       .then(() => {
         if (cancelled) return;
         setStatus('ready');
-        if (initial.query) {
+        if (initial.view && !initial.query) {
+          // a link shared from the map opens at exactly that view
+          started.current = true;
+          const center = { lat: initial.view.lat, lng: initial.view.lng };
+          window.history.replaceState(null, '', window.location.pathname);
+          setStartView({ kind: 'view', center, zoom: initial.view.zoom });
+          if (initial.view.zoom >= 9) void show(async () => ({ ...(await geocodeLatLng(center)), keepView: true }), 'the shared view');
+        } else if (initial.query) {
           started.current = true;
           // a shared link opens its place once; the address bar goes back to plain so a reload does not snap back to it
           window.history.replaceState(null, '', window.location.pathname);
@@ -998,7 +1014,7 @@ export default function App() {
 
       <main className="rm-device">
         <div className="rm-screen">
-          {(wasteland || zoomName) && <div className="rm-poster-title" key={zoomName ?? (liveName || wasteland?.regionName)} aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}{!zoomName && account.session && metroInfo && account.metrosCleared.has(metroInfo.id) && <small className="rm-poster-cleared">[CLEARED]</small>}</div>}
+          {(wasteland || zoomName) && <div className="rm-poster-title" key={zoomName ?? (liveName || wasteland?.regionName)}><span aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}{!zoomName && account.session && metroInfo && account.metrosCleared.has(metroInfo.id) && <small className="rm-poster-cleared">[CLEARED]</small>}</span><button type="button" className="rm-poster-share" onClick={() => void shareMap()} aria-label="Share this view of the map" title="Share this view of the map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></button></div>}
           {status === 'ready' ? (
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
