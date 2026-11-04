@@ -138,7 +138,7 @@ await sharp('resources/splash.png').toFile('resources/splash-dark.png');
 console.log('resources written');
 
 // the website's icons, the same picture: the browser tab, the home-screen shortcut and the web manifest
-const flat = iconArt(false).replace(' filter="url(#g)"', '').replace('<g filter="url(#g)">', '<g>');
+const flat = iconArt(true).replace(' filter="url(#g)"', '').replace('<g filter="url(#g)">', '<g>').replace('<rect width="1024" height="1024" fill="url(#sky)"/>', '<rect width="1024" height="1024" rx="190" fill="#04170c"/><rect x="26" y="26" width="972" height="972" rx="166" fill="none" stroke="#1f9a52" stroke-width="14"/>');
 fs.writeFileSync('public/favicon.svg', flat);
 await png(iconArt(true), 180).toFile('public/apple-touch-icon.png');
 await png(iconArt(true), 192).toFile('public/icon-192.png');
