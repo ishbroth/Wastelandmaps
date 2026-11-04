@@ -70,10 +70,7 @@ html[data-look='parchment'] .rm-title h1 { color: #f0e4bf; }
 html[data-look='parchment'] .rm-title h1 span { color: #d9b36a; }
 .rm-title p { margin: 0; color: var(--ink-dim); font-size: 14px; letter-spacing: 1px; }
 html[data-look='parchment'] .rm-title p { color: #c8aa6c; }
-.rm-title-mark { width: 30px; height: 30px; border: 2px solid var(--ink); border-radius: 50%; align-self: center; box-shadow: 0 0 10px var(--glow), inset 0 0 8px var(--glow); position: relative; }
-.rm-title-mark::after { content: ''; position: absolute; inset: 7px; border: 2px solid var(--ink); border-radius: 50%; }
-html[data-look='parchment'] .rm-title-mark { border-color: #f0e4bf; }
-html[data-look='parchment'] .rm-title-mark::after { border-color: #f0e4bf; }
+.rm-title-mark { width: 38px; height: 38px; align-self: center; border-radius: 9px; box-shadow: 0 0 10px var(--glow); display: block; }
 
 .rm-looks { display: inline-flex; border: 2px solid var(--line); border-radius: 8px; overflow: hidden; }
 .rm-looks button { background: transparent; color: var(--ink-dim); border: none; padding: 8px 16px; font: inherit; font-family: var(--font-display); font-size: 21px; letter-spacing: 2px; cursor: pointer; }
@@ -657,8 +654,7 @@ a.rm-btn { text-decoration: none; display: inline-block; }
   .rm-title { gap: 8px; flex-wrap: nowrap; }
   .rm-title h1 { font-size: 24px; letter-spacing: 2px; text-shadow: 0 0 8px var(--glow); }
   .rm-title p { display: none; }
-  .rm-title-mark { width: 20px; height: 20px; }
-  .rm-title-mark::after { inset: 4px; }
+  .rm-title-mark { width: 26px; height: 26px; border-radius: 6px; }
   .rm-looks { border-width: 1px; border-radius: 6px; }
   .rm-looks button { padding: 2px 9px; font-size: 15px; letter-spacing: 1px; }
   .rm-account-btn { padding: 3px 8px; font-size: 12px; letter-spacing: 1px; }

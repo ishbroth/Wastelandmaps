@@ -205,7 +205,7 @@ const NICKNAMES: Record<string, string> = {
   'dubai|ae': 'Dubai Dust Fields',
   // Africa and the Americas
   'johannesburg|za': 'Jo\'Burn',
-  'cape town|za': 'Cape Town Down',
+  'cape town|za': 'Cape-Down',
   'buenos aires|ar': 'Buenos Ashes',
   'cairo|eg': 'Old Cairo Ruins',
   'lagos|ng': 'Lagos Embattlement',

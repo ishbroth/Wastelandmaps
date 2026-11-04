@@ -25,16 +25,18 @@ interface RegionsFile { countries: CountryData[]; states: StateData[] }
 const SUPER: Record<string, { name: string; at: LatLng }> = {
   frontier: { name: 'The Nuclear Frontier', at: { lat: 46, lng: -100 } },
   unfrozen: { name: 'The Unfrozen Lands', at: { lat: 70, lng: -42 } },
-  dustlands: { name: 'La Tierra Quemada', at: { lat: 19, lng: -92 } },
-  amazon: { name: 'The Burnt Amazon', at: { lat: -4, lng: -60 } },
-  cone: { name: 'Tierra del Fuego', at: { lat: -41, lng: -66 } },
-  oldworld: { name: 'The Old Continent', at: { lat: 49, lng: 15 } },
+  dustlands: { name: 'El Istmo', at: { lat: 19, lng: -92 } },
+  amazon: { name: 'The Amazon Ashes', at: { lat: -4, lng: -60 } },
+  cone: { name: 'Pata-gone-ia', at: { lat: -41, lng: -66 } },
+  oldworld: { name: 'The European Commonwealth', at: { lat: 49, lng: 15 } },
   cold: { name: 'The Köldlands', at: { lat: 63, lng: 33 } },
   sands: { name: 'The Sands', at: { lat: 26, lng: 22 } },
-  congo: { name: 'The Burnt Congo', at: { lat: -8, lng: 24 } },
+  congo: { name: 'The Cooked Congo', at: { lat: -8, lng: 24 } },
   subcontinent: { name: 'The Subcontinent', at: { lat: 22, lng: 79 } },
   east: { name: 'The Eastern Wastes', at: { lat: 38, lng: 102 } },
-  under: { name: 'The Underlands', at: { lat: -25, lng: 134 } },
+  under: { name: 'The Outback', at: { lat: -25, lng: 134 } },
+  alaska: { name: 'Greater Alaska', at: { lat: 66, lng: -172 } },
+  ring: { name: 'The Ring of Fire', at: { lat: 0, lng: 128 } },
 };
 const SET = (list: string) => list.split(' ');
 const REGION_OF: Record<string, string> = {};
@@ -48,28 +50,31 @@ assign('cold', 'SE NO FI DK IS EE LV LT');
 assign('sands', 'MA DZ TN LY EG EH MR ML NE TD SD ER DJ SO ET IR IQ SY LB IL PS JO SA YE OM AE QA KW TR CY');
 assign('congo', 'NG GH TG BJ CI GN SL LR GM GW SN BF CM GQ GA CG CD CF SS UG KE RW BI TZ AO ZM MW MZ ZW BW NA ZA LS SZ MG');
 assign('subcontinent', 'IN');
-assign('east', 'CN JP KR KP MN KZ UZ TM KG TJ AF PK BD NP BT LK MM TH LA KH VN MY BN ID PH TL TW GE AM AZ');
-assign('under', 'AU NZ PG FJ VU NC SB');
+assign('east', 'CN JP KR KP MN KZ UZ TM KG TJ AF PK BD NP BT LK MM TH LA KH VN MY BN ID TW GE AM AZ');
+assign('under', 'AU NZ FJ VU NC SB');
+assign('ring', 'PH PG TL');
 
 /** Which division of the wasteland a point is in. A few countries are split: Greenland and the Canadian Arctic, and Russia either side of the Urals. */
 function superOf(iso: string, p: LatLng, continent: string): string {
   if (iso === 'CA' && (p.lat >= 66 || (p.lat >= 62 && p.lng >= -90 && p.lng <= -60))) return 'unfrozen';
-  if (iso === 'RU') return p.lng >= 60 ? 'east' : 'oldworld';
+  if (iso === 'RU') return p.lng >= 140 ? 'alaska' : p.lng >= 60 ? 'east' : 'oldworld';
+  if (iso === 'US' && p.lat >= 50 && (p.lng <= -129 || p.lng >= 170)) return 'alaska'; // Alaska, Aleutians included
+  if (iso === 'ID' && p.lng >= 120) return 'ring'; // Sulawesi east to Papua
   if (REGION_OF[iso]) return REGION_OF[iso];
   return continent === 'Europe' ? 'oldworld' : continent === 'Asia' ? 'east' : continent === 'Africa' ? 'congo' : continent === 'Oceania' ? 'under' : 'frontier';
 }
 
 /** Countries with a name of their own. */
 const COUNTRY_NAMES: Record<string, string> = {
-  US: 'The Commonwealths of America', CA: 'The Great White Wasteland', MX: 'The United Mexican States', BR: 'The Burnt Amazon', AR: 'The Pampas Ashes', CL: 'The Long Scorched Strip',
-  PE: 'Peruvian Ruins', CO: 'Bogo-Boom Country', VE: 'The Dry Delta', CU: 'The Last Cigar', UY: 'Burntuguay', DO: 'Dominican Reclamation Zone', HT: 'The Haitian Refuge',
+  US: 'The Commonwealths of America', CA: 'The Great White Wasteland', MX: 'The United Mexican States', BR: 'The Amazon Ashes', AR: 'The Pampas Ashes', CL: 'The Long Scorched Strip',
+  PE: 'Pe-ruined', CO: 'Col-bombia', VE: 'Ground Vene-zero', CU: 'The Big Cigar', EC: 'Ecuadorian Refuge Colony', BS: 'The Bahama Flood Zone', TT: 'The Trinidadian Flood Zone', TW: 'Tai-bombed', KH: 'Cam-blow-dia', LK: 'The Sri Lanka Refuge Colony', UY: 'Burntuguay', DO: 'Dominican Reclamation Zone', HT: 'The Haitian Refuge',
   GB: 'The British Ex-pire', IE: 'The Emerald Embers', FR: 'Zone des Frites', DE: 'Deutschland Dust', ES: 'The Rainy Plains', PT: 'Portu-Gone', IT: 'New Roman Republic', CH: 'The Neutral Crater',
   AT: 'The Alpine Ashes', NL: 'The Drowned Lowlands', BE: 'The Waffle Wastes', PL: 'The Polish Pits', SE: 'The Swedish Cinders', NO: 'Fallout Fjords', FI: 'The Frozen Thousand Lakes',
-  DK: 'The Danish Dead Zone', GR: 'The Classical Ruins', TR: 'The Burning Bridge', RU: 'The Ironed Curtain', BY: 'The Pale Plains', RO: 'The Carpathian Cinders',
+  DK: 'The Danish Dead Zone', GR: 'The Classical Ruins', TR: 'Smoked Turkey', RU: 'The Ironed Curtain', BY: 'The Pale Plains', RO: 'The Carpathian Cinders',
   CN: 'The Red Wastes', JP: 'Jablam', KR: 'South Krater', KP: 'North Krater', IN: 'The Subcontinent', PK: 'The Indus Cinders', ID: 'The Ring of Fire Islands', TH: 'Bye-Land',
-  VN: 'The Delta Dead Zone', PH: 'The Thousand Burning Isles', IR: 'The Persian Dust', SA: 'The Oil-Slick Sands', EG: 'The Dusty Dynasty', ZA: 'The Scorched Cape', NG: 'The Niger Nuke Zone',
-  KE: 'The Savanna Scorch', ET: 'The Highland Husk', AU: 'The Radioactive Outback', NZ: 'Z-Land', KZ: 'The Great Steppe Scar', MN: 'The Empty Steppe',
-  CD: 'The Burnt Congo', CG: 'The Burnt Congo Basin', MG: 'The Red Island Ruins', GL: 'The Frozen Ice Waste', IS: 'The Ash Isle',
+  VN: 'The Delta Dead Zone', PH: 'The Thousand Burning Isles', IR: 'The Persian Dust', SA: 'The Great Oil-Slick', EG: 'The Dusty Dynasty', ZA: 'The Scorched Cape', NG: 'The Niger Nuke Zone',
+  KE: 'The Savanna Scorch', ET: 'The Highland Husk', AU: 'The Outback', NZ: 'Z-Land', KZ: 'The Great Steppe Scar', MN: 'The Empty Steppe',
+  CD: 'The Cooked Congo', CG: 'The Cooked Congo Basin', MG: 'The Red Island Ruins', GL: 'The Frozen Ice Waste', IS: 'The Ash Isle',
 };
 
 // Neighbors share a style, so a run of countries along a coast reads as one stretch of country: "(Condemned)", "Fallout Zone", "Scrap Belt"...
