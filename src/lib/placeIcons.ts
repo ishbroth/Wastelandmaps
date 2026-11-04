@@ -10,6 +10,7 @@ type BaseIconId =
   | 'anchor' | 'stadium' | 'tree' | 'shield' | 'capitol' | 'castle' | 'bed' | 'vault' | 'homevault' | 'tower' | 'monument' | 'arch'
   | 'book' | 'beaker' | 'houses' | 'skyscraper' | 'statue' | 'ringart' | 'flag' | 'column' | 'railcross' | 'tram' | 'mosque' | 'cathedral' | 'temple' | 'badge' | 'firebadge' | 'fork' | 'cart' | 'theatre' | 'leafytree' | 'fountain'
   | 'factory' | 'apartment' | 'trailer'
+  | 'radiotower' | 'lighthouse' | 'gasmask' | 'tractor' | 'cannon' | 'bus' | 'tent' | 'observatory' | 'lifebuoy' | 'ruins' | 'ship' | 'pinetree'
   | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
 
 /** The world-famous buildings and monuments, drawn as themselves (famousIcons.ts). */
@@ -81,13 +82,13 @@ const ICONS: Record<BaseIconId, string> = {
   hospital: svg(f('M12 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19Z') + d('M12 6.8v10.4M6.8 12h10.4')),
   plane: svg(f('M12 2c.9 0 1.6.7 1.6 1.6V9l8 4.9v2L13.6 14v4.2l2.1 1.6V22L12 21l-3.7 1v-2.2l2.1-1.6V14l-8 1.9v-2L10.4 9V3.6C10.4 2.7 11.1 2 12 2Z')),
   subway: svg(f('M6 3h12a2 2 0 0 1 2 2v11a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5a2 2 0 0 1 2-2Z') + d('M7 6.8h10v5.4H7Z') + d('M8.5 15.6h.01M15.5 15.6h.01') + s('M7.5 19.3 5.5 22M16.5 19.3l2 2.7')),
-  bridge: svg(f('M2 12.5h20v2.3H2Z') + f('M6 5h2v8H6ZM16 5h2v8h-2Z') + s('M2 12.5C5 12.5 6.6 9 7 5.5M7 5.5c1 4 2.5 7 5 7s4-3 5-7M17 5.5c.4 3.5 2 7 5 7') + s('M7 14.8V20M17 14.8V20')),
+  bridge: svg(f('M2 14h20v2.6H2Z') + f('M3.4 7.4h17.2v2.2H3.4Z') + d('M5.4 14l2.5-4.4 2.6 4.4 2.5-4.4 2.6 4.4 2.5-4.4') + f('M3 16.6h2.2V21H3ZM18.8 16.6H21V21h-2.2Z')),
   anchor: svg(f('M12 3a2.2 2.2 0 1 0 0 4.4A2.2 2.2 0 0 0 12 3Z') + s('M12 7.4V21M7.5 12h9M4.5 15c.2 3.3 3.2 6 7.5 6s7.3-2.7 7.5-6')),
   stadium: svg(f('M12 5.5c5.2 0 9.5 2.9 9.5 6.5s-4.3 6.5-9.5 6.5S2.5 15.6 2.5 12 6.8 5.5 12 5.5Z') + d('M12 9.3c2.8 0 5 1.2 5 2.7s-2.2 2.7-5 2.7-5-1.2-5-2.7 2.2-2.7 5-2.7Z')),
-  tree: svg(f('M12 3 5.5 12h3L5 17h14l-3.5-5h3L12 3Z') + s('M12 17v4')),
+  tree: svg(f('M12 2.8 5.6 12h3.2L4.8 17.4h14.4L15.2 12h3.2Z') + f('M10.8 17.4h2.4v4h-2.4Z')),
   shield: svg(f('M12 2.8 4.5 5.6v6c0 4.4 3 7.8 7.5 9.6 4.5-1.8 7.5-5.2 7.5-9.6v-6L12 2.8Z') + d('m9 11.8 2.2 2.2 4.2-4.4')),
   capitol: svg(f('M6 20v-7h12v7Z') + f('M7.4 13a4.6 4.6 0 0 1 9.2 0Z') + s('M12 8.4V4M4 21h16') + d('M9 15v3.4M12 15v3.4M15 15v3.4')),
-  castle: svg(f('M4 21V6h4v3h2V6h4v3h2V6h4v15Z') + d('M10 21v-4.5a2 2 0 0 1 4 0V21M6 12.5h.01M18 12.5h.01')),
+  castle: svg(f('M3.6 21V5.4h3.6v2.4h1.8V5.4h3v2.4h1.8V5.4H18v2.4h1.8V5.4H20.4V21Z') + d('M10 21v-4.4a2 2 0 0 1 4 0V21') + d('M6 11.4h.01M18 11.4h.01')),
   bed: svg(f('M3 13h18v5H3Z') + f('M5.3 9a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6Z') + s('M3 18V6.5M21 13a3 3 0 0 0-3-3h-8v3')),
   vault: svg(cog),
   tower: svg(f('M10.8 21 11.4 11.5h1.2l.6 9.5Z') + f('M7.5 9.6c0-1.2 2-2.1 4.5-2.1s4.5.9 4.5 2.1-2 2.1-4.5 2.1-4.5-.9-4.5-2.1Z') + s('M12 7.5V2.5')),
@@ -96,6 +97,18 @@ const ICONS: Record<BaseIconId, string> = {
   factory: svg(f('M2.6 21V11.6l5.6 3.4v-3.4l5.6 3.4v-3.4l5.6 3.4V5.4h3V21Z') + d('M5.6 17.6h2M10.6 17.6h2M15.6 17.6h2M20.4 8.4v.01') + s('M19.2 4V2.6')),
   apartment: svg(f('M4.8 21V3.6h14.4V21Z') + d('M8.2 7.4h2.4M13.4 7.4h2.4M8.2 11h2.4M13.4 11h2.4M8.2 14.6h2.4M13.4 14.6h2.4') + d('M10.4 21v-3.4h3.2V21')),
   trailer: svg(f('M1.8 17V8.4a1.4 1.4 0 0 1 1.4-1.4h11.4c2.6 0 5.2 3.4 5.8 5.4l1.2.4V17Z') + d('M5 9.6h4.2v3.2H5ZM11.8 9.6h2.6l2 3.2h-4.6Z') + f('M7 17.6a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM16.6 17.6a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z')),
+  radiotower: svg(f('M12 5 8.2 21h2.2l.6-2.6h2l.6 2.6h2.2Z') + d('M10 15.4h4M10.8 11.6h2.4') + s('M12 5V2.6') + s('M7.4 6.6a6 6 0 0 1 0-4.8M16.6 1.8a6 6 0 0 1 0 4.8')),
+  lighthouse: svg(f('M9.6 21 10.6 8.4h2.8l1 12.6Z') + f('M9.2 8.4h5.6V6.6H9.2Z') + f('M10.4 6.6V4.6L12 3l1.6 1.6v2Z') + f('M7.4 21h9.2v1.4H7.4Z') + d('M10.2 13h3.6M9.9 17h4.2') + s('M6.4 5.2H8.4M15.6 5.2h2')),
+  gasmask: svg(f('M12 3C8 3 5.5 6 5.5 10.2c0 3.2 1.6 5 3 6.2V19h7v-2.6c1.4-1.2 3-3 3-6.2C18.5 6 16 3 12 3Z') + d('M8.1 9.8a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM11.9 9.8a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z') + f('M9.8 19v2.8h4.4V19Z') + d('M10.4 14.6h3.2')),
+  tractor: svg(f('M2.8 11.4h13.4v5.2H2.8Z') + f('M8.4 5.4h5.8l2 6H8.4Z') + d('M10 7.4h3.4v3H10Z') + f('M6.6 13.4a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z') + f('M18.6 15.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8Z') + s('M16.2 13.6h2.4v2')),
+  cannon: svg(f('M2.6 10.4 14.6 6l1.9 4.6L5 15.2Z') + f('M14 12.6a4.2 4.2 0 1 0 0 8.4 4.2 4.2 0 0 0 0-8.4Z') + d('M14 14.4v4.8M11.6 16.8h4.8') + f('M19.4 17.4a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4Z')),
+  bus: svg(f('M3 6.4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2V17.4H3Z') + d('M5 7.4h5v3.6H5ZM11.6 7.4H19v3.6h-7.4Z') + d('M3 14.4h18') + f('M6.6 16.4a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM17.4 16.4a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z')),
+  tent: svg(f('M2.4 20.6 12 4.4l9.6 16.2Z') + d('M9.8 20.6 12 14.4l2.2 6.2') + s('M12 4.4V2.4')),
+  observatory: svg(f('M4.4 21v-8a7.6 7.6 0 0 1 15.2 0v8Z') + d('M11 5.6h2v8h-2Z') + d('M10.2 21v-3.6h3.6V21')),
+  lifebuoy: svg(f('M12 2.8a9.2 9.2 0 1 0 0 18.4 9.2 9.2 0 0 0 0-18.4Z') + d('M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z') + d('M5.6 5.6l3.6 3.6M18.4 5.6l-3.6 3.6M5.6 18.4l3.6-3.6M18.4 18.4l-3.6-3.6')),
+  ruins: svg(f('M3.4 21V12.2l2.2-1.6V8.4l2.2 1.2V6.4l2.2 1.4v3.4l1.8 1.1V9l2.4 1.5v2.7l1.8-.9V21Z') + d('M7.4 21v-3.4M13.4 21v-4.6')),
+  ship: svg(f('M2.4 14h19.2l-2.4 5.6H4.8Z') + f('M7 14V9.4h7.6V14Z') + f('M10 9.4V6.2h2.6v3.2') + d('M8.6 11.6h.01M11.3 11.6h.01M14 11.6h.01') + s('M3 22c2 0 2-1 4-1s2 1 4 1 2-1 4-1 2 1 4 1')),
+  pinetree: svg(f('M12 2.4 6.4 9.4h3L5.4 15h4.2l-3.6 4.6h12L14.4 15h4.2l-4-5.6h3Z') + f('M10.8 19.6h2.4v2.4h-2.4Z')),
   eiffel: svg(f('M12 2l1.3 6 2.2 6 3 7h-3.2l-1.3-3h-4l-1.3 3H5.5l3-7 2.2-6Z') + d('M10.6 8.3h2.8M9.3 13h5.4') + s('M10.2 17.5h3.6')),
   liberty: svg(f('M9 21l1-9.3h4L15 21Z') + f('M12 6.8a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8Z') + f('M7 21h10v-1.8H7Z') + s('M13.6 11.5 17 5M17 5l.8-2.4M10.3 6.8 9 5.5M12 5V3.3M13.7 6.8l1.1-1.3')),
   spaceneedle: svg(f('M6 7.2c0-1.1 2.7-2 6-2s6 .9 6 2-2.7 2-6 2-6-.9-6-2Z') + f('M10.7 9.2h2.6L12.8 21h-1.6Z') + s('M12 5.2V1.8M9 21l1.8-6M15 21l-1.8-6')),
@@ -149,7 +162,7 @@ const mix = (name: string, options: IconId[]): IconId => {
   return options[h % options.length];
 };
 /** Mostly subway cars; some stops get a railroad crossing, some a tram. */
-const transitIcon = (name: string): IconId => (/\b(?:tram|trolley|light rail|streetcar)\b/.test(name) ? 'tram' : mix(name, ['subway', 'subway', 'subway', 'railcross', 'tram', 'subway']));
+const transitIcon = (name: string): IconId => (/\b(?:tram|trolley|light rail|streetcar)\b/.test(name) ? 'tram' : mix(name, ['subway', 'bus', 'subway', 'railcross', 'tram', 'bus']));
 const churchIcon = (name: string): IconId =>
   /mosque|masjid|moschee|mezquita|moschea/.test(name) ? 'mosque'
   : /synagogue|temple|shrine|pagoda|gurdwara|mandir|\bwat\b|buddh|hindu|shinto/.test(name) ? 'temple'
@@ -184,16 +197,23 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (test(/\b(?:airport|airfield|aerodrome|airbase|air base|heliport|flughafen|a[eé]roport|aeropuerto|aeroporto)\b/, n)) return 'plane';
   if (test(/\bbridge\b|\bpont\b|br[uü]cke|\bponte\b|puente|viaduct/, n)) return 'bridge';
   if (test(/\btunnel\b|\bstation\b|\bgare\b|bahnhof|estaci[oó]n|stazione|\bmetro\b|subway|underground|\btram\b/, n) && category === 'transit') return transitIcon(n);
-  if (test(/\b(?:port|harbou?r|ferry|pier|dock|wharf|marina)\b/, n) && category === 'transit') return 'anchor';
+  if (test(/\b(?:port|harbou?r|ferry|pier|dock|wharf|marina)\b/, n) && category === 'transit') return mix(n, ['anchor', 'lifebuoy', 'ship']);
   if (test(/hospital|h[oô]pital|krankenhaus|ospedale|clinic|medical cent|infirmary|sanatorium/, n)) return 'hospital';
   if (test(/museum|mus[eé]e|museo|gallery|galerie|aquarium|planetarium/, n)) return 'museum';
   if (test(/library|biblioth[eè]que|biblioteca|bibliothek|archive/, n)) return 'book';
-  if (test(/\blab\b|laborator|research (?:center|centre|institute)|observatory|science (?:center|centre)/, n)) return 'beaker';
-  if (test(/castle|ch[aâ]teau|palace|palais|fortress|citadel|schloss|castello|alc[aá]zar|\bfort\b|barracks/, n)) return 'castle';
+  if (test(/observatory|planetarium|telescope|astronom/, n)) return 'observatory';
+  if (test(/chemical|hazmat|nuclear|reactor|power (?:plant|station)|refiner|waste|sewage|incinerat/, n)) return 'gasmask';
+  if (test(/factory|\bplant\b|\bmill\b|industrial|manufactur|foundry|brewery|\bworks\b/, n)) return 'factory';
+  if (test(/\bfarm\b|\branch\b|orchard|vineyard|agricult|\bbarn\b|dairy|stockyard|livestock/, n)) return 'tractor';
+  if (test(/\bruins?\b|abandoned|ancient|archaeolog|historic (?:site|district)|battlefield|\bold fort\b/, n)) return 'ruins';
+  if (test(/\blab\b|laborator|research (?:center|centre|institute)|science (?:center|centre)/, n)) return 'beaker';
+  if (test(/castle|ch[aâ]teau|palace|palais|fortress|citadel|schloss|castello|alc[aá]zar|\bfort\b|barracks/, n)) return /\bfort\b|barracks|fortress|citadel/.test(n) ? mix(n, ['castle', 'cannon']) : 'castle';
   if (test(/capitol|parliament|city hall|town hall|courthouse|court house|state house|senate|congress|assembly|rathaus|ayuntamiento|h[oô]tel de ville|\bcourt of\b/, n)) return 'capitol';
   if (test(/stadium|stade|stadion|estadio|arena|ballpark|coliseum|colosseum|speedway|racecourse|velodrome/, n)) return 'stadium';
   if (test(/cathedral|cath[eé]drale|church|chapel|basilica|abbey|mosque|synagogue|temple|kirche|chiesa|iglesia|[eé]glise|minster|monastery|meeting house|shrine|pagoda|mission/, n)) return churchIcon(n);
-  if (test(/(?:tv|radio|observation|television|telecom|water|cn) tower|needle|spire|lighthouse|campanile|belfry|\bmast\b/, n)) return 'tower';
+  if (test(/lighthouse|light station|beacon/, n)) return 'lighthouse';
+  if (test(/(?:tv|radio|television|telecom|transmitter|antenna)|\bmast\b/, n)) return 'radiotower';
+  if (test(/(?:observation|water|cn) tower|needle|spire|campanile|belfry/, n)) return 'tower';
   if (test(/fire (?:station|department|house|brigade)|firehouse|pompier|feuerwehr|bomberos/, n)) return 'firebadge';
   if (test(/police|precinct|sheriff|gendarmerie|polizei|polic[ií]a|\bjail\b|prison/, n)) return 'badge';
   if (test(/restaurant|diner|grill|bistro|brasserie|steak ?house|pizzeria|trattoria|caf[eé]\b|cafeteria|tavern|\bpub\b|oyster|deli\b|bakery|cantina|eatery/, n)) return 'fork';
@@ -206,10 +226,10 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (test(/tower|plaza|center|centre|building|skyscraper|complex|campus|financial|headquarters|\bplace\b|square|trade|exchange|bank|insurance/, n) && category !== 'park') return mix(n, ['cluster', 'skyscraper', 'cluster']);
   if (test(/monument|memorial|statue|obelisk|column|mus[eé]e en plein|sculpture/, n)) return mix(n, ['monument', 'column', 'flag', 'statue']);
 
-  if (category === 'park') return mix(n, ['tree', 'leafytree', 'fountain', 'leafytree']);
+  if (category === 'park') return test(/camp|trail|forest|wilderness|reserve/, n) ? mix(n, ['tent', 'pinetree', 'tree']) : mix(n, ['tree', 'leafytree', 'fountain', 'pinetree', 'leafytree']);
   if (category === 'cantina') return mix(n, ['smallbuilding', 'fork', 'fork']);
   if (category === 'market') return mix(n, ['smallbuilding', 'cart', 'cart']);
-  if (category === 'other') return mix(n, ['monument', 'column', 'flag', 'statue', 'ringart', 'skyscraper']);
+  if (category === 'other') return mix(n, ['monument', 'column', 'flag', 'statue', 'ringart', 'skyscraper', 'ruins', 'radiotower']);
   return CATEGORY_ICON[category];
 }
 

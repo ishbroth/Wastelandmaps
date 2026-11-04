@@ -5,7 +5,7 @@ import { placeIcon } from '../lib/placeIcons';
 import { landmarkIcon } from '../lib/landmarkIcons';
 import { freeRenderFor } from '../lib/renders';
 import { pointsFor } from '../lib/points';
-import type { Look } from '../lib/looks';
+import { stylesAt, type Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
 import { loadFlood, patchOutline, type FloodPatch } from '../lib/flood';
@@ -165,6 +165,8 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
   const pins = useRef(new Map<string, { handle: HtmlMarkerHandle; el: HTMLElement; position: google.maps.LatLngLiteral }>());
   const extras = useRef<{ handle?: HtmlMarkerHandle; circle?: google.maps.Circle; clouds?: google.maps.Polygon[] }[]>([]);
   const vault = useRef<{ el: HTMLElement; position: LatLng } | null>(null);
+  const farRoads = useRef(true);
+  const lookRef = useRef(look);
   const you = useRef<{ handle: HtmlMarkerHandle; el: HTMLElement } | null>(null);
   const onSelectRef = useRef(onSelect);
   const onArriveRef = useRef(onArrive);
@@ -191,7 +193,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
       gestureHandling: 'greedy',
       clickableIcons: false,
-      styles: look.mapStyles,
+      styles: stylesAt(look, WORLD_VIEW.zoom),
       backgroundColor: look.background,
       minZoom: 3,
     });
@@ -208,6 +210,8 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     if (import.meta.env.DEV) (window as unknown as { __wlmap?: google.maps.Map }).__wlmap = map; // for the browser checks in _tools
     const markClose = () => {
       const zoom = map.getZoom() ?? 0;
+      const far = zoom < 12;
+      if (far !== farRoads.current) { farRoads.current = far; map.setOptions({ styles: stylesAt(lookRef.current, zoom) }); }
       holder.current?.classList.toggle('rm-zoomed', zoom >= LABEL_ZOOM);
       // half size at city level, full size from three zoom steps closer
       holder.current?.style.setProperty('--pin-size', `${Math.round(Math.min(36, Math.max(18, 18 + (zoom - 11) * 6)))}px`);
@@ -240,7 +244,8 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
 
   // switching look restyles the map and recolors the overlays
   useEffect(() => {
-    mapRef.current?.setOptions({ styles: look.mapStyles, backgroundColor: look.background });
+    lookRef.current = look;
+    mapRef.current?.setOptions({ styles: stylesAt(look, mapRef.current.getZoom() ?? 12), backgroundColor: look.background });
   }, [look]);
 
   // a new city: fly there

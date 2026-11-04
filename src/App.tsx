@@ -21,7 +21,7 @@ import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { AccountPanel, LocationsPanel, SharePanel } from './components/Panels';
 import { geocodeLatLng, geocodeQuery, loadGoogle, type Region } from './lib/google';
-import { loadIndex, loadMetro, metroAt } from './lib/metros';
+import { dedupePlaces, loadIndex, loadMetro, metroAt } from './lib/metros';
 import { wastelandName } from './lib/lore';
 import { loadFlood, type FloodPatch } from './lib/flood';
 import { loadZones, zoneFromEntry } from './lib/zones';
@@ -527,7 +527,7 @@ export default function App() {
       if (fresh.length > 0) {
         setLocations((prev) => {
           const ids = new Set(prev.map((l) => l.id));
-          return [...prev, ...fresh.filter((l) => !ids.has(l.id))];
+          return dedupePlaces([...prev, ...fresh.filter((l) => !ids.has(l.id))]);
         });
         setMessage(`${fresh.length} NEW LOCATIONS PICKED UP ON THE RADIO`);
       }

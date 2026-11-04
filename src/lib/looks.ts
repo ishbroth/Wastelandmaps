@@ -25,13 +25,20 @@ const hide: google.maps.MapTypeStyle['stylers'] = [{ visibility: 'off' }];
 const pipboyStyles: google.maps.MapTypeStyle[] = [
   { elementType: 'geometry', stylers: [{ color: '#021308' }] },
   { elementType: 'labels', stylers: hide },
-  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#18c95f' }, { weight: 1 }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: hide },
+  { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ visibility: 'on' }, { color: '#18c95f' }, { weight: 1 }] },
+  { featureType: 'administrative.province', elementType: 'geometry.stroke', stylers: [{ visibility: 'on' }, { color: '#18c95f' }, { weight: 1 }] },
   { featureType: 'administrative.land_parcel', stylers: hide },
+  { featureType: 'administrative.neighborhood', stylers: hide },
+  { featureType: 'poi.park', elementType: 'geometry.stroke', stylers: hide },
+  { featureType: 'poi.government', stylers: hide },
   { featureType: 'poi', stylers: hide },
   { featureType: 'poi.park', elementType: 'geometry', stylers: [{ visibility: 'on' }, { color: '#04290f' }] },
   { featureType: 'landscape.man_made', elementType: 'geometry.fill', stylers: [{ color: '#06330f' }] },
   { featureType: 'landscape.man_made', elementType: 'geometry.stroke', stylers: [{ color: '#0f7a35' }, { weight: 0.6 }] },
-  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#021308' }] },
+  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#052d12' }] },
+  { featureType: 'landscape.natural.landcover', elementType: 'geometry', stylers: [{ color: '#052d12' }] },
+  { featureType: 'landscape.natural.terrain', elementType: 'geometry', stylers: [{ color: '#052d12' }] },
   { featureType: 'road', elementType: 'geometry.fill', stylers: [{ color: '#0d6b2d' }] },
   { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#021308' }, { weight: 0.4 }] },
   { featureType: 'road.highway', elementType: 'geometry.fill', stylers: [{ color: '#1fe070' }] },
@@ -45,8 +52,13 @@ const pipboyStyles: google.maps.MapTypeStyle[] = [
 const parchmentStyles: google.maps.MapTypeStyle[] = [
   { elementType: 'geometry', stylers: [{ color: '#dfcb99' }] },
   { elementType: 'labels', stylers: hide },
-  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#7a5a2a' }, { weight: 1.2 }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: hide },
+  { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ visibility: 'on' }, { color: '#7a5a2a' }, { weight: 1.2 }] },
+  { featureType: 'administrative.province', elementType: 'geometry.stroke', stylers: [{ visibility: 'on' }, { color: '#7a5a2a' }, { weight: 1.2 }] },
   { featureType: 'administrative.land_parcel', stylers: hide },
+  { featureType: 'administrative.neighborhood', stylers: hide },
+  { featureType: 'poi.park', elementType: 'geometry.stroke', stylers: hide },
+  { featureType: 'poi.government', stylers: hide },
   { featureType: 'poi', stylers: hide },
   { featureType: 'poi.park', elementType: 'geometry', stylers: [{ visibility: 'on' }, { color: '#c3bf86' }] },
   { featureType: 'landscape.man_made', elementType: 'geometry.fill', stylers: [{ color: '#cdb780' }] },
@@ -72,3 +84,8 @@ export const LOOKS: Record<LookId, Look> = {
 };
 
 export const isLookId = (v: string | null): v is LookId => v === 'pipboy' || v === 'parchment';
+
+/** The map styles at a zoom: the middling roads (arterials) are only drawn from city level in, so a grid of them never shows from far out. */
+export function stylesAt(look: Look, zoom: number): google.maps.MapTypeStyle[] {
+  return zoom < 12 ? [...look.mapStyles, { featureType: 'road.arterial', stylers: [{ visibility: 'off' }] }] : look.mapStyles;
+}

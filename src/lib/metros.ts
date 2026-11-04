@@ -150,6 +150,38 @@ function withLoreSites(metro: MetroEntry, places: Location[]): Location[] {
   return places;
 }
 
+/** A name stripped of the words that only say "the general area", so "Mission Valley" and "Mission Valley District" read the same. */
+const stem = (name: string): string => name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ')
+  .replace(/\b(the|of|de|la|el|district|neighbou?rhood|area|historic|old|east|west|north|south|upper|lower|central|downtown|heights|hills|park|village|town|city|county|community|quarter|section|zone|region)\b/g, ' ')
+  .replace(/\s+/g, ' ').trim();
+
+/**
+ * Takes out places that are the same place named twice (a neighborhood and the mall of the same name, or the same area listed by two metros): the same name,
+ * close together (4 km for areas, 500 m for buildings). The more famous one stays; landmarks, vaults, story sites and personal places are never dropped.
+ */
+export function dedupePlaces(places: Location[]): Location[] {
+  const keep = (p: Location) => !!(p.famous || p.lore || p.vault || p.personal || freeLandmark(p.id));
+  const drop = new Set<number>();
+  const byStem = new Map<string, number[]>();
+  places.forEach((p, i) => {
+    const key = stem(p.oldName || p.name);
+    if (key.length < 3) return;
+    const list = byStem.get(key);
+    if (list) list.push(i); else byStem.set(key, [i]);
+  });
+  for (const list of byStem.values()) {
+    for (let a = 0; a < list.length; a++) for (let b = a + 1; b < list.length; b++) {
+      const x = places[list[a]], y = places[list[b]];
+      if (drop.has(list[a]) || drop.has(list[b])) continue;
+      const area = !!(x.neighborhood || y.neighborhood);
+      if (distanceMeters(x.position, y.position) > (area ? 4000 : 500)) continue;
+      const loser = keep(x) && !keep(y) ? list[b] : keep(y) && !keep(x) ? list[a] : keep(x) && keep(y) ? -1 : (x.fame ?? 0) >= (y.fame ?? 0) ? list[b] : list[a];
+      if (loser >= 0) drop.add(loser);
+    }
+  }
+  return drop.size ? places.filter((_, i) => !drop.has(i)) : places;
+}
+
 /** The places of one metro, as wasteland locations. */
 export function loadMetro(metro: MetroEntry): Promise<Location[]> {
   const id = metro.id;
@@ -160,7 +192,7 @@ export function loadMetro(metro: MetroEntry): Promise<Location[]> {
       .then((m) => m.places.map(([pid, name, lat, lng, category, fame, area]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0, area === 1)))
       .then((places) => places.filter((p) => !NOT_A_PLACE.test(p.oldName) && !HIDDEN_IDS.has(p.id)))
       .then(async (places) => withLocals(places, (await loadLocals())[metro.id] ?? []))
-      .then((places) => assignVaults(metro, withLoreSites(metro, withFamous(metro, withFreeLandmarks(metro, places)))))
+      .then((places) => dedupePlaces(assignVaults(metro, withLoreSites(metro, withFamous(metro, withFreeLandmarks(metro, places))))))
       .catch(() => [] as Location[]);
     loaded.set(id, hit);
   }
