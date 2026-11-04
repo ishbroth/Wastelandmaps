@@ -381,7 +381,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       if (shapes.has(key)) return;
       shapes.set(key, new google.maps.Polygon({
         map, paths: patchOutline(patch), clickable: false, zIndex: 2,
-        fillColor: look.floodFill, fillOpacity: 0.8, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // a little see-through: the main streets still show, faint, under the water
+        fillColor: look.floodFill, fillOpacity: 1, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // the same solid colour as the sea at every zoom, so flooded ground and open water match exactly
          // one color, no outline: it reads as the coast itself having moved
       }));
     });

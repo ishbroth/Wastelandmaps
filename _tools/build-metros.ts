@@ -242,8 +242,8 @@ const SELECTION_VERSION = 7;
 // ---- 4. choosing the places ----
 interface Place { id: string; name: string; lat: number; lng: number; category: string; sl: number; fame: number; station: boolean; neighborhood: boolean; gov: boolean; downtown: boolean }
 
-/** How many places a metro gets: about 5 per 100,000 people, never fewer than 4 and never more than 600 (the biggest metros would otherwise be huge files). */
-const wanted = (pop: number) => Math.min(600, Math.max(4, Math.round((pop / 100_000) * 4.95)));
+/** How many places a metro gets: about 5 per 100,000 people, never fewer than 4 and never more than 400 (the biggest metros would otherwise be huge files). */
+const wanted = (pop: number) => Math.min(400, Math.max(4, Math.round((pop / 100_000) * 4.95)));
 
 /** How the places of a metro are shared out among the kinds of place: landmarks, towers and neighborhoods first, shops and restaurants next. */
 const SHARE: Record<string, number> = { other: 0.27, arena: 0.12, guard: 0.09, market: 0.08, cantina: 0.08, park: 0.07, school: 0.06, medical: 0.06, lodging: 0.06, chapel: 0.05, transit: 0.025, fuel: 0.0 };
