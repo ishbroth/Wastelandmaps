@@ -713,3 +713,11 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* the zoom buttons sit above the status line under the map (it was covering the bottom of the minus button) */
 .rm-map .gm-bundled-control { margin-bottom: 44px !important; }
+
+/* the spinning vault cogwheel: shown wherever a picture is being developed, loaded or recorded */
+.rm-cog { display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin-right: 0.35em; animation: rm-cog-spin 1.6s linear infinite; filter: drop-shadow(0 0 4px var(--glow)); }
+.rm-cog-big { width: 64px; height: 64px; margin: 0; }
+@keyframes rm-cog-spin { to { transform: rotate(360deg); } }
+.rm-render-wrap { position: relative; }
+.rm-render-loading { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: color-mix(in srgb, var(--panel) 72%, transparent); color: var(--ink); font-family: var(--font-display); letter-spacing: 3px; font-size: 20px; text-shadow: 0 0 8px var(--glow); pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .rm-cog { animation-duration: 4s; } }

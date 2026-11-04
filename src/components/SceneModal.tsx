@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Caps from './Caps';
+import CogSpinner from './CogSpinner';
 import BuyCaps from './BuyCaps';
 import { accountsEnabled, caps, checkAddress, type Account } from '../lib/account';
 import { freeRenderFor } from '../lib/renders';
@@ -182,7 +183,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
                 : <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>}
               {paid.state.kind === 'error' && <p className="rm-account-note">{paid.state.message}</p>}
               {paid.state.kind === 'working' ? (
-                <button type="button" className="rm-btn" disabled>DEVELOPING… ABOUT 20 SECONDS</button>
+                <button type="button" className="rm-btn" disabled><CogSpinner /> DEVELOPING… ABOUT 20 SECONDS</button>
               ) : (
                 <button type="button" className="rm-btn" onClick={() => (!account.session ? onAccount() : (account.credits ?? 0) < cost ? setBuying(true) : void paid.run())}>{home ? 'BLOW UP MY HOME' : 'UNLOCK'} FOR <Caps n={account.session ? `${caps(cost)}/${caps(account.credits ?? 0).toLocaleString('en-US')}` : caps(cost)} /></button>
               )}

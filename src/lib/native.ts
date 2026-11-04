@@ -89,6 +89,9 @@ export function onAppUrl(callback: (url: string) => void): () => void {
   return () => { void handle.then((h) => h.remove()); };
 }
 
+/** How long the stand-by splash screen stays up at the least. */
+const SPLASH_MS = 2000;
+
 /** The app's first moments: a dark status bar that matches the map, and the splash screen goes away once the page is up. */
 export async function startNative(): Promise<void> {
   if (!isNative()) return;
@@ -96,5 +99,8 @@ export async function startNative(): Promise<void> {
     await StatusBar.setStyle({ style: Style.Dark });
     if (platform() === 'android') await StatusBar.setBackgroundColor({ color: '#000a04' });
   } catch { /* a status bar this device cannot change */ }
+  // the stand-by screen plays for two seconds from the moment the app starts, however fast the page was
+  const shown = typeof performance !== 'undefined' ? performance.now() : 0;
+  if (shown < SPLASH_MS) await new Promise((r) => window.setTimeout(r, SPLASH_MS - shown));
   try { await SplashScreen.hide({ fadeOutDuration: 250 }); } catch { /* already hidden */ }
 }

@@ -1,5 +1,6 @@
 import { blastFiles, nextBlast, playBlast, preloadSfx, recordingSink } from '../lib/sfx';
 import ScrollRow from './ScrollRow';
+import CogSpinner from './CogSpinner';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { downloadImage, shareImage } from '../lib/usePaidRender';
 import { saveBlob } from '../lib/native';
@@ -408,9 +409,12 @@ export default function BlowApart({ sound = false, beforeUrl, afterUrl, name, fi
 
   return (
     <>
+      <div className="rm-render-wrap">
       {state === 'plain'
         ? <img src={afterUrl} className="rm-modal-canvas rm-modal-render rm-tap-big" alt={`${name} in the wasteland`} onClick={() => setBig(true)} />
         : <canvas ref={canvas} className={`rm-modal-canvas rm-modal-render${state === 'done' ? ' rm-tap-big' : ''}`} onClick={() => { if (state === 'done') setBig(true); }} aria-label={`${name}: the photograph is hit by a bomb and torn apart to reveal it in the wasteland`} />}
+      {state === 'loading' && <div className="rm-render-loading" role="status"><CogSpinner big label="Loading the picture" /><span>LOADING…</span></div>}
+      </div>
       {big && (
         <div className="rm-lightbox" role="dialog" aria-label={`${name}, full size`} onClick={() => setBig(false)}>
           <img src={afterUrl} alt={`${name} in the wasteland`} />
@@ -422,7 +426,7 @@ export default function BlowApart({ sound = false, beforeUrl, afterUrl, name, fi
           {state !== 'plain' && <button type="button" className="rm-btn rm-btn-ghost" disabled={state !== 'done' || recording} onClick={() => play()}>REPLAY</button>}
           <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void downloadImage(afterUrl, file)}>SAVE IMAGE</button>
           {canRecord && state !== 'plain' && (
-            <button type="button" className="rm-btn rm-btn-ghost" disabled={state !== 'done' || recording} onClick={saveAnimation}>{recording ? 'RECORDING…' : 'SAVE VIDEO'}</button>
+            <button type="button" className="rm-btn rm-btn-ghost" disabled={state !== 'done' || recording} onClick={saveAnimation}>{recording ? <><CogSpinner /> RECORDING…</> : 'SAVE VIDEO'}</button>
           )}
           <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void shareImage(afterUrl, file, name)}>SHARE</button>
         </ScrollRow>
