@@ -707,6 +707,9 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* the share icon beside the map's title */
 .rm-poster-title { display: flex; align-items: center; gap: 10px; }
-.rm-poster-share { pointer-events: auto; flex: none; width: 28px; height: 28px; padding: 3px; display: grid; place-items: center; color: var(--ink); background: transparent; border: 1px solid var(--ink); border-radius: 4px; cursor: pointer; }
+.rm-poster-share { pointer-events: auto; flex: none; width: 22px; height: 22px; padding: 2px; display: grid; place-items: center; color: var(--ink); background: transparent; border: 1px solid var(--ink); border-radius: 4px; cursor: pointer; }
 .rm-poster-share svg { width: 100%; height: 100%; }
 .rm-poster-share:hover { background: var(--ink); color: var(--on-ink); }
+
+/* the zoom buttons sit above the status line under the map (it was covering the bottom of the minus button) */
+.rm-map .gm-bundled-control { margin-bottom: 44px !important; }

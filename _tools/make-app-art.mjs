@@ -82,12 +82,52 @@ function art(withBackground) {
 </svg>`;
 }
 
+/**
+ * The store icon: a whole vault-door cogwheel, glowing green on the Pip-Boy dark, with the re-centre arrow of a map app (the navigation arrow) in the middle of it.
+ * The splash screen keeps the skyline picture above.
+ */
+function iconArt(withBackground) {
+  const cx = 512, cy = 512;
+  // a chunky cog: twelve broad teeth
+  const teeth = 12, outer = 452, root = 384, step = (Math.PI * 2) / teeth;
+  let gear = '';
+  for (let i = 0; i < teeth; i++) {
+    for (const [turn, r] of [[-0.34, root], [-0.2, outer], [0.2, outer], [0.34, root]]) {
+      const t = i * step + turn * step - Math.PI / 2;
+      gear += (gear ? 'L' : 'M') + n(cx + Math.cos(t) * r) + ' ' + n(cy + Math.sin(t) * r);
+    }
+  }
+  gear += 'Z';
+  // the arrow: tip, right wing, notch, left wing; turned a quarter-turn-and-a-bit to point up and to the right, as the map apps draw it
+  const s2 = 205, tilt = (38 * Math.PI) / 180;
+  const raw = [[0, -1.0], [0.66, 0.9], [0, 0.46], [-0.66, 0.9]].map(([x, y]) => [x * s2 * Math.cos(tilt) - y * s2 * Math.sin(tilt), x * s2 * Math.sin(tilt) + y * s2 * Math.cos(tilt)]);
+  // centred on the cog by the middle of its outline
+  const midX = (Math.min(...raw.map((q) => q[0])) + Math.max(...raw.map((q) => q[0]))) / 2, midY = (Math.min(...raw.map((q) => q[1])) + Math.max(...raw.map((q) => q[1]))) / 2;
+  const pts = raw.map(([x, y]) => [n(cx + x - midX), n(cy + y - midY)]);
+  const arrow = 'M' + pts.map((q) => q.join(' ')).join('L') + 'Z';
+  const bolts = Array.from({ length: 12 }, (_, i) => {
+    const t = i * step - Math.PI / 2 + step / 2;
+    return '<circle cx="' + n(cx + Math.cos(t) * 352) + '" cy="' + n(cy + Math.sin(t) * 352) + '" r="13"/>';
+  }).join('');
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">'
+    + '<defs><filter id="g" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '<radialGradient id="sky" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#06301a"/><stop offset="1" stop-color="' + DARK + '"/></radialGradient></defs>'
+    + (withBackground ? '<rect width="1024" height="1024" fill="url(#sky)"/>' : '')
+    + '<g filter="url(#g)" fill="none" stroke="' + GREEN + '" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="' + gear + '" fill="#04170c" stroke-width="18"/>'
+    + '<circle cx="' + cx + '" cy="' + cy + '" r="318" stroke-width="10"/>'
+    + '<circle cx="' + cx + '" cy="' + cy + '" r="292" fill="#031208" stroke-width="5" opacity="0.8"/>'
+    + '<g fill="' + GREEN + '" stroke="none">' + bolts + '</g>'
+    + '<path d="' + arrow + '" fill="' + GREEN + '" stroke="' + GREEN + '" stroke-width="12"/>'
+    + '</g></svg>';
+}
+
 const png = (svg, size) => sharp(Buffer.from(svg)).resize(size, size).png();
 
 // the store icon: the whole picture, full square (the stores round the corners themselves)
-await png(art(true), 1024).toFile('resources/icon-only.png');
+await png(iconArt(true), 1024).toFile('resources/icon-only.png');
 // the adaptive Android icon: the picture inside the central safe zone on a transparent layer, over a plain dark layer
-const small = await png(art(false), 676).toBuffer();
+const small = await png(iconArt(false), 676).toBuffer();
 await sharp({ create: { width: 1024, height: 1024, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([{ input: small, gravity: 'center' }]).png().toFile('resources/icon-foreground.png');
 await sharp({ create: { width: 1024, height: 1024, channels: 4, background: DARK } }).png().toFile('resources/icon-background.png');
 // the splash: the picture in the middle of a big dark square (the tools crop it to every screen)
