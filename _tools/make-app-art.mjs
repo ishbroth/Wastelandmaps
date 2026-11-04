@@ -136,3 +136,12 @@ const splashArt = await png(art(true), 1100).toBuffer();
 await sharp({ create: { width: 2732, height: 2732, channels: 4, background: DARK } }).composite([{ input: splashArt, gravity: 'center' }]).png().toFile('resources/splash.png');
 await sharp('resources/splash.png').toFile('resources/splash-dark.png');
 console.log('resources written');
+
+// the website's icons, the same picture: the browser tab, the home-screen shortcut and the web manifest
+const flat = iconArt(false).replace(' filter="url(#g)"', '').replace('<g filter="url(#g)">', '<g>');
+fs.writeFileSync('public/favicon.svg', flat);
+await png(iconArt(true), 180).toFile('public/apple-touch-icon.png');
+await png(iconArt(true), 192).toFile('public/icon-192.png');
+await png(iconArt(true), 512).toFile('public/icon-512.png');
+await sharp(Buffer.from(flat)).resize(32, 32).png().toFile('public/favicon-32.png');
+console.log('web icons written');
