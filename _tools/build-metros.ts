@@ -237,13 +237,28 @@ async function fetchRows(metro: Metro, minSitelinks: number): Promise<Row[]> {
 }
 
 /** Bump when the rules for choosing places change, so the next run redoes every metro. */
-const SELECTION_VERSION = 7;
+const SELECTION_VERSION = 8;
 
 // ---- 4. choosing the places ----
 interface Place { id: string; name: string; lat: number; lng: number; category: string; sl: number; fame: number; station: boolean; neighborhood: boolean; gov: boolean; downtown: boolean }
 
-/** How many places a metro gets: about 5 per 100,000 people, never fewer than 4 and never more than 400 (the biggest metros would otherwise be huge files). */
-const wanted = (pop: number) => Math.min(400, Math.max(4, Math.round((pop / 100_000) * 4.95)));
+/**
+ * How many places a metro gets: more per head for small metros, fewer and fewer as they grow. Each step of population adds icons at its own rate per 100,000 people:
+ *   up to 1 million: 7 (so 100,000 people = 7 places), 1 to 2 million: 6, 2 to 3 million: 5, 3 to 5 million: 4, 5 to 8 million: 3, 8 to 12 million: 2, 12 to 15 million: 1, above that: 0.
+ * Never fewer than 4, never more than 400 (the biggest metros would otherwise be huge files); the 400 is reached at about 10.5 million people.
+ */
+const STEPS: [number, number][] = [[1_000_000, 7], [2_000_000, 6], [3_000_000, 5], [5_000_000, 4], [8_000_000, 3], [12_000_000, 2], [15_000_000, 1]];
+export function wantedPlaces(pop: number): number {
+  let total = 0;
+  let from = 0;
+  for (const [to, rate] of STEPS) {
+    if (pop <= from) break;
+    total += ((Math.min(pop, to) - from) / 100_000) * rate;
+    from = to;
+  }
+  return Math.min(400, Math.max(4, Math.round(total)));
+}
+const wanted = wantedPlaces;
 
 /** How the places of a metro are shared out among the kinds of place: landmarks, towers and neighborhoods first, shops and restaurants next. */
 const SHARE: Record<string, number> = { other: 0.27, arena: 0.12, guard: 0.09, market: 0.08, cantina: 0.08, park: 0.07, school: 0.06, medical: 0.06, lodging: 0.06, chapel: 0.05, transit: 0.025, fuel: 0.0 };
@@ -317,6 +332,11 @@ async function fetchDowntownRows(metro: Metro): Promise<Row[]> {
   return rows;
 }
 
+/** Metros that reach less far than the general rule gives: Los Angeles and Anaheim stop short of the Inland Empire (The Hub: the Ontario, Riverside and Highland metros). */
+const RADIUS_OVERRIDE: Record<string, number> = { 'us-ca-los-angeles': 46, 'us-ca-anaheim': 40 };
+/** Places east of this longitude belong to The Hub, not to the metro named. */
+const EXCLUDE_EAST: Record<string, number> = { 'us-ca-los-angeles': -117.75, 'us-ca-anaheim': -117.75 };
+
 /** Not wanted on any map (the Statue of Liberty National Monument is the same spot as the Statue of Liberty). */
 const DROPPED_ITEMS = new Set(['Q359939']);
 
@@ -333,14 +353,17 @@ function candidatesOf(metro: Metro, rows: Row[]): Place[] {
     if (/^Q\d+$/.test(row.label)) continue; // no readable name
     if (NOT_A_PLACE_NAME.test(row.label)) continue;
     if (distanceMeters(metro.city, row) / 1000 > metro.radiusKm) continue;
+    if (EXCLUDE_EAST[metro.id] !== undefined && row.lng > EXCLUDE_EAST[metro.id]) continue;
     if (countryAt(row.lat, row.lng) !== metro.city.country) continue; // a border ends a metro
-    const category = categoryOf(classes);
+    // the towns, suburbs and villages of the metro stand for the outer parts of it: a neighborhood-kind place away from the middle
+    const settlement = classes.some((l) => /^(city|town|village|borough|suburb|census-designated place|unincorporated community|hamlet)/i.test(l));
+    const category = categoryOf(classes) ?? (settlement && distanceMeters(metro.city, row) / 1000 > 3 ? 'other' : null);
     if (!category) continue;
     // mosques: in the Americas north of Mexico, Europe and Australasia only one in five is kept, to make room for other places
     if (TARGET.has(metro.city.country) && classes.some((l) => /mosque/i.test(l)) && hashString(row.item) % 5 !== 0) continue;
     // a station counts for much less than a bridge or an airport: every stop of a subway line is not a landmark
     const station = category === 'transit' && classes.some((l) => /station|stop|terminal|metro|subway|underground|tram|halt/i.test(l));
-    const neighborhood = category === 'other' && classes.some((l) => /neighbou?rhood|quarter|district|chinatown|little italy|village|borough|suburb/i.test(l));
+    const neighborhood = category === 'other' && (settlement || classes.some((l) => /neighbou?rhood|quarter|district|chinatown|little italy|village|borough|suburb/i.test(l)));
     const weight = (WEIGHT[category] ?? 1) * (station ? 0.5 : 1);
     const gov = (category === 'guard' || category === 'other') && (classes.some((l) => GOV.test(l)) || GOV.test(row.label)) && !classes.some((l) => /prison|jail|police|fire station|barracks|military|embassy|consulate/i.test(l));
     // downtown: within the middle of the metro, in the countries where the city centers are dense with things to see
@@ -356,7 +379,7 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
   const n = wanted(metro.pop);
   const all = candidatesOf(metro, rows.concat(await fetchExtraRows(metro), await fetchDowntownRows(metro)));
   // look at the best few times what is needed, and prefer the ones that have a photo to make a snapshot from
-  const pool = all.slice(0, Math.min(2600, n * 4 + 20));
+  const pool = all.slice(0, Math.min(2600, n * 6 + 40)); // a wider look, so the outer parts of a metro have candidates too
   // the government buildings are always looked at, whatever their rank
   const govs = all.filter((c) => c.gov).slice(0, 60);
   for (const g of govs) if (!pool.includes(g)) pool.push(g);
@@ -366,22 +389,34 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
 
   const area = Math.PI * Math.min(metro.radiusKm, 55) ** 2;
   const baseGap = 0.42 * Math.sqrt(area / n);
+  if (process.env.DEBUGZONES) { const zc = (list: Place[]) => [0, 0, 0].map((_, z) => list.filter((c) => { const d = distanceMeters(metro.city, c) / 1000; return (d <= Math.min(metro.radiusKm, 55) * 0.2 ? 0 : d <= Math.min(metro.radiusKm, 55) * 0.5 ? 1 : 2) === z; }).length).join('/'); console.log('candidates', all.length, zc(all), 'pool', pool.length, zc(pool), 'wanted', n); }
   const picked: Place[] = [];
   const count = (cat: string) => picked.filter((p) => p.category === cat).length;
   // stops of a line: about 3% of a metro's places, a little more only if the metro has hardly anything else to show
   let stationShare = 0.015;
   const stations = () => picked.filter((p) => p.station).length;
-  const neighborhoods = () => picked.filter((p) => p.neighborhood).length;
+  // the towns and suburbs of the outer parts have a count of their own, so they do not crowd out the neighborhoods nearer the middle (and the other way round)
+  const neighborhoods = (outer: boolean) => picked.filter((p) => p.neighborhood && (zoneOf(p) === 2) === outer).length;
   // downtown, places may stand closer together: the city centers are the densest part of the map
   const centerDist = (c: Place) => distanceMeters(metro.city, c) / 1000;
   const dense = TARGET.has(metro.city.country) ? Math.min(8, metro.radiusKm * 0.35) : 0;
-  const gapAt = (c: Place, gap: number) => (dense > 0 ? gap * (centerDist(c) <= dense ? 0.3 : centerDist(c) <= dense * 2 ? 0.6 : 1) : gap);
+  const gapAt = (c: Place, gap: number) => (dense > 0 ? gap * (centerDist(c) <= dense ? 0.45 : centerDist(c) <= dense * 2 ? 0.75 : 1) : gap);
   const room = (c: Place, gap: number) => picked.every((q) => distanceMeters(q, c) / 1000 >= gapAt(c, gap));
+  // the metro is shared out by distance from the middle: downtown stays the densest part, but a good share of the places is kept for the middle ring and the outer parts,
+  // so the map is not all downtown with a thin scatter beyond it
+  const reach = Math.min(metro.radiusKm, 55);
+  const zoneOf = (c: Place) => { const d = centerDist(c); return d <= reach * 0.2 ? 0 : d <= reach * 0.5 ? 1 : 2; };
+  const ZONE_SHARE = [0.3, 0.3, 0.4];
+  const zoneCount = (z: number) => picked.filter((p) => zoneOf(p) === z).length;
+  let zoneSlack = 1.1;
+  let onlyZone: number | null = null;
   const take = (c: Place, limit: number, gap: number, strict: boolean) => {
     if (picked.length >= n || picked.includes(c)) return false;
+    if (onlyZone !== null && zoneOf(c) !== onlyZone) return false;
+    if (n >= 12 && zoneSlack > 0 && zoneCount(zoneOf(c)) >= Math.ceil(n * ZONE_SHARE[zoneOf(c)] * zoneSlack)) return false;
     if (strict && count(c.category) >= Math.max(2, Math.ceil(n * (CAP[c.category] ?? 0.2)))) return false;
     if (c.station && stations() >= Math.max(2, Math.round(n * stationShare))) return false; // not every stop of a line
-    if (c.neighborhood && neighborhoods() >= Math.max(2, Math.round(n * (strict ? 0.12 : 0.18)))) return false;
+    if (c.neighborhood && neighborhoods(zoneOf(c) === 2) >= Math.max(2, Math.round(n * (strict ? 0.2 : 0.3)))) return false;
     if (count(c.category) >= limit) return false;
     if (!room(c, gap)) return false;
     picked.push(c);
@@ -399,6 +434,24 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
     govTaken++;
   }
 
+  // 0b. each part of the metro gets its share before the rest is filled in by rank: the outer parts first, so the best of downtown does not use up the places
+  // and leave the outskirts bare (downtown still gets the largest share per square kilometre by far)
+  if (n >= 12) {
+    for (const z of [2, 1, 0]) {
+      onlyZone = z;
+      zoneSlack = 0.85;
+      for (const gapFactor of [1, 0.65, 0.4]) {
+        for (const cat of Object.keys(SHARE)) {
+          const quota = Math.ceil(n * SHARE[cat]);
+          for (const c of pool) if (c.category === cat) take(c, quota, baseGap * gapFactor, true);
+        }
+      }
+      for (const gapFactor of [1, 0.65, 0.4]) for (const c of pool) take(c, n, baseGap * gapFactor, true);
+    }
+    onlyZone = null;
+    zoneSlack = 1.1;
+  }
+
   // 1. each kind of place gets its share, landmarks and towers first, spread out over the metro
   for (const gapFactor of [1, 0.65, 0.4]) {
     for (const cat of Object.keys(SHARE)) {
@@ -410,12 +463,14 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
   for (const gapFactor of [1, 0.65, 0.4]) {
     for (const c of pool) take(c, n, baseGap * gapFactor, true);
   }
-  // 3. a small metro with little on Wikidata: relax the caps rather than leave it bare
+  // 3. a small metro with little on Wikidata: relax the caps rather than leave it bare (the downtown share loosens a little first, then not at all)
+  zoneSlack = 1.4;
   // (buildings, monuments and the like before more neighborhoods)
   const others = all.filter((c) => !c.neighborhood);
   for (const factor of [0.3, 0.15, 0.06]) for (const c of others) take(c, n, baseGap * factor, false);
   for (const factor of [0.3, 0.15, 0.06]) for (const c of all) take(c, n, baseGap * factor, false);
   stationShare = 0.04;
+  zoneSlack = 0;
   for (const factor of [0.3, 0.15, 0.06]) for (const c of all) take(c, n, baseGap * factor, false);
   return picked;
 }
@@ -441,6 +496,7 @@ for (const metro of metros) {
   const file = path.join(OUT, 'metros', `${metro.id}.json`);
   // metros already made with the current selection rules are skipped, so a stopped run can be resumed; REBUILD=1 redoes everything
   if (fs.existsSync(file) && index.get(metro.id)?.v === SELECTION_VERSION && !process.env.REBUILD) continue;
+  if (RADIUS_OVERRIDE[metro.id]) metro.radiusKm = RADIUS_OVERRIDE[metro.id];
   const n = wanted(metro.pop);
   let places: Place[] = [];
   try {

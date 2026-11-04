@@ -16,7 +16,7 @@ await send('Page.enable'); await send('Runtime.enable');
 if (process.env.MOCK) await send('Page.addScriptToEvaluateOnNewDocument', { source: fs.readFileSync(new URL('./mock-google.js', import.meta.url), 'utf8') });
 await send('Emulation.setDeviceMetricsOverride', { width: Number(w), height: Number(h), deviceScaleFactor: 1, mobile: false });
 await send('Page.navigate', { url });
-await new Promise((r) => setTimeout(r, 3500));
+await new Promise((r) => setTimeout(r, 9000));
 if (js) { const r = await send('Runtime.evaluate', { expression: js, returnByValue: true, awaitPromise: true }); console.log('js ->', JSON.stringify(r.result?.value)); await new Promise((r) => setTimeout(r, 800)); }
 const shot = await send('Page.captureScreenshot', { format: 'png' });
 fs.writeFileSync(out, Buffer.from(shot.data, 'base64'));
