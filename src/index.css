@@ -721,3 +721,6 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .rm-render-wrap { position: relative; }
 .rm-render-loading { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: color-mix(in srgb, var(--panel) 72%, transparent); color: var(--ink); font-family: var(--font-display); letter-spacing: 3px; font-size: 20px; text-shadow: 0 0 8px var(--glow); pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .rm-cog { animation-duration: 4s; } }
+
+/* the padlock on the snapshot button */
+.rm-lock { display: inline-block; width: 1.05em; height: 1.05em; vertical-align: -0.16em; margin-left: 0.2em; }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Caps from './Caps';
 import CogSpinner from './CogSpinner';
+import LockIcon from './LockIcon';
 import BuyCaps from './BuyCaps';
 import { accountsEnabled, caps, checkAddress, type Account } from '../lib/account';
 import { freeRenderFor } from '../lib/renders';
@@ -161,7 +162,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
             disabled={!snapshotAvailable} onClick={() => setTab('snapshot')}
             title={snapshotAvailable ? 'The place as it is now' : searching ? 'Looking for a picture of the place' : personal ? 'No Street View picture of this place' : 'No free photo of this place to make a snapshot from'}
           >
-            {!render && searching ? 'SNAPSHOT…' : snapshotAvailable ? (locked ? 'SNAPSHOT ★' : 'SNAPSHOT') : 'NO SNAPSHOT'}
+            {!render && searching ? 'SNAPSHOT…' : snapshotAvailable ? <>SNAPSHOT <LockIcon open={!locked} /></> : 'NO SNAPSHOT'}
           </button>
           {reveal && raid && (
             <button type="button" className={`rm-tab-loot${visited || render || spot.personal ? '' : ' rm-tab-loot-faded'}`} disabled={account.cleared.has(spot.id)} onClick={() => (visited || render || spot.personal ? setRaiding(true) : setNeedDiscover(Date.now()))} title={account.cleared.has(spot.id) ? 'Already cleared' : 'Fight what lives there and loot it'}>{account.cleared.has(spot.id) ? 'CLEARED' : 'LOOT'}</button>
