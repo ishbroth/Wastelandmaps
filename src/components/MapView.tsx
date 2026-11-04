@@ -368,7 +368,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     const wanted = new Map<string, FloodPatch>();
     for (const p of near) {
       const metersPerPixel = (156543.03 * Math.cos((p[0] * Math.PI) / 180)) / 2 ** zoomNow;
-      const factor = Math.min(60, Math.max(1, (4 * metersPerPixel) / p[2]));
+      const factor = Math.min(6, Math.max(1, (2.4 * metersPerPixel) / p[2])); // far out they are drawn a little larger so the coast still reads, but never so large that it looks drowned
       const bucket = Math.round(factor * 4) / 4;
       wanted.set(`${p[5]}:${bucket}`, [p[0], p[1], p[2] * bucket, p[3], p[4], p[5]]);
     }
@@ -381,14 +381,14 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       if (shapes.has(key)) return;
       shapes.set(key, new google.maps.Polygon({
         map, paths: patchOutline(patch), clickable: false, zIndex: 2,
-        fillColor: look.floodFill, fillOpacity: 1, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // the same solid colour as the sea at every zoom, so flooded ground and open water match exactly
+        fillColor: look.floodFill, fillOpacity: look.floodOpacity, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // black at this strength over the land is the colour of the sea, and the main streets still show faint under it
          // one color, no outline: it reads as the coast itself having moved
       }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allFlood, view, zoomNow]);
   useEffect(() => {
-    floodShapes.current.forEach((shape) => shape.setOptions({ fillColor: look.floodFill, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0 }));
+    floodShapes.current.forEach((shape) => shape.setOptions({ fillColor: look.floodFill, fillOpacity: look.floodOpacity, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0 }));
   }, [look]);
 
   // zoomed out past the city: its irradiated zones clear off the map, and come back as you zoom in

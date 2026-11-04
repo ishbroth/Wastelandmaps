@@ -18,6 +18,8 @@ export interface Look {
   /** Standing water in the flooded coastal patches. */
   floodFill: string;
   floodStroke: string;
+  /** How solid the flooded patches are: a little see-through, so the main streets show faintly under the water while the colour still matches the sea. */
+  floodOpacity: number;
 }
 
 const hide: google.maps.MapTypeStyle['stylers'] = [{ visibility: 'off' }];
@@ -75,11 +77,11 @@ const parchmentStyles: google.maps.MapTypeStyle[] = [
 export const LOOKS: Record<LookId, Look> = {
   pipboy: {
     id: 'pipboy', label: 'Pip-Boy', mapStyles: pipboyStyles, background: '#021308',
-    ink: '#3dff8a', inkDim: '#13a550', zoneFill: 'rgba(120,255,40,0.14)', zoneStroke: '#a6ff3d', vault: '#d8ff6a', floodFill: '#000a04', floodStroke: '#0f7a35',
+    ink: '#3dff8a', inkDim: '#13a550', zoneFill: 'rgba(120,255,40,0.14)', zoneStroke: '#a6ff3d', vault: '#d8ff6a', floodFill: '#000000', floodOpacity: 0.82, floodStroke: '#0f7a35',
   },
   parchment: {
     id: 'parchment', label: 'Parchment', mapStyles: parchmentStyles, background: '#dfcb99',
-    ink: '#3b2a14', inkDim: '#7a5a2a', zoneFill: 'rgba(160,60,30,0.18)', zoneStroke: '#a3401f', vault: '#1f5f8a', floodFill: '#a5b49b', floodStroke: '#7d8f74',
+    ink: '#3b2a14', inkDim: '#7a5a2a', zoneFill: 'rgba(160,60,30,0.18)', zoneStroke: '#a3401f', vault: '#1f5f8a', floodFill: '#a5b49b', floodOpacity: 0.85, floodStroke: '#7d8f74',
   },
 };
 
