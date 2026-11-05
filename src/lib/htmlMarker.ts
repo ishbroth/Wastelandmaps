@@ -31,7 +31,16 @@ export function createHtmlMarker(options: HtmlMarkerOptions): HtmlMarkerHandle {
       }
 
       onAdd() {
+        // Google calls this a moment after setMap(map). If the marker was already taken off the map by then (zooming out quickly), adding it now
+        // would leave a label behind that nothing ever removes.
+        if (!this.getMap()) return;
         this.getPanes()?.overlayMouseTarget.appendChild(this.holder);
+      }
+
+      setMap(map: google.maps.Map | null) {
+        super.setMap(map);
+        // take the element off the screen right away rather than waiting for Google's onRemove
+        if (!map) this.holder.remove();
       }
 
       draw() {
