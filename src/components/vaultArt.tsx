@@ -1,7 +1,7 @@
 // Everything the home vault is drawn with: old green-screen line art in SVG. Furniture is drawn with its origin at the floor under its middle (y goes up
 // as it gets more negative); settlers likewise.
 
-import type { ReactElement } from 'react';
+import { useId, type ReactElement } from 'react';
 import type { RoomType, SettlerKind } from '../lib/vaultHome';
 
 export const INK = '#3dff8a';
@@ -9,32 +9,30 @@ export const DIM = '#13a550';
 export const BG = '#021a0c';
 
 // ---- the map of the vault, in drawing units ----
-/** A standard room, a bathroom (a little narrower), and the tunnel between neighbours; one slot is a room and the tunnel after it. */
-export const W = 206;
-export const WB = 152;
-export const GAP = 22;
+/** A standard room, a bathroom (a little narrower), and the short tunnel between neighbours; one slot is a room and the tunnel after it. */
+export const W = 300;
+export const WB = 220;
+export const GAP = 14;
 export const P = W + GAP;
-/** Every room is this tall; the tunnel between one level and the next is GAP_V; Q is the distance from the top of one room to the top of the next. */
-export const H = 214;
-export const GAP_V = 34;
+/** Every room is this tall; GAP_V is the little space between one level and the next; Q is the distance from the top of one room to the top of the next. */
+export const H = 150;
+export const GAP_V = 14;
 export const Q = H + GAP_V;
-/** Inside a room, seen a little from above: the back wall meets the floor at BACK, the floor's front edge is at FRONT (the name goes in the strip under it),
- *  things stand on the floor at FL, and things that stand against the back wall have their feet at WALL. */
-export const BACK = Math.round(H * 0.52);
-export const FRONT = H - 26;
-export const FL = Math.round(H * 0.72);
-export const WALL = BACK + 10;
-/** The slot grid starts just inside the picture so the first room sits against the vault door at the left margin; the top margin above the first row. */
-export const LM = 11;
-export const TM = 14;
+/** Seen from the side, like a cutaway: the ceiling is CEIL thick at the top, and the floor slab (where the furniture and the settlers stand) starts at FL. */
+export const CEIL = 14;
+export const FL = H - 32;
+/** The slot grid starts just inside the picture so the first room sits against the vault door at the left margin; hardly any space above the first row. */
+export const LM = 17;
+export const TM = 6;
 
 export const VIEW_W = LM + 3 * P;
-export const VIEW_H = TM + 4 * Q + H + 12;
+export const VIEW_H = TM + 4 * Q + H + 6;
 /** How round the corners of a room are. */
-export const ROUND = 12;
-/** A tunnel's height, and how big settlers are drawn. */
+export const ROUND = 14;
+/** A tunnel's height, and how big settlers and furniture are drawn. */
 export const TUNNEL_H = 46;
 export const SETTLER_SCALE = 1.15;
+export const GLYPH = 1.15;
 
 export interface RoomBox { x: number; y: number; w: number }
 export const roomWidth = (type: RoomType): number => (type === 'bathroom' ? WB : type === 'entertainment' || type === 'game' || type === 'workshop' ? P + W : W);
@@ -43,55 +41,73 @@ export const roomBox = (type: RoomType, col: number, row: number): RoomBox => {
   const x = LM + col * P + (type === 'bathroom' ? (P - WB) / 2 : (P - W) / 2);
   return { x, y: TM + row * Q, w };
 };
-/** Where settlers walk (and things stand) on the floor of a row, and where they stand at something against the back wall. */
+/** Where settlers walk (and things stand) on the floor of a row. */
 export const floorY = (row: number): number => TM + row * Q + FL;
-export const wallY = (row: number): number => TM + row * Q + WALL;
 
-/** The furniture was drawn for rooms this wide; rooms are a little wider now, so each piece (and its place) is scaled to match. */
+/** The furniture was drawn for rooms this wide; the rooms are wider now, so each piece keeps its size but its place is spread out to match. */
 const designWidth = (type: RoomType): number => (type === 'bathroom' ? 140 : type === 'entertainment' || type === 'game' || type === 'workshop' ? 440 : 190);
-export const furnitureScale = (type: RoomType): number => roomWidth(type) / designWidth(type);
+export const spread = (type: RoomType): number => roomWidth(type) / designWidth(type);
 
-/** Where each piece stands: on the floor in the room, against the back wall, or hanging from the ceiling. */
-const AGAINST_WALL = new Set(['couch', 'tv', 'sinkcabinets', 'fridge', 'stove', 'chinacabinet', 'bed', 'nightstand', 'dresser', 'lamp', 'toilet', 'bathsink', 'shower', 'screen', 'speakers', 'bar', 'pinball', 'toolchest', 'armorstand', 'craftingtable']);
-export const furnitureAt = (id: string): 'wall' | 'floor' | 'ceiling' => (id === 'chandelier' ? 'ceiling' : AGAINST_WALL.has(id) ? 'wall' : 'floor');
-/** Where a piece's feet are, in the picture, for a room at the top y. */
-export const furnitureFeet = (roomTop: number, id: string, scale: number): number => {
-  const at = furnitureAt(id);
-  return at === 'ceiling' ? roomTop + 22 + 96 * scale : at === 'wall' ? roomTop + WALL : roomTop + FL;
-};
-/** Where a settler stands to use a piece: at the wall for things against it, on the floor for the rest. */
-export const standY = (row: number, id: string): number => (furnitureAt(id) === 'wall' ? wallY(row) + 6 : floorY(row));
+/** Where a piece's feet are, in the picture, for a room at the top y (the chandelier hangs from the ceiling instead). */
+export const furnitureFeet = (roomTop: number, id: string): number => (id === 'chandelier' ? roomTop + CEIL + 96 * GLYPH : roomTop + FL);
+/** Where a settler stands to use a piece: on the floor. */
+export const standY = (row: number): number => floorY(row);
+
+type Wall = 'panels' | 'tiles' | 'bricks' | 'dots';
+const WALLS: Record<RoomType, Wall> = { living: 'panels', dining: 'panels', bedroom: 'panels', kitchen: 'tiles', bathroom: 'tiles', entertainment: 'panels', game: 'bricks', workshop: 'dots' };
+
+/** The faint pattern on the back wall, between the ceiling and the floor, kept clear of the rounded corners. */
+function wallPattern(kind: Wall, w: number): string {
+  const x0 = 12;
+  const x1 = w - 12;
+  const top = CEIL + 4;
+  const bottom = FL - 2;
+  let d = '';
+  if (kind === 'panels') {
+    for (let x = x0 + 14; x < x1; x += 28) d += `M${x} ${top} V${bottom} `;
+    d += `M${x0} ${top + (bottom - top) * 0.62} H${x1} `; // a rail along the wall
+  } else if (kind === 'tiles') {
+    for (let y = top + 6; y < bottom; y += 20) d += `M${x0} ${y} H${x1} `;
+    for (let x = x0 + 4; x < x1; x += 20) d += `M${x} ${top} V${bottom} `;
+  } else if (kind === 'bricks') {
+    let row = 0;
+    for (let y = top + 4; y < bottom; y += 14, row++) {
+      d += `M${x0} ${y} H${x1} `;
+      for (let x = x0 + (row % 2 ? 14 : 0); x < x1; x += 28) d += `M${x} ${y} V${Math.min(bottom, y + 14)} `;
+    }
+  } else {
+    for (let y = top + 8; y < bottom; y += 16) for (let x = x0 + 8; x < x1; x += 16) d += `M${x} ${y} h0.1 `;
+  }
+  return d;
+}
 
 /**
- * The room itself, seen from the front and a little above: a back wall, side walls and ceiling running back to it, and a floor with boards and cross lines
- * running into the distance, so there is plainly somewhere for the furniture to stand. The name is in the strip under the floor.
+ * The room itself, drawn like a cutaway seen from the side (Fallout Shelter, Terraria): a ceiling with lights, a patterned back wall, and a floor slab with joints
+ * where the furniture stands, all inside the cartoon outline with its rounded corners. The room's name is on the floor.
  */
-export function RoomShell({ x, y, w, name }: { x: number; y: number; w: number; name: string }) {
-  const L = 4;
-  const R = w - 4;
-  const T = 4;
-  const dx = Math.min(26, w * 0.09);
-  const bl = L + dx;
-  const br = R - dx;
-  const bt = T + 16;
-  const bb = BACK;
-  const board = [0.17, 0.33, 0.5, 0.67, 0.83];
-  const cross = [0.14, 0.34, 0.62];
+export function RoomShell({ x, y, w, name, type }: { x: number; y: number; w: number; name: string; type: RoomType }) {
+  const cid = useId().replace(/[^A-Za-z0-9]/g, '');
+  const lamps = w > 400 ? [0.2, 0.4, 0.6, 0.8] : w < 250 ? [0.5] : [0.28, 0.72];
+  let joints = '';
+  for (let jx = 22; jx < w - 8; jx += 34) joints += `M${jx} ${FL + 2} V${H - 4} `;
   return (
     <g>
       <rect x={x} y={y} width={w} height={H} rx={ROUND} fill={BG} strokeWidth="2.4" />
-      <rect x={x + 4} y={y + 4} width={w - 8} height={H - 8} rx={ROUND - 3} stroke={DIM} />
-      <path d={`M${x + bl} ${y + bb} H${x + br} L${x + R} ${y + FRONT} H${x + L} Z`} fill="rgba(61,255,138,0.07)" stroke="none" />
-      <path d={`M${x + L} ${y + T} L${x + bl} ${y + bt} M${x + R} ${y + T} L${x + br} ${y + bt} M${x + L} ${y + FRONT} L${x + bl} ${y + bb} M${x + R} ${y + FRONT} L${x + br} ${y + bb}`} stroke={DIM} />
-      <rect x={x + bl} y={y + bt} width={br - bl} height={bb - bt} stroke={DIM} />
-      {board.map((f) => <path key={f} d={`M${x + bl + (br - bl) * f} ${y + bb} L${x + L + (R - L) * f} ${y + FRONT}`} stroke={DIM} strokeWidth="1" />)}
-      {cross.map((t) => {
-        const yy = bb + (FRONT - bb) * t;
-        return <path key={t} d={`M${x + bl + (L - bl) * t} ${y + yy} H${x + br + (R - br) * t}`} stroke={DIM} strokeWidth="1" />;
-      })}
-      <path d={`M${x + bl} ${y + bb} H${x + br}`} strokeWidth="1.8" />
-      <path d={`M${x + L} ${y + FRONT} H${x + R}`} strokeWidth="1.8" />
-      <text x={x + w - 13} y={y + H - 8} fontSize="16" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="end" letterSpacing="1.2">{name}</text>
+      <clipPath id={cid}><rect x={x + 4} y={y + 4} width={w - 8} height={H - 8} rx={ROUND - 4} /></clipPath>
+      <g clipPath={`url(#${cid})`}>
+        <path d={wallPattern(WALLS[type], w)} transform={`translate(${x} ${y})`} stroke={DIM} strokeWidth="1" opacity="0.5" />
+        <rect x={x + 4} y={y + 4} width={w - 8} height={CEIL - 4} fill="rgba(61,255,138,0.08)" stroke="none" />
+        <path d={`M${x + 4} ${y + CEIL} H${x + w - 4}`} stroke={DIM} strokeWidth="1.4" />
+        {lamps.map((f) => {
+          const cx = x + w * f;
+          return <path key={f} d={`M${cx - 10} ${y + CEIL} H${cx + 10} L${cx + 6} ${y + CEIL + 7} H${cx - 6} Z M${cx - 5} ${y + CEIL + 11} L${cx - 11} ${y + CEIL + 22} M${cx + 5} ${y + CEIL + 11} L${cx + 11} ${y + CEIL + 22} M${cx} ${y + CEIL + 11} V${y + CEIL + 24}`} stroke={DIM} strokeWidth="1.2" />;
+        })}
+        <rect x={x + 4} y={y + FL} width={w - 8} height={H - 4 - FL} fill="rgba(61,255,138,0.11)" stroke="none" />
+        <path d={joints} transform={`translate(${x} ${y})`} stroke={DIM} strokeWidth="1" opacity="0.7" />
+        <path d={`M${x + 4} ${y + FL} H${x + w - 4}`} strokeWidth="2.2" />
+      </g>
+      <rect x={x + 4} y={y + 4} width={w - 8} height={H - 8} rx={ROUND - 4} stroke={DIM} />
+      <text x={x + w - 16} y={y + H - 11} fontSize="17" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="end" letterSpacing="1.2">{name}</text>
     </g>
   );
 }
