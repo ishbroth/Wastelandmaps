@@ -90,11 +90,12 @@ const CITY_ZOOM = 9;
  * How far in the map has to be (Google zoom level) before a place gets a marker, so a big metro does not clutter the screen or slow the map:
  * the permanent-snapshot landmarks, your home and the place you picked are always there; the famous second-tier landmarks show from state level
  * (zoom 6); then, as you come in, the places that are worth more first (city level), and the smallest ones, your own places and the atlas only at
- * neighborhood level. Zooming back out takes them away again.
+ * neighborhood level (the vault entrances too: they are the first to go on the way out, below zoom 11). Zooming back out takes them away again.
  */
 function minZoomFor(loc: Location, selectedId: string | null): number {
-  // vaults drop off the map 14 zoom steps out from the closest view (zoom 7 and below), unless one is the place picked
-  if (loc.vault && !loc.personal?.home && loc.id !== selectedId) return 8;
+  // vault entrances are everywhere in a big city (a couple of dozen on screen at zoom 9 and 10), so they drop off the map early on the way out: zoom 10 and
+  // below, long before the places around them (those go at 8 to 11), unless one is the place picked or your home. (Vault 0 is not one of these: see below.)
+  if (loc.vault && !loc.personal?.home && loc.id !== selectedId) return 11;
   if (loc.id === VAULT_ZERO_ID) return loc.id === selectedId ? 0 : 6; // out of sight until you have scrolled down to Antarctica and zoomed in
   if (loc.personal?.home || freeRenderFor(loc.id) || loc.id === selectedId || (loc.personal && !loc.personal.saved)) return 0;
   if (loc.personal) return 11;
