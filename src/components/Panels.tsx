@@ -5,9 +5,10 @@ import { LOOT_CAP } from '../lib/raid/loot';
 import { enemiesLine, homePlan, lootSummary, planEnemies, planFor, raidFor } from '../lib/raid/raid';
 import { personalId } from '../lib/personal';
 import { purchasesAvailable } from '../lib/native';
+import { purchasePack, usePackPrices, usesAppStore } from '../lib/iap';
 import Caps, { CapIcon } from './Caps';
 import { STIMPAK_TRADES } from '../../supabase/functions/_shared/stimpak';
-import { METRO_COST, PACKS, caps, tradeStimpak, atlasCount, atlasUnlock, buyPack, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
+import { METRO_COST, PACKS, caps, tradeStimpak, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag, type LootBag } from '../lib/raid/loot';
 import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt } from '../lib/raid/weapons';
@@ -20,9 +21,10 @@ import type { Region } from '../lib/google';
 
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
-export function LocationsPanel({ metro, region, locations: everywhere, hidden, onToggleCategory, selectedId, visited, cleared, onSelect }: {
-  /** The metro under the map: the list is its places only, and changes as the map moves to another metro. */
-  metro?: { lat?: number; lng?: number; radiusKm?: number } | null;
+export function LocationsPanel({ metro, account, region, locations: everywhere, hidden, onToggleCategory, selectedId, visited, cleared, onSelect }: {
+  /** The metro under the map: the list is its places only, and changes as the map moves to another metro (its address atlas sits above the list). */
+  metro?: { id?: string; name?: string; lat?: number; lng?: number; radiusKm?: number } | null;
+  account: Account;
   region: Region | null;
   locations: Location[];
   hidden: Set<CategoryId>;
@@ -99,6 +101,7 @@ export function LocationsPanel({ metro, region, locations: everywhere, hidden, o
           </button>
         ))}
       </div>
+      {account.session && metro?.id && <AtlasBox account={account} metro={{ id: metro.id, name: metro.name ?? metro.id }} />}
       <ul className="rm-list" ref={listRef} style={listHeight ? { height: listHeight } : undefined}>
         {rows.map(({ l, d }) => (
           <li key={l.id} ref={l.id === selectedId ? selectedRow : null}>
@@ -135,10 +138,8 @@ function SnapshotIcon() {
 
 
 /** The Data tab: credits, and every place found, newest first; a place opens on the map, and an unlocked snapshot opens ready to play. */
-export function AccountPanel({ account, found, iconOf, metroRows, metro, onChangeHome, onAccount, onGoTo, onSnapshot }: {
+export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, onAccount, onGoTo, onSnapshot }: {
   account: Account;
-  /** The metro the map is showing, for its address atlas. */
-  metro?: { id: string; name: string };
   onChangeHome: () => void;
   found: FoundPlace[];
   /** How far along each metro is: the places looted out of the places that count, and whether it is cleared. */
@@ -189,14 +190,13 @@ export function AccountPanel({ account, found, iconOf, metroRows, metro, onChang
       <div className="rm-acct-credits">
         <div><b className="rm-caps-big"><CapIcon />{account.credits === null ? '…' : caps(account.credits).toLocaleString('en-US')}</b> <span>CAPS</span></div>
       </div>
-      <Packs />
+      <Packs onBought={() => void account.refresh()} />
 
       <h3>HOME</h3>
       <div className="rm-acct-credits">
         <div><span>{account.home?.address ? `${account.home.vaultNumber !== undefined ? `VAULT ${String(account.home.vaultNumber).padStart(4, '0')} · ` : ''}${account.home.address}` : 'Not set'}</span></div>
         <button type="button" className="rm-btn rm-btn-ghost" onClick={onChangeHome}>{account.home?.address ? 'CHANGE' : 'SET HOME'}</button>
       </div>
-      {metro && <AtlasBox account={account} metro={metro} />}
 
       <h3>LOOT</h3>
       <div className="rm-loot">
@@ -378,26 +378,30 @@ function DeleteLine() {
   );
 }
 
-/** Buying credits: three packs on the website; in the app the stores' own purchase system will be used (not added yet). */
-function Packs() {
+/** Buying credits: three packs. On the website the payment page (Stripe: card, Apple Pay, Google Pay); in the iPhone app the App Store's own purchase. */
+function Packs({ onBought }: { onBought: () => void }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const prices = usePackPrices();
   if (!purchasesAvailable()) {
     return <p className="rm-fine">Caps cannot be bought inside the app yet. The ones you have, and the free ones from levelling up, work here.</p>;
   }
   const buy = async (pack: string) => {
     setBusy(true);
-    const problem = await buyPack(pack);
-    if (problem) { setNote(problem); setBusy(false); }
+    setNote('');
+    const { bought, problem } = await purchasePack(pack);
+    if (problem) setNote(problem);
+    if (bought) onBought();
+    setBusy(false);
   };
   return (
     <div>
       <div className="rm-packs">
         {PACKS.map((pk) => (
-          <button key={pk.id} type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void buy(pk.id)}><Caps n={caps(pk.credits)} /> FOR {pk.price}</button>
+          <button key={pk.id} type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void buy(pk.id)}><Caps n={caps(pk.credits)} /> FOR {prices[pk.id] ?? pk.price}</button>
         ))}
       </div>
-      <p className="rm-fine">Pay by card, Apple Pay or Google Pay through Stripe. A render that cannot be made gives your caps back.</p>
+      <p className="rm-fine">{usesAppStore() ? 'Paid with your Apple account.' : 'Pay by card, Apple Pay or Google Pay through Stripe.'} A render that cannot be made gives your caps back.</p>
       {note && <p className="rm-account-note">{note}</p>}
     </div>
   );

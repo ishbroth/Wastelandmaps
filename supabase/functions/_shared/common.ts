@@ -35,6 +35,13 @@ export async function callerId(req: Request): Promise<string | null> {
   return error ? null : data.user?.id ?? null;
 }
 
+/** The App Store products (made in App Store Connect) and the credits each gives; they match the packs below. The server decides this, never the phone. */
+export const IAP_PRODUCTS: Record<string, number> = {
+  'com.wastelandmaps.app.caps800': 8,
+  'com.wastelandmaps.app.caps2400': 24,
+  'com.wastelandmaps.app.caps5200': 52,
+};
+
 /** What a pack costs and gives. The server decides this; the browser only asks for a pack by name. */
 export const PACKS: Record<string, { credits: number; cents: number; label: string }> = {
   eight: { credits: 8, cents: 199, label: '800 caps' },

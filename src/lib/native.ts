@@ -16,7 +16,7 @@ export const platform = (): 'ios' | 'android' | 'web' => Capacitor.getPlatform()
  * Can credits be bought here? On the website, yes (Stripe). Apple and Google require their own in-app purchase for digital goods like these credits, so
  * until that is added the apps do not offer the purchase (credits bought on the website still work in the app after signing in).
  */
-export const purchasesAvailable = (): boolean => !isNative();
+export const purchasesAvailable = (): boolean => !isNative() || platform() === 'ios';
 
 /** The address the app's own pages are served from in the app (the website's address on the web). */
 export const appOrigin = (): string => window.location.origin;

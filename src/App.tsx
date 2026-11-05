@@ -5,6 +5,7 @@ import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
 import { accountsEnabled, atlasList, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
+import { startPurchases } from './lib/iap';
 import { askForLocation, getFix, locationState, openLocationSettings, watchFixes, type GeoError } from './lib/geo';
 import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
 import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
@@ -134,6 +135,9 @@ export default function App() {
   // in the app: the sign-in email opens the app with a link, and coming back from a purchase should show the new balance
   useEffect(() => onAppUrl((url) => { void completeSignInFromUrl(url).then((ok) => { if (ok) void account.refresh(); }); }), [account]);
   useEffect(() => onResume(() => { if (accountRef.current?.session) void accountRef.current.refresh(); }), []);
+  // in the iPhone app: a purchase that was paid for but never reached the server (a dropped connection, the app closed mid-purchase) is picked up again here
+  const signedInUser = account.session?.user.id;
+  useEffect(() => (signedInUser ? startPurchases(() => void accountRef.current?.refresh()) : undefined), [signedInUser]);
   const atlasLocs = useMemo(() => atlas
     .filter((a) => !account.personal.some((q) => q.placeId === a.placeId))
     .map((a) => {
@@ -1136,12 +1140,12 @@ export default function App() {
           <section className="rm-panel" role="tabpanel">
             {tab === 'locations' && (
               <LocationsPanel
-                metro={metroInfo}
+                metro={metroInfo} account={account}
                 region={region} locations={locations} hidden={hidden} onToggleCategory={toggleCategory} selectedId={selectedId} visited={shownVisited} cleared={account.cleared}
                 onSelect={(id) => { setSelectedId(id); sound('select'); }}
               />
             )}
-            {tab === 'data' && <AccountPanel account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} metro={metroInfo ?? undefined} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
+            {tab === 'data' && <AccountPanel account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
             {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} />}
           </section>
         </aside>

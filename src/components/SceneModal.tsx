@@ -219,7 +219,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
         </div>
         )}
       </div>
-      {buying && <BuyCaps onClose={() => setBuying(false)} />}
+      {buying && <BuyCaps onClose={() => setBuying(false)} onBought={() => void account.refresh()} />}
       {entering && home && <VaultHome title={spot.name} account={account} onExit={() => setEntering(false)} />}
       {raiding && reveal && raid && (
         <RaidScreen metroId={metroId} plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} sound={sound} onExit={() => setRaiding(false)} onSignIn={onAccount} />

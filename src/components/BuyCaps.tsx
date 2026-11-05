@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import Caps from './Caps';
-import { PACKS, buyPack, caps } from '../lib/account';
+import { PACKS, caps } from '../lib/account';
 import { purchasesAvailable } from '../lib/native';
+import { purchasePack, usePackPrices } from '../lib/iap';
 
 /** The popup that opens when someone tries to spend caps they do not have: the three packs, each going straight to the payment page. */
-export default function BuyCaps({ onClose }: { onClose: () => void }) {
+export default function BuyCaps({ onClose, onBought }: { onClose: () => void; /** Called when caps were added (in the iPhone app, where the purchase finishes here). */ onBought?: () => void }) {
+  const prices = usePackPrices();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const buy = async (pack: string) => {
     setBusy(true);
     setNote('');
-    const problem = await buyPack(pack);
-    if (problem) { setNote(problem); setBusy(false); }
+    const { bought, problem } = await purchasePack(pack);
+    if (problem) setNote(problem);
+    if (bought) { onBought?.(); onClose(); return; }
+    setBusy(false);
   };
   return (
     <div className="rm-modal rm-modal-buy" role="dialog" aria-modal="true" aria-label="Buy caps" onClick={(e) => { e.stopPropagation(); onClose(); }}>
@@ -23,7 +27,7 @@ export default function BuyCaps({ onClose }: { onClose: () => void }) {
         {purchasesAvailable() ? (
           <div className="rm-packs">
             {PACKS.map((pk) => (
-              <button key={pk.id} type="button" className="rm-btn" disabled={busy} onClick={() => void buy(pk.id)}><Caps n={caps(pk.credits)} /> FOR {pk.price}</button>
+              <button key={pk.id} type="button" className="rm-btn" disabled={busy} onClick={() => void buy(pk.id)}><Caps n={caps(pk.credits)} /> FOR {prices[pk.id] ?? pk.price}</button>
             ))}
           </div>
         ) : (
