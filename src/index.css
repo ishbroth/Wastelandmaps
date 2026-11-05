@@ -747,8 +747,10 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .rm-vh-bar { flex: 1; height: 12px; border: 1px solid #3dff8a; max-width: 320px; }
 .rm-vh-bar > div { height: 100%; background: #3dff8a; box-shadow: 0 0 8px rgba(61, 255, 138, 0.7); transition: width 0.6s; }
 .rm-vh-error { margin: 0; padding: 4px 12px; background: #3dff8a; color: #021a0c; font-size: 18px; cursor: pointer; }
-.rm-vh-view { flex: 1; position: relative; overflow: hidden; min-height: 0; }
-.rm-vh-view svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; filter: drop-shadow(0 0 2px rgba(61, 255, 138, 0.55)); }
+.rm-vh-view { flex: 1; position: relative; overflow: auto; min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.rm-vh-view.focused { overflow: hidden; }
+.rm-vh-spacer { position: relative; }
+.rm-vh-svg { position: sticky; top: 0; left: 0; display: block; filter: drop-shadow(0 0 2px rgba(61, 255, 138, 0.55)); }
 .rm-vh-wait { text-align: center; margin-top: 30vh; font-size: 26px; animation: rm-vh-blink 1.2s steps(2) infinite; }
 @keyframes rm-vh-blink { 50% { opacity: 0.35; } }
 .rm-vh-room, .rm-vh-open { cursor: pointer; }
@@ -785,3 +787,5 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .rm-vh-kinds button { display: grid; justify-items: center; gap: 2px; padding: 8px; background: transparent; color: #3dff8a; border: 1px solid #3dff8a; font: inherit; font-size: 22px; letter-spacing: 3px; cursor: pointer; }
 .rm-vh-kinds button:hover:not(:disabled) { background: rgba(61, 255, 138, 0.15); }
 .rm-raid-center .rm-btn + .rm-btn { margin-top: 10px; }
+.rm-faceid { display: grid; gap: 8px; margin-bottom: 6px; padding-bottom: 12px; border-bottom: 1px dashed var(--line); }
+.rm-link { background: none; border: none; padding: 0; color: var(--ink); font: inherit; text-decoration: underline; cursor: pointer; }

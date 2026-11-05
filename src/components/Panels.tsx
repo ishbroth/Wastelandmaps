@@ -6,6 +6,7 @@ import { enemiesLine, homePlan, lootSummary, planEnemies, planFor, raidFor } fro
 import { personalId } from '../lib/personal';
 import { purchasesAvailable } from '../lib/native';
 import { purchasePack, usePackPrices, usesAppStore } from '../lib/iap';
+import { faceIdName, forgetFaceId, savedFaceIds } from '../lib/faceid';
 import Caps, { CapIcon } from './Caps';
 import { STIMPAK_TRADES } from '../../supabase/functions/_shared/stimpak';
 import { METRO_COST, PACKS, caps, tradeStimpak, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
@@ -187,6 +188,7 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
         <span>{account.email}</span>
         <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void signOut()}>SIGN OUT</button>
       </div>
+      <ForgetFaceId />
       <div className="rm-acct-credits">
         <div><b className="rm-caps-big"><CapIcon />{account.credits === null ? '…' : caps(account.credits).toLocaleString('en-US')}</b> <span>CAPS</span></div>
       </div>
@@ -375,6 +377,20 @@ function DeleteLine() {
       </div>
       {note && <p className="rm-account-note">{note}</p>}
     </div>
+  );
+}
+
+/** In the app: a line to forget the sign-ins saved behind Face ID on this phone (shown only if there are any). */
+function ForgetFaceId() {
+  const [count, setCount] = useState(savedFaceIds().length);
+  const [name, setName] = useState<string | null>(null);
+  useEffect(() => { void faceIdName().then(setName); }, []);
+  if (!name || count === 0) return null;
+  return (
+    <p className="rm-fine">
+      {name === 'FACE ID' ? 'Face ID' : name === 'TOUCH ID' ? 'Touch ID' : 'Biometric'} sign-in is on for this phone.{' '}
+      <button type="button" className="rm-link" onClick={() => void forgetFaceId().then(() => setCount(0))}>Forget it</button>
+    </p>
   );
 }
 

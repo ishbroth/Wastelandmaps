@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LocationCard from './components/LocationCard';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
+import FaceIdOffer from './components/FaceIdOffer';
+import { savedFaceIds } from './lib/faceid';
 import SceneModal from './components/SceneModal';
 import { accountsEnabled, atlasList, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
@@ -212,6 +214,14 @@ export default function App() {
   }, [account.session, metroInfo, atlasOwned]);
 
   const [accountOpen, setAccountOpen] = useState(false);
+  // in the app, opening signed out with an account saved behind Face ID: the sign-in opens by itself and starts the check
+  const [accountAuto, setAccountAuto] = useState(false);
+  const autoFaceTried = useRef(false);
+  useEffect(() => {
+    if (autoFaceTried.current || !isNative() || !accountsEnabled || !account.loaded || account.session) return;
+    autoFaceTried.current = true;
+    if (savedFaceIds().length > 0) { setAccountAuto(true); setAccountOpen(true); }
+  }, [account.loaded, account.session]);
   /** Anything about the account: signed out, the sign-in; signed in, the Data tab (credits, packs, home, sign out and delete are all there). */
   const openAccount = useCallback(() => {
     if (accountRef.current?.session) {
@@ -1111,7 +1121,8 @@ export default function App() {
               account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || place.personal) ? (place.personal?.home ? homePlan() : raidFor(place)) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => { setSceneId(null); setSceneRaid(false); }} onNeedDiscover={() => say('YOU MUST DISCOVER THIS LOCATION FIRST', true)}
             />
           )}
-          {accountOpen && !account.session && <AccountModal onClose={() => setAccountOpen(false)} />}
+          {accountOpen && !account.session && <AccountModal auto={accountAuto} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
+          <FaceIdOffer />
           {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped) || homeOpen) && (
             <HomePrompt
               key={homeOpen ? 'change' : 'first'}

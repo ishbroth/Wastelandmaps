@@ -24,6 +24,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID lets you sign in to WastelandMaps without typing your email and vault number.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>WastelandMaps uses your location to show where you are on the map, to discover places as you reach them, and to give you directions.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { STARTING_ARSENAL, type Arsenal, type WeaponClass } from './raid/weapons';
 import type { LootBag, LootId } from './raid/loot';
 import type { VaultHome } from './vaultHome';
+import { forgetFaceId, offerFaceId, readFaceId } from './faceid';
 
 const URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? 'https://tdwikatzogfwfssyzmlw.supabase.co';
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -196,7 +197,21 @@ export async function sendSignInLink(email: string): Promise<string | null> {
 /** Signs in with the email and the four-digit vault number (the password is "vault-" and those digits; the auth system wants six characters or more). Null when it worked. */
 export async function signInWithVault(email: string, digits: string): Promise<string | null> {
   const { error } = await db().auth.signInWithPassword({ email, password: `vault-${digits}` });
+  if (!error) offerFaceId(email, `vault-${digits}`); // in the app, asks whether to use Face ID next time
   return error ? 'That email and vault number do not match. If this is your first time, or you forgot the number, use the email link.' : null;
+}
+
+/** Signs in with what Face ID (or Touch ID) unlocks for this email. Null when it worked, 'cancelled' when they backed out or the check did not match, else a message. */
+export async function signInWithFaceId(email: string): Promise<string | null> {
+  const saved = await readFaceId(email);
+  if (saved === 'cancelled') return 'cancelled';
+  if (!saved) return 'No sign-in is saved for that account on this phone. Sign in with your vault number.';
+  const { error } = await db().auth.signInWithPassword({ email: saved.email, password: saved.password });
+  if (error) {
+    await forgetFaceId(email); // what was saved no longer works (the vault number changed): do not keep offering it
+    return 'That saved sign-in no longer works. Sign in with your email and vault number.';
+  }
+  return null;
 }
 
 /** Makes the vault number the account's password (the server reads the number from the saved home). */
@@ -204,7 +219,11 @@ export async function setVaultPassword(email?: string | null, vaultNumber?: numb
   const { data, error } = await db().functions.invoke('set-vault-password', { body: {} });
   const ok = !error && data?.ok === true;
   // changing a password can end the sessions that were open before it: sign in again with the new one so this device keeps a working session
-  if (ok && email && vaultNumber !== undefined) await db().auth.signInWithPassword({ email, password: `vault-${String(vaultNumber).padStart(4, '0')}` });
+  if (ok && email && vaultNumber !== undefined) {
+    const password = `vault-${String(vaultNumber).padStart(4, '0')}`;
+    const { error: again } = await db().auth.signInWithPassword({ email, password });
+    if (!again) { await forgetFaceId(email); offerFaceId(email, password); } // a changed vault number means a changed saved sign-in
+  }
   return ok;
 }
 
@@ -436,6 +455,7 @@ export async function completeSignInFromUrl(url: string): Promise<boolean> {
 export async function deleteAccount(): Promise<boolean> {
   const { data, error } = await db().functions.invoke('delete-account', { body: { confirm: 'DELETE' } });
   if (error || !data?.ok) return false;
+  await forgetFaceId(); // the account is gone, and so is anything saved to sign in to it
   await db().auth.signOut();
   return true;
 }

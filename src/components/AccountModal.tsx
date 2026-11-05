@@ -1,13 +1,18 @@
-import { useState, type FormEvent } from 'react';
-import { sendSignInLink, signInWithVault } from '../lib/account';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { sendSignInLink, signInWithFaceId, signInWithVault } from '../lib/account';
+import { faceIdName, savedFaceIds } from '../lib/faceid';
 
-/** Signing in: email and vault number (the simple password set when the home was chosen), or an emailed link for the first time or a forgotten number.
- *  Everything about the account itself (caps, packs, home, sign out, delete) lives in the Data tab once signed in. */
-export default function AccountModal({ onClose }: { onClose: () => void }) {
+/** Signing in: email and vault number (the simple password set when the home was chosen), an emailed link for the first time or a forgotten number, or, in the
+ *  app, Face ID (or Touch ID) for an account that was signed in here before and saved. `auto` starts the Face ID check as soon as it opens (the app does this
+ *  when it opens signed out and has a saved account). Everything about the account itself (caps, packs, home, sign out, delete) lives in the Data tab once signed in. */
+export default function AccountModal({ onClose, auto = false }: { onClose: () => void; auto?: boolean }) {
   const [email, setEmail] = useState('');
   const [digits, setDigits] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [face, setFace] = useState<string | null>(null);
+  const saved = savedFaceIds();
+  const autoTried = useRef(false);
 
   const signIn = async (e: FormEvent) => {
     e.preventDefault();
@@ -26,6 +31,26 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
     setBusy(false);
   };
 
+  const withFace = async (who: string) => {
+    setBusy(true);
+    setNote('');
+    const result = await signInWithFaceId(who);
+    if (result === null) { onClose(); return; }
+    if (result !== 'cancelled') setNote(result);
+    setBusy(false);
+  };
+
+  useEffect(() => {
+    let off = false;
+    void faceIdName().then((name) => { if (!off) setFace(name); });
+    return () => { off = true; };
+  }, []);
+  // opened by the app because there is a saved account: one account is checked at once; with several, they choose below
+  useEffect(() => {
+    if (auto && face && saved.length === 1 && !autoTried.current) { autoTried.current = true; void withFace(saved[0]); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, face]);
+
   return (
     <div className="rm-modal" role="dialog" aria-modal="true" aria-label="Sign in" onClick={onClose}>
       <div className="rm-modal-card rm-account" onClick={(e) => e.stopPropagation()}>
@@ -37,6 +62,18 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
           <button type="button" className="rm-btn rm-btn-ghost" onClick={onClose}>CLOSE</button>
         </div>
         <form onSubmit={signIn} className="rm-account-body">
+          {face && saved.length > 0 && (
+            <div className="rm-faceid">
+              {saved.length === 1 ? (
+                <button type="button" className="rm-btn" disabled={busy} onClick={() => void withFace(saved[0])}>SIGN IN WITH {face}</button>
+              ) : (
+                <>
+                  <p className="rm-fine">Which account? ({face})</p>
+                  {saved.map((who) => <button key={who} type="button" className="rm-btn" disabled={busy} onClick={() => void withFace(who)}>{who}</button>)}
+                </>
+              )}
+            </div>
+          )}
           <p>Sign in with your email and your vault number, the four digits you chose for your home. New here, or forgot it? We email you a link.</p>
           <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
           <input value={digits} inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="Vault number (4 digits)" autoComplete="current-password"
