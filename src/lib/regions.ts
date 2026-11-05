@@ -126,10 +126,10 @@ const STATE_NAMES: Record<string, [string, boolean]> = {
   IA: ['The Fields', false], KS: ['Tornado Alley', false], KY: ['The Bluegrass Burn', false], LA: ['The Burnt Bayou', false], ME: ['The New England Commonwealth', false],
   MD: ['The Old Line Rubble', false], MA: ['The Commonwealth', true], MI: ['Wolverine Territory', false], MN: ['The Land of 10,000 Craters', false], MS: ['The Dusty Delta', false],
   MO: ['The Show-Me Rubble', false], MT: ['The Big Sky Wastes', false], NE: ['The Husk', false], NV: ['The Mojave Wasteland', true], NH: ['The Granite Ruins', false],
-  NJ: ['The Garden of Ash', false], NM: ['The Land of Radiation', false], NY: ['The Empire State of Ruin', false], NC: ['The Tobacco Ruins', false], ND: ['The Bakken Burn', false],
+  NJ: ['The Garden of Ash', false], NM: ['The Land of Radiation', false], NY: ['The Empire State of Ruin', false], NC: ['The Tobacco Ruins', false], ND: ['The Badlands', false],
   OH: ['The Buckeye Badlands', false], OK: ['The Dustbowl', false], OR: ['Beaver Territory', false], PA: ['The Keystone Ruins', false], RI: ['The Rhode Rubble', false],
-  SC: ['The Palmetto Wastes', false], SD: ['The Black Hills Burn', false], TN: ['The Volunteer Wastes', false], TX: ['The Lone Star Wastes', false], UT: ['New Canaan', true],
-  VT: ['The Green Mountain Ruins', false], VA: ['The Old Dominion Ruins', false], WA: ['The Evergreen Ashlands', false], WV: ['Appalachia', true], WI: ['The Dairyland Dead Zone', false],
+  SC: ['The Palmetto Wastes', false], SD: ['The Blackened Hills', false], TN: ['The Volunteer Wastes', false], TX: ['The Lone Star Wastes', false], UT: ['New Canaan', true],
+  VT: ['The Green Mountain Ruins', false], VA: ['The Commonwealth of Virginia', false], WA: ['The Evergreen Ashlands', false], WV: ['Appalachia', true], WI: ['The Dairyland Dead Zone', false],
   WY: ['The Cowboy Craters', false],
 };
 
