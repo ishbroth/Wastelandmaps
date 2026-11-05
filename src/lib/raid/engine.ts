@@ -4,9 +4,9 @@
 // backs off three steps and comes again until the survivor has taken three in all. Everything is in the picture's own coordinates (u across, v down,
 // both 0 to 1) and the screen maps them (see RaidScreen).
 
-import { enemyById, type BossId, type EnemyType } from './enemies';
+import { ENEMIES, enemyById, type BossId, type EnemyType } from './enemies';
 import type { RaidPlan } from './raid';
-import { WEAPON_CLASS_IDS, weaponAt, type Arsenal, type Weapon, type WeaponClass } from './weapons';
+import { MAGAZINE, WEAPON_CLASS_IDS, usesMagazine, weaponAt, type Arsenal, type Weapon, type WeaponClass } from './weapons';
 
 /** Where enemies come from: the line of the horizon (v), and the spots on the ground (u, v) they step out of. */
 export interface Spawns {
@@ -26,6 +26,28 @@ export const PERSON_HEIGHT = 0.3;
 const STRIKE_V = 0.98;
 /** How many strikes the survivor can take. */
 export const MAX_HITS = 3;
+
+/**
+ * Seconds between one step of an enemy and the next (each enemy then varies 15% either way around this). Later waves step faster, and so do the quick kinds
+ * of creature; a boss keeps its own slow tread. This is the one formula for it: spawn() uses it, and the reload time is built on it.
+ */
+export function stepGapFor(type: EnemyType, wave: number, boss = false): number {
+  const wavePace = Math.max(0.6, 1.25 - 0.1 * Math.max(0, wave));
+  const kindPace = Math.min(1.2, Math.max(0.8, Math.sqrt(0.08 / type.speed)));
+  return boss ? 0.95 : wavePace * kindPace;
+}
+
+/** The typical step of an ordinary enemy: the average over every kind of creature and over the first eight waves (the most any place sends), in seconds. */
+export const AVERAGE_STEP_SECONDS = (() => {
+  const kinds = Object.values(ENEMIES);
+  let sum = 0;
+  for (const kind of kinds) for (let wave = 0; wave < 8; wave++) sum += stepGapFor(kind, wave);
+  return sum / (kinds.length * 8);
+})();
+
+/** A reload takes about as long as one and a half of those steps, so it costs the survivor the time it takes an enemy to get a step and a half nearer. */
+export const RELOAD_STEPS = 1.5;
+export const RELOAD_SECONDS = RELOAD_STEPS * AVERAGE_STEP_SECONDS;
 
 /** How tall an enemy is, in picture heights, when it has reached the survivor and strikes. */
 const strikeHeight = (size: number) => Math.min(0.95, 0.5 * Math.pow(size, 0.7));
@@ -110,8 +132,12 @@ export class Game {
   outcome: Outcome = 'fighting';
   /** The weapon class in hand. */
   selected: WeaponClass = 'pistol';
-  /** Shots left for the weapons that run out. */
+  /** Shots left for the weapons that run out (the flamethrower's whole supply, the launchers' rockets): the reserve, including what is in the magazine. */
   ammo: Partial<Record<WeaponClass, number>> = {};
+  /** Rounds in the magazine of each class that has one (the automatics and the flamethrower): they reload by themselves at 0. */
+  mag: Partial<Record<WeaponClass, number>> = {};
+  /** Seconds of reload still to go, per class, while one is under way. It runs on whichever weapon is in hand, and pauses when the game does. */
+  reloadLeft: Partial<Record<WeaponClass, number>> = {};
   killed = 0;
   /** Enemies that got to the survivor and left the screen. */
   escaped = 0;
@@ -142,6 +168,7 @@ export class Game {
       if (tier > 0) {
         const w = weaponAt(cls, tier as 1 | 2 | 3 | 4);
         if (w.ammo) this.ammo[cls] = w.ammo;
+        if (usesMagazine(w)) this.mag[cls] = Math.min(MAGAZINE, w.ammo ?? MAGAZINE);
       }
     }
     // who comes in each wave: the kinds of enemy this place has, mixed, with the boss last
@@ -155,6 +182,26 @@ export class Game {
   get weapon(): Weapon | null {
     const tier = this.arsenal[this.selected];
     return tier > 0 ? weaponAt(this.selected, tier as 1 | 2 | 3 | 4) : null;
+  }
+
+  /** Is the weapon in hand being reloaded? (Then pulling the trigger does nothing until it is done.) */
+  get reloading(): boolean {
+    return (this.reloadLeft[this.selected] ?? 0) > 0;
+  }
+
+  /** How far through the reload of the weapon in hand (0 to 1), or null when it is not reloading. */
+  get reloadProgress(): number | null {
+    const left = this.reloadLeft[this.selected];
+    return left === undefined || left <= 0 ? null : 1 - left / RELOAD_SECONDS;
+  }
+
+  /** Starts a reload of this class's magazine, if it has a magazine and anything left to load. */
+  private startReload(cls: WeaponClass) {
+    const tier = this.arsenal[cls];
+    if (tier === 0 || !usesMagazine(weaponAt(cls, tier as 1 | 2 | 3 | 4))) return;
+    if ((this.mag[cls] ?? 0) >= MAGAZINE || (this.reloadLeft[cls] ?? 0) > 0) return;
+    if (this.ammo[cls] !== undefined && (this.ammo[cls] ?? 0) <= 0) return; // the flamethrower's last fuel is gone: nothing to load
+    this.reloadLeft[cls] = RELOAD_SECONDS;
   }
 
   select(cls: WeaponClass): boolean {
@@ -188,10 +235,8 @@ export class Game {
     const v0 = Math.max(this.spawns.horizon + 0.02, point.v);
     // the farther away it starts (the smaller it looks), the more steps it takes to arrive: eight at the farthest, six at the nearest
     const steps = 6 + Math.round(2 * (1 - this.depthAt(v0)));
-    // later waves come faster; faster creatures take their steps sooner
-    const wavePace = Math.max(0.6, 1.25 - 0.1 * Math.max(0, this.wave));
-    const kindPace = Math.min(1.2, Math.max(0.8, Math.sqrt(0.08 / type.speed)));
-    const stepGap = (boss ? 0.95 : wavePace * kindPace) * (0.85 + this.random() * 0.3);
+    // later waves come faster; faster creatures take their steps sooner (see stepGapFor)
+    const stepGap = stepGapFor(type, this.wave, boss) * (0.85 + this.random() * 0.3);
     this.enemies.push({
       id: this.nextId++, type, boss, u0: point.u, v0, toU: 0.15 + this.random() * 0.7, u: point.u, v: v0, step: 0, steps, stepGap, stepT: stepGap * (0.6 + this.random() * 0.5), p: 0,
       hp: type.hp, maxHp: type.hp, state: 'walking', t: 0, hurt: 0, phase: this.random() * 6.28, exit: this.random() < 0.5 ? -1 : 1,
@@ -215,6 +260,14 @@ export class Game {
   update(dt: number) {
     if (this.outcome !== 'fighting' || this.paused) return;
     this.cooldown = Math.max(0, this.cooldown - dt);
+    // reloads run in the background whichever weapon is in hand, and finish by filling the magazine from what is left
+    for (const cls of WEAPON_CLASS_IDS) {
+      const left = this.reloadLeft[cls];
+      if (left === undefined) continue;
+      if (left - dt > 0) { this.reloadLeft[cls] = left - dt; continue; }
+      delete this.reloadLeft[cls];
+      this.mag[cls] = Math.min(MAGAZINE, this.ammo[cls] ?? MAGAZINE);
+    }
     this.recoil = Math.max(0, this.recoil - dt * 6);
     this.shake = Math.max(0, this.shake - dt * 3);
     this.hitFlash = Math.max(0, this.hitFlash - dt * 2.5);
@@ -343,7 +396,18 @@ export class Game {
     if (!w || this.outcome !== 'fighting' || this.cooldown > 0) return false;
     const ammoLeft = this.ammo[this.selected];
     if (w.ammo !== undefined && (ammoLeft ?? 0) <= 0) return false;
+    // a weapon with a magazine: nothing happens while it reloads (a held trigger simply carries on firing when it is done), and an empty one reloads
+    const magazine = usesMagazine(w);
+    if (magazine) {
+      if (this.reloading) return false;
+      if ((this.mag[this.selected] ?? 0) <= 0) { this.startReload(this.selected); return false; }
+    }
     if (w.ammo !== undefined) this.ammo[this.selected] = (ammoLeft ?? 0) - 1;
+    if (magazine) {
+      const rounds = (this.mag[this.selected] ?? 0) - 1;
+      this.mag[this.selected] = rounds;
+      if (rounds <= 0) this.startReload(this.selected); // empty: the reload begins at once, by itself
+    }
     this.cooldown = 1 / w.rate;
     this.recoil = this.selected === 'sniper' || this.selected === 'explosive' ? 1 : 0.5;
     this.effects.push({ kind: 'muzzle', u: 0.5, v: 1.02, size: 0.03, t: 0, life: 0.07 });

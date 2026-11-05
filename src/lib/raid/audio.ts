@@ -53,7 +53,7 @@ function whoosh(c: AudioContext) {
   src.start();
 }
 
-export type SoundKind = 'pistol' | 'automatic' | 'sniper' | 'explosive' | 'flame' | 'boom' | 'hurt' | 'kill' | 'empty';
+export type SoundKind = 'pistol' | 'automatic' | 'sniper' | 'explosive' | 'flame' | 'boom' | 'hurt' | 'kill' | 'empty' | 'reloadOut' | 'reloadIn';
 
 export function playSound(kind: SoundKind, on: boolean) {
   if (!on) return;
@@ -69,5 +69,7 @@ export function playSound(kind: SoundKind, on: boolean) {
     case 'hurt': return burst(c, 0.25, 0.6, 500, 0.3);
     case 'kill': return burst(c, 0.14, 0.25, 1200, 0.4);
     case 'empty': return burst(c, 0.04, 0.2, 9000);
+    case 'reloadOut': return burst(c, 0.07, 0.35, 2200, 0.4); // the old magazine drops out
+    case 'reloadIn': return burst(c, 0.05, 0.5, 4200, 0.5); // the new one clicks home
   }
 }

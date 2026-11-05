@@ -9,11 +9,15 @@ import { enemyById } from '../lib/raid/enemies';
 import { Game, MAX_HITS, type Enemy, type Spawns } from '../lib/raid/engine';
 import { LOOT_CAP, lootName, type LootBag, type LootId } from '../lib/raid/loot';
 import type { RaidPlan } from '../lib/raid/raid';
-import { WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
+import { MAGAZINE, WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
 
 interface Hud {
   hits: number;
   ammo: number | null;
+  /** Rounds in the magazine of the weapon in hand (null for a weapon without one), what is left in reserve after it, and how far through a reload it is. */
+  mag: number | null;
+  reserve: number | null;
+  reload: number | null;
   selected: WeaponClass;
   remaining: number;
   banner: string;
@@ -61,6 +65,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   const [hud, setHud] = useState<Hud | null>(null);
   // what each enemy was doing last frame, so a new strike or a death is heard once
   const lastState = useRef(new Map<number, string>());
+  // which classes were reloading last frame, so the two clicks of a reload are heard once
+  const wasReloading = useRef<Partial<Record<WeaponClass, boolean>>>({});
   const [wheelOpen, setWheelOpen] = useState(false);
   const [stims, setStims] = useState(account.stimpaks);
   const [healing, setHealing] = useState(false);
@@ -147,6 +153,13 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           if (e.state === 'dying' && hasVoice(e.type.id)) { playEnemy(e.type.id, 'die', sound); voicedDeath = true; }
         }
       }
+      for (const cls of WEAPON_CLASS_IDS) {
+        const now = (g.reloadLeft[cls] ?? 0) > 0;
+        if (now !== !!wasReloading.current[cls]) {
+          wasReloading.current[cls] = now;
+          if (cls === g.selected) playSound(now ? 'reloadOut' : 'reloadIn', sound);
+        }
+      }
       if (g.killed > before) { if (!voicedDeath) playSound('kill', sound); buzz('kill'); }
       if (g.hits > hitsBefore) { playSound('hurt', sound); buzz('hurt'); }
       if (pointer.current.down) shoot();
@@ -155,7 +168,9 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         lastHud = now;
         const boss = g.enemies.find((e) => e.boss && e.state !== 'dying');
         setHud({
-          hits: g.hits, ammo: g.ammo[g.selected] ?? null, selected: g.selected, remaining: g.remaining,
+          hits: g.hits, ammo: g.ammo[g.selected] ?? null, mag: g.mag[g.selected] ?? null, reload: g.reloadProgress,
+          reserve: g.mag[g.selected] !== undefined && g.ammo[g.selected] !== undefined ? Math.max(0, (g.ammo[g.selected] as number) - (g.mag[g.selected] as number)) : null,
+          selected: g.selected, remaining: g.remaining,
           banner: g.bannerT > 0 ? g.banner : '', bossHp: boss ? boss.hp / boss.maxHp : null, bossName: boss?.type.name ?? '',
         });
       }
@@ -296,8 +311,11 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       const pivotX = Math.max(gw * 0.5, cssW - gw * 0.44), pivotY = cssH + gh * 0.64;
       const aim = Math.max(-0.12, Math.min(0.12, Math.atan2(pointer.current.x - pivotX, pivotY - pointer.current.y) * 0.3));
       ctx.save();
-      ctx.translate(pivotX, pivotY + g.recoil * 22);
-      ctx.rotate(aim);
+      // reloading: the gun tips up and away while the magazine (or fuel tank) is swapped by a hand coming up from below the screen
+      const reload = g.reloadProgress;
+      const tip = reload === null ? 0 : Math.sin(Math.min(1, reload) * Math.PI);
+      ctx.translate(pivotX, pivotY + g.recoil * 22 - tip * gh * 0.1);
+      ctx.rotate(aim - tip * 0.16);
       if (gunArt) {
         ctx.drawImage(gunArt.image, -gw / 2, -gh, gw, gh);
         if (g.recoil > 0.55) {
@@ -313,6 +331,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         ctx.fillStyle = '#2a2a2a';
         ctx.fillRect(-18, -gh * 0.6, 36, gh * 0.6);
       }
+      if (reload !== null) drawReload(ctx, reload, gw, gh, weapon?.id === 'flamethrower');
       ctx.restore();
 
       // what the survivor was struck by: a bullet hole, claw marks, or a blast, flashing across the picture
@@ -503,7 +522,9 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
             <div className="rm-raid-boss"><b>{hud.bossName.toUpperCase()}</b><div><div style={{ width: `${Math.round(hud.bossHp * 100)}%` }} /></div></div>
           )}
           {hud.banner && <div className="rm-raid-banner" key={hud.banner}>{hud.banner}</div>}
-          {hud.ammo !== null && <div className="rm-raid-ammo">AMMO {hud.ammo}</div>}
+          {hud.mag !== null
+            ? <div className={`rm-raid-ammo${hud.reload !== null ? ' rm-raid-reloading' : ''}`}>{hud.reload !== null ? 'RELOADING…' : `AMMO ${hud.mag}/${MAGAZINE}`}{hud.reserve !== null && hud.reserve > 0 && <small> +{hud.reserve}</small>}{hud.reload !== null && <span className="rm-raid-reload-bar"><span style={{ width: `${Math.round(hud.reload * 100)}%` }} /></span>}</div>
+            : hud.ammo !== null && <div className="rm-raid-ammo">AMMO {hud.ammo}</div>}
           <div className="rm-raid-bar">
             <button type="button" className="rm-btn rm-raid-btn" onClick={openWheel} disabled={wheelOpen || downed}>WEAPONS</button>
             <button type="button" className="rm-btn rm-raid-btn" onClick={() => void heal()} disabled={wheelOpen || downed || healing || stims <= 0 || hud.hits <= 0} title="Take back all your strikes">STIMPAK ×{stims}</button>
@@ -572,6 +593,43 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
     </div>,
     document.body,
   );
+}
+
+/**
+ * The reload, drawn over the gun (in the gun's own coordinates, where the picture is cut off by the bottom of the screen): the old magazine (a fuel tank
+ * for the flamethrower) drops away out of the bottom, then a gloved hand brings a fresh one up from below and pushes it home with a click.
+ */
+function drawReload(ctx: CanvasRenderingContext2D, p: number, gw: number, gh: number, tank: boolean) {
+  const mw = gw * (tank ? 0.15 : 0.085), mh = gh * (tank ? 0.34 : 0.3);
+  const x = gw * 0.03, seat = -gh * 0.86; // where a magazine sits: a little above the bottom edge of the screen, so the top of it and the hand are in view
+  const ease = (q: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, q)), 3);
+  const magazine = (cx: number, top: number, spin = 0) => {
+    ctx.save();
+    ctx.translate(cx, top + mh / 2);
+    ctx.rotate(spin);
+    const grad = ctx.createLinearGradient(-mw / 2, 0, mw / 2, 0);
+    if (tank) { grad.addColorStop(0, '#6b3a12'); grad.addColorStop(0.35, '#c9772a'); grad.addColorStop(1, '#5a300e'); } else { grad.addColorStop(0, '#15171a'); grad.addColorStop(0.4, '#4a4f55'); grad.addColorStop(1, '#16181b'); }
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.roundRect(-mw / 2, -mh / 2, mw, mh, mw * 0.18); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = 2; ctx.stroke();
+    if (tank) { ctx.fillStyle = 'rgba(30,18,6,0.75)'; ctx.fillRect(-mw / 2, -mh * 0.2, mw, mh * 0.08); ctx.fillRect(-mw / 2, mh * 0.12, mw, mh * 0.08); ctx.fillStyle = '#2a2a2a'; ctx.fillRect(-mw * 0.18, -mh / 2 - 5, mw * 0.36, 7); }
+    else { ctx.fillStyle = '#c9a24a'; ctx.fillRect(-mw * 0.3, -mh / 2 + 3, mw * 0.6, 4); ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fillRect(-mw * 0.38, -mh / 2 + 10, 3, mh - 18); }
+    ctx.restore();
+  };
+  // 0 to 0.3: the spent one falls away; 0.25 to 0.88: the hand brings the new one up; the rest: it seats
+  if (p < 0.32) { const q = p / 0.32; magazine(x + q * gw * 0.04, seat + q * q * gh * 0.7, q * 0.5); }
+  if (p > 0.25) {
+    const q = ease((p - 0.25) / 0.63);
+    const bump = p > 0.88 ? Math.sin(((p - 0.88) / 0.12) * Math.PI) * 4 : 0;
+    const top = seat + (1 - q) * gh * 0.7 + bump;
+    magazine(x, top);
+    // the glove under it: a palm with the fingers curled round the magazine
+    const hx = x, hy = top + mh * 0.55, hw = mw * (tank ? 1.9 : 2.7);
+    ctx.fillStyle = '#4a3426'; ctx.strokeStyle = '#1d130c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(hx - hw / 2, hy, hw, gh * 0.4, hw * 0.3); ctx.fill(); ctx.stroke();
+    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.roundRect(hx - hw * 0.42 + i * hw * 0.21, hy - mh * 0.16, hw * 0.19, mh * 0.5, hw * 0.1); ctx.fill(); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(hx - hw * 0.34, hy + 4, hw * 0.12, gh * 0.12);
+  }
 }
 
 /** A gun's picture in a wheel slot (the art may not exist yet). */

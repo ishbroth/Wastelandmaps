@@ -28,6 +28,11 @@ export interface Weapon {
   recipe: LootBag;
 }
 
+/** Rounds in a magazine (or a tank of fuel): the automatic guns and the flamethrower reload by themselves every this many rounds. */
+export const MAGAZINE = 100;
+/** Does this weapon work from a magazine? The ones you hold the trigger down for: the automatics and the flamethrower. */
+export const usesMagazine = (w: Weapon): boolean => !!w.auto;
+
 /** Cost of each tier in pieces of loot: 4, then 7, 10 and 15 more. */
 export const TIER_COST: Record<1 | 2 | 3 | 4, number> = { 1: 4, 2: 7, 3: 10, 4: 15 };
 

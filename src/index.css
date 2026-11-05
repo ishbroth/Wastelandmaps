@@ -531,6 +531,10 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-raid-banner { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); font-size: 62px; letter-spacing: 10px; color: #e8d58a; text-shadow: 0 0 18px rgba(232, 213, 138, 0.6), 0 2px 4px #000; pointer-events: none; animation: rm-raid-banner 2.2s ease-out forwards; white-space: nowrap; }
 @keyframes rm-raid-banner { 0% { opacity: 0; transform: translateX(-50%) scale(1.5); } 15%, 70% { opacity: 1; transform: translateX(-50%) scale(1); } 100% { opacity: 0; } }
 .rm-raid-ammo { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px)); font-size: 22px; color: #e8d58a; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.rm-raid-ammo small { font-size: 15px; opacity: 0.75; }
+.rm-raid-reloading { color: #ffb347; }
+.rm-raid-reload-bar { display: block; height: 4px; margin-top: 4px; background: rgba(255, 255, 255, 0.18); }
+.rm-raid-reload-bar > span { display: block; height: 100%; background: #ffb347; }
 /* the weapon wheel: opened from the WEAPONS button over the paused fight; pistol left, automatic right, sniper below, heavy weapons above */
 .rm-raid-bar { position: absolute; z-index: 3; left: max(14px, env(safe-area-inset-left)); bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px)); display: flex; gap: 8px; }
 .rm-raid-btn { color: #e8d58a; border-color: #8a7a4a; background: rgba(0, 0, 0, 0.55); font-size: 17px; padding: 4px 14px; }
