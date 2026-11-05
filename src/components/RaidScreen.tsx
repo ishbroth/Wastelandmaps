@@ -42,7 +42,7 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
  * The shooting gallery: the destroyed picture blown up to the whole screen, the place's enemies walking out of the ground in waves, a gun at the bottom
  * and a wheel to switch between the four classes of weapon. Winning pays the loot the server decided; dying sends the survivor back to try again.
  */
-export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, account, sound, onExit }: {
+export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, account, sound, onExit, onSignIn }: {
   /** The metro on the map, kept with the raid so progress toward clearing each metro can be listed. */
   metroId?: string | null;
   plan: RaidPlan;
@@ -52,6 +52,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   account: Account;
   sound: boolean;
   onExit: () => void;
+  /** Opens the sign-in popup: offered on the "you must be signed in" message. */
+  onSignIn?: () => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const game = useRef<Game | null>(null);
@@ -62,6 +64,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   const pointer = useRef({ down: false, x: -1, y: -1 });
   const [phase, setPhase] = useState<'loading' | 'fighting' | 'won' | 'lost' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  const [needsSignIn, setNeedsSignIn] = useState(false);
   const [hud, setHud] = useState<Hud | null>(null);
   // what each enemy was doing last frame, so a new strike or a death is heard once
   const lastState = useRef(new Map<number, string>());
@@ -109,7 +112,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       ]);
       if (cancelled) return;
       if ('error' in started) {
-        setMessage(started.error === 'sign_in' ? 'SIGN IN TO LOOT' : started.error === 'locked' ? 'UNLOCK THIS SNAPSHOT FIRST' : started.error === 'cleared' ? 'THIS PLACE IS ALREADY CLEARED' : started.error === 'too_many' ? 'YOU HAVE BEEN FIGHTING A LOT. REST A WHILE' : 'THE RAID COULD NOT START. TRY AGAIN IN A MOMENT');
+        setNeedsSignIn(started.error === 'sign_in');
+        setMessage(started.error === 'sign_in' ? 'YOU MUST BE SIGNED IN TO LOOT' : started.error === 'locked' ? 'UNLOCK THIS SNAPSHOT FIRST' : started.error === 'cleared' ? 'THIS PLACE IS ALREADY CLEARED' : started.error === 'too_many' ? 'YOU HAVE BEEN FIGHTING A LOT. REST A WHILE' : 'THE RAID COULD NOT START. TRY AGAIN IN A MOMENT');
         setPhase('error');
         return;
       }
@@ -506,7 +510,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       {phase === 'error' && (
         <div className="rm-raid-center">
           <p>{message}</p>
-          <button type="button" className="rm-btn" onClick={onExit}>BACK</button>
+          {needsSignIn && onSignIn && <button type="button" className="rm-btn" onClick={() => { onExit(); onSignIn(); }}>SIGN IN</button>}
+          <button type="button" className="rm-btn rm-btn-ghost" onClick={onExit}>BACK</button>
         </div>
       )}
 

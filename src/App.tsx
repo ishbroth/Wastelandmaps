@@ -5,7 +5,7 @@ import AccountModal from './components/AccountModal';
 import SceneModal from './components/SceneModal';
 import { accountsEnabled, atlasList, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
-import { getFix, locationState, watchFixes, type GeoError } from './lib/geo';
+import { askForLocation, getFix, locationState, openLocationSettings, watchFixes, type GeoError } from './lib/geo';
 import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
 import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
 import { iconHtmlFor } from './lib/landmarkIcons';
@@ -990,9 +990,18 @@ export default function App() {
     return () => { cancelled = true; stop?.(); };
   }, [tracking, markFound, navigating]);
 
-  const toggleTracking = () => {
+  const toggleTracking = async () => {
     const next = !tracking;
-    if (next) void enableNotifications();
+    sound('select');
+    if (next) {
+      void enableNotifications();
+      // every time it is switched on in the app, the phone is asked for location again: that brings back its Allow question when it is willing to ask
+      // (after "Allow Once", say), so "Always" can be chosen this time. Once the phone has been told No it does not ask again: Settings is the only place left.
+      if (isNative() && (await askForLocation()) === 'denied') {
+        if (window.confirm('Location is turned off for WastelandMaps. AUTO-DISCOVER works best, even with the phone in your pocket, when Location is set to "Always" in Settings. Open Settings now?')) void openLocationSettings();
+        return;
+      }
+    }
     setTracking(next);
     const who = accountRef.current?.session;
     if (who) void saveAutoDiscover(who.user.id, next);
@@ -1035,7 +1044,7 @@ export default function App() {
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={mapLocations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={setSelectedId} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
+              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { setSelectedId(id); if (id) sound('tick'); }} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
@@ -1085,7 +1094,7 @@ export default function App() {
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
               spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
-              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { setSceneStart('scene'); setSceneId(selectedSpot.id); }} onClose={() => setSelectedId(null)}
+              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
@@ -1116,7 +1125,7 @@ export default function App() {
         </div>
 
         <aside className="rm-side">
-          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onPick={(s) => void pickSuggestion(s)} onSignIn={accountsEnabled && !account.session ? () => setAccountOpen(true) : undefined} tracking={tracking} onToggleTracking={toggleTracking} />
+          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onPick={(s) => void pickSuggestion(s)} onSignIn={accountsEnabled && !account.session ? () => setAccountOpen(true) : undefined} tracking={tracking} onToggleTracking={() => void toggleTracking()} soundOn={soundOn} onToggleSound={() => { const next = !soundOn; setSoundOn(next); buzz('tick'); if (next) beep('tick'); }} />
           <nav className="rm-tabs" role="tablist" aria-label="Pip-Boy menu">
             {(['locations', 'data', 'share'] as Tab[]).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); sound('tick'); }}>
@@ -1133,7 +1142,7 @@ export default function App() {
               />
             )}
             {tab === 'data' && <AccountPanel account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} metro={metroInfo ?? undefined} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
-            {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} soundOn={soundOn} onToggleSound={() => setSoundOn((s) => !s)} />}
+            {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} />}
           </section>
         </aside>
       </main>

@@ -91,6 +91,23 @@ export async function watchFixes(onFix: (fix: GeoFix) => void, onError: (code: 1
   return () => navigator.geolocation.clearWatch(id);
 }
 
+/**
+ * Asks the phone for location now, and says how it was answered. In the app this brings up the system's own "Allow" question whenever the phone is willing to ask
+ * (it asks again after "Allow Once" has run out, and the first time); once it has been answered with "While Using" or "Don't Allow" the phone does not ask again, and
+ * the only way to change it is in Settings (see openLocationSettings). In a browser the question comes with the first position, so this just reports the state.
+ */
+export async function askForLocation(): Promise<'granted' | 'denied' | 'prompt' | 'unsupported'> {
+  if (isNative()) {
+    try {
+      const p = await Geolocation.requestPermissions({ permissions: ['location'] });
+      return p.location === 'granted' || p.coarseLocation === 'granted' ? 'granted' : p.location === 'denied' ? 'denied' : 'prompt';
+    } catch {
+      return locationState();
+    }
+  }
+  return locationState();
+}
+
 /** Is location usable, refused, or not yet asked? */
 export async function locationState(): Promise<'granted' | 'denied' | 'prompt' | 'unsupported'> {
   if (isNative()) {

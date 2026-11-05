@@ -33,10 +33,24 @@ function boundsCenterLng(b: google.maps.LatLngBoundsLiteral): number {
   return mid > 180 ? mid - 360 : mid;
 }
 
-/** Opacity of each nested layer of a flooded patch, outermost first, so the water is a thin film at the shore and nearly solid in the deepest part. */
-function floodLayerAlphas(strength: number, layers: number): number[] {
+const hexRgb = (hex: string): number[] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const rgbHex = (c: number[]): string => '#' + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+
+/**
+ * The colour of a flooded patch's layers. The water must be one colour, the sea's, all the way to the shore, while the streets still fade as they go in. The
+ * layers are stacked, and only the outermost has land showing through, so it is tinted to cancel the land: laid at its opacity over the land it comes out
+ * exactly as the sea. Every layer inside it is the sea's own colour (on top of sea, more sea), so only the streets fade, never the water.
+ */
+function floodLayerColor(look: Look, layer: number, alpha: number): string {
+  if (layer > 0) return look.floodFill;
+  const sea = hexRgb(look.floodFill);
+  const land = hexRgb(look.floodLand);
+  return rgbHex(sea.map((o, i) => (o - (1 - alpha) * land[i]) / alpha));
+}
+
+/** Opacity of each nested layer of a flooded patch, outermost first: the streets go from this dim at the shore to nearly gone in the deepest part. */
+function floodLayerAlphas(strength: number, layers: number, edge = 0.16): number[] {
   if (layers <= 1) return [strength];
-  const edge = 0.16;
   const deepest = Math.min(0.97, strength + 0.15); // a little darker than before, where it is deepest
   const out: number[] = [];
   let before = 0;
@@ -411,12 +425,12 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       shape.setMap(null);
       shapes.delete(key);
     });
-    const alphas = floodLayerAlphas(look.floodOpacity, layers);
+    const alphas = floodLayerAlphas(look.floodOpacity, layers, look.floodEdge);
     wanted.forEach(({ patch, layer }, key) => {
       if (shapes.has(key)) return;
       shapes.set(key, new google.maps.Polygon({
         map, paths: patchOutline(patch), clickable: false, zIndex: 2,
-        fillColor: look.floodFill, fillOpacity: alphas[layer], strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // one color, no outline: it reads as the coast itself having moved
+        fillColor: floodLayerColor(look, layer, alphas[layer]), fillOpacity: alphas[layer], strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // one color, no outline: it reads as the coast itself having moved
       }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -424,7 +438,8 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
   useEffect(() => {
     floodShapes.current.forEach((shape, key) => {
       const [, n, k] = key.split(':').map(Number);
-      shape.setOptions({ fillColor: look.floodFill, fillOpacity: floodLayerAlphas(look.floodOpacity, n)[k] ?? look.floodOpacity, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0 });
+      const alpha = floodLayerAlphas(look.floodOpacity, n, look.floodEdge)[k] ?? look.floodOpacity;
+      shape.setOptions({ fillColor: floodLayerColor(look, k, alpha), fillOpacity: alpha, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0 });
     });
   }, [look]);
 

@@ -685,6 +685,10 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-poster-cleared { display: block; font-size: 0.5em; letter-spacing: 3px; color: var(--ink); text-shadow: 0 0 8px var(--glow); }
 .rm-quick .rm-signin { font: inherit; font-size: 12px; letter-spacing: 1px; padding: 2px 8px; background: transparent; color: var(--ink); border: 1px solid var(--ink); cursor: pointer; }
 .rm-quick .rm-signin:hover { background: var(--ink); color: var(--on-ink); }
+.rm-quick .rm-icon-toggle { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 24px; padding: 0; background: transparent; color: var(--ink-dim); border: 1px solid var(--line); opacity: 0.7; }
+.rm-quick .rm-icon-toggle.on { background: var(--ink); color: var(--on-ink); border-color: var(--ink); opacity: 1; }
+.rm-quick .rm-icon-toggle:hover:not(:disabled) { background: var(--ink); color: var(--on-ink); }
+.rm-quick .rm-icon-toggle:not(.on):hover:not(:disabled) { opacity: 1; }
 
 .rm-metro-progress { list-style: none; margin: 0 0 6px; padding: 0; }
 .rm-metro-progress li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
@@ -781,3 +785,4 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .rm-vh-kinds { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .rm-vh-kinds button { display: grid; justify-items: center; gap: 2px; padding: 8px; background: transparent; color: #3dff8a; border: 1px solid #3dff8a; font: inherit; font-size: 22px; letter-spacing: 3px; cursor: pointer; }
 .rm-vh-kinds button:hover:not(:disabled) { background: rgba(61, 255, 138, 0.15); }
+.rm-raid-center .rm-btn + .rm-btn { margin-top: 10px; }

@@ -16,6 +16,7 @@ import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } 
 import type { LookId } from '../lib/looks';
 import BlowApart from './BlowApart';
 import RaidScreen from './RaidScreen';
+import { buzz } from '../lib/haptics';
 import VaultHome from './VaultHome';
 import { spawnsFor } from '../lib/raid/spawnData';
 import { lootSummary, planEnemies, type RaidPlan } from '../lib/raid/raid';
@@ -158,10 +159,10 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
         </div>
 
         <div className="rm-modal-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={tab === 'scene'} className={tab === 'scene' ? 'on' : ''} onClick={() => setTab('scene')}>SCENE</button>
+          <button type="button" role="tab" aria-selected={tab === 'scene'} className={tab === 'scene' ? 'on' : ''} onClick={() => { buzz('tick'); setTab('scene'); }}>SCENE</button>
           <button
             type="button" role="tab" aria-selected={tab === 'snapshot'} className={`rm-tab-render${tab === 'snapshot' ? ' on' : ''}`}
-            disabled={!snapshotAvailable} onClick={() => setTab('snapshot')}
+            disabled={!snapshotAvailable} onClick={() => { buzz('tick'); setTab('snapshot'); }}
             title={snapshotAvailable ? 'The place as it is now' : searching ? 'Looking for a picture of the place' : personal ? 'No Street View picture of this place' : 'No free photo of this place to make a snapshot from'}
           >
             {!render && searching ? 'SNAPSHOT…' : snapshotAvailable ? <>SNAPSHOT <LockIcon open={!locked} /></> : 'NO SNAPSHOT'}
@@ -221,7 +222,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
       {buying && <BuyCaps onClose={() => setBuying(false)} />}
       {entering && home && <VaultHome title={spot.name} account={account} onExit={() => setEntering(false)} />}
       {raiding && reveal && raid && (
-        <RaidScreen metroId={metroId} plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} sound={sound} onExit={() => setRaiding(false)} />
+        <RaidScreen metroId={metroId} plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} sound={sound} onExit={() => setRaiding(false)} onSignIn={onAccount} />
       )}
     </div>
   );

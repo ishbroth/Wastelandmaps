@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEven
 import ScrollRow from './ScrollRow';
 import { shuffledShowcase } from '../lib/showcase';
 import { suggest, type Suggestion } from '../lib/addressSearch';
+import { hapticsAvailable, hapticsEnabled, setHaptics } from '../lib/haptics';
 
 /** Cities with a permanent landmark snapshot, as one-click starting points (a different order each visit, three showing at a time). Typing also suggests real addresses. */
-export default function SearchBar({ busy, disabled, initial, onSearch, onPick, onSignIn, tracking, onToggleTracking }: {
-  busy: boolean; disabled: boolean; initial: string; onSearch: (q: string) => void; onPick: (s: Suggestion) => void; /** Present while signed out: the SIGN IN button beside AUTO-DISCOVER. */ onSignIn?: () => void; tracking: boolean; onToggleTracking: () => void;
+export default function SearchBar({ busy, disabled, initial, onSearch, onPick, onSignIn, tracking, onToggleTracking, soundOn, onToggleSound }: {
+  busy: boolean; disabled: boolean; initial: string; onSearch: (q: string) => void; onPick: (s: Suggestion) => void; /** Present while signed out: the SIGN IN button beside AUTO-DISCOVER. */ onSignIn?: () => void; tracking: boolean; onToggleTracking: () => void; /** Sound effects are on, and the switch for them (a small speaker beside AUTO-DISCOVER). */ soundOn: boolean; onToggleSound: () => void;
 }) {
   const off = busy || disabled;
   const [value, setValue] = useState(initial);
@@ -15,6 +16,7 @@ export default function SearchBar({ busy, disabled, initial, onSearch, onPick, o
   const input = useRef<HTMLInputElement>(null);
   const latest = useRef(0);
   const cities = useMemo(() => shuffledShowcase(), []);
+  const [vibration, setVibration] = useState(hapticsEnabled());
 
   // suggestions for what is being typed (not for text the page put there itself)
   useEffect(() => {
@@ -99,6 +101,24 @@ export default function SearchBar({ busy, disabled, initial, onSearch, onPick, o
         <button type="button" className={`rm-track${tracking ? ' on' : ''}`} aria-pressed={tracking} onClick={onToggleTracking} title="Discover places automatically when you are near them">
           {tracking ? '◉ AUTO-DISCOVER ON' : '○ AUTO-DISCOVER OFF'}
         </button>
+        <button type="button" className={`rm-icon-toggle${soundOn ? ' on' : ''}`} aria-pressed={soundOn} onClick={onToggleSound} title={soundOn ? 'Sound on' : 'Sound off'} aria-label={soundOn ? 'Sound on: tap to turn off' : 'Sound off: tap to turn on'}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4 9.5v5h4l5 4v-13l-5 4z" fill="currentColor" />
+            <path d="M16.5 9a4 4 0 0 1 0 6" />
+            <path d="M19 6.5a8 8 0 0 1 0 11" />
+          </svg>
+        </button>
+        {hapticsAvailable() && (
+          <button type="button" className={`rm-icon-toggle${vibration ? ' on' : ''}`} aria-pressed={vibration} onClick={() => { setHaptics(!vibration); setVibration(!vibration); }} title={vibration ? 'Vibration on' : 'Vibration off'} aria-label={vibration ? 'Vibration on: tap to turn off' : 'Vibration off: tap to turn on'}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="8" y="3" width="8" height="18" rx="1.5" />
+              <path d="M4.5 8v8" />
+              <path d="M2 10.5v3" />
+              <path d="M19.5 8v8" />
+              <path d="M22 10.5v3" />
+            </svg>
+          </button>
+        )}
         {onSignIn && <button type="button" className="rm-signin" onClick={onSignIn}>SIGN IN</button>}
       </div>
       <div className="rm-try">
