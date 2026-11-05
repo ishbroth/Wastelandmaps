@@ -7,6 +7,7 @@ import { createClient, type Session, type SupabaseClient } from '@supabase/supab
 import { useEffect, useState } from 'react';
 import { STARTING_ARSENAL, type Arsenal, type WeaponClass } from './raid/weapons';
 import type { LootBag, LootId } from './raid/loot';
+import type { VaultHome } from './vaultHome';
 
 const URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? 'https://tdwikatzogfwfssyzmlw.supabase.co';
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -452,4 +453,14 @@ export async function loadClearable(metroId: string): Promise<string[]> {
     const res = await fetch(`${import.meta.env.BASE_URL}data/clear/${metroId}.json`);
     return res.ok ? ((await res.json()) as string[]) : [];
   } catch { return []; }
+}
+
+// ---- the home vault (rules in vaultHome.ts; the server keeps the vault and spends the loot) ----
+
+export type VaultAnswer = { ok: true; vault: VaultHome; version: number } | { ok: false; reason: string };
+
+/** Asks the vault function to do something: 'visit', 'build', 'furnish' or 'settler'. */
+export async function vaultCall(body: { action: 'visit' } | { action: 'build'; type: string; col: number; row: number; pay: Record<string, number | undefined> } | { action: 'furnish'; room: number; item: string; pay: Record<string, number | undefined> } | { action: 'settler'; kind: string }): Promise<VaultAnswer> {
+  const { data, error } = await db().functions.invoke('vault', { body });
+  return error || !data ? { ok: false, reason: 'server' } : (data as VaultAnswer);
 }

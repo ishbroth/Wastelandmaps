@@ -16,6 +16,7 @@ import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } 
 import type { LookId } from '../lib/looks';
 import BlowApart from './BlowApart';
 import RaidScreen from './RaidScreen';
+import VaultHome from './VaultHome';
 import { spawnsFor } from '../lib/raid/spawnData';
 import { lootSummary, planEnemies, type RaidPlan } from '../lib/raid/raid';
 import { lootName } from '../lib/raid/loot';
@@ -41,6 +42,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
   const render = useMemo(() => freeRenderFor(spot.id), [spot.id]);
   const [tab, setTab] = useState<Tab>(startOn === 'snapshot' ? 'snapshot' : 'scene');
   const [raiding, setRaiding] = useState(false);
+  const [entering, setEntering] = useState(false);
   const [buying, setBuying] = useState(false);
   // the reason the LOOT button will not work yet, flashed over the picture
   const [needDiscover, setNeedDiscover] = useState(0);
@@ -165,7 +167,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
             {!render && searching ? 'SNAPSHOT…' : snapshotAvailable ? <>SNAPSHOT <LockIcon open={!locked} /></> : 'NO SNAPSHOT'}
           </button>
           {reveal && raid && (
-            <button type="button" className={`rm-tab-loot${visited || render || spot.personal ? '' : ' rm-tab-loot-faded'}`} disabled={account.cleared.has(spot.id)} onClick={() => (visited || render || spot.personal ? setRaiding(true) : setNeedDiscover(Date.now()))} title={account.cleared.has(spot.id) ? 'Already cleared' : 'Fight what lives there and loot it'}>{account.cleared.has(spot.id) ? 'CLEARED' : 'LOOT'}</button>
+            <button type="button" className={`rm-tab-loot${visited || render || spot.personal ? '' : ' rm-tab-loot-faded'}`} disabled={account.cleared.has(spot.id) && !home} onClick={() => (home && account.cleared.has(spot.id) ? setEntering(true) : visited || render || spot.personal ? setRaiding(true) : setNeedDiscover(Date.now()))} title={home && account.cleared.has(spot.id) ? 'Go into your home vault' : account.cleared.has(spot.id) ? 'Already cleared' : 'Fight what lives there and loot it'}>{home && account.cleared.has(spot.id) ? 'ENTER' : account.cleared.has(spot.id) ? 'CLEARED' : 'LOOT'}</button>
           )}
         </div>
 
@@ -217,6 +219,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
         )}
       </div>
       {buying && <BuyCaps onClose={() => setBuying(false)} />}
+      {entering && home && <VaultHome title={spot.name} account={account} onExit={() => setEntering(false)} />}
       {raiding && reveal && raid && (
         <RaidScreen metroId={metroId} plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} sound={sound} onExit={() => setRaiding(false)} />
       )}
