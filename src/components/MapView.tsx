@@ -13,6 +13,21 @@ import { cloudOutline } from '../lib/zones';
 import { levelsAt, type RegionLabel } from '../lib/regions';
 import { VAULT_ID, distanceMeters, hashString, subtitle, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
 
+/** Opacity of each nested layer of a flooded patch, outermost first, so the water is a thin film at the shore and nearly solid in the deepest part. */
+function floodLayerAlphas(strength: number, layers: number): number[] {
+  if (layers <= 1) return [strength];
+  const edge = 0.16;
+  const deepest = Math.min(0.97, strength + 0.15); // a little darker than before, where it is deepest
+  const out: number[] = [];
+  let before = 0;
+  for (let k = 0; k < layers; k++) {
+    const total = edge + (deepest - edge) * Math.pow(k / (layers - 1), 1.5); // how dark it should be after this layer
+    out.push(Math.min(0.99, Math.max(0.02, 1 - (1 - total) / (1 - before))));
+    before = total;
+  }
+  return out;
+}
+
 interface Props {
   look: Look;
   region: Region | null;
@@ -365,30 +380,36 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     const cLng = view ? (view.east + view.west) / 2 : 0;
     const visible = allFlood.filter((p) => !view || (p[0] <= view.north + padLat && p[0] >= view.south - padLat && p[1] <= view.east + padLng && p[1] >= view.west - padLng));
     const near = visible.length > 500 ? visible.sort((x, y) => Math.hypot(x[0] - cLat, x[1] - cLng) - Math.hypot(y[0] - cLat, y[1] - cLng)).slice(0, 500) : visible;
-    const wanted = new Map<string, FloodPatch>();
-    for (const p of near) {
-      const metersPerPixel = (156543.03 * Math.cos((p[0] * Math.PI) / 180)) / 2 ** zoomNow;
-      const factor = Math.min(6, Math.max(1, (2.4 * metersPerPixel) / p[2])); // far out they are drawn a little larger so the coast still reads, but never so large that it looks drowned
-      const bucket = Math.round(factor * 4) / 4;
-      wanted.set(`${p[5]}:${bucket}`, [p[0], p[1], p[2] * bucket, p[3], p[4], p[5]]);
+    // Drawn at their true size: as the map zooms out the patches shrink with the land around them (and vanish once they are specks), so the coast never
+    // looks drowned. Zoomed in, each patch is a stack of nested outlines, so the water is thin at the shore and deepest in the middle, and the main
+    // streets running into it fade out gradually instead of stopping at an edge.
+    const onScreen = near.filter((p) => (p[2] * Math.max(1, p[3])) / ((156543.03 * Math.cos((p[0] * Math.PI) / 180)) / 2 ** zoomNow) >= 1.2);
+    const baseLayers = zoomNow >= 15 ? 18 : zoomNow >= 12 ? 10 : zoomNow >= 10 ? 4 : 1;
+    const layers = Math.max(1, Math.min(baseLayers, Math.floor(600 / Math.max(1, onScreen.length))));
+    const wanted = new Map<string, { patch: FloodPatch; layer: number }>();
+    for (const p of onScreen) {
+      for (let k = 0; k < layers; k++) wanted.set(`${p[5]}:${layers}:${k}`, { patch: [p[0], p[1], p[2] * (layers === 1 ? 1 : 1 - (k / layers) * 0.85), p[3], p[4], p[5]], layer: k });
     }
     shapes.forEach((shape, key) => {
       if (wanted.has(key)) return;
       shape.setMap(null);
       shapes.delete(key);
     });
-    wanted.forEach((patch, key) => {
+    const alphas = floodLayerAlphas(look.floodOpacity, layers);
+    wanted.forEach(({ patch, layer }, key) => {
       if (shapes.has(key)) return;
       shapes.set(key, new google.maps.Polygon({
         map, paths: patchOutline(patch), clickable: false, zIndex: 2,
-        fillColor: look.floodFill, fillOpacity: look.floodOpacity, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // black at this strength over the land is the colour of the sea, and the main streets still show faint under it
-         // one color, no outline: it reads as the coast itself having moved
+        fillColor: look.floodFill, fillOpacity: alphas[layer], strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0, // one color, no outline: it reads as the coast itself having moved
       }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allFlood, view, zoomNow]);
   useEffect(() => {
-    floodShapes.current.forEach((shape) => shape.setOptions({ fillColor: look.floodFill, fillOpacity: look.floodOpacity, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0 }));
+    floodShapes.current.forEach((shape, key) => {
+      const [, n, k] = key.split(':').map(Number);
+      shape.setOptions({ fillColor: look.floodFill, fillOpacity: floodLayerAlphas(look.floodOpacity, n)[k] ?? look.floodOpacity, strokeColor: look.floodFill, strokeOpacity: 0, strokeWeight: 0 });
+    });
   }, [look]);
 
   // zoomed out past the city: its irradiated zones clear off the map, and come back as you zoom in

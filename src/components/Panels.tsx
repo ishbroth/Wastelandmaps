@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
 import { freeRenderFor } from '../lib/renders';
 import { LOOT_CAP } from '../lib/raid/loot';
@@ -34,7 +34,6 @@ export function LocationsPanel({ metro, region, locations: everywhere, hidden, o
   cleared: Set<string>;
   onSelect: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   // only the places of the metro the map is over (a metro looked at earlier stays loaded on the map, but not in this list)
   const here = metro?.lat !== undefined && metro.lng !== undefined && metro.radiusKm ? { lat: metro.lat, lng: metro.lng, reach: (metro.radiusKm + 3) * 1000 } : null;
   const locations = useMemo(() => (here ? everywhere.filter((l) => distanceMeters(here, l.position) <= here.reach) : everywhere), [everywhere, here?.lat, here?.lng, here?.reach]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -53,6 +52,25 @@ export function LocationsPanel({ metro, region, locations: everywhere, hidden, o
     locations.forEach((l) => m.set(l.category, (m.get(l.category) ?? 0) + 1));
     return m;
   }, [locations]);
+
+  // The list is a window that always shows ten places and scrolls through the rest: the window keeps its size (the height of the first ten rows)
+  // while the Pip-Boy stays where it is.
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const [listHeight, setListHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const ul = listRef.current;
+    if (!ul) return;
+    const measure = () => {
+      const items = Array.from(ul.children).slice(0, 10) as HTMLElement[];
+      if (rows.length <= 10 || items.length < 10) { setListHeight(null); return; }
+      const h = Math.ceil(items[9].getBoundingClientRect().bottom - items[0].getBoundingClientRect().top);
+      setListHeight((prev) => (prev !== null && Math.abs(prev - h) < 2 ? prev : h));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(ul);
+    return () => ro.disconnect();
+  }, [rows]);
 
   const selectedRow = useRef<HTMLLIElement | null>(null);
   useEffect(() => {
@@ -82,8 +100,8 @@ export function LocationsPanel({ metro, region, locations: everywhere, hidden, o
           </button>
         ))}
       </div>
-      <ul className="rm-list">
-        {(open ? rows : rows.slice(0, 10)).map(({ l, d }) => (
+      <ul className="rm-list" ref={listRef} style={listHeight ? { height: listHeight } : undefined}>
+        {rows.map(({ l, d }) => (
           <li key={l.id} ref={l.id === selectedId ? selectedRow : null}>
             <button type="button" className={`rm-row ${l.id === selectedId ? 'rm-row-selected' : ''}`} onClick={() => onSelect(l.id)}>
               <span className={`rm-row-icon${visited.has(l.id) ? ' rm-icon-filled' : ''}`} dangerouslySetInnerHTML={{ __html: iconHtmlFor(l.id, placeIcon(l.icon)) }} />
@@ -98,11 +116,6 @@ export function LocationsPanel({ metro, region, locations: everywhere, hidden, o
         ))}
         {rows.length === 0 && <li className="rm-empty">Nothing here. Turn a category back on.</li>}
       </ul>
-      {rows.length > 10 && (
-        <button type="button" className="rm-btn rm-btn-ghost rm-found-more" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          {open ? 'SHOW FEWER' : `SHOW ALL ${rows.length}`}
-        </button>
-      )}
     </div>
   );
 }
