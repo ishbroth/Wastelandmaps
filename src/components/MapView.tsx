@@ -614,16 +614,14 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     };
   }, [nav?.path, look]);
 
-  // the path ahead: from you to the turn after next, at most about a mile and a half. The only turn arrow is the one in the navigation's top bar: none on the street corners.
+  // the path ahead: from you all the way to the destination. The only turn arrow is the one in the navigation's top bar: none on the street corners.
   useEffect(() => {
     const map = mapRef.current;
     const live = ahead.current;
     if (!map || !nav || !live) return;
     const route: LatLng[] = [];
-    let meters = 0;
-    const turns: { at: LatLng; text: string; meters: number }[] = [];
     if (player) route.push(player);
-    for (let i = nav.step; i < nav.steps.length && meters < 2400 && turns.length < 3; i++) {
+    for (let i = nav.step; i < nav.steps.length; i++) {
       const st = nav.steps[i];
       const pts = st.path.length ? st.path : [st.start, st.end];
       // for the step you are on, start from the point of it nearest you
@@ -633,8 +631,6 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
         pts.forEach((q, j) => { const d = distanceMeters(player, q); if (d < best) { best = d; from = j; } });
       }
       for (let j = from; j < pts.length; j++) route.push(pts[j]);
-      meters += st.meters;
-      if (i < nav.steps.length - 1) turns.push({ at: st.end, text: nav.steps[i + 1].text, meters: meters });
     }
     live.line.setPath(route);
     live.halo.setPath(route);
