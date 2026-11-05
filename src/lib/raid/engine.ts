@@ -37,6 +37,19 @@ export function stepGapFor(type: EnemyType, wave: number, boss = false): number 
   return boss ? 0.95 : wavePace * kindPace;
 }
 
+/**
+ * HOW AN ENEMY WALKS IN. The steps themselves (how many, and how often: stepGapFor) are unchanged, so the time to reach the survivor is the same. What changed is
+ * how the picture follows them: it used to jump toward each new step and then ease off (a lurch, a stop, a lurch), and now it moves continuously, pulsing with
+ * the stride, with a little sway and bob on each step, a small wander to the path, and a rear-back and lunge before a blow. To go back to the old lurch,
+ * revert the commit that added this block.
+ */
+/** How strongly the forward speed pulses within a step: 0 is a steady glide, 1 stops it at each footfall. It is fastest in the middle of a step. */
+const STRIDE_PULSE = 0.6;
+/** Seconds the picture trails behind the step count, so the enemy arrives when it used to (the old easing lagged by about this much). */
+const WALK_LAG = 0.45;
+/** The wind-up before a blow (seconds): it rears back a little for most of it, then lunges. */
+const STRIKE_WINDUP = 0.32;
+
 /** The typical step of an ordinary enemy: the average over every kind of creature and over the first eight waves (the most any place sends), in seconds. */
 export const AVERAGE_STEP_SECONDS = (() => {
   const kinds = Object.values(ENEMIES);
@@ -70,8 +83,12 @@ export interface Enemy {
   /** Seconds between its steps, and until the next. */
   stepGap: number;
   stepT: number;
-  /** How far along it is for drawing (0 to 1), easing toward step / steps. */
+  /** How far along it is for drawing (0 to 1): it follows a smooth curve through the steps (see HOW AN ENEMY WALKS IN). */
   p: number;
+  /** Where it is in its walk, counted in steps (3.5 = half way through the fourth): drives the sway, the bob and which walking pose is shown. */
+  gait: number;
+  /** How far it is lifted off the ground by the bob of its step (a share of the picture's height); its shadow stays on the ground. */
+  lift: number;
   hp: number;
   maxHp: number;
   state: 'walking' | 'striking' | 'retreating' | 'leaving' | 'dying';
@@ -238,23 +255,52 @@ export class Game {
     // later waves come faster; faster creatures take their steps sooner (see stepGapFor)
     const stepGap = stepGapFor(type, this.wave, boss) * (0.85 + this.random() * 0.3);
     this.enemies.push({
-      id: this.nextId++, type, boss, u0: point.u, v0, toU: 0.15 + this.random() * 0.7, u: point.u, v: v0, step: 0, steps, stepGap, stepT: stepGap * (0.6 + this.random() * 0.5), p: 0,
+      id: this.nextId++, type, boss, u0: point.u, v0, toU: 0.15 + this.random() * 0.7, u: point.u, v: v0, step: 0, steps, stepGap, stepT: stepGap * (0.6 + this.random() * 0.5), p: 0, gait: 0, lift: 0,
       hp: type.hp, maxHp: type.hp, state: 'walking', t: 0, hurt: 0, phase: this.random() * 6.28, exit: this.random() < 0.5 ? -1 : 1,
     });
   }
 
-  /** Where an enemy is drawn: its feet, from how far along it is. */
+  /**
+   * Where a walking enemy is along its way (p, 0 to 1) and in its walk (gait, in steps), as a smooth function of the time since its last step began. Each leg
+   * from one step to the next takes one stepGap, starting WALK_LAG after the step count goes up, and the speed within it pulses (fastest mid-step); the
+   * pulse is periodic, so the speed is continuous from one step into the next and the enemy never stops.
+   */
+  private walkCurve(e: Enemy): { p: number; gait: number } {
+    const since = Math.min(e.stepGap, Math.max(0, e.stepGap - e.stepT)); // seconds since the step count last went up
+    const leg = since >= WALK_LAG ? e.step : e.step - 1;
+    const f = since >= WALK_LAG ? (since - WALK_LAG) / e.stepGap : (e.stepGap - WALK_LAG + since) / e.stepGap; // how far through the leg
+    if (leg < 0) return { p: 0, gait: 0 };
+    const stride = f - (STRIDE_PULSE / (2 * Math.PI)) * Math.sin(2 * Math.PI * f);
+    return { p: Math.min(1, (leg + stride) / e.steps), gait: leg + f };
+  }
+
+  /** Where an enemy is drawn: its feet, from how far along it is, with the wander of its path and the sway and bob of its step. */
   private place(e: Enemy) {
     const q = Math.min(1, Math.max(0, e.p));
     e.v = e.v0 + (STRIKE_V - e.v0) * q;
     e.u = e.u0 + (e.toU - e.u0) * q * 0.7;
+    // a small wander across the path that dies away as it arrives, so the blow still lands where the enemy is
+    e.u += Math.sin(e.phase + q * 6.5) * 0.018 * (1 - q);
+    // each step sways it a little to one side and the next step to the other, and lifts it a little between footfalls
+    const frac = e.gait - Math.floor(e.gait);
+    const swing = e.state === 'walking' || e.state === 'retreating' ? Math.sin(Math.PI * frac) : 0;
+    const h = this.heightOf(e);
+    e.u += (Math.floor(e.gait) % 2 ? 1 : -1) * swing * 0.02 * h;
+    e.lift = e.type.flying ? 0 : swing * 0.012 * h;
+  }
+
+  /** The wind-up of a blow: the enemy rears back a little, then lunges at the screen. 1 when it is not striking. */
+  private attackScale(e: Enemy): number {
+    if (e.state !== 'striking') return 1;
+    const q = Math.min(1, e.t / STRIKE_WINDUP);
+    return q < 0.65 ? 1 - 0.05 * Math.sin((q / 0.65) * (Math.PI / 2)) : 0.95 + 0.15 * Math.pow((q - 0.65) / 0.35, 2);
   }
 
   /** An enemy's height in picture heights: small and far away at the start, filling the screen when it strikes. */
   heightOf(e: Enemy): number {
     const start = Math.max(0.035, PERSON_HEIGHT * this.depthAt(e.v0) * e.type.size);
     const end = Math.max(start, strikeHeight(e.type.size));
-    return start * Math.pow(end / start, Math.min(1.08, Math.max(0, e.p)));
+    return start * Math.pow(end / start, Math.min(1.08, Math.max(0, e.p))) * this.attackScale(e);
   }
 
   update(dt: number) {
@@ -313,9 +359,12 @@ export class Game {
         e.u += e.exit * dt * 1.4;
         continue;
       }
-      // it eases toward its step instead of jumping
-      const target = e.step / e.steps;
-      e.p += (target - e.p) * Math.min(1, dt * 7);
+      // walking follows a continuous curve through the steps; the other states (a boss backing off, an enemy at the screen) ease toward their step as before
+      if (e.state === 'walking') {
+        const w = this.walkCurve(e);
+        e.gait = w.gait;
+        e.p += (w.p - e.p) * Math.min(1, dt * 20);
+      } else e.p += (e.step / e.steps - e.p) * Math.min(1, dt * 7);
       this.place(e);
       if (e.state === 'walking') {
         e.stepT -= dt;
@@ -373,7 +422,7 @@ export class Game {
     const h = this.heightOf(e);
     const w = (h * spriteRatio) / aspect;
     const bob = e.type.flying ? Math.sin(e.phase + e.t * 4) * 0.045 * h - 0.1 * h : 0;
-    return [e.u - w / 2, e.v - h + bob, e.u + w / 2, e.v + bob];
+    return [e.u - w / 2, e.v - h + bob - e.lift, e.u + w / 2, e.v + bob - e.lift];
   }
 
   private damage(e: Enemy, amount: number) {

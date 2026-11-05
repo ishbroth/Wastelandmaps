@@ -239,7 +239,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         const sprites = assets.current.enemies[e.type.id];
         const hPx = g.heightOf(e) * vh;
         const bob = e.type.flying ? Math.sin(e.phase + e.t * 4) * 0.045 * hPx - 0.1 * hPx : 0;
-        const x = vx + e.u * vw, y = vy + e.v * vh + bob;
+        const x = vx + e.u * vw, y = vy + (e.v - e.lift) * vh + bob;
         ctx.save();
         if (e.state === 'dying') ctx.globalAlpha = Math.max(0, Math.min(1, 1.2 - e.t));
         // a shadow on the ground
@@ -249,7 +249,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         ctx.fill();
         if (sprites) {
           const f0 = sprites.frames[0];
-          const frameIndex = e.state === 'dying' ? 3 : e.state === 'striking' ? 2 : Math.floor(e.t * 3.5 + e.id) % 2;
+          // the two walking poses swap twice a step, in time with the walk (a flier beats its wings on the clock instead)
+          const frameIndex = e.state === 'dying' ? 3 : e.state === 'striking' ? 2 : e.type.flying ? Math.floor(e.t * 3.5 + e.id) % 2 : Math.floor(e.gait * 2 + e.id) % 2;
           const frame = sprites.frames[frameIndex] ?? f0;
           const scale = hPx / f0.naturalHeight;
           const dw = frame.naturalWidth * scale, dh = frame.naturalHeight * scale;
