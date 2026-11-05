@@ -13,6 +13,25 @@ import { cloudOutline } from '../lib/zones';
 import { levelsAt, type RegionLabel } from '../lib/regions';
 import { VAULT_ID, distanceMeters, hashString, subtitle, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
 
+/**
+ * Is the point inside the visible bounds, grown by a fraction of their size? The bounds can cross the antimeridian (west is east of east), which is
+ * what the map reports over the Pacific: a plain west <= lng <= east test then fails for every place at once and the names and pins all vanish.
+ */
+function boundsContain(b: google.maps.LatLngBoundsLiteral, lat: number, lng: number, grow: number): boolean {
+  const padLat = (b.north - b.south) * grow;
+  if (lat > b.north + padLat || lat < b.south - padLat) return false;
+  const span = b.east >= b.west ? b.east - b.west : b.east - b.west + 360;
+  if (span * (1 + 2 * grow) >= 360) return true;
+  const rel = (((lng - (b.west - span * grow)) % 360) + 360) % 360;
+  return rel <= span * (1 + 2 * grow);
+}
+/** The longitude in the middle of the visible bounds, also across the antimeridian. */
+function boundsCenterLng(b: google.maps.LatLngBoundsLiteral): number {
+  const span = b.east >= b.west ? b.east - b.west : b.east - b.west + 360;
+  const mid = b.west + span / 2;
+  return mid > 180 ? mid - 360 : mid;
+}
+
 /** Opacity of each nested layer of a flooded patch, outermost first, so the water is a thin film at the shore and nearly solid in the deepest part. */
 function floodLayerAlphas(strength: number, layers: number): number[] {
   if (layers <= 1) return [strength];
@@ -317,14 +336,10 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     if (!map) return;
     // pins are added and removed one by one, so places that turn up while you travel pop in without the rest flickering
     // only what is on (or near) the screen gets a marker, at most MAX_PINS of them, so even a huge metro stays smooth
-    const padLat = view ? (view.north - view.south) * 0.3 : 0;
-    const padLng = view ? (view.east - view.west) * 0.3 : 0;
     const centerLat = view ? (view.north + view.south) / 2 : 0;
-    const centerLng = view ? (view.east + view.west) / 2 : 0;
+    const centerLng = view ? boundsCenterLng(view) : 0;
     const zoom = zoomNow;
-    let inView = locations.filter((l) => !hiddenCategories.has(l.category) && zoom >= minZoomFor(l, selectedId) && (!view || (
-      l.position.lat <= view.north + padLat && l.position.lat >= view.south - padLat &&
-      l.position.lng <= view.east + padLng && l.position.lng >= view.west - padLng)));
+    let inView = locations.filter((l) => !hiddenCategories.has(l.category) && zoom >= minZoomFor(l, selectedId) && (!view || boundsContain(view, l.position.lat, l.position.lng, 0.3)));
     if (inView.length > MAX_PINS) {
       const dist = (l: Location) => Math.hypot(l.position.lat - centerLat, l.position.lng - centerLng);
       // the always-there ones first, then the nearest to the middle of the screen
@@ -374,11 +389,9 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     const map = mapRef.current;
     if (!map) return;
     const shapes = floodShapes.current;
-    const padLat = view ? (view.north - view.south) * 0.2 : 0;
-    const padLng = view ? (view.east - view.west) * 0.2 : 0;
     const cLat = view ? (view.north + view.south) / 2 : 0;
-    const cLng = view ? (view.east + view.west) / 2 : 0;
-    const visible = allFlood.filter((p) => !view || (p[0] <= view.north + padLat && p[0] >= view.south - padLat && p[1] <= view.east + padLng && p[1] >= view.west - padLng));
+    const cLng = view ? boundsCenterLng(view) : 0;
+    const visible = allFlood.filter((p) => !view || boundsContain(view, p[0], p[1], 0.2));
     const near = visible.length > 500 ? visible.sort((x, y) => Math.hypot(x[0] - cLat, x[1] - cLng) - Math.hypot(y[0] - cLat, y[1] - cLng)).slice(0, 500) : visible;
     // Drawn at their true size: as the map zooms out the patches shrink with the land around them (and vanish once they are specks), so the coast never
     // looks drowned. Zoomed in, each patch is a stack of nested outlines, so the water is thin at the shore and deepest in the middle, and the main
@@ -429,8 +442,6 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     const map = mapRef.current;
     if (!map) return;
     const levels = levelsAt(zoomNow);
-    const padLat = view ? (view.north - view.south) * 0.2 : 0;
-    const padLng = view ? (view.east - view.west) * 0.2 : 0;
     const wanted = new Map<string, RegionLabel>();
     // the biggest places first; a label that would land on top of one already placed (on screen, at this zoom) is left out until you zoom in
     const world = 256 * 2 ** zoomNow;
@@ -445,7 +456,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       if (!levels.includes(label.level)) continue;
       if (label.level === 'country' && zoomNow >= 6 && label.iso === 'US') continue; // the states take over
       const { lat, lng } = label.position;
-      if (view && (lat > view.north + padLat || lat < view.south - padLat || lng > view.east + padLng || lng < view.west - padLng)) continue;
+      if (view && !boundsContain(view, lat, lng, 0.2)) continue;
       const at = toPixels(label.position);
       const font = SIZE[label.level];
       const box = { x: at.x, y: at.y, w: label.name.length * (font.px * 0.62 + font.spacing) + 16, h: font.px * 1.5 };

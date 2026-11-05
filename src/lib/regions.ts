@@ -156,6 +156,9 @@ function inside(ring: number[], lat: number, lng: number): boolean {
 }
 const contains = (o: Outline, p: LatLng) => o.rings.some((r) => inside(r, p.lat, p.lng));
 
+/** The shortest way round between two longitudes, in degrees (across the antimeridian too). */
+const lngGap = (a: number, b: number) => ((((a - b) % 360) + 540) % 360) - 180;
+
 export interface Where { continent: string; region: string; country: string | null; countryName: string | null; state: string | null }
 
 /** Which continent, country and US state a point is in; null where the map is open sea. */
@@ -165,7 +168,7 @@ export function whereIs(data: RegionsFile, p: LatLng): Where | null {
     // the outlines are coarse, so a coast or an island can fall just outside: take the nearest country within a few hundred km
     let nearest = 600;
     for (const c of data.countries) {
-      const km = Math.hypot((c.label[0] - p.lat) * 111.32, (c.label[1] - p.lng) * 111.32 * Math.cos((p.lat * Math.PI) / 180));
+      const km = Math.hypot((c.label[0] - p.lat) * 111.32, lngGap(c.label[1], p.lng) * 111.32 * Math.cos((p.lat * Math.PI) / 180));
       if (km < nearest) { nearest = km; country = c; }
     }
   }
@@ -192,7 +195,7 @@ function nearestWhere(data: RegionsFile, p: LatLng): Where | null {
   let best: CountryData | null = null;
   let bestKm = Infinity;
   for (const c of data.countries) {
-    const km = Math.hypot((c.label[0] - p.lat) * 111.32, (c.label[1] - p.lng) * 111.32 * Math.cos((p.lat * Math.PI) / 180));
+    const km = Math.hypot((c.label[0] - p.lat) * 111.32, lngGap(c.label[1], p.lng) * 111.32 * Math.cos((p.lat * Math.PI) / 180));
     if (km < bestKm) { bestKm = km; best = c; }
   }
   if (!best) return null;
