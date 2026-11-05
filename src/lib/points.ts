@@ -4,6 +4,7 @@
 
 import { freeRenderFor } from './renders';
 import type { Location } from './wasteland';
+import { VAULT_ZERO_FOUND_XP, VAULT_ZERO_ID } from '../../supabase/functions/_shared/vaultZero';
 
 export const FIRST_LEVEL_POINTS = 80;
 /** Each level needs this many times the points of the one before. */
@@ -17,6 +18,7 @@ const TIER_15 = /bridge|pont\b|school|college|university|universit|institute|aca
 
 /** Points for reaching a place. */
 export function pointsFor(loc: Location): number {
+  if (loc.id === VAULT_ZERO_ID) return VAULT_ZERO_FOUND_XP; // the server decides what it really pays; this is what the card shows
   if (freeRenderFor(loc.id)) return 75;
   if (loc.famous) return 50;
   if (loc.lore || loc.vault) return 30;

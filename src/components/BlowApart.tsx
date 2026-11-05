@@ -300,7 +300,7 @@ function draw(
   ctx.restore();
 }
 
-export default function BlowApart({ sound = false, beforeUrl, afterUrl, name, file, seed, seenId }: { /** Sound effects are on. */ sound?: boolean; beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string }) {
+export default function BlowApart({ sound = false, pristine = false, beforeUrl, afterUrl, name, file, seed, seenId }: { /** Sound effects are on. */ sound?: boolean; /** Nothing is destroyed here (Vault 0): just show the picture, with no bomb and no before/after. */ pristine?: boolean; beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const images = useRef<{ before: HTMLImageElement; after: HTMLImageElement; plan: ReturnType<typeof plan>; sky: Sky; cloud: CanvasRenderingContext2D | null; width: number; height: number } | null>(null);
   const frame = useRef(0);
@@ -345,6 +345,7 @@ export default function BlowApart({ sound = false, beforeUrl, afterUrl, name, fi
   // load both pictures; the first time this place is seen, play the blast, otherwise just show the finished picture
   useEffect(() => {
     let cancelled = false;
+    if (pristine) { setState('plain'); return; }
     setState('loading');
     preloadSfx(blastFiles());
     Promise.all([load(beforeUrl), load(afterUrl)])
@@ -374,7 +375,7 @@ export default function BlowApart({ sound = false, beforeUrl, afterUrl, name, fi
       cancelled = true;
       cancelAnimationFrame(frame.current);
     };
-  }, [beforeUrl, afterUrl, seed, play, finish, seenKey]);
+  }, [beforeUrl, afterUrl, seed, play, finish, seenKey, pristine]);
 
   const saveAnimation = () => {
     const el = canvas.current;
@@ -411,7 +412,7 @@ export default function BlowApart({ sound = false, beforeUrl, afterUrl, name, fi
     <>
       <div className="rm-render-wrap">
       {state === 'plain'
-        ? <img src={afterUrl} className="rm-modal-canvas rm-modal-render rm-tap-big" alt={`${name} in the wasteland`} onClick={() => setBig(true)} />
+        ? <img src={afterUrl} className="rm-modal-canvas rm-modal-render rm-tap-big" alt={pristine ? `${name}: a vault door in the snow` : `${name} in the wasteland`} onClick={() => setBig(true)} />
         : <canvas ref={canvas} className={`rm-modal-canvas rm-modal-render${state === 'done' ? ' rm-tap-big' : ''}`} onClick={() => { if (state === 'done') setBig(true); }} aria-label={`${name}: the photograph is hit by a bomb and torn apart to reveal it in the wasteland`} />}
       {state === 'loading' && <div className="rm-render-loading" role="status"><CogSpinner big label="Loading the picture" /><span>LOADING…</span></div>}
       </div>

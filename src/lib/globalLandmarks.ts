@@ -3,6 +3,7 @@
 
 import { FREE_RENDERS } from './renders';
 import { locationFromData, type Location } from './wasteland';
+import { VAULT_ZERO } from './vaultZero';
 
 /** Where the first seven stand (the ones added later carry their own coordinates in rendersMore.ts). */
 const ORIGINAL_SPOTS: Record<string, [number, number]> = {
@@ -15,10 +16,10 @@ const ORIGINAL_SPOTS: Record<string, [number, number]> = {
   Q133274: [55.752, 37.6175],
 };
 
-export const GLOBAL_LANDMARKS: Location[] = Object.entries(FREE_RENDERS).flatMap(([id, r]) => {
+export const GLOBAL_LANDMARKS: Location[] = [...Object.entries(FREE_RENDERS).flatMap(([id, r]) => {
   const at = r.lat !== undefined && r.lng !== undefined ? { lat: r.lat, lng: r.lng } : ORIGINAL_SPOTS[id] ? { lat: ORIGINAL_SPOTS[id][0], lng: ORIGINAL_SPOTS[id][1] } : null;
   if (!at || id.startsWith('famous:')) return [];
   const loc = locationFromData(`wd:${id}`, r.real ?? r.name, at, 'other', 999);
   if (r.postName) loc.name = r.postName;
   return [loc];
-});
+}), VAULT_ZERO];

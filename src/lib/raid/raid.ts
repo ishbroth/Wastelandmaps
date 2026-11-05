@@ -5,11 +5,12 @@ import { pointsFor } from '../points';
 import { hashString, seeded, type Location } from '../wasteland';
 import { BOSS_IDS, HP_SCALE, enemyById, type BossId, type EnemyId } from './enemies';
 import { LOOT_TYPES, type LootId } from './loot';
+import { VAULT_ZERO_ID, VAULT_ZERO_LOOT, VAULT_ZERO_PIECES, VAULT_ZERO_WAVES, VAULT_ZERO_BOSSES } from '../../../supabase/functions/_shared/vaultZero';
 
 export interface RaidPlan {
   worth: number;
-  /** The kinds of enemy here (one, or a mix of two). */
-  enemies: EnemyId[];
+  /** The kinds of enemy here (one, or a mix of two). For a boss-only raid (Vault 0) these are the bosses themselves. */
+  enemies: (EnemyId | BossId)[];
   /** The final boss, for the two top tiers of landmarks. */
   boss: BossId | null;
   /** How many come, in the order they arrive: it starts with one, then two, then more, then the onslaught. */
@@ -20,6 +21,8 @@ export interface RaidPlan {
   lootTypes: LootId[];
   /** The least and most pieces of loot a win gives. */
   lootRange: [number, number];
+  /** Every enemy in every wave is a boss (Vault 0): they come with the boss's health bar and behavior instead of the ordinary kind. */
+  bossOnly?: boolean;
 }
 
 /** The kinds of enemy a place of this worth can have: the small places have the weak things, deathclaws only guard the great landmarks. */
@@ -60,6 +63,7 @@ export function wavesFor(total: number): number[] {
 
 /** Plan for any worth and id (the places with permanent snapshots can also be given a hand-made plan, see landmarkRaids.ts). */
 export function planFor(id: string, worth: number): RaidPlan {
+  if (id === VAULT_ZERO_ID) return vaultZeroPlan(); // whatever worth it was stored with (the Data tab asks by id and worth)
   const rand = seeded(hashString(`${id}|raid`));
   const pool = poolFor(worth);
   const first = pool[Math.floor(rand() * pool.length)];
@@ -87,8 +91,16 @@ export function homePlan(): RaidPlan {
   return { worth: 10, enemies: ['radroach'], boss: null, waves: wavesFor(4), total: 4, lootTypes: ['steel', 'wood'], lootRange: lootRangeFor(10) };
 }
 
+/**
+ * Vault 0, Vault Tech Headquarters: eight waves of nothing but bosses, one in the first wave and one more in each wave after it (36 in all). Worth 75 so the
+ * server's tables accept it; what it pays (exactly 20 pieces, plus XP) is decided by the server (see supabase/functions/raid).
+ */
+export function vaultZeroPlan(): RaidPlan {
+  return { worth: 75, enemies: [...BOSS_IDS], boss: null, waves: VAULT_ZERO_WAVES, total: VAULT_ZERO_BOSSES, lootTypes: VAULT_ZERO_LOOT as LootId[], lootRange: [VAULT_ZERO_PIECES, VAULT_ZERO_PIECES], bossOnly: true };
+}
+
 /** The plan for a place on the map (a person's own home vault is always the first fight: four radroaches). */
-export const raidFor = (loc: Location): RaidPlan => (loc.personal?.home ? homePlan() : planFor(loc.id, pointsFor(loc)));
+export const raidFor = (loc: Location): RaidPlan => (loc.id === VAULT_ZERO_ID ? vaultZeroPlan() : loc.personal?.home ? homePlan() : planFor(loc.id, pointsFor(loc)));
 
 /** What a win there really pays, as a line: "Steel, Gears: 7 to 10 pieces". */
 export function lootSummary(plan: RaidPlan): string {
@@ -120,7 +132,7 @@ export const maxHealth = (level: number): number => 100 + 10 * level;
 const cap = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** What is in a place, as it is shown on its card: the kinds of enemy (and the boss) that the shooting gallery there will actually send. */
-export const planEnemies = (plan: { enemies: EnemyId[]; boss: BossId | null }): string => {
+export const planEnemies = (plan: { enemies: (EnemyId | BossId)[]; boss: BossId | null }): string => {
   const list = plan.enemies.map((e) => cap(enemyById(e).plural)).join(', ');
   return plan.boss ? `${list} · Boss: ${enemyById(plan.boss).name}` : list;
 };

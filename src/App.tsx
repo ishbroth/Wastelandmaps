@@ -16,6 +16,8 @@ import { levelInfo, pointsFor } from './lib/points';
 import { enemiesLine, homePlan, raidFor } from './lib/raid/raid';
 import { freeRenderFor } from './lib/renders';
 import { GLOBAL_LANDMARKS } from './lib/globalLandmarks';
+import { VAULT_ZERO, VAULT_ZERO_ID } from './lib/vaultZero';
+import { inAntarctica } from '../supabase/functions/_shared/antarctica';
 import { photoIsOf } from './lib/snapshot';
 import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
@@ -374,10 +376,12 @@ export default function App() {
         let added = 0;
         let credits = 0;
         let level = 0;
+        let vaultFound: { added: number; loot: Partial<Record<string, number>> } | null = null;
         for (const p of fresh) {
           if (!/^(wd:Q\d+|vault:\d+|famous:[a-z0-9-]+|lore:[a-z0-9-]+)$/.test(p.id)) continue;
           const result = await reportDiscovery(p.id, p.position, onFoot, pointsFor(p));
           added += result?.added ?? 0;
+          if (p.id === VAULT_ZERO_ID && (result?.added ?? 0) > 0) vaultFound = { added: result?.added ?? 0, loot: result?.loot ?? {} };
           if (result?.bonus) { credits += result.given; level = result.level ?? level; }
         }
         if (added > 0) {
@@ -397,7 +401,17 @@ export default function App() {
             toastTimer.current = window.setTimeout(() => setToast(''), 5200);
           }, 1400);
         }
-        void pushNotice(credits > 0 ? 'Level up' : 'Discovered', [...said, added > 0 ? `+${added} XP` : '', credits > 0 ? `Level up: ${credits * 100} free caps` : ''].filter(Boolean).join('\n'));
+        if (vaultFound) {
+          // the one most people will never see: they are standing in Antarctica, and Vault Tech Headquarters is theirs
+          const found: { added: number; loot: Partial<Record<string, number>> } = vaultFound;
+          const list = Object.entries(found.loot).filter(([, n]) => (n ?? 0) > 0).map(([id, n]) => `+${n} ${id.toUpperCase()}`).join(' ');
+          window.setTimeout(() => {
+            setToast(`YOU FOUND VAULT TECH HEADQUARTERS! +${found.added} XP${list ? ` · ${list}` : ''}`);
+            window.clearTimeout(toastTimer.current);
+            toastTimer.current = window.setTimeout(() => setToast(''), 9000);
+          }, 600);
+          void pushNotice('You found Vault Tech Headquarters!', `Congratulations, survivor: Vault 0 is yours. +${found.added} XP${list ? ` and ${list}` : ''}.`);
+        } else void pushNotice(credits > 0 ? 'Level up' : 'Discovered', [...said, added > 0 ? `+${added} XP` : '', credits > 0 ? `Level up: ${credits * 100} free caps` : ''].filter(Boolean).join('\n'));
         void accountRef.current?.refresh();
       })();
     }
@@ -965,6 +979,8 @@ export default function App() {
         void onNavFixRef.current(here);
         const reach = Math.max(120, Math.min(pos.accuracy, 250));
         const near = locationsRef.current.filter((l) => !visitedRef.current.has(l.id) && distanceMeters(here, l.position) <= reach);
+        // Vault Tech Headquarters is found by being anywhere in Antarctica (the server checks the position the same way)
+        if (inAntarctica(here.lat, here.lng) && !visitedRef.current.has(VAULT_ZERO_ID) && !foundRef.current.some((f) => f.id === VAULT_ZERO_ID)) near.push(VAULT_ZERO);
         markFound(near, here);
       },
       // only a refusal turns it off: a moment without a signal (a tunnel, a bad fix) must not end the navigation
@@ -1068,7 +1084,7 @@ export default function App() {
           )}
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
-              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = allLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
+              spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
               traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { setSceneStart('scene'); setSceneId(selectedSpot.id); }} onClose={() => setSelectedId(null)}
             />
           )}

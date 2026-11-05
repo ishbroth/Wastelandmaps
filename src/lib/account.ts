@@ -148,7 +148,7 @@ export function useAccount(): Account {
     const [bal, owned, found] = await Promise.all([
       db().from('credits').select('balance').eq('user_id', s.user.id).maybeSingle(),
       db().from('unlocks').select('place_id').eq('user_id', s.user.id),
-      db().from('discoveries').select('points').eq('user_id', s.user.id),
+      db().from('discoveries').select('place_id,points').eq('user_id', s.user.id),
     ]);
     if (found.error) {
       // the points column is not there yet: count the places, ten points each
@@ -156,8 +156,8 @@ export function useAccount(): Account {
       setDiscoveries(count.count ?? 0);
       setPoints((count.count ?? 0) * 10);
     } else {
-      const rows = (found.data ?? []) as { points: number }[];
-      setDiscoveries(rows.length);
+      const rows = (found.data ?? []) as { place_id: string; points: number }[];
+      setDiscoveries(rows.filter((r) => !String(r.place_id).startsWith('bonus:')).length); // XP bonuses (Vault 0's raid) are not places
       setPoints(rows.reduce((sum, r) => sum + (r.points ?? 10), 0));
     }
     setCredits((bal.data?.balance as number | undefined) ?? 0);
@@ -260,7 +260,7 @@ export async function saveMapPosition(userId: string, lat: number, lng: number, 
   await db().from('map_positions').upsert({ user_id: userId, lat, lng, zoom, updated_at: new Date().toISOString() });
 }
 
-export interface DiscoveryResult { total: number; bonus: boolean; given: number; /** Points added by this place (0 if it was already on the record). */ added?: number; points?: number; level?: number }
+export interface DiscoveryResult { /** Loot a discovery paid (Vault 0 pays 20 pieces). */ loot?: Partial<Record<string, number>>; total: number; bonus: boolean; given: number; /** Points added by this place (0 if it was already on the record). */ added?: number; points?: number; level?: number }
 
 /** Tells the server a place was reached on foot, worth `points`. Each new level reached gives a free snapshot credit. Null if it could not be recorded. */
 export async function reportDiscovery(placeId: string, place: { lat: number; lng: number }, here: { lat: number; lng: number }, points = 10): Promise<DiscoveryResult | null> {
@@ -348,9 +348,9 @@ export async function startRaid(placeId: string, worth: number, enemies: number,
 }
 
 /** Ends a raid. A win pays the loot the server decided at the start. */
-export async function finishRaid(runId: string, won: boolean): Promise<{ won: boolean; loot?: LootBag; lost?: LootBag; /** A permanent landmark fought from afar: the loot waits until it is discovered. */ pending?: boolean; /** What is waiting for them. */ waiting?: LootBag }> {
+export async function finishRaid(runId: string, won: boolean): Promise<{ won: boolean; /** XP a win paid (only Vault 0 pays any). */ xp?: number; loot?: LootBag; lost?: LootBag; /** A permanent landmark fought from afar: the loot waits until it is discovered. */ pending?: boolean; /** What is waiting for them. */ waiting?: LootBag }> {
   const { data, error } = await db().functions.invoke('raid', { body: { action: 'finish', runId, won } });
-  return error || !data?.ok ? { won: false } : { won: data.won === true, loot: data.loot as LootBag | undefined, lost: data.lost as LootBag | undefined, pending: data.pending === true, waiting: data.waiting as LootBag | undefined };
+  return error || !data?.ok ? { won: false } : { won: data.won === true, loot: data.loot as LootBag | undefined, lost: data.lost as LootBag | undefined, pending: data.pending === true, waiting: data.waiting as LootBag | undefined, xp: typeof data.xp === 'number' ? data.xp : undefined };
 }
 
 /** A landmark fought from afar has now been discovered: pays the loot that was waiting for it (nothing if none was). */

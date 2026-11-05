@@ -37,6 +37,7 @@ const SUPER: Record<string, { name: string; at: LatLng }> = {
   under: { name: 'The Outback', at: { lat: -25, lng: 134 } },
   alaska: { name: 'Greater Alaska', at: { lat: 66, lng: -172 } },
   ring: { name: 'The Ring of Fire', at: { lat: 0, lng: 128 } },
+  vault: { name: 'Vault Tech Headquarters', at: { lat: -78, lng: 0 } },
 };
 const SET = (list: string) => list.split(' ');
 const REGION_OF: Record<string, string> = {};
@@ -54,8 +55,12 @@ assign('east', 'CN JP KR KP MN KZ UZ TM KG TJ AF PK BD NP BT LK MM TH LA KH VN M
 assign('under', 'AU NZ FJ VU NC SB');
 assign('ring', 'PH PG TL');
 
+/** South of this latitude it is Antarctica (the Antarctic Treaty's line). */
+const ANTARCTIC_CIRCLE_EDGE = -60;
+
 /** Which division of the wasteland a point is in. A few countries are split: Greenland and the Canadian Arctic, and Russia either side of the Urals. */
 function superOf(iso: string, p: LatLng, continent: string): string {
+  if (p.lat <= ANTARCTIC_CIRCLE_EDGE) return 'vault'; // the whole of Antarctica is Vault-Tec's
   if (iso === 'CA' && (p.lat >= 66 || (p.lat >= 62 && p.lng >= -90 && p.lng <= -60))) return 'unfrozen';
   if (iso === 'RU') return p.lng >= 140 ? 'alaska' : p.lng >= 60 ? 'east' : 'oldworld';
   if (iso === 'US' && p.lat >= 50 && (p.lng <= -129 || p.lng >= 170)) return 'alaska'; // Alaska, Aleutians included
@@ -204,6 +209,7 @@ function nearestWhere(data: RegionsFile, p: LatLng): Where | null {
 
 export function nameForZoom(data: RegionsFile, p: LatLng, zoom: number): string | null {
   if (zoom >= 9) return null;
+  if (p.lat <= ANTARCTIC_CIRCLE_EDGE) return SUPER.vault.name; // Antarctica has no country outlines: name it directly
   const where = whereIs(data, p) ?? nearestWhere(data, p);
   if (!where) return null;
   if (zoom < 4) return regionName(where.region);

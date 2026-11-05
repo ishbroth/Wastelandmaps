@@ -5,11 +5,15 @@
 // POST { action: 'finish', runId, won }                          ->  { ok, loot? } or { ok, won, pending: true } (a permanent landmark fought from afar: the loot waits for its discovery)
 // POST { action: 'claim', placeId }                              ->  { ok, loot?, lost? }  (pays the loot of a landmark fought from afar, once it has been discovered)
 //
+// Vault 0 (Vault Tech Headquarters, Antarctica) is the exception to the rules below: the server fixes its raid itself (36 bosses, 20 pieces of loot, whatever the
+// browser sends), anyone can fight it from anywhere, a win pays at once (loot and 100 XP, once) and does NOT discover it. Discovering it is report-discovery's job.
+//
 // Looting needs the place to be discovered, except the permanent landmarks: those can be fought at once, but pay only once discovered. A person's own home is
 // discovered from the start (no XP) and can be looted as soon as its snapshot is unlocked.
 // Deploy: supabase functions deploy raid
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
+import { VAULT_ZERO_BOSSES, VAULT_ZERO_ID, VAULT_ZERO_LOOT, VAULT_ZERO_RAID_XP, VAULT_ZERO_RAID_XP_ID, rollVaultZeroLoot } from '../_shared/vaultZero.ts';
 
 const LOOT = ['steel', 'wood', 'springs', 'adhesive', 'screws', 'fiberoptics', 'glass', 'circuitry', 'oil', 'gears', 'plastic'];
 const WORTHS = [10, 15, 20, 30, 50, 75];
@@ -67,9 +71,11 @@ Deno.serve(async (req) => {
     const placeId = String(b.placeId ?? '');
     const personal = /^me:[A-Za-z0-9_-]{10,200}$/.test(placeId);
     if (!personal && !/^(wd:Q\d+|famous:[a-z0-9-]+)$/.test(placeId)) return reply(req, { error: 'bad_place' }, 400);
-    const worth = Number(b.worth);
-    const enemies = Math.round(Number(b.enemies));
-    const types = Array.isArray(b.lootTypes) ? [...new Set(b.lootTypes.map(String))] : [];
+    const vault = placeId === VAULT_ZERO_ID;
+    let worth = Number(b.worth);
+    let enemies = Math.round(Number(b.enemies));
+    let types = Array.isArray(b.lootTypes) ? [...new Set(b.lootTypes.map(String))] : [];
+    if (vault) { worth = 75; enemies = VAULT_ZERO_BOSSES; types = [...VAULT_ZERO_LOOT]; } // never the browser's numbers
     if (!WORTHS.includes(worth) || !(enemies >= 1 && enemies <= 80) || types.length < 1 || types.length > 3 || types.some((t) => !LOOT.includes(t))) return reply(req, { error: 'bad_raid' }, 400);
 
     // their own home: looted as soon as its snapshot is unlocked, and already discovered
@@ -78,7 +84,7 @@ Deno.serve(async (req) => {
       const { data: home } = await db.from('user_home').select('place_id,vault_number').eq('user_id', user).maybeSingle();
       isHome = !!home && home.place_id === placeId.slice(3);
     }
-    const permanent = !personal && FREE.has(placeId.startsWith('famous:') ? placeId : placeId.slice(3));
+    const permanent = !personal && (vault || FREE.has(placeId.startsWith('famous:') ? placeId : placeId.slice(3)));
     // everywhere else it has to be discovered first (a permanent landmark can be fought from afar)
     if (!personal && !permanent && !(await discovered(db, user, placeId))) return reply(req, { error: 'undiscovered' }, 403);
     if (isHome) {
@@ -107,7 +113,7 @@ Deno.serve(async (req) => {
     const { count } = await db.from('raid_runs').select('id', { count: 'exact', head: true }).eq('user_id', user).gte('started_at', since);
     if ((count ?? 0) >= MAX_RAIDS_PER_HOUR) return reply(req, { error: 'too_many' }, 429);
 
-    const { data, error } = await db.from('raid_runs').insert({ user_id: user, place_id: placeId, worth, enemies, loot: roll(worth, types), metro_id: /^[a-z0-9-]{3,80}$/.test(String(b.metroId ?? '')) ? String(b.metroId) : null }).select('id').single();
+    const { data, error } = await db.from('raid_runs').insert({ user_id: user, place_id: placeId, worth, enemies, loot: vault ? rollVaultZeroLoot() : roll(worth, types), metro_id: /^[a-z0-9-]{3,80}$/.test(String(b.metroId ?? '')) ? String(b.metroId) : null }).select('id').single();
     if (error || !data) return reply(req, { error: 'server' }, 500);
     return reply(req, { runId: data.id });
   }
@@ -123,7 +129,8 @@ Deno.serve(async (req) => {
     if (!won) return reply(req, { ok: true, won: false });
     // a permanent landmark fought from afar pays only once the person has discovered it
     const place = String(run.place_id);
-    const owner = place.startsWith('me:') || (await discovered(db, user, place));
+    const vault = place === VAULT_ZERO_ID;
+    const owner = vault || place.startsWith('me:') || (await discovered(db, user, place));
     if (!owner) {
       await db.from('raid_runs').update({ paid: false }).eq('id', run.id);
       return reply(req, { ok: true, won: true, pending: true, waiting: run.loot });
@@ -131,7 +138,13 @@ Deno.serve(async (req) => {
     // the pack holds 99 of each kind: what does not fit is lost
     const { data: paid, error } = await db.rpc('grant_loot', { p_user: user, p_loot: run.loot });
     if (error) return reply(req, { error: 'server' }, 500);
-    return reply(req, { ok: true, won: true, loot: (paid as { granted: unknown }).granted, lost: (paid as { lost: unknown }).lost });
+    // beating Vault 0 is worth XP too (once: a won raid clears the place for good). The XP is a bonus row, not a discovery: the vault stays undiscovered.
+    let xp = 0;
+    if (vault) {
+      const { data: bonus } = await db.rpc('record_discovery', { p_user: user, p_place: VAULT_ZERO_RAID_XP_ID, p_points: VAULT_ZERO_RAID_XP });
+      xp = Number((bonus as { added?: number } | null)?.added ?? 0);
+    }
+    return reply(req, { ok: true, won: true, loot: (paid as { granted: unknown }).granted, lost: (paid as { lost: unknown }).lost, ...(vault ? { xp } : {}) });
   }
 
   if (b.action === 'claim') {

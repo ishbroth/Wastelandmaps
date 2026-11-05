@@ -69,6 +69,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   const [pending, setPending] = useState(false);
   const [waiting, setWaiting] = useState<LootBag>({});
   const [lost, setLost] = useState<LootBag>({});
+  const [xp, setXp] = useState(0);
   const finished = useRef(false);
 
   const ownedGuns = useMemo(() => WEAPON_CLASS_IDS.filter((c) => account.arsenal[c] > 0).map((c) => weaponAt(c, account.arsenal[c] as 1 | 2 | 3 | 4).id), [account.arsenal]);
@@ -80,7 +81,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
     if (g) { setPhase(won ? 'won' : 'lost'); buzz(won ? 'victory' : 'defeat'); }
     if (run.current) {
       const result = await finishRaid(run.current, won);
-      if (won) { setPending(result.pending === true); setWaiting(result.waiting ?? {}); setLoot(result.won ? (result.loot ?? {}) : {}); setLost(result.lost ?? {}); }
+      if (won) { setPending(result.pending === true); setWaiting(result.waiting ?? {}); setLoot(result.won ? (result.loot ?? {}) : {}); setLost(result.lost ?? {}); setXp(result.xp ?? 0); }
       void account.refresh();
     }
   }, [account]);
@@ -561,9 +562,10 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
                 {Object.keys(loot).length === 0 && <li>Nothing was recovered.</li>}
                 {(Object.entries(loot) as [LootId, number][]).map(([id, n]) => <li key={id}><b>+{n}</b> {lootName(id)}</li>)}
                 {(Object.entries(lost) as [LootId, number][]).map(([id, n]) => <li key={`lost-${id}`} className="rm-raid-lost">{lootName(id)} FULL ({LOOT_CAP}): {n} LEFT BEHIND</li>)}
+                {xp > 0 && <li><b>+{xp}</b> XP</li>}
               </ul>
             )
-          ) : <p>The {plan.boss ? enemyById(plan.boss).name.toLowerCase() : enemyById(plan.enemies[0]).plural} won this time. Go back and try again.</p>}
+          ) : <p>{plan.bossOnly ? 'The guardians of Vault 0 won this time. Come back with better guns and more stimpaks.' : <>The {plan.boss ? enemyById(plan.boss).name.toLowerCase() : enemyById(plan.enemies[0]).plural} won this time. Go back and try again.</>}</p>}
           <button type="button" className="rm-btn" onClick={onExit}>{phase === 'won' ? 'CONTINUE' : 'BACK'}</button>
         </div>
       )}

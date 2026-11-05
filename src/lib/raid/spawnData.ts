@@ -2,6 +2,7 @@
 // other place gets the spots the image model marked when its picture was made (see unlock-render), or the default ground band.
 
 import { DEFAULT_SPAWNS, type Spawns } from './engine';
+import { VAULT_ZERO_ID } from '../../../supabase/functions/_shared/vaultZero';
 
 /** By Wikidata id: the horizon line and the spots on the ground, in the picture's coordinates (0-1, left to right and top to bottom). */
 export const LANDMARK_SPAWNS: Record<string, Spawns> = {
@@ -40,4 +41,7 @@ export const LANDMARK_SPAWNS: Record<string, Spawns> = {
   Q9202: { horizon: 0.72, points: [{ u: 0.4, v: 0.84 }, { u: 0.55, v: 0.86 }, { u: 0.25, v: 0.88 }, { u: 0.7, v: 0.9 }, { u: 0.5, v: 0.92 }, { u: 0.35, v: 0.78 }, { u: 0.15, v: 0.94 }] },
 };
 
-export const spawnsFor = (placeId: string, fromRender?: Spawns | null): Spawns => (placeId.startsWith('wd:') && LANDMARK_SPAWNS[placeId.slice(3)]) || fromRender || DEFAULT_SPAWNS;
+/** Vault 0's picture: the snowfield in front of the door. */
+const VAULT_ZERO_SPAWNS: Spawns = { horizon: 0.62, points: [{ u: 0.2, v: 0.78 }, { u: 0.35, v: 0.85 }, { u: 0.5, v: 0.9 }, { u: 0.15, v: 0.92 }, { u: 0.6, v: 0.82 }, { u: 0.3, v: 0.72 }, { u: 0.72, v: 0.9 }, { u: 0.45, v: 0.76 }] };
+
+export const spawnsFor = (placeId: string, fromRender?: Spawns | null): Spawns => (placeId === VAULT_ZERO_ID ? VAULT_ZERO_SPAWNS : placeId.startsWith('wd:') && LANDMARK_SPAWNS[placeId.slice(3)]) || fromRender || DEFAULT_SPAWNS;

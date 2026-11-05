@@ -106,9 +106,9 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
 
   // what the reveal plays between: the real photo, and the finished picture
   const reveal = render
-    ? { before: render.before, after: render.url, name: render.name, file: `${render.name.replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`, credit: { photo: render.photo, author: render.author, license: render.license, page: render.page } }
-    : paidReady && personal ? (beforeStreet?.id === spot.id ? { before: beforeStreet.url ?? '', after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit } : null)
-    : paidReady && (photo || supplied) ? { before: photo?.imageUrl ?? supplied ?? '', after: paidReady.url, name: spot.name, file: fileName, credit: paidReady.credit } : null;
+    ? { before: render.before, after: render.url, name: render.name, file: `${render.name.replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`, pristine: !!render.pristine, credit: render.pristine ? null : { photo: render.photo, author: render.author, license: render.license, page: render.page } }
+    : paidReady && personal ? (beforeStreet?.id === spot.id ? { before: beforeStreet.url ?? '', after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : null)
+    : paidReady && (photo || supplied) ? { before: photo?.imageUrl ?? supplied ?? '', after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : null;
 
   // look for the photo of the place (the famous few already come with their snapshot)
   useEffect(() => {
@@ -172,7 +172,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
         {/* the scene tab is the story, the enemies and the loot: the picture belongs to the snapshot tab */}
         <div className={`rm-modal-view${tab === 'scene' ? ' rm-modal-view-hidden' : ''}`}>
           {tab === 'snapshot' && reveal && (
-            <BlowApart sound={sound} key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={personal ? spot.id : undefined} />
+            <BlowApart sound={sound} pristine={reveal.pristine} key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={personal ? spot.id : undefined} />
           )}
           {tab === 'snapshot' && locked && (
             <div className="rm-locked">
@@ -197,7 +197,8 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
         {tab === 'snapshot' && reveal && personal && (
           <p className="rm-modal-credit">{home ? 'Made from Google Street View imagery. The original is shown straight from Google and is not kept by us; only this render is kept, and only you can open it.' : 'Made from Google Street View imagery. The original is shown straight from Google and is not kept by us. This render is part of the public atlas: everyone who unlocks this address sees the same picture, and it has a page of its own on the site.'}</p>
         )}
-        {tab === 'snapshot' && reveal && !personal && (
+        {tab === 'snapshot' && reveal?.pristine && <p className="rm-modal-credit">Made for WastelandMaps. Nothing has ever touched this door.</p>}
+        {tab === 'snapshot' && reveal && !personal && reveal.credit && (
           <p className="rm-modal-credit">
             Made from “{reveal.credit.photo}” by {reveal.credit.author}, {reveal.credit.license}, via{' '}
             <a href={reveal.credit.page} target="_blank" rel="noreferrer">{sourceLabel(reveal.credit.page)}</a>. Shared under the same license.

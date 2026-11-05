@@ -5,6 +5,8 @@
 // Deploy: supabase functions deploy report-discovery
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
+import { inAntarctica } from '../_shared/antarctica.ts';
+import { VAULT_ZERO_FOUND_XP, VAULT_ZERO_ID, rollVaultZeroLoot } from '../_shared/vaultZero.ts';
 
 const REACH_METERS = 500;
 
@@ -35,6 +37,20 @@ Deno.serve(async (req) => {
     b.lat = render.lat as number;
     b.lng = render.lng as number;
     b.points = 1;
+  }
+  // Vault 0, Vault Tech Headquarters: found by being anywhere in Antarctica, not by being near a point. Pays 1000 XP and 20 pieces of loot, once (the
+  // discovery row is the lock: a second report finds it already there and pays nothing). The server fixes the amounts, never the browser.
+  if (b.placeId === VAULT_ZERO_ID) {
+    if (typeof b.userLat !== 'number' || typeof b.userLng !== 'number' || !inAntarctica(b.userLat, b.userLng)) return reply(req, { error: 'not_in_antarctica' }, 400);
+    const db = serviceClient();
+    const { data, error } = await db.rpc('record_discovery', { p_user: user, p_place: VAULT_ZERO_ID, p_points: VAULT_ZERO_FOUND_XP });
+    if (error) return reply(req, { error: 'server' }, 500);
+    let loot: unknown = {};
+    if (Number((data as { added?: number }).added ?? 0) > 0) {
+      const { data: paid } = await db.rpc('grant_loot', { p_user: user, p_loot: rollVaultZeroLoot() });
+      loot = (paid as { granted?: unknown } | null)?.granted ?? {};
+    }
+    return reply(req, { ...(data as object), loot });
   }
   const nums = [b.lat, b.lng, b.userLat, b.userLng];
   if (nums.some((n) => typeof n !== 'number' || !Number.isFinite(n))) return reply(req, { error: 'bad_position' }, 400);

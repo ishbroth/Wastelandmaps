@@ -9,6 +9,7 @@ import { stylesAt, type Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
 import { loadFlood, patchOutline, type FloodPatch } from '../lib/flood';
+import { VAULT_ZERO_ID } from '../lib/vaultZero';
 import { cloudOutline } from '../lib/zones';
 import { levelsAt, type RegionLabel } from '../lib/regions';
 import { VAULT_ID, distanceMeters, hashString, subtitle, type CategoryId, type LatLng, type Location, type Wasteland } from '../lib/wasteland';
@@ -94,6 +95,7 @@ const CITY_ZOOM = 9;
 function minZoomFor(loc: Location, selectedId: string | null): number {
   // vaults drop off the map 14 zoom steps out from the closest view (zoom 7 and below), unless one is the place picked
   if (loc.vault && !loc.personal?.home && loc.id !== selectedId) return 8;
+  if (loc.id === VAULT_ZERO_ID) return loc.id === selectedId ? 0 : 6; // out of sight until you have scrolled down to Antarctica and zoomed in
   if (loc.personal?.home || freeRenderFor(loc.id) || loc.id === selectedId || (loc.personal && !loc.personal.saved)) return 0;
   if (loc.personal) return 11;
   if (loc.famous) return 6;

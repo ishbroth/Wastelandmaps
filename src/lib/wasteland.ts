@@ -33,6 +33,7 @@ import { RESERVED_VAULT_NUMBERS } from './loreVaults';
 import { vaultStory } from './vaultStories';
 import { neighborhoodIcon, pickIcon, type IconId } from './placeIcons';
 import { backstoryFor } from './backstories';
+import { VAULT_ZERO_ID } from '../../supabase/functions/_shared/vaultZero';
 import { enemyById, type BossId, type EnemyId } from './raid/enemies';
 import { lootName, type LootId } from './raid/loot';
 
@@ -328,7 +329,7 @@ const VAULT_LINES = [
 
 /** A few lines for a place's journal entry, the same every time for the same place. */
 /** What is living in a place now and what can be looted there: the last lines of its journal entry. */
-export interface PlaceInhabitants { enemies: EnemyId[]; boss: BossId | null; lootTypes: LootId[] }
+export interface PlaceInhabitants { enemies: (EnemyId | BossId)[]; boss: BossId | null; lootTypes: LootId[] }
 
 function presentDay(plan: PlaceInhabitants): string {
   const who = plan.enemies.map((e) => enemyById(e).now).join(' ');
@@ -359,6 +360,13 @@ export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabit
   if (spot.kind === 'vault') {
     const number = Number(spot.name.replace(/\D/g, '')) || 0;
     return [`${spot.name}, ${regionName}. Home, for some of us.`, ...vaultStory(regionName, number)];
+  }
+  if (spot.id === VAULT_ZERO_ID) {
+    return [
+      `Vault 0, Vault Tech Headquarters, Antarctica.`,
+      'Every vault in the world was ordered from here. The door stands in the snow exactly as it was built: no bomb ever fell on this ice, and nothing has touched it since.',
+      'Whatever keeps watch over it is not the usual wasteland vermin. Only a survivor with the best guns and a pack full of stimpaks has any hope of coming back from it.',
+    ];
   }
   const openers = OPENERS[spot.kind] ?? OPENERS.other;
   const story = backstoryFor(spot.id, spot.oldName);

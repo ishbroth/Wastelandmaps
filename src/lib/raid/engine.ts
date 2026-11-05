@@ -145,7 +145,8 @@ export class Game {
       }
     }
     // who comes in each wave: the kinds of enemy this place has, mixed, with the boss last
-    this.order = this.plan.waves.map((size) => Array.from({ length: size }, () => ({ type: enemyById(this.plan.enemies[Math.floor(this.random() * this.plan.enemies.length)]), boss: false })));
+    // (a boss-only raid, Vault 0, sends bosses in every wave: each one is a boss, with the boss's behavior and health bar)
+    this.order = this.plan.waves.map((size) => Array.from({ length: size }, () => ({ type: enemyById(this.plan.enemies[Math.floor(this.random() * this.plan.enemies.length)]), boss: !!this.plan.bossOnly })));
     this.banner = 'WAVE 1';
     this.bannerT = 2.2;
   }

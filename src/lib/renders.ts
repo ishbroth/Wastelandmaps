@@ -3,6 +3,7 @@
 // The photo's author and license stay with the render: most are CC BY-SA, so the render is shared under the same license.
 
 import { MORE_RENDERS } from './rendersMore';
+import { VAULT_ZERO_AT, VAULT_ZERO_ID } from '../../supabase/functions/_shared/vaultZero';
 
 export interface FreeRender {
   name: string;
@@ -18,6 +19,8 @@ export interface FreeRender {
   real?: string;
   /** The name the wasteland gives it, when it should not simply keep its real one. */
   postName?: string;
+  /** Shown as it is: no bomb, no "after" picture, no photo credit (Vault 0, a vault door in the snow, untouched). */
+  pristine?: boolean;
 }
 
 const ORIGINAL_RENDERS: Record<string, FreeRender> = {
@@ -31,7 +34,12 @@ const ORIGINAL_RENDERS: Record<string, FreeRender> = {
 };
 
 /** Every landmark with a free snapshot: the first seven, then the ones added since (rendersMore.ts, made by _tools/add-landmarks.mjs). */
-export const FREE_RENDERS: Record<string, FreeRender> = { ...ORIGINAL_RENDERS, ...MORE_RENDERS };
+export const FREE_RENDERS: Record<string, FreeRender> = {
+  ...ORIGINAL_RENDERS,
+  ...MORE_RENDERS,
+  // Vault Tech Headquarters in Antarctica: made for the game (public/renders/famous-vault-0.png), never destroyed
+  [VAULT_ZERO_ID]: { name: 'Vault 0', real: 'Vault Tech Headquarters', photo: '', author: '', license: '', page: '', lat: VAULT_ZERO_AT.lat, lng: VAULT_ZERO_AT.lng, pristine: true },
+};
 
 /** The free render for a place on the map, by its id ("wd:Q243"), or undefined. */
 export function freeRenderFor(spotId: string): (FreeRender & { url: string; before: string }) | undefined {
