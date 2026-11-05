@@ -7,7 +7,7 @@ import {
   COLS, ROOM_DEFS, ROWS, buildCost, furnishCost, furnitureOf, moodAt, roomAt, roomComplete, roomDef, settlersWaiting, slotsOf, whyNotBuild,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
-import { BG, DIM, ExitSign, FL, FURNITURE, Face, H, INK, LM, P, Q, SettlerArt, TM, VIEW_H, VIEW_W, VaultDoor, W, floorY, roomBox, type Pose } from './vaultArt';
+import { BG, DIM, ExitSign, FL, FURNITURE, Face, H, INK, LM, P, Q, ROUND, SettlerArt, TM, VIEW_H, VIEW_W, VaultDoor, W, floorY, roomBox, type Pose } from './vaultArt';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -225,7 +225,30 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const scale = useMemo(() => Math.max(0.62, Math.min(1.15, (window.innerWidth - 12) / VIEW_W)), []);
+  // which room is blown up in the view (null: the whole vault), and the piece of furniture or room that has just been bought and is still materializing
+  const [focus, setFocus] = useState<number | null>(null);
+  const focusRef = useRef<number | null>(null);
+  focusRef.current = focus;
+  const [fresh, setFresh] = useState<{ room: number; item?: string } | null>(null);
+  useEffect(() => {
+    if (!fresh) return;
+    const id = window.setTimeout(() => setFresh(null), 2600);
+    return () => window.clearTimeout(id);
+  }, [fresh]);
+  // the camera: the picture is a window onto the vault, and moving between the whole vault and one room slides and scales that window
+  const viewRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = viewRef.current;
+    if (!el) return;
+    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const [vb, setVb] = useState<number[] | null>(null);
+  const vbRef = useRef<number[] | null>(null);
 
   // checking in: now, and every half minute while it is open
   useEffect(() => {
@@ -246,11 +269,11 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
 
   const sims = useSettlers(vault);
 
-  const act = useCallback(async (body: Parameters<typeof vaultCall>[0], done?: () => void) => {
+  const act = useCallback(async (body: Parameters<typeof vaultCall>[0], done?: (v: VaultHome) => void) => {
     setBusy(true);
     const r = await vaultCall(body);
     setBusy(false);
-    if (r.ok) { setVault(r.vault); setError(null); setPanel(null); done?.(); void account.refresh(); } else setError(REASONS[r.reason] ?? r.reason);
+    if (r.ok) { setVault(r.vault); setError(null); setPanel(null); done?.(r.vault); void account.refresh(); } else setError(REASONS[r.reason] ?? r.reason);
   }, [account]);
 
   const mood = vault ? moodAt({ ...vault, seenAt: now }, now) : null;
@@ -264,16 +287,30 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
     const tunnels: React.ReactElement[] = [];
     const rooms: React.ReactElement[] = [];
     const cells: React.ReactElement[] = [];
+    const tapRoom = (e: React.MouseEvent, idx: number) => {
+      if (focusRef.current !== null) return; // while a room is blown up, a tap anywhere (this room too) shrinks it back
+      e.stopPropagation();
+      setFocus(idx);
+      setPanel({ kind: 'room', idx });
+    };
     vault.rooms.forEach((room, idx) => {
       const def = roomDef(room.type);
       const b = roomBox(room.type, room.col, room.row);
+      const y = floorY(room.row);
       const right = roomAt(vault, room.col + slotsOf(room), room.row);
       if (right) {
         const rb = roomBox(right.type, right.col, right.row);
-        const y = floorY(room.row);
         tunnels.push(<g key={`h${idx}`}><path d={`M${b.x + b.w} ${y - 34} H${rb.x} M${b.x + b.w} ${y} H${rb.x}`} /><path d={`M${b.x + b.w + 4} ${y - 17} H${rb.x - 4}`} stroke={DIM} strokeDasharray="3 4" /></g>);
       }
-      for (let c = room.col; c < room.col + slotsOf(room); c++) {
+      // a short piece of tunnel leading toward each place the next room could go
+      const last = room.col + slotsOf(room) - 1;
+      if (open(room.col - 1, room.row)) tunnels.push(<g key={`sl${idx}`}><path d={`M${b.x} ${y - 34} H${b.x - 24} M${b.x} ${y} H${b.x - 24}`} /><path d={`M${b.x - 4} ${y - 17} H${b.x - 22}`} stroke={DIM} strokeDasharray="3 4" /></g>);
+      if (open(last + 1, room.row)) tunnels.push(<g key={`sr${idx}`}><path d={`M${b.x + b.w} ${y - 34} H${b.x + b.w + 24} M${b.x + b.w} ${y} H${b.x + b.w + 24}`} /><path d={`M${b.x + b.w + 4} ${y - 17} H${b.x + b.w + 22}`} stroke={DIM} strokeDasharray="3 4" /></g>);
+      for (let c = room.col; c <= last; c++) {
+        const range = cellRange(vault, c, room.row) as [number, number];
+        const sx = range[0] + 15;
+        if (open(c, room.row + 1)) tunnels.push(<g key={`sd${idx}-${c}`}><path d={`M${sx - 13} ${b.y + H} V${b.y + H + 28} M${sx + 13} ${b.y + H} V${b.y + H + 28}`} />{[8, 16, 24].map((d) => <path key={d} d={`M${sx - 7} ${b.y + H + d} H${sx + 7}`} stroke={DIM} />)}</g>);
+        if (open(c, room.row - 1)) tunnels.push(<g key={`su${idx}-${c}`}><path d={`M${sx - 13} ${b.y} V${b.y - 28} M${sx + 13} ${b.y} V${b.y - 28}`} />{[8, 16, 24].map((d) => <path key={d} d={`M${sx - 7} ${b.y - d} H${sx + 7}`} stroke={DIM} />)}</g>);
         const lx = ladderX(vault, c, room.row);
         if (lx === null) continue;
         const y1 = b.y + FL;
@@ -289,16 +326,14 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
           </g>,
         );
       }
-      const todo = !roomComplete(room);
       rooms.push(
-        <g key={`r${idx}`} className="rm-vh-room" onClick={() => setPanel({ kind: 'room', idx })} role="button" aria-label={`${def.name}${todo ? ', can be furnished' : ''}`}>
-          <rect x={b.x} y={b.y} width={b.w} height={H} fill={BG} strokeWidth="2.2" />
-          <rect x={b.x + 3.5} y={b.y + 3.5} width={b.w - 7} height={H - 7} stroke={DIM} />
-          <path d={`M${b.x + 3.5} ${b.y + FL} H${b.x + b.w - 3.5}`} stroke={DIM} />
-          <text x={b.x + 8} y={b.y + 15} fontSize="11" fill={DIM} stroke="none" fontFamily="'VT323', monospace" letterSpacing="1">{def.name.toUpperCase()}</text>
-          {todo && <text x={b.x + b.w - 8} y={b.y + 15} fontSize="12" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="end" letterSpacing="1">{room.furniture.length === 0 ? 'EMPTY: FURNISH' : 'FURNISH'}</text>}
-          {room.furniture.map((id) => (FURNITURE[id] ? <g key={id} transform={`translate(${b.x + FURNITURE[id].x} ${b.y + FL})`}>{FURNITURE[id].art}</g> : null))}
-          {idx === 0 && <ExitSign x={b.x + 10} y={b.y + 22} />}
+        <g key={`r${idx}`} className={`rm-vh-room${fresh && fresh.room === idx && !fresh.item ? ' rm-vh-fresh' : ''}`} onClick={(e) => tapRoom(e, idx)} role="button" aria-label={def.name}>
+          <rect x={b.x} y={b.y} width={b.w} height={H} rx={ROUND} fill={BG} strokeWidth="2.4" />
+          <rect x={b.x + 4} y={b.y + 4} width={b.w - 8} height={H - 8} rx={ROUND - 3} stroke={DIM} />
+          <path d={`M${b.x + 4} ${b.y + FL} H${b.x + b.w - 4}`} stroke={DIM} />
+          <text x={b.x + b.w - 13} y={b.y + H - 8} fontSize="15" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="end" letterSpacing="1.2">{def.name.toUpperCase()}</text>
+          {room.furniture.map((id) => (FURNITURE[id] ? <g key={id} className={fresh && fresh.room === idx && fresh.item === id ? 'rm-vh-fresh' : undefined} transform={`translate(${b.x + FURNITURE[id].x} ${b.y + FL})`}>{FURNITURE[id].art}</g> : null))}
+          {idx === 0 && <ExitSign x={b.x + 12} y={b.y + 24} />}
         </g>,
       );
     });
@@ -307,10 +342,10 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
         if (!open(col, row)) continue;
         const x = LM + col * P + (P - W) / 2;
         cells.push(
-          <g key={`c${col}-${row}`} className="rm-vh-open" onClick={() => setPanel({ kind: 'build', col, row })} role="button" aria-label="Clear and build a room here">
-            <rect x={x} y={TM + row * Q} width={W} height={H} strokeDasharray="6 5" fill="rgba(61,255,138,0.04)" />
-            <text x={x + W / 2} y={TM + row * Q + H / 2 - 2} fontSize="26" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="middle">+</text>
-            <text x={x + W / 2} y={TM + row * Q + H / 2 + 16} fontSize="14" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="middle" letterSpacing="1.5">CLEAR &amp; BUILD</text>
+          <g key={`c${col}-${row}`} className="rm-vh-open" onClick={(e) => { if (focusRef.current !== null) return; e.stopPropagation(); setPanel({ kind: 'build', col, row }); }} role="button" aria-label="Clear and build a room here">
+            <rect x={x} y={TM + row * Q} width={W} height={H} rx={ROUND} strokeDasharray="6 5" fill="rgba(61,255,138,0.04)" />
+            <text x={x + W / 2} y={TM + row * Q + H / 2 - 2} fontSize="30" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="middle">+</text>
+            <text x={x + W / 2} y={TM + row * Q + H / 2 + 20} fontSize="17" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="middle" letterSpacing="1.5">CLEAR &amp; BUILD</text>
           </g>,
         );
       }
@@ -319,12 +354,51 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
     return (
       <>
         {tunnels}
-        <g><VaultDoor x={first.x - 40} y={floorY(0) - 38} /><path d={`M${first.x - 2} ${floorY(0) - 34} H${first.x}`} /></g>
+        <VaultDoor x={4} top={first.y + 8} bottom={floorY(0)} />
         {cells}
         {rooms}
       </>
     );
-  }, [vault]);
+  }, [vault, fresh]);
+
+  // where the camera should be: over the whole vault, or over one room (above the upgrade popup while that is open)
+  const docked = panel?.kind === 'room';
+  const target = useMemo<number[] | null>(() => {
+    if (!size || !vault || size.w < 10 || size.h < 10) return null;
+    const room = focus !== null ? vault.rooms[focus] : undefined;
+    if (!room) {
+      const sc = Math.min(size.w / VIEW_W, size.h / VIEW_H);
+      const w = size.w / sc;
+      const h = size.h / sc;
+      return [(VIEW_W - w) / 2, (VIEW_H - h) * 0.3, w, h].map((n) => Math.round(n * 10) / 10);
+    }
+    const b = roomBox(room.type, room.col, room.row);
+    const usable = docked ? Math.max(120, size.h - window.innerHeight * 0.46) : size.h;
+    const pad = 14;
+    const sc = Math.min(size.w / (b.w + 2 * pad), usable / (H + 2 * pad), 4);
+    const w = size.w / sc;
+    const h = size.h / sc;
+    return [b.x + b.w / 2 - w / 2, b.y + H / 2 - usable / 2 / sc, w, h].map((n) => Math.round(n * 10) / 10);
+  }, [size, vault, focus, docked]);
+  const targetKey = target ? target.join(',') : '';
+  useEffect(() => {
+    if (!target) return;
+    const from = vbRef.current;
+    if (!from) { vbRef.current = target; setVb(target); return; }
+    const t0 = performance.now();
+    let raf = 0;
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0) / 480);
+      const e = 1 - Math.pow(1 - k, 3);
+      const cur = from.map((v, i) => v + (target[i] - v) * e);
+      vbRef.current = cur;
+      setVb(cur);
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetKey]);
 
   const room: VaultRoom | undefined = panel?.kind === 'room' ? vault?.rooms[panel.idx] : undefined;
   const ownLoot = account.loot;
@@ -333,7 +407,6 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
     <div className="rm-vh" role="dialog" aria-label="Your home vault">
       <div className="rm-vh-top">
         <b>{title}</b>
-        <span className="rm-vh-loot-total">LOOT {bagTotal(ownLoot)}</span>
         <button type="button" className="rm-btn rm-vh-exit" onClick={onExit}>LEAVE</button>
       </div>
       {mood && vault && vault.settlers.length > 0 && (
@@ -346,20 +419,22 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
         </div>
       )}
       {error && <p className="rm-vh-error" onClick={() => setError(null)}>{error}</p>}
-      <div className="rm-vh-view">
+      <div className="rm-vh-view" ref={viewRef}>
         {!vault && !error && <p className="rm-vh-wait">ENTERING THE VAULT…</p>}
-        {vault && (
-          <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} width={VIEW_W * scale} height={VIEW_H * scale} fill="none" stroke={INK} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        {vault && vb && (
+          <svg viewBox={vb.join(' ')} fill="none" stroke={INK} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" onClick={() => { if (focus !== null && !panel) setFocus(null); }}>
             {scene}
             {sims.map((s) => (
               <g key={s.id} transform={`translate(${s.x} ${s.y - s.lift}) scale(${s.face} 1)`}><SettlerArt kind={s.kind} pose={s.pose} phase={s.phase} /></g>
             ))}
           </svg>
         )}
+        {focus !== null && !panel && !waiting && <button type="button" className="rm-btn rm-vh-fab" onClick={() => setPanel({ kind: 'room', idx: focus })}>UPGRADES</button>}
       </div>
+      {docked && !waiting && <div className="rm-vh-backdrop" onClick={() => setPanel(null)} />}
 
       {vault && panel && !waiting && (
-        <div className="rm-vh-sheet" onClick={(e) => { if (e.target === e.currentTarget) setPanel(null); }}>
+        <div className={`rm-vh-sheet${panel.kind === 'room' ? ' dock' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setPanel(null); }}>
           <div className="rm-vh-sheet-card">
             {panel.kind === 'build' && !panel.type && (
               <div className="rm-vh-sheet-body">
@@ -386,11 +461,12 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
               <LootPicker
                 title={`BUILD A ${roomDef(panel.type).name.toUpperCase()}`} cost={buildCost(vault, panel.type)} have={ownLoot} busy={busy}
                 onBack={() => setPanel({ kind: 'build', col: panel.col, row: panel.row })}
-                onPay={(pay) => void act({ action: 'build', type: panel.type as string, col: panel.col, row: panel.row, pay })}
+                onPay={(pay) => void act({ action: 'build', type: panel.type as string, col: panel.col, row: panel.row, pay }, (v) => setFresh({ room: v.rooms.length - 1 }))}
               />
             )}
             {panel.kind === 'room' && room && !panel.item && (
               <div className="rm-vh-sheet-body">
+                <button type="button" className="rm-vh-x" onClick={() => setPanel(null)} aria-label="Close">×</button>
                 <h3>{roomDef(room.type).name.toUpperCase()}</h3>
                 <p>{roomComplete(room) ? 'FULLY FURNISHED.' : `NEXT PIECE: ${furnishCost(room)} PIECES OF LOOT.`}</p>
                 <ul className="rm-vh-types">
@@ -412,7 +488,7 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
               <LootPicker
                 title={`ADD ${(furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()}`} cost={furnishCost(room)} have={ownLoot} busy={busy}
                 onBack={() => setPanel({ kind: 'room', idx: panel.idx })}
-                onPay={(pay) => void act({ action: 'furnish', room: panel.idx, item: panel.item as string, pay })}
+                onPay={(pay) => void act({ action: 'furnish', room: panel.idx, item: panel.item as string, pay }, () => setFresh({ room: panel.idx, item: panel.item }))}
               />
             )}
           </div>

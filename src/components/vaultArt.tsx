@@ -13,16 +13,21 @@ export const BG = '#021a0c';
 export const P = 250;
 export const W = 190;
 export const WB = 140;
-/** Height of every room, the distance from the top of one room to the top of the next (the gap is the tunnel), and the floor inside a room. */
-export const H = 104;
-export const Q = 158;
-export const FL = H - 8;
-/** The margin to the left of the first slot (the vault door lives in it) and above the first row. */
-export const LM = 100;
-export const TM = 28;
+/**
+ * Height of every room (the strip under the floor line holds its name), the distance from the top of one room to the top of the next (the gap is the
+ * tunnel), and where the floor is inside a room.
+ */
+export const H = 116;
+export const Q = 164;
+export const FL = 96;
+/** The slot grid starts a little left of the picture so the first room sits against the vault door at the left margin; the top margin above the first row. */
+export const LM = -8;
+export const TM = 20;
 
-export const VIEW_W = LM + 3 * P + 24;
-export const VIEW_H = TM + 5 * Q;
+export const VIEW_W = 722;
+export const VIEW_H = TM + 4 * Q + H + 14;
+/** How round the corners of a room are. */
+export const ROUND = 10;
 
 export interface RoomBox { x: number; y: number; w: number }
 export const roomWidth = (type: RoomType): number => (type === 'bathroom' ? WB : type === 'entertainment' || type === 'game' || type === 'workshop' ? P + W : W);
@@ -309,18 +314,19 @@ export const FURNITURE: Record<string, { x: number; art: ReactElement }> = {
 
 // ---- the vault door, the ladder, the faces ----
 
-export function VaultDoor({ x, y }: { x: number; y: number }) {
+/** The vault door, a cogwheel seen from the side: a tall slab with its teeth along the near edge and the hub sticking out of the middle, flat against the wall. */
+export function VaultDoor({ x, top, bottom }: { x: number; top: number; bottom: number }) {
+  const h = bottom - top;
+  const n = Math.floor((h - 6) / 11);
+  const gap = (h - 6 - n * 6) / Math.max(1, n - 1);
+  const mid = top + h / 2;
   return (
-    <g transform={`translate(${x} ${y})`}>
-      <circle r="38" />
-      <circle r="31" />
-      {[0, 60, 120, 180, 240, 300].map((a) => (
-        <circle key={a} cx={Math.cos((a * Math.PI) / 180) * 34.5} cy={Math.sin((a * Math.PI) / 180) * 34.5} r="1.8" fill={INK} />
-      ))}
-      <circle r="15" />
-      <path d="M-15 0 H15 M0 -15 V15 M-10.6 -10.6 L10.6 10.6 M10.6 -10.6 L-10.6 10.6" />
-      <circle r="4" fill={INK} />
-      <rect x="-44" y="-12" width="7" height="24" />
+    <g>
+      <rect x={x + 5} y={top} width="12" height={h} rx="3" />
+      <path d={`M${x + 11} ${top + 4} V${bottom - 4}`} stroke={DIM} />
+      {Array.from({ length: n }, (_, i) => <rect key={i} x={x} y={top + 3 + i * (6 + gap)} width="5" height="6" rx="1.5" />)}
+      <rect x={x - 3} y={mid - 4} width="8" height="8" rx="2" fill={INK} />
+      <path d={`M${x + 17} ${mid - 12} H${x + 21} M${x + 17} ${mid + 12} H${x + 21}`} stroke={DIM} />
     </g>
   );
 }
