@@ -9,25 +9,32 @@ export const DIM = '#13a550';
 export const BG = '#021a0c';
 
 // ---- the map of the vault, in drawing units ----
-/** Width of one room slot including the tunnel after it, and the width of a standard room and of a bathroom. */
-export const P = 250;
-export const W = 190;
-export const WB = 140;
-/**
- * Height of every room (the strip under the floor line holds its name), the distance from the top of one room to the top of the next (the gap is the
- * tunnel), and where the floor is inside a room.
- */
-export const H = 116;
-export const Q = 164;
-export const FL = 96;
-/** The slot grid starts a little left of the picture so the first room sits against the vault door at the left margin; the top margin above the first row. */
-export const LM = -8;
-export const TM = 20;
+/** A standard room, a bathroom (a little narrower), and the tunnel between neighbours; one slot is a room and the tunnel after it. */
+export const W = 206;
+export const WB = 152;
+export const GAP = 22;
+export const P = W + GAP;
+/** Every room is this tall; the tunnel between one level and the next is GAP_V; Q is the distance from the top of one room to the top of the next. */
+export const H = 214;
+export const GAP_V = 34;
+export const Q = H + GAP_V;
+/** Inside a room, seen a little from above: the back wall meets the floor at BACK, the floor's front edge is at FRONT (the name goes in the strip under it),
+ *  things stand on the floor at FL, and things that stand against the back wall have their feet at WALL. */
+export const BACK = Math.round(H * 0.52);
+export const FRONT = H - 26;
+export const FL = Math.round(H * 0.72);
+export const WALL = BACK + 10;
+/** The slot grid starts just inside the picture so the first room sits against the vault door at the left margin; the top margin above the first row. */
+export const LM = 11;
+export const TM = 14;
 
-export const VIEW_W = 722;
-export const VIEW_H = TM + 4 * Q + H + 14;
+export const VIEW_W = LM + 3 * P;
+export const VIEW_H = TM + 4 * Q + H + 12;
 /** How round the corners of a room are. */
-export const ROUND = 10;
+export const ROUND = 12;
+/** A tunnel's height, and how big settlers are drawn. */
+export const TUNNEL_H = 46;
+export const SETTLER_SCALE = 1.15;
 
 export interface RoomBox { x: number; y: number; w: number }
 export const roomWidth = (type: RoomType): number => (type === 'bathroom' ? WB : type === 'entertainment' || type === 'game' || type === 'workshop' ? P + W : W);
@@ -36,7 +43,58 @@ export const roomBox = (type: RoomType, col: number, row: number): RoomBox => {
   const x = LM + col * P + (type === 'bathroom' ? (P - WB) / 2 : (P - W) / 2);
   return { x, y: TM + row * Q, w };
 };
+/** Where settlers walk (and things stand) on the floor of a row, and where they stand at something against the back wall. */
 export const floorY = (row: number): number => TM + row * Q + FL;
+export const wallY = (row: number): number => TM + row * Q + WALL;
+
+/** The furniture was drawn for rooms this wide; rooms are a little wider now, so each piece (and its place) is scaled to match. */
+const designWidth = (type: RoomType): number => (type === 'bathroom' ? 140 : type === 'entertainment' || type === 'game' || type === 'workshop' ? 440 : 190);
+export const furnitureScale = (type: RoomType): number => roomWidth(type) / designWidth(type);
+
+/** Where each piece stands: on the floor in the room, against the back wall, or hanging from the ceiling. */
+const AGAINST_WALL = new Set(['couch', 'tv', 'sinkcabinets', 'fridge', 'stove', 'chinacabinet', 'bed', 'nightstand', 'dresser', 'lamp', 'toilet', 'bathsink', 'shower', 'screen', 'speakers', 'bar', 'pinball', 'toolchest', 'armorstand', 'craftingtable']);
+export const furnitureAt = (id: string): 'wall' | 'floor' | 'ceiling' => (id === 'chandelier' ? 'ceiling' : AGAINST_WALL.has(id) ? 'wall' : 'floor');
+/** Where a piece's feet are, in the picture, for a room at the top y. */
+export const furnitureFeet = (roomTop: number, id: string, scale: number): number => {
+  const at = furnitureAt(id);
+  return at === 'ceiling' ? roomTop + 22 + 96 * scale : at === 'wall' ? roomTop + WALL : roomTop + FL;
+};
+/** Where a settler stands to use a piece: at the wall for things against it, on the floor for the rest. */
+export const standY = (row: number, id: string): number => (furnitureAt(id) === 'wall' ? wallY(row) + 6 : floorY(row));
+
+/**
+ * The room itself, seen from the front and a little above: a back wall, side walls and ceiling running back to it, and a floor with boards and cross lines
+ * running into the distance, so there is plainly somewhere for the furniture to stand. The name is in the strip under the floor.
+ */
+export function RoomShell({ x, y, w, name }: { x: number; y: number; w: number; name: string }) {
+  const L = 4;
+  const R = w - 4;
+  const T = 4;
+  const dx = Math.min(26, w * 0.09);
+  const bl = L + dx;
+  const br = R - dx;
+  const bt = T + 16;
+  const bb = BACK;
+  const board = [0.17, 0.33, 0.5, 0.67, 0.83];
+  const cross = [0.14, 0.34, 0.62];
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={H} rx={ROUND} fill={BG} strokeWidth="2.4" />
+      <rect x={x + 4} y={y + 4} width={w - 8} height={H - 8} rx={ROUND - 3} stroke={DIM} />
+      <path d={`M${x + bl} ${y + bb} H${x + br} L${x + R} ${y + FRONT} H${x + L} Z`} fill="rgba(61,255,138,0.07)" stroke="none" />
+      <path d={`M${x + L} ${y + T} L${x + bl} ${y + bt} M${x + R} ${y + T} L${x + br} ${y + bt} M${x + L} ${y + FRONT} L${x + bl} ${y + bb} M${x + R} ${y + FRONT} L${x + br} ${y + bb}`} stroke={DIM} />
+      <rect x={x + bl} y={y + bt} width={br - bl} height={bb - bt} stroke={DIM} />
+      {board.map((f) => <path key={f} d={`M${x + bl + (br - bl) * f} ${y + bb} L${x + L + (R - L) * f} ${y + FRONT}`} stroke={DIM} strokeWidth="1" />)}
+      {cross.map((t) => {
+        const yy = bb + (FRONT - bb) * t;
+        return <path key={t} d={`M${x + bl + (L - bl) * t} ${y + yy} H${x + br + (R - br) * t}`} stroke={DIM} strokeWidth="1" />;
+      })}
+      <path d={`M${x + bl} ${y + bb} H${x + br}`} strokeWidth="1.8" />
+      <path d={`M${x + L} ${y + FRONT} H${x + R}`} strokeWidth="1.8" />
+      <text x={x + w - 13} y={y + H - 8} fontSize="16" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="end" letterSpacing="1.2">{name}</text>
+    </g>
+  );
+}
 
 // ---- furniture ----
 
