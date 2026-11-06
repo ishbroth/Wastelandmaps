@@ -270,6 +270,35 @@ export async function unlockRender(placeId: string, name: string, extra?: { kind
   return { kind: 'error', reason: 'server' };
 }
 
+// ---- the leaderboard (see the leaderboard migration; a survivor joins to appear, under a made-up callsign) ----
+
+export interface BoardRow { rank: number; callsign: string; level: number; places: number; /** This row is the signed-in person's own. */ mine: boolean }
+
+/** The top survivors, or null if the leaderboard could not be read (the migration has not been run, or no connection). */
+export async function loadLeaderboard(limit = 100): Promise<BoardRow[] | null> {
+  const { data, error } = await db().rpc('leaderboard_top', { p_limit: limit });
+  if (error || !Array.isArray(data)) return null;
+  return (data as { rank: number | string; callsign: string; level: number; places: number; mine: boolean }[]).map((r) => ({ rank: Number(r.rank), callsign: r.callsign, level: Number(r.level), places: Number(r.places), mine: !!r.mine }));
+}
+
+/** The signed-in person's own standing, or null if they have not joined. */
+export async function myStanding(): Promise<BoardRow | null> {
+  const { data, error } = await db().rpc('leaderboard_me');
+  const r = Array.isArray(data) ? data[0] : null;
+  return error || !r ? null : { rank: Number(r.rank), callsign: r.callsign as string, level: Number(r.level), places: Number(r.places), mine: true };
+}
+
+/** Joins the leaderboard (or, with reroll, takes a new callsign). Returns the callsign. */
+export async function joinLeaderboard(reroll = false): Promise<string | null> {
+  const { data, error } = await db().rpc('leaderboard_join', { p_reroll: reroll });
+  return error || typeof data !== 'string' ? null : data;
+}
+
+export async function leaveLeaderboard(): Promise<boolean> {
+  const { error } = await db().rpc('leaderboard_leave');
+  return !error;
+}
+
 /** Where this person last left the map, or null. */
 export async function loadMapPosition(userId: string): Promise<{ lat: number; lng: number; zoom: number; /** When it was saved (milliseconds). */ updatedAt: number } | null> {
   const { data } = await db().from('map_positions').select('lat,lng,zoom,updated_at').eq('user_id', userId).maybeSingle();
@@ -433,7 +462,7 @@ export async function saveHome(userId: string, home: Home): Promise<'ok' | 'take
   return error.code === '23505' ? 'taken' : 'error';
 }
 
-/** The app was opened by the sign-in email's link (com.wastelandmaps.app://auth#access_token=...): finish signing in with it. */
+/** The app was opened by the sign-in email's link (com.wasteland.app://auth#access_token=...): finish signing in with it. */
 export async function completeSignInFromUrl(url: string): Promise<boolean> {
   if (!url.startsWith(NATIVE_AUTH_REDIRECT) && !url.startsWith(APP_SCHEME)) return false;
   const hash = new URLSearchParams(url.includes('#') ? url.slice(url.indexOf('#') + 1) : '');

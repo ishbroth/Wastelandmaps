@@ -2,7 +2,7 @@ project_id = "wastelandmaps"
 
 [auth]
 site_url = "https://wastelandmaps.com"
-additional_redirect_urls = ["com.wastelandmaps.app://auth", "https://wastelandmaps.com", "https://wastelandmaps.com/", "https://www.wastelandmaps.com", "https://www.wastelandmaps.com/"]
+additional_redirect_urls = ["com.wasteland.app://auth", "com.wastelandmaps.app://auth", "https://wastelandmaps.com", "https://wastelandmaps.com/", "https://www.wastelandmaps.com", "https://www.wastelandmaps.com/"]
 
 [auth.email.template.magic_link]
 subject = "Your WastelandMaps sign-in link"

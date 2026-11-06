@@ -20,14 +20,15 @@ npm run app:sync        # type-checks, builds the site, copies it into android/ 
 ## iOS (Xcode, on the Mac)
 
 1. `npm install`, then `npm run app:ios` (Capacitor 8 uses Swift Package Manager; there is no `pod install`).
-2. App target > Signing & Capabilities: pick your team. Bundle identifier is `com.wastelandmaps.app` (see below).
+2. App target > Signing & Capabilities: pick your team. Bundle identifier is `com.wasteland.app` (see below).
 3. Product > Archive to upload to App Store Connect. Version/build: General tab.
 
 ## Before the first store upload
 
-- **App id.** `com.wastelandmaps.app` is set in `capacitor.config.ts`, the Android manifest's sign-in link scheme, the iOS `Info.plist` URL scheme, and `src/lib/native.ts` (`APP_SCHEME`). If you pick a different id, change all four, then `npx cap sync`. It cannot change after the first upload.
+- **App id.** `com.wasteland.app` is set in `capacitor.config.ts`, the Android manifest's sign-in link scheme, the iOS `Info.plist` URL scheme, and `src/lib/native.ts` (`APP_SCHEME`). If you pick a different id, change all four, then `npx cap sync`. It cannot change after the first upload.
 - **In-app purchases.** Apple and Google require their own purchase systems for digital goods like these credits. The app does not offer Stripe checkout (`purchasesAvailable()` in `src/lib/native.ts` is false in the app); credits bought on the website still work after signing in. Add Apple/Google purchases (RevenueCat is the usual shortcut) and have them call the `add_credits` database function, then turn `purchasesAvailable` on.
-- **Sign-in links.** The email link opens the app through `com.wastelandmaps.app://auth`. That address must be in the Supabase project's allowed redirect URLs (it is in `supabase/auth/auth-settings.toml`; push the config with `supabase config push`).
+- **Android keeps its own package name.** The iPhone app's bundle ID is `com.wasteland.app`. The Android app's package (`applicationId` and `namespace` in `android/app/build.gradle`, and the `MainActivity` folder) is still `com.wastelandmaps.app`: changing it means moving the code folder, and it is not the App Store ID. Both apps open the sign-in email link with `com.wasteland.app://auth`.
+- **Sign-in links.** The email link opens the app through `com.wasteland.app://auth`. That address must be in the Supabase project's allowed redirect URLs (it is in `supabase/auth/auth-settings.toml`; push the config with `supabase config push`).
 - **Server origins.** The functions allow the app's origins (`capacitor://localhost`, `https://localhost`) in `supabase/functions/_shared/common.ts`. Redeploy the functions after that file changes.
 - **Google key.** Inside the app the pages come from `capacitor://localhost` / `https://localhost`, which a website-restricted Google key refuses. Use a key for the app that is restricted by API only (Maps JavaScript, Places, Geocoding, Directions, Street View Static) and set quotas and a billing alert, since it ships inside the app.
 - **Privacy.** Both stores need a privacy policy URL and answers about location, account email and purchases. Location is also used in the background while AUTO-DISCOVER is on (see the last section).
@@ -55,8 +56,8 @@ There is no CocoaPods step: Capacitor 8 uses Swift Package Manager, and every pl
 
 One-time setup:
 1. Enrol in the **Apple Developer Program** (developer.apple.com, $99/year; approval can take a day or two).
-2. developer.apple.com > Identifiers: register the App ID `com.wastelandmaps.app` (no extra capabilities are needed).
-3. App Store Connect > Apps > + New App: name WastelandMaps, bundle ID `com.wastelandmaps.app`, any SKU.
+2. developer.apple.com > Identifiers: register the App ID `com.wasteland.app` (no extra capabilities are needed).
+3. App Store Connect > Apps > + New App: name WastelandMaps, bundle ID `com.wasteland.app`, any SKU.
 4. App Store Connect > Users and Access > Integrations > **App Store Connect API**: create a key with the **Admin** role (cloud signing needs it). Download the `.p8` file once. Note the Key ID and the Issuer ID, and your Team ID (developer.apple.com > Membership).
 5. GitHub > repo Settings > Secrets and variables > Actions: add `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_KEY_P8` (the .p8 file's contents, base64-encoded: `base64 -w0 AuthKey_XXXX.p8`). `VITE_GOOGLE_MAPS_API_KEY` and `VITE_SUPABASE_ANON_KEY` are already there from the website build.
 

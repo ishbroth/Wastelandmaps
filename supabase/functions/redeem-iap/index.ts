@@ -6,11 +6,11 @@
 // POST { transactionId }  ->  { ok: true, credits } or { ok: false, reason }
 //
 // Secrets (see docs/in-app-purchases.md): APPLE_IAP_KEY_ID, APPLE_IAP_ISSUER_ID, APPLE_IAP_PRIVATE_KEY (the .p8 file's text), APPLE_BUNDLE_ID (optional,
-// defaults to com.wastelandmaps.app).   Deploy: supabase functions deploy redeem-iap
+// defaults to com.wasteland.app).   Deploy: supabase functions deploy redeem-iap
 
 import { callerId, corsHeaders, IAP_PRODUCTS, reply, serviceClient } from '../_shared/common.ts';
 
-const BUNDLE_ID = Deno.env.get('APPLE_BUNDLE_ID') ?? 'com.wastelandmaps.app';
+const BUNDLE_ID = Deno.env.get('APPLE_BUNDLE_ID') ?? 'com.wasteland.app';
 const enc = new TextEncoder();
 
 const b64url = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');

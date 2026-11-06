@@ -26,12 +26,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- the sign-in email opens the app: com.wastelandmaps.app://auth#access_token=... -->
+            <!-- the sign-in email opens the app: com.wasteland.app://auth#access_token=... -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.wastelandmaps.app" />
+                <data android:scheme="com.wasteland.app" />
             </intent-filter>
         </activity>
 

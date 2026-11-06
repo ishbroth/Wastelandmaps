@@ -22,7 +22,7 @@ export const purchasesAvailable = (): boolean => !isNative() || platform() === '
 export const appOrigin = (): string => window.location.origin;
 
 /** The custom address Supabase's sign-in email link opens the app with. Add it to the project's allowed redirect URLs. */
-export const APP_SCHEME = 'com.wastelandmaps.app';
+export const APP_SCHEME = 'com.wasteland.app';
 export const NATIVE_AUTH_REDIRECT = `${APP_SCHEME}://auth`;
 
 /** Opens a link in the browser (a sheet over the app, on a phone). False if the browser blocked it. */

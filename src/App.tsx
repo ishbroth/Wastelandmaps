@@ -1157,7 +1157,7 @@ export default function App() {
               />
             )}
             {tab === 'data' && <AccountPanel account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
-            {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} />}
+            {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} account={account} />}
           </section>
         </aside>
       </main>

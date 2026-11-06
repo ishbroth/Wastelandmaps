@@ -42,9 +42,9 @@ export const nextRenderReset = (): string => { const d = new Date(); d.setUTCHou
 
 /** The App Store products (made in App Store Connect) and the credits each gives; they match the packs below. The server decides this, never the phone. */
 export const IAP_PRODUCTS: Record<string, number> = {
-  'com.wastelandmaps.app.caps400': 4,
-  'com.wastelandmaps.app.caps1800': 18,
-  'com.wastelandmaps.app.caps4400': 44,
+  'com.wasteland.app.caps400': 4,
+  'com.wasteland.app.caps1800': 18,
+  'com.wasteland.app.caps4400': 44,
 };
 
 /** What a pack costs and gives. The server decides this; the browser only asks for a pack by name. */

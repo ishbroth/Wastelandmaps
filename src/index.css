@@ -792,4 +792,13 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .rm-projector-flash { font-weight: 400; letter-spacing: 2px; animation: rm-projector-blink 1.1s steps(2, start) infinite; }
 .rm-projector-count { font-size: 30px; letter-spacing: 4px; font-variant-numeric: tabular-nums; }
 @keyframes rm-projector-blink { 50% { opacity: 0.15; } }
+.rm-board { margin-top: 18px; }
+.rm-board h3 { margin: 0 0 8px; }
+.rm-board-join, .rm-board-me { margin-bottom: 10px; }
+.rm-board-row { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 8px; align-items: baseline; padding: 8px 6px; border-bottom: 1px solid var(--line); font-size: 15px; }
+.rm-board-row b { font-weight: 400; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-board-rank { color: var(--ink-dim); text-align: right; }
+.rm-board-lv, .rm-board-places { color: var(--ink-dim); font-size: 13px; white-space: nowrap; }
+.rm-board-row.mine { background: rgba(61, 255, 138, 0.12); box-shadow: inset 3px 0 0 var(--ink); }
+html[data-look='parchment'] .rm-board-row.mine { background: rgba(120, 80, 20, 0.14); }
 .rm-link { background: none; border: none; padding: 0; color: var(--ink); font: inherit; text-decoration: underline; cursor: pointer; }

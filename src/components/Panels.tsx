@@ -5,8 +5,9 @@ import { LOOT_CAP } from '../lib/raid/loot';
 import { enemiesLine, homePlan, lootSummary, planEnemies, planFor, raidFor } from '../lib/raid/raid';
 import { personalId } from '../lib/personal';
 import { purchasesAvailable } from '../lib/native';
-import { purchasePack, usePackPrices, usesAppStore } from '../lib/iap';
+import { purchasePack, usePackPrices } from '../lib/iap';
 import { faceIdName, forgetFaceId, savedFaceIds } from '../lib/faceid';
+import Leaderboard from './Leaderboard';
 import Caps, { CapIcon } from './Caps';
 import { STIMPAK_TRADES } from '../../supabase/functions/_shared/stimpak';
 import { METRO_COST, PACKS, caps, tradeStimpak, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
@@ -170,6 +171,7 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
       <div className="rm-acct">
         <p>Sign in to keep your record: the places you have found, the snapshots you have unlocked, your credits and where you left the map. It follows you to any device.</p>
         <button type="button" className="rm-btn" onClick={onAccount}>SIGN IN</button>
+        <LegalLinks />
       </div>
     );
   }
@@ -282,13 +284,13 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
           {expanded ? 'SHOW FEWER' : `SHOW ALL ${recent.length}`}
         </button>
       )}
-      <p className="rm-fine rm-privacy-line"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a> · <a href="https://wastelandmaps.com/support.html" target="_blank" rel="noopener noreferrer">Support</a></p>
+      <LegalLinks />
       <DeleteLine />
     </div>
   );
 }
 
-export function SharePanel({ query, look }: { query: string; look: LookId }) {
+export function SharePanel({ query, look, account }: { query: string; look: LookId; account: Account }) {
   const [copied, setCopied] = useState(false);
   const link = query ? buildShareUrl({ query, look }) : '';
   const copy = async () => {
@@ -312,6 +314,7 @@ export function SharePanel({ query, look }: { query: string; look: LookId }) {
         The poster prints exactly what is on screen (use "Save as PDF" in the print window). Map imagery belongs to Google and is for your own
         use; WastelandMaps is an unofficial fan project and is not affiliated with Bethesda or Microsoft.
       </p>
+      <Leaderboard account={account} />
     </div>
   );
 }
@@ -380,6 +383,13 @@ function DeleteLine() {
   );
 }
 
+/** The privacy policy and support links: shown on the Data tab signed in or not. */
+function LegalLinks() {
+  return (
+    <p className="rm-fine rm-privacy-line"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a> · <a href="https://wastelandmaps.com/support.html" target="_blank" rel="noopener noreferrer">Support</a></p>
+  );
+}
+
 /** In the app: a line to forget the sign-ins saved behind Face ID on this phone (shown only if there are any). */
 function ForgetFaceId() {
   const [count, setCount] = useState(savedFaceIds().length);
@@ -417,7 +427,6 @@ function Packs({ onBought }: { onBought: () => void }) {
           <button key={pk.id} type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void buy(pk.id)}><Caps n={caps(pk.credits)} /> FOR {prices[pk.id] ?? pk.price}</button>
         ))}
       </div>
-      <p className="rm-fine">{usesAppStore() ? 'Paid with your Apple account.' : 'Pay by card, Apple Pay or Google Pay through Stripe.'} A render that cannot be made gives your caps back.</p>
       {note && <p className="rm-account-note">{note}</p>}
     </div>
   );

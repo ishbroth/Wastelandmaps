@@ -19,9 +19,9 @@ dropped connection loses nothing: it is retried the next time the app opens.
 
    | Product ID                        | Gives       | Suggested price |
    | --------------------------------- | ----------- | --------------- |
-   | `com.wastelandmaps.app.caps400`   | 400 caps    | $0.99           |
-   | `com.wastelandmaps.app.caps1800`  | 1,800 caps  | $3.99           |
-   | `com.wastelandmaps.app.caps4400`  | 4,400 caps  | $9.99           |
+   | `com.wasteland.app.caps400`   | 400 caps    | $0.99           |
+   | `com.wasteland.app.caps1800`  | 1,800 caps  | $3.99           |
+   | `com.wasteland.app.caps4400`  | 4,400 caps  | $9.99           |
 
    Each needs a reference name, a price, a display name and description ("400 bottle caps: spend them on snapshots of places"), and a screenshot of the
    purchase screen for review. Submit them together with the next app version.

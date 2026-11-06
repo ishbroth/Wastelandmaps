@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 // The app wraps the built website (dist/). Change appId before the first store upload: it cannot be changed afterwards.
 const config: CapacitorConfig = {
-  appId: 'com.wastelandmaps.app',
+  appId: 'com.wasteland.app',
   appName: 'WastelandMaps',
   webDir: 'dist',
   backgroundColor: '#000a04',
