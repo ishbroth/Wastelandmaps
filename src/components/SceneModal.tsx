@@ -16,6 +16,7 @@ import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } 
 import type { LookId } from '../lib/looks';
 import BlowApart from './BlowApart';
 import RaidScreen from './RaidScreen';
+import ProjectorDown from './ProjectorDown';
 import { buzz } from '../lib/haptics';
 import VaultHome from './VaultHome';
 import { spawnsFor } from '../lib/raid/spawnData';
@@ -185,7 +186,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
                 : personal
                 ? <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share. It costs <Caps n={caps(cost)} />.</p>
                 : <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>}
-              {paid.state.kind === 'error' && <p className="rm-account-note">{paid.state.message}</p>}
+              {paid.state.kind === 'error' && (paid.state.resetsAt ? <ProjectorDown resetsAt={paid.state.resetsAt} /> : <p className="rm-account-note">{paid.state.message}</p>)}
               {paid.state.kind === 'working' ? (
                 <button type="button" className="rm-btn" disabled><CogSpinner /> DEVELOPING… ABOUT 20 SECONDS</button>
               ) : (

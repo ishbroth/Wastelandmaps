@@ -9,7 +9,7 @@ export type PaidState =
   | { kind: 'working' }
   /** `fresh`: it was just paid for in this visit (an unlock that was already theirs opens quietly). */
   | { kind: 'ready'; render: Unlocked; fresh: boolean }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; /** The daily cap was reached: when it starts again (an ISO time), for the "projector is down" countdown. */ resetsAt?: string };
 
 const MESSAGES: Record<string, string> = {
   no_credits: 'You do not have enough caps.',
@@ -59,7 +59,7 @@ export function usePaidRender(spotId: string, name: string, account: Account, en
       }
       if (result.kind === 'error') {
         if (result.reason === 'sign_in' && account.session) await recoverSession();
-        setState({ kind: 'error', message: MESSAGES[result.reason] ?? MESSAGES.server });
+        setState({ kind: 'error', message: MESSAGES[result.reason] ?? MESSAGES.server, resetsAt: result.reason === 'busy' ? result.resetsAt : undefined });
         running.current = false;
         void account.refresh();
         return;

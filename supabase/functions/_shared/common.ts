@@ -35,16 +35,21 @@ export async function callerId(req: Request): Promise<string | null> {
   return error ? null : data.user?.id ?? null;
 }
 
+/** The most NEW renders made in a day (a day runs from midnight to midnight UTC), so one bad day cannot run up a bill. The DAILY_RENDER_CAP secret overrides it. */
+export const dailyRenderCap = (): number => Number(Deno.env.get('DAILY_RENDER_CAP') ?? '1000');
+/** When the day's count starts again: the next midnight UTC. */
+export const nextRenderReset = (): string => { const d = new Date(); d.setUTCHours(24, 0, 0, 0); return d.toISOString(); };
+
 /** The App Store products (made in App Store Connect) and the credits each gives; they match the packs below. The server decides this, never the phone. */
 export const IAP_PRODUCTS: Record<string, number> = {
-  'com.wastelandmaps.app.caps800': 8,
-  'com.wastelandmaps.app.caps2400': 24,
-  'com.wastelandmaps.app.caps5200': 52,
+  'com.wastelandmaps.app.caps400': 4,
+  'com.wastelandmaps.app.caps1800': 18,
+  'com.wastelandmaps.app.caps4400': 44,
 };
 
 /** What a pack costs and gives. The server decides this; the browser only asks for a pack by name. */
 export const PACKS: Record<string, { credits: number; cents: number; label: string }> = {
-  eight: { credits: 8, cents: 199, label: '800 caps' },
-  twentyfour: { credits: 24, cents: 499, label: '2,400 caps' },
-  fiftytwo: { credits: 52, cents: 999, label: '5,200 caps' },
+  caps400: { credits: 4, cents: 99, label: '400 caps' },
+  caps1800: { credits: 18, cents: 399, label: '1,800 caps' },
+  caps4400: { credits: 44, cents: 999, label: '4,400 caps' },
 };

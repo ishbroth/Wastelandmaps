@@ -13,7 +13,7 @@
 // Secrets: GEMINI_API_KEY, STREETVIEW_API_KEY (Street View Static API and Places API (New) switched on).  Optional: GEMINI_MODEL, DAILY_RENDER_CAP.
 // Deploy: supabase functions deploy unlock-streetview
 
-import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
+import { callerId, corsHeaders, reply, serviceClient, dailyRenderCap, nextRenderReset } from '../_shared/common.ts';
 import { streetPrompt } from '../_shared/streetPrompt.ts';
 
 const COST = 4;
@@ -112,10 +112,10 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
   if (spent === 'no_credits') return reply(req, { error: 'no_credits' }, 402);
   const giveBack = async () => { if (spent === 'spent') await db.rpc('refund_personal', { p_user: user, p_place: unlockKey, p_cost: COST }); };
   try {
-    const cap = Number(Deno.env.get('DAILY_RENDER_CAP') ?? '150');
+    const cap = dailyRenderCap();
     const since = new Date(); since.setUTCHours(0, 0, 0, 0);
     const counts = await Promise.all(['renders', 'address_renders', 'home_renders'].map((t) => db.from(t).select('*', { count: 'exact', head: true }).gte('started_at', since.toISOString())));
-    if (counts.reduce((n: number, c: { count: number | null }) => n + (c.count ?? 0), 0) >= cap) { await giveBack(); return reply(req, { error: 'busy' }, 503); }
+    if (counts.reduce((n: number, c: { count: number | null }) => n + (c.count ?? 0), 0) >= cap) { await giveBack(); return reply(req, { error: 'busy', resetsAt: nextRenderReset() }, 503); }
     const row = { user_id: user, google_id: googleId, vault_number: number, status: 'generating', storage_path: null, started_at: new Date().toISOString() };
     const claim = existing
       ? await db.from('home_renders').update(row).eq('user_id', user).eq('started_at', existing.started_at).select()
@@ -213,13 +213,13 @@ Deno.serve(async (req) => {
 
   try {
     // a daily cap on new renders (shared with the landmark ones), so one bad day cannot run up a bill
-    const cap = Number(Deno.env.get('DAILY_RENDER_CAP') ?? '150');
+    const cap = dailyRenderCap();
     const since = new Date(); since.setUTCHours(0, 0, 0, 0);
     const [a, b] = await Promise.all([
       db.from('renders').select('place_id', { count: 'exact', head: true }).gte('started_at', since.toISOString()),
       db.from('address_renders').select('place_id', { count: 'exact', head: true }).gte('started_at', since.toISOString()),
     ]);
-    if ((a.count ?? 0) + (b.count ?? 0) >= cap) { await giveBack(); return reply(req, { error: 'busy' }, 503); }
+    if ((a.count ?? 0) + (b.count ?? 0) >= cap) { await giveBack(); return reply(req, { error: 'busy', resetsAt: nextRenderReset() }, 503); }
 
     const now = new Date().toISOString();
     const row = { name: details.name, address: details.address, lat: details.lat, lng: details.lng, kind, metro_id: metro, status: 'generating', started_at: now, created_by: user };

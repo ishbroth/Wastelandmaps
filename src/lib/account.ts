@@ -27,9 +27,9 @@ export const CAPS_PER_CREDIT = 100;
 export const caps = (credits: number): number => credits * CAPS_PER_CREDIT;
 
 export const PACKS = [
-  { id: 'eight', credits: 8, price: '$1.99' },
-  { id: 'twentyfour', credits: 24, price: '$4.99' },
-  { id: 'fiftytwo', credits: 52, price: '$9.99' },
+  { id: 'caps400', credits: 4, price: '$0.99' },
+  { id: 'caps1800', credits: 18, price: '$3.99' },
+  { id: 'caps4400', credits: 44, price: '$9.99' },
 ] as const;
 /** The smallest pack (what is quoted when someone is short of credits). */
 export const PACK = PACKS[0];
@@ -236,7 +236,7 @@ export async function recoverSession(): Promise<void> {
 export const signOut = () => db().auth.signOut();
 
 /** Starts the Stripe checkout for a pack and sends the browser there. */
-export async function buyPack(pack: string = 'eight'): Promise<string | null> {
+export async function buyPack(pack: string = 'caps400'): Promise<string | null> {
   const { data, error } = await db().functions.invoke('create-checkout', { body: { pack } });
   if (error || !data?.url) return 'Could not start the checkout. Try again in a moment.';
   await goTo(data.url as string);
@@ -250,7 +250,7 @@ export interface Unlocked {
 export type UnlockResult =
   | { kind: 'ready'; render: Unlocked }
   | { kind: 'working' }
-  | { kind: 'error'; reason: 'no_credits' | 'no_photo' | 'busy' | 'failed' | 'sign_in' | 'server' };
+  | { kind: 'error'; reason: 'no_credits' | 'no_photo' | 'busy' | 'failed' | 'sign_in' | 'server'; /** For 'busy': when the day's count of new renders starts again (an ISO time). */ resetsAt?: string };
 
 /** Unlocks a place (one credit, once) and returns the render. 'working' means it is still being made: ask again in a few seconds, free. */
 export async function unlockRender(placeId: string, name: string, extra?: { kind?: string; metroId?: string | null; home?: boolean; flooded?: boolean; irradiated?: boolean }): Promise<UnlockResult> {
@@ -258,11 +258,12 @@ export async function unlockRender(placeId: string, name: string, extra?: { kind
   if (error) {
     // the function answers with an error code in the body even on a 4xx/5xx
     let reason = 'server';
+    let resetsAt: string | undefined;
     const response = (error as { context?: Response }).context;
     if (response) {
-      try { reason = ((await response.json()) as { error?: string }).error ?? 'server'; } catch { /* no body */ }
+      try { const body = (await response.json()) as { error?: string; resetsAt?: string }; reason = body.error ?? 'server'; resetsAt = body.resetsAt; } catch { /* no body */ }
     }
-    return { kind: 'error', reason: reason as 'server' };
+    return { kind: 'error', reason: reason as 'server', resetsAt };
   }
   if (data?.status === 'ready') return { kind: 'ready', render: { url: data.url as string, credit: (data.credit as Unlocked['credit'] | undefined) ?? { photo: 'Street View', author: 'Google', license: '', page: 'https://www.google.com/streetview/' } } };
   if (data?.status === 'working') return { kind: 'working' };

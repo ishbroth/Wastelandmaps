@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
   if (!secret) return reply(req, { error: 'payments_not_set_up' }, 503);
 
   const { pack } = (await req.json().catch(() => ({}))) as { pack?: string };
-  const chosen = PACKS[pack ?? 'eight'];
+  const chosen = PACKS[pack ?? 'caps400'];
   if (!chosen) return reply(req, { error: 'unknown_pack' }, 400);
 
   // Stripe sends the person back to a web address: the app's own origin (capacitor://localhost) is not one, so the app uses the site's

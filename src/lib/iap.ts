@@ -11,9 +11,9 @@ import { platform } from './native';
 
 /** The App Store product for each pack (consumable products with these exact identifiers are created in App Store Connect). */
 export const IAP_PRODUCT: Record<string, string> = {
-  eight: 'com.wastelandmaps.app.caps800',
-  twentyfour: 'com.wastelandmaps.app.caps2400',
-  fiftytwo: 'com.wastelandmaps.app.caps5200',
+  caps400: 'com.wastelandmaps.app.caps400',
+  caps1800: 'com.wastelandmaps.app.caps1800',
+  caps4400: 'com.wastelandmaps.app.caps4400',
 };
 
 /** Are purchases made with the App Store here? (The iPhone app.) */

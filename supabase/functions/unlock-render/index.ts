@@ -6,10 +6,10 @@
 // Calling it again for a place already unlocked costs nothing: that is how the app asks "is it ready yet?" and how it shows an unlocked render
 // the next time. If the render cannot be made, the credit is given back.
 //
-// Secrets: GEMINI_API_KEY.  Optional: GEMINI_MODEL (default gemini-3-pro-image), DAILY_RENDER_CAP (default 150 new renders a day).
+// Secrets: GEMINI_API_KEY.  Optional: GEMINI_MODEL (default gemini-3-pro-image), DAILY_RENDER_CAP (default 1000 new renders a day).
 // Deploy: supabase functions deploy unlock-render
 
-import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
+import { callerId, corsHeaders, reply, serviceClient, dailyRenderCap, nextRenderReset } from '../_shared/common.ts';
 import { renderPrompt } from '../_shared/renderPrompt.ts';
 import { findPhotoFor } from '../_shared/photoSources.ts';
 
@@ -89,10 +89,10 @@ Deno.serve(async (req) => {
 
     if (row?.status !== 'ready') {
       // 3. make it. First, the daily cap on new renders, so one bad day cannot run up a bill.
-      const cap = Number(Deno.env.get('DAILY_RENDER_CAP') ?? '150');
+      const cap = dailyRenderCap();
       const since = new Date(); since.setUTCHours(0, 0, 0, 0);
       const { count } = await db.from('renders').select('place_id', { count: 'exact', head: true }).gte('started_at', since.toISOString());
-      if ((count ?? 0) >= cap) { await giveBack(); return reply(req, { error: 'busy' }, 503); }
+      if ((count ?? 0) >= cap) { await giveBack(); return reply(req, { error: 'busy', resetsAt: nextRenderReset() }, 503); }
 
       // claim it, so two people unlocking the same place at once make one render, not two
       const now = new Date().toISOString();
