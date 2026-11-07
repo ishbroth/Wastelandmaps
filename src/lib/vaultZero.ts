@@ -11,7 +11,7 @@ export { VAULT_ZERO_ID };
 export const VAULT_ZERO: Location = {
   ...locationFromData(VAULT_ZERO_ID, 'Vault Tech Headquarters', VAULT_ZERO_AT, 'other', 999),
   name: 'Vault 0',
-  icon: 'vault',
+  icon: 'vault0',
   famous: true,
   threat: 'Super Mutants',
   rads: 0,

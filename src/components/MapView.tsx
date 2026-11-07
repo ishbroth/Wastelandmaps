@@ -110,7 +110,7 @@ function minZoomFor(loc: Location, selectedId: string | null): number {
   // vault entrances are everywhere in a big city (a couple of dozen on screen at zoom 9 and 10), so they drop off the map early on the way out: zoom 10 and
   // below, long before the places around them (those go at 8 to 11), unless one is the place picked or your home. (Vault 0 is not one of these: see below.)
   if (loc.vault && !loc.personal?.home && loc.id !== selectedId) return 11;
-  if (loc.id === VAULT_ZERO_ID) return loc.id === selectedId ? 0 : 6; // out of sight until you have scrolled down to Antarctica and zoomed in
+  if (loc.id === VAULT_ZERO_ID) return 3; // always there at the bottom of the world, from the first zoom steps
   if (loc.personal?.home || freeRenderFor(loc.id) || loc.id === selectedId || (loc.personal && !loc.personal.saved)) return 0;
   if (loc.personal) return 11;
   if (loc.famous) return 6;

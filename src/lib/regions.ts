@@ -72,7 +72,7 @@ function superOf(iso: string, p: LatLng, continent: string): string {
 
 /** Countries with a name of their own. */
 const COUNTRY_NAMES: Record<string, string> = {
-  US: 'The Commonwealths of America', CA: 'The Great White Wasteland', MX: 'The United Mexican States', BR: 'The Amazon Ashes', AR: 'The Pampas Ashes', CL: 'The Long Scorched Strip',
+  US: 'The Commonwealths of America', CA: 'The Great White Wasteland', MX: 'The United Mexican States', BR: 'The Amazon Ashes', AR: 'The Arg', CL: 'The Strip',
   PE: 'Pe-ruined', CO: 'Col-bombia', VE: 'Ground Vene-zero', CU: 'The Big Cigar', EC: 'Ecuadorian Refuge Colony', BS: 'The Bahama Flood Zone', TT: 'The Trinidadian Flood Zone', TW: 'Tai-bombed', KH: 'Cam-blow-dia', LK: 'The Sri Lanka Refuge Colony', UY: 'Burntuguay', DO: 'Dominican Reclamation Zone', HT: 'The Haitian Refuge',
   GB: 'The British Ex-pire', IE: 'The Emerald Embers', FR: 'Zone des Frites', DE: 'Deutschland Dust', ES: 'The Rainy Plains', PT: 'Portu-Gone', IT: 'New Roman Republic', CH: 'The Neutral Crater',
   AT: 'The Alpine Ashes', NL: 'The Drowned Lowlands', BE: 'The Waffle Wastes', PL: 'The Polish Pits', SE: 'The Swedish Cinders', NO: 'Fallout Fjords', FI: 'The Frozen Thousand Lakes',

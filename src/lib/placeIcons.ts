@@ -11,7 +11,7 @@ type BaseIconId =
   | 'book' | 'beaker' | 'houses' | 'skyscraper' | 'statue' | 'ringart' | 'flag' | 'column' | 'railcross' | 'tram' | 'mosque' | 'cathedral' | 'temple' | 'badge' | 'firebadge' | 'fork' | 'cart' | 'theatre' | 'leafytree' | 'fountain'
   | 'factory' | 'apartment' | 'trailer'
   | 'radiotower' | 'lighthouse' | 'gasmask' | 'tractor' | 'cannon' | 'bus' | 'tent' | 'observatory' | 'lifebuoy' | 'ruins' | 'ship' | 'pinetree'
-  | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
+  | 'mountain' | 'palm' | 'windmill' | 'camera' | 'fish' | 'cactus' | 'star' | 'lamp' | 'pump' | 'wrench' | 'car' | 'basket' | 'bag' | 'gradcap' | 'pill' | 'ambulance' | 'helmet' | 'mug' | 'bell' | 'ball' | 'trophy' | 'key' | 'vault0' | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
 
 /** The world-famous buildings and monuments, drawn as themselves (famousIcons.ts). */
 export type FamousIconId =
@@ -131,6 +131,32 @@ const ICONS: Record<BaseIconId, string> = {
   badge: svg(f('M12 2.5l2.5 5.3 5.8.7-4.3 4 1.1 5.7L12 15.3 6.9 18.2 8 12.5l-4.3-4 5.8-.7Z') + d('M12 9a2.2 2.2 0 1 0 0 4.4A2.2 2.2 0 0 0 12 9Z') + s('M12 18.5V21')),
   firebadge: svg(f('M12 2.6 4.6 5.5v6.6c0 4.2 3 7.4 7.4 9 4.4-1.6 7.4-4.8 7.4-9V5.5Z') + d('M12 7.2c2 2.4 3.1 4 3.1 6a3.1 3.1 0 0 1-6.2 0c0-1.4.7-2.3 1.4-3 .2 1 .6 1.5 1 1.6-.2-1.8.2-3.6.7-4.6Z')),
   fork: svg(f('M6.2 3v6.3a2.3 2.3 0 0 0 2.3 2.3V21h1.5v-9.4a2.3 2.3 0 0 0 2.3-2.3V3') + f('M17.5 3c-2 1.4-3 4-3 7v3.5h3V21H19V3Z') + d('M9.3 3v5.5')),
+  // and a few more
+  mountain: svg(f('M1.5 20.5 9 6l4 7 2.5-4 7 11.5Z') + d('M9 6l-2 4 2 1.4 1.8-1.4Z')),
+  palm: svg(f('M12 21c.4-4 .4-7 0-10h1.6c.6 3 .6 6.4 .2 10Z') + f('M12.6 10.6C9 9 5.5 10.4 3.5 13.2c3.4-1.4 6.4-.8 9.1-1.4ZM12.6 10.6c3.6-1.6 7.2-.4 8.9 2.4-3.4-1.2-6.2-.6-8.9-1.4ZM12.6 10.6C10.6 7.6 7.8 6.4 5 7.2c3 .2 5.2 1.6 7.6 3.4ZM12.6 10.6c1.6-3 4.2-4.4 7-4-3 .4-5 1.8-7 4Z') + s('M3 21.5h18')),
+  windmill: svg(f('M10.2 21l1.1-9h1.4l1.1 9Z') + s('M12 11.4 6 7M12 11.4l6-4.4M12 11.4 8 4M12 11.4l4-7') + f('M12 10.1a1.3 1.3 0 1 0 .01 0Z')),
+  camera: svg(f('M2.5 8.5h4l1.6-2.5h7.8l1.6 2.5h4v11h-19Z') + d('M12 10.1a3.4 3.4 0 1 0 .01 0Z') + d('M12 12.3a1.2 1.2 0 1 0 .01 0Z')),
+  fish: svg(f('M2.5 12c3-4.6 8.2-6 12.5-3.6L21.5 6v12L15 15.6C10.7 18 5.5 16.6 2.5 12Z') + d('M7.2 10.1a.9.9 0 1 0 .01 0Z')),
+  cactus: svg(f('M10.2 21V6.5a1.8 1.8 0 0 1 3.6 0V21Z') + s('M10.2 14H7.5a1.5 1.5 0 0 1-1.5-1.5V9M13.8 12h2.7a1.5 1.5 0 0 0 1.5-1.5V7') + s('M3 21.5h18')),
+  star: svg(f('M12 2.8l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2L12 16.5l-5.6 3.3 1.3-6.2L3 9.3l6.3-.7Z')),
+  lamp: svg(f('M6 3.5h12L16 10H8Z') + s('M12 10v11M9 21.5h6') + d('M9.5 6.5h5')),
+  // more kinds of place, so that the same sort of place does not always get the same picture
+  pump: svg(f('M6 21V5a1.5 1.5 0 0 1 1.5-1.5h6A1.5 1.5 0 0 1 15 5v16Z') + d('M8 6.5h5v4H8Z') + s('M15 9h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0v-5l-2.5-3') + s('M4 21h13')),
+  wrench: svg(f('M14.5 3a5 5 0 0 0-4.6 6.9L3.6 16.2a2 2 0 0 0 2.8 2.8l6.3-6.3A5 5 0 0 0 19.6 8l-3 3-2.5-.6-.6-2.5 3-3A5 5 0 0 0 14.5 3Z')),
+  car: svg(f('M2.5 17v-5l2.2-4.5h10.6L18 12l3.5 1.2V17Z') + d('M6.3 8.7h3.7v3H5ZM11.5 8.7h3l1.7 3h-4.7Z') + f('M8 15.3a2.2 2.2 0 1 0 .01 0Z') + f('M17 15.3a2.2 2.2 0 1 0 .01 0Z')),
+  basket: svg(f('M3.5 10h17l-1.8 9.5H5.3Z') + s('M8 10l3-6M16 10l-3-6') + d('M9 13v4M12 13v4M15 13v4')),
+  bag: svg(f('M4.5 8h15l-1 13h-13Z') + s('M8.5 11V6.5a3.5 3.5 0 0 1 7 0V11')),
+  gradcap: svg(f('M1.5 9 12 4l10.5 5L12 14Z') + f('M6 12v4.5c1.5 1.6 3.8 2.5 6 2.5s4.5-.9 6-2.5V12L12 15Z') + s('M22.5 9v6')),
+  pill: svg(f('M4.6 14.6l7.6-7.6a4.2 4.2 0 0 1 6 6l-7.6 7.6a4.2 4.2 0 0 1-6-6Z') + d('M8.8 8.2l5.2 5.2')),
+  ambulance: svg(f('M2 17V8h11v9ZM13 11h4.5l3.5 3.5V17H13Z') + d('M7.5 10v4M5.5 12h4') + f('M7 15.5a2 2 0 1 0 .01 0Z') + f('M17 15.5a2 2 0 1 0 .01 0Z')),
+  helmet: svg(f('M3 15a9 9 0 0 1 18 0v2H3Z') + d('M8 15v-4a4 4 0 0 1 8 0v4') + s('M12 3.5V2')),
+  mug: svg(f('M4.5 7h11v9a3.5 3.5 0 0 1-3.5 3.5H8A3.5 3.5 0 0 1 4.5 16Z') + s('M15.5 9.5h2.2a2.5 2.5 0 0 1 0 5h-2.2') + d('M8 10v6M11.5 10v6') + s('M8 2.5v2M12 2.5v2')),
+  bell: svg(f('M12 3a6 6 0 0 0-6 6v4.5L4 17h16l-2-3.5V9a6 6 0 0 0-6-6Z') + f('M10 19.5a2 2 0 0 0 4 0Z')),
+  ball: svg(f('M12 2.5a9.5 9.5 0 1 0 .01 0Z') + d('M2.5 12h19M12 2.5c3.5 3 3.5 16 0 19M12 2.5c-3.5 3-3.5 16 0 19')),
+  trophy: svg(f('M7 3.5h10v6a5 5 0 0 1-10 0Z') + s('M7 5.5H4.5v1.5a3 3 0 0 0 3 3M17 5.5h2.5v1.5a3 3 0 0 1-3 3') + f('M10.5 14.5h3V18h-3Z') + f('M7.5 18h9v3h-9Z')),
+  key: svg(f('M7.5 3.5a4.5 4.5 0 1 0 .01 0Z') + d('M7.5 6.8a1.2 1.2 0 1 0 .01 0Z') + s('M11 11.5l9.5 9.5M16 16l2.5-2.5M13.5 13.5 16 11')),
+  // Vault 0 in Antarctica: not a cog but the door itself, a round blast door set in a snowy hillside, with a snowflake above
+  vault0: svg(f('M1.5 21.5C2.5 13 7 9.6 12 9.6s9.5 3.4 10.5 11.9Z') + d('M12 11.6a4.9 4.9 0 1 0 .01 0Z') + d('M12 13.6a2.9 2.9 0 1 0 .01 0Z') + d('M12 12.6v4.8M9.6 15h4.8') + s('M12 1.8v5.4M9.7 3.1l4.6 2.8M14.3 3.1 9.7 5.9') + s('M1.5 21.5h21')),
   homevault: svg(`<path class="f" fill-rule="evenodd" d="${COG}${cut(12, 12, 5.8)}"/>` + f('M8.7 13.2 12 10l3.3 3.2v3.4H8.7Z') + d('M7.9 13.3 12 9.2l4.1 4.1') + d('M11.1 16.6v-2.2h1.8v2.2')),
   cart: svg(s('M2.5 4h3l2.3 11.2h10.2') + f('M6.4 6.8h14.2l-2 7.2H8Z') + f('M9.6 17.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2ZM16.6 17.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2Z') + d('M11 9v3M14 9v3M17 9v3')),
   theatre: svg(f('M3.5 4h9.5v7.8a4.75 4.75 0 0 1-9.5 0Z') + f('M11 9.5h9.5v6.8a4.75 4.75 0 0 1-9.5 0Z') + d('M6.2 8.5h.01M10.3 8.5h.01M5.8 12.2c.8.8 2.2.8 3 0M14 13.5h.01M18 13.5h.01M14.2 17.2c.8-.8 2.4-.8 3.2 0')),
@@ -157,9 +183,11 @@ export const CATEGORY_ICON: Record<CategoryId, IconId> = {
 // ---- choosing an icon from what the place is ----
 /** A steady pick from a few icons for the same sort of place, so the map mixes them but a place never changes its icon. */
 const mix = (name: string, options: IconId[]): IconId => {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return options[h % options.length];
+  // FNV-1a with a final scramble: the same name always gives the same pick, and names that differ by a letter land far apart, so the icons spread evenly across the world
+  let h = 2166136261;
+  for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 16777619) >>> 0;
+  h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13; h = Math.imul(h, 3266489917) >>> 0; h ^= h >>> 16;
+  return options[(h >>> 0) % options.length];
 };
 /** Mostly subway cars; some stops get a railroad crossing, some a tram. */
 const transitIcon = (name: string): IconId => (/\b(?:tram|trolley|light rail|streetcar)\b/.test(name) ? 'tram' : mix(name, ['subway', 'bus', 'subway', 'railcross', 'tram', 'bus']));
@@ -193,6 +221,18 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (test(/big ben|elizabeth tower|clock tower|clocktower|tour de l.horloge|uhrturm|torre del reloj|torre dell.orologio|zytglogge/, n)) return 'clocktower';
 
   // what the name says it is
+  if (test(/gas station|petrol|filling station|\bfuel\b|\bshell\b|\bchevron\b|\bexxon|\bmobil\b|\b76\b|\barco\b|truck stop|travel cent(?:er|re)/, n)) return mix(n, ['pump', 'pump', 'car']);
+  if (test(/\bauto (?:repair|body|parts|care|shop|mall)|\bgarage\b|mechanic|\btires?\b|\btyres?\b|car wash|\bmotors?\b|dealership|body shop/, n)) return mix(n, ['wrench', 'car']);
+  if (test(/pharmacy|drug ?store|walgreens|\bcvs\b|rite aid|apothec|chemist/, n)) return mix(n, ['pill', 'cross']);
+  if (test(/ambulance|paramedic|emergency room|urgent care/, n)) return 'ambulance';
+  if (test(/college|universit|academy|institute|school of|high school|\bcampus\b/, n) && category === 'school') return mix(n, ['gradcap', 'school', 'book']);
+  if (test(/\bhotel\b|\bmotel\b|\binn\b|\bresort\b|\blodge\b|\bsuites\b|\bhostel\b/, n)) return mix(n, ['bed', 'key', 'bed']);
+  if (test(/\bbar\b|\bbrew|\bpub\b|saloon|tavern|taproom|cocktail|\blounge\b|\bwine/, n)) return mix(n, ['mug', 'fork']);
+  if (test(/\bgym\b|fitness|\bymca\b|sports (?:complex|center|centre)|recreation|athletic|\bgolf\b/, n)) return mix(n, ['ball', 'trophy']);
+  if (test(/hall of fame|champion|trophy/, n)) return 'trophy';
+  if (test(/national guard|armory|armoury|\barmy\b|\bnavy\b|\bnaval\b|marine corps|air force|coast guard|military/, n)) return mix(n, ['helmet', 'shield', 'cannon']);
+  if (test(/\bmarket\b|grocery|supermarket|\bfoods?\b|\bmart\b|walmart|\btarget\b|costco|safeway|ralphs|\bvons\b/, n)) return mix(n, ['basket', 'cart', 'bag']);
+  if (test(/boutique|outlet|clothing|apparel|fashion|\bshoes\b|jewel/, n)) return 'bag';
   if (test(/cemetery|cimeti[eè]re|friedhof|graveyard|necropolis|cementerio|cimitero|burial ground/, n)) return 'cross';
   if (test(/\b(?:airport|airfield|aerodrome|airbase|air base|heliport|flughafen|a[eé]roport|aeropuerto|aeroporto)\b/, n)) return 'plane';
   if (test(/\bbridge\b|\bpont\b|br[uü]cke|\bponte\b|puente|viaduct/, n)) return 'bridge';
@@ -226,10 +266,24 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (test(/tower|plaza|center|centre|building|skyscraper|complex|campus|financial|headquarters|\bplace\b|square|trade|exchange|bank|insurance/, n) && category !== 'park') return mix(n, ['cluster', 'skyscraper', 'cluster']);
   if (test(/monument|memorial|statue|obelisk|column|mus[eé]e en plein|sculpture/, n)) return mix(n, ['monument', 'column', 'flag', 'statue']);
 
-  if (category === 'park') return test(/camp|trail|forest|wilderness|reserve/, n) ? mix(n, ['tent', 'pinetree', 'tree']) : mix(n, ['tree', 'leafytree', 'fountain', 'pinetree', 'leafytree']);
-  if (category === 'cantina') return mix(n, ['smallbuilding', 'fork', 'fork']);
-  if (category === 'market') return mix(n, ['smallbuilding', 'cart', 'cart']);
-  if (category === 'other') return mix(n, ['monument', 'column', 'flag', 'statue', 'ringart', 'skyscraper', 'ruins', 'radiotower']);
+  if (test(/\bmount(?:ain)?\b|\bpeak\b|\bridge\b|canyon|volcano|\bhill\b|\bsummit\b|\bcliffs?\b|\bglacier\b/, n)) return mix(n, ['mountain', 'mountain', 'pinetree']);
+  if (test(/\bbeach\b|\bisland\b|\bcoast\b|\bshore\b|\bcove\b|\blagoon\b|seaside|boardwalk/, n)) return mix(n, ['palm', 'palm', 'lifebuoy', 'fish']);
+  if (test(/\bbay\b|\blake\b|\bpond\b|\briver\b|fishing|\bhatchery\b/, n)) return mix(n, ['fish', 'ship']);
+  if (test(/desert|\bdunes?\b|\bmesa\b|oasis|\barid\b/, n)) return mix(n, ['cactus', 'mountain']);
+  if (test(/windmill|wind farm|\bturbine/, n)) return 'windmill';
+  if (test(/overlook|viewpoint|scenic|photo|\blookout\b|vista/, n)) return mix(n, ['camera', 'mountain']);
+  if (category === 'park') return test(/camp|trail|forest|wilderness|reserve/, n) ? mix(n, ['tent', 'pinetree', 'tree', 'mountain']) : mix(n, ['tree', 'leafytree', 'fountain', 'pinetree', 'leafytree', 'lamp', 'windmill', 'camera']);
+  if (category === 'cantina') return mix(n, ['smallbuilding', 'fork', 'mug', 'fork']);
+  if (category === 'market') return mix(n, ['smallbuilding', 'cart', 'basket', 'bag']);
+  if (category === 'fuel') return mix(n, ['smallbuilding', 'pump', 'wrench', 'car']);
+  if (category === 'transit') return mix(n, ['subway', 'bus', 'subway', 'tram', 'car']);
+  if (category === 'medical') return mix(n, ['hospital', 'cross', 'pill', 'hospital', 'ambulance']);
+  if (category === 'school') return mix(n, ['school', 'gradcap', 'book', 'school']);
+  if (category === 'guard') return mix(n, ['shield', 'badge', 'helmet', 'shield']);
+  if (category === 'chapel') return mix(n, ['church', 'bell', 'church', 'cross']);
+  if (category === 'arena') return mix(n, ['stadium', 'ball', 'trophy', 'stadium']);
+  if (category === 'lodging') return mix(n, ['bed', 'key', 'bed', 'houses']);
+  if (category === 'other') return mix(n, ['monument', 'column', 'flag', 'statue', 'ringart', 'skyscraper', 'ruins', 'radiotower', 'star', 'camera', 'lamp', 'bell']);
   return CATEGORY_ICON[category];
 }
 
