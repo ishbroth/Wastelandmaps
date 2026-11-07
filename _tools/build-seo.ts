@@ -396,7 +396,7 @@ write('/cities/', render({
 }));
 
 // ---- the sitemap
-const urls = ['/', '/support.html', '/places/', '/vaults/', '/lore/', '/cities/', '/atlas/', ...written.filter((u) => !['/places/', '/vaults/', '/lore/', '/cities/', '/atlas/'].includes(u))];
+const urls = ['/', '/support.html', '/age-rating.html', '/places/', '/vaults/', '/lore/', '/cities/', '/atlas/', ...written.filter((u) => !['/places/', '/vaults/', '/lore/', '/cities/', '/atlas/'].includes(u))];
 const priority = (u: string) => (u === '/' ? '1.0' : /^\/(places|vaults|lore|cities|atlas)\/$/.test(u) ? '0.8' : /^\/(place|vault|lore|address)\//.test(u) ? '0.7' : '0.5');
 const imageOf = new Map<string, string>([
   ...landmarks.filter((l) => l.permanent && l.qid).map((l) => [`/place/${l.slug}/`, `${SITE}/renders/${l.qid}.png`] as [string, string]),

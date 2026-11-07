@@ -386,7 +386,7 @@ function DeleteLine() {
 /** The privacy policy and support links: shown on the Data tab signed in or not. */
 function LegalLinks() {
   return (
-    <p className="rm-fine rm-privacy-line"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a> · <a href="https://wastelandmaps.com/support.html" target="_blank" rel="noopener noreferrer">Support</a></p>
+    <p className="rm-fine rm-privacy-line"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a> · <a href="https://wastelandmaps.com/support.html" target="_blank" rel="noopener noreferrer">Support</a> · <a href={`${import.meta.env.BASE_URL}age-rating.html`} target="_blank" rel="noreferrer">Age suitability</a></p>
   );
 }
 
