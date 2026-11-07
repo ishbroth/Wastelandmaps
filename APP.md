@@ -59,7 +59,7 @@ One-time setup:
 2. developer.apple.com > Identifiers: register the App ID `com.wasteland.app` (no extra capabilities are needed).
 3. App Store Connect > Apps > + New App: name WastelandMaps, bundle ID `com.wasteland.app`, any SKU.
 4. App Store Connect > Users and Access > Integrations > **App Store Connect API**: create a key with the **Admin** role (cloud signing needs it). Download the `.p8` file once. Note the Key ID and the Issuer ID, and your Team ID (developer.apple.com > Membership).
-5. GitHub > repo Settings > Secrets and variables > Actions: add `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_KEY_P8` (the .p8 file's contents, base64-encoded: `base64 -w0 AuthKey_XXXX.p8`). `VITE_GOOGLE_MAPS_API_KEY` and `VITE_SUPABASE_ANON_KEY` are already there from the website build.
+5. GitHub > repo Settings > Secrets and variables > Actions: add `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_KEY_P8` (the .p8 file's contents, pasted as they are or base64-encoded: `base64 -w0 AuthKey_XXXX.p8`). `VITE_GOOGLE_MAPS_API_KEY` and `VITE_SUPABASE_ANON_KEY` are already there from the website build.
 
 Each build: GitHub > Actions > **iOS build to TestFlight** > Run workflow. After about 15 minutes of building, App Store Connect processes the build (10 to 30 minutes more) and it appears under TestFlight.
 
