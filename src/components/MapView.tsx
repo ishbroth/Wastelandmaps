@@ -591,6 +591,10 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
   // driving navigation. The streets are not drawn on this map, so the way is: the whole route as a thin line, and ahead of you a bright path that
   // pulses and runs with chevrons toward the next turns.
   const ahead = useRef<{ halo: google.maps.Polyline; line: google.maps.Polyline } | null>(null);
+  // when a route starts the map first pulls back to show all of it for a moment, then settles into the close-up that follows you
+  const overviewUntil = useRef(0);
+  const playerRef = useRef(player);
+  useEffect(() => { playerRef.current = player; }, [player]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !nav || nav.path.length < 2) return;
@@ -604,6 +608,18 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     ahead.current = { halo: aheadHalo, line: aheadLine };
     holder.current?.classList.add('rm-navigating');
     lastDrag.current = 0;
+    const OVERVIEW_MS = 3000;
+    const box = new google.maps.LatLngBounds();
+    nav.path.forEach((p) => box.extend(p));
+    map.fitBounds(box, { top: 150, bottom: 190, left: 50, right: 50 });
+    overviewUntil.current = Date.now() + OVERVIEW_MS;
+    const settle = window.setTimeout(() => {
+      overviewUntil.current = 0;
+      const here = playerRef.current;
+      if (!here) return;
+      map.panTo(here);
+      map.setZoom(17);
+    }, OVERVIEW_MS);
     // the pulse and the running chevrons
     let raf = 0;
     const started = performance.now();
@@ -620,6 +636,8 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     raf = requestAnimationFrame(pulse);
     return () => {
       cancelAnimationFrame(raf);
+      window.clearTimeout(settle);
+      overviewUntil.current = 0;
       halo.setMap(null);
       thin.setMap(null);
       aheadHalo.setMap(null);
@@ -655,6 +673,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     const map = mapRef.current;
     if (!map || !nav || !player) return;
     if (Date.now() - lastDrag.current < 8000) return;
+    if (Date.now() < overviewUntil.current) return;
     map.panTo(player);
     if ((map.getZoom() ?? 0) < 16) map.setZoom(17);
   }, [nav, player]);

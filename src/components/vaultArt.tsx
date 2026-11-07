@@ -441,52 +441,105 @@ export function Face({ word, size = 26 }: { word: string; size?: number }) {
 
 export type Pose = 'walk' | 'stand' | 'sit' | 'lie' | 'climb';
 
-/** A settler (a person, a dog or a cat), standing on the floor at the origin. phase runs 0..1 and moves the legs and the tail. */
+const SKIN = '#c9ffdc';
+
+/** A limb or tail drawn as a solid, rounded, outlined shape (not a line): an outline stroke with the fill stroke on top. */
+function Limb({ d, w = 3.4, fill = DIM }: { d: string; w?: number | string; fill?: string }) {
+  return (
+    <>
+      <path d={d} stroke={INK} strokeWidth={Number(w) + 1.6} />
+      <path d={d} stroke={fill} strokeWidth={w} />
+    </>
+  );
+}
+
+/** A settler (a person in a vault suit, a dog or a cat), standing on the floor at the origin, facing right. phase runs 0..1 and moves the legs, arms and tail. */
 export function SettlerArt({ kind, pose, phase }: { kind: SettlerKind; pose: Pose; phase: number }) {
   const s = Math.sin(phase * Math.PI * 2);
   const moving = pose === 'walk' || pose === 'climb';
   if (kind === 'dog' || kind === 'cat') {
     const dog = kind === 'dog';
     const sw = moving ? s * 3.5 : 0;
+    const head = (cx: number, cy: number) => (
+      <g strokeWidth="1.1">
+        {dog ? (
+          <>
+            <path d={`M${cx - 3.4} ${cy - 2} q-3 1 -2.4 6 q3 0 4.4 -3 Z`} fill={BG} />
+            <circle cx={cx} cy={cy} r="4.3" fill={DIM} />
+            <ellipse cx={cx + 4.2} cy={cy + 1.4} rx="3" ry="2.1" fill={SKIN} />
+            <circle cx={cx + 6.6} cy={cy + 0.6} r="0.9" fill={BG} stroke="none" />
+          </>
+        ) : (
+          <>
+            <path d={`M${cx - 3.4} ${cy - 2} L${cx - 2.6} ${cy - 7.4} L${cx} ${cy - 3.4} L${cx + 2.6} ${cy - 7.4} L${cx + 3.4} ${cy - 2} Z`} fill={DIM} />
+            <circle cx={cx} cy={cy} r="3.9" fill={DIM} />
+            <path d={`M${cx + 3} ${cy + 1} l4 -0.6 M${cx + 3} ${cy + 2.2} l4 0.8`} strokeWidth="0.7" />
+          </>
+        )}
+        <circle cx={cx + 1.6} cy={cy - 0.8} r="0.9" fill={INK} stroke="none" />
+      </g>
+    );
     if (pose === 'lie' || pose === 'sit') {
       return (
         <g>
-          <ellipse cx="0" cy="-4" rx={dog ? 10 : 8} ry="3.6" />
-          <circle cx={dog ? 11 : 9} cy="-5" r={dog ? 4 : 3.4} />
-          {dog ? <path d="M13 -9 l2 -3 M9 -9 l-1 -4" /> : <path d="M8 -8 l1 -4 l3 3 M12 -7 l2 -3" />}
-          <path d={dog ? 'M-10 -5 q-6 0 -8 -4' : 'M-8 -4 q-8 2 -8 -6 q0 -4 4 -3'} />
+          <Limb d={dog ? `M-9 -5 q-7 0 -9 ${-6 + s}` : `M-7 -4 q-9 2 -9 -6 q0 -4 4 -3`} w={dog ? 2.4 : 2.2} />
+          <ellipse cx="0" cy="-4.2" rx={dog ? 10.5 : 8.4} ry={dog ? 4.4 : 3.8} fill={DIM} />
+          <Limb d="M4 -3 H11" w="2.4" />
+          {head(dog ? 11 : 9, -6.2)}
         </g>
       );
     }
     return (
       <g>
-        <ellipse cx="0" cy="-9" rx={dog ? 9 : 7} ry={dog ? 4 : 3.4} />
-        <circle cx={dog ? 10 : 8} cy="-12" r={dog ? 4 : 3.4} />
-        {dog ? <path d="M13 -10 l4 1 M9 -16 l-1 -3 M13 -15 l2 -3" /> : <path d="M7 -15 l0 -4 l3 3 M11 -15 l2 -3 l1 3" />}
-        <path d={dog ? `M-9 -11 l-5 ${-5 + s * 3}` : `M-7 -9 q-8 ${-2 + s * 2} -6 -12`} />
-        <path d={`M-6 -6 L${-6 + sw} 0 M-3 -6 L${-3 - sw} 0 M4 -6 L${4 - sw} 0 M7 -6 L${7 + sw} 0`} />
+        <Limb d={dog ? `M-9 -11 q-6 ${-1 + s * 2} -6 -8` : `M-7 -9 q-9 ${-2 + s * 2} -6 -13`} w={dog ? 2.6 : 2.2} />
+        <Limb d={`M-5.5 -7 L${-5.5 + sw} -0.5 M5 -7 L${5 - sw} -0.5`} w="2.5" fill={SKIN} />
+        <ellipse cx="0" cy={dog ? -10 : -9} rx={dog ? 9.6 : 7.6} ry={dog ? 4.8 : 3.9} fill={DIM} />
+        <Limb d={`M-2.5 -7 L${-2.5 - sw} -0.5 M8 -7 L${8 + sw} -0.5`} w="2.5" />
+        {head(dog ? 10 : 8, dog ? -14 : -12)}
       </g>
     );
   }
   const f = kind === 'female';
+  const hair = (cx: number, cy: number) => (
+    <path
+      d={f ? `M${cx - 5} ${cy + 1} Q${cx - 6} ${cy - 6.5} ${cx} ${cy - 6} Q${cx + 5.4} ${cy - 5.5} ${cx + 4.6} ${cy - 1} Q${cx} ${cy - 3.6} ${cx - 3} ${cy - 2} Q${cx - 7.4} ${cy + 3} ${cx - 5.6} ${cy + 8} Q${cx - 4} ${cy + 3} ${cx - 5} ${cy + 1} Z` : `M${cx - 5} ${cy - 0.6} Q${cx - 5.6} ${cy - 6.6} ${cx} ${cy - 6} Q${cx + 5.6} ${cy - 5.8} ${cx + 4.8} ${cy - 0.8} Q${cx + 1} ${cy - 3.6} ${cx - 5} ${cy - 0.6} Z`}
+      fill={BG} strokeWidth="1.1"
+    />
+  );
+  const face = (cx: number, cy: number) => (
+    <g>
+      <circle cx={cx} cy={cy} r="4.7" fill={SKIN} strokeWidth="1.1" />
+      <circle cx={cx + 1.9} cy={cy + 0.4} r="0.85" fill={BG} stroke="none" />
+      <path d={`M${cx + 0.8} ${cy + 2.6} q1.4 0.9 2.6 0`} strokeWidth="0.8" />
+      {hair(cx, cy)}
+    </g>
+  );
+  /** The vault suit: a torso with a zip and a belt, and (for a woman) a short skirt panel. */
+  const torso = (top: number, bottom: number) => (
+    <g strokeWidth="1.1">
+      <path d={`M-5.2 ${top + 1} Q0 ${top - 1.4} 5.2 ${top + 1} L${f ? 4.2 : 4.7} ${bottom} Q0 ${bottom + 1.6} ${f ? -4.2 : -4.7} ${bottom} Z`} fill={DIM} />
+      <path d={`M0 ${top} V${bottom}`} strokeWidth="0.8" />
+      <path d={`M-4.4 ${bottom - 2.4} H4.4`} stroke={BG} strokeWidth="1.6" />
+      {f && <path d={`M-4.6 ${bottom - 0.6} L-6.4 ${bottom + 3.6} H6.4 L4.6 ${bottom - 0.6} Z`} fill={DIM} />}
+    </g>
+  );
   if (pose === 'lie') {
     return (
-      <g transform="translate(0 -3)">
-        <circle cx="-13" cy="0" r="4.4" />
-        <path d="M-9 0 H8 M8 0 l8 -1" />
-        {f && <path d="M-16 -3 q-4 3 0 6" />}
-        <path d="M-6 -3 l6 3" stroke={DIM} />
+      <g transform="translate(0 -4)">
+        <Limb d="M-4 0 H11 M11 0 l4 -1" w="3.6" />
+        <path d="M-9 -3.4 Q-3 -5.6 5 -3.4 L5 3.2 Q-3 5.4 -9 3.2 Z" fill={DIM} strokeWidth="1.1" />
+        {face(-13.4, -1)}
       </g>
     );
   }
   if (pose === 'sit') {
     return (
       <g>
-        <circle cx="0" cy="-22" r="4.4" />
-        {f && <path d="M-4 -24 q-4 6 -1 10 M4 -24 q4 6 1 10" />}
-        <path d="M0 -17 V-7 M0 -7 H9 V0" />
-        <path d="M0 -14 L7 -10" />
-        {f && <path d="M0 -15 L-5 -7 H5 Z" />}
+        <Limb d="M1 -8 H9 M9 -8 V-1.4" w="3.4" />
+        <Limb d="M9 -1 H12.4" w="2.4" fill={BG} />
+        {torso(-21, -8)}
+        <Limb d="M0 -19 L5.4 -13 L8.6 -11.4" w="2.6" fill={SKIN} />
+        {face(0.4, -26)}
       </g>
     );
   }
@@ -495,12 +548,14 @@ export function SettlerArt({ kind, pose, phase }: { kind: SettlerKind; pose: Pos
   const climbing = pose === 'climb';
   return (
     <g>
-      <circle cx="0" cy="-27" r="4.6" />
-      {f && <path d="M-4.4 -29 q-4 7 -1 12 M4.4 -29 q4 7 1 12" />}
-      <path d="M0 -22 V-11" />
-      <path d={climbing ? `M0 -20 L${-5 + arm} -26 M0 -20 L${5 - arm} -24` : `M0 -20 L${-5 + arm} -12 M0 -20 L${5 - arm} -12`} />
-      {f && <path d="M0 -21 L-6 -9 H6 Z" />}
-      <path d={`M0 -11 L${-leg} 0 M0 -11 L${leg} 0`} />
+      <Limb d={`M-2 -12 L${-2 - leg} -1.4`} w="3.4" />
+      <Limb d={`M${-2 - leg} -0.6 h${3.4}`} w="2.4" fill={BG} />
+      <Limb d={climbing ? `M-3 -22 L${-6 + arm} -27` : `M-3 -22 L${-5 + arm} -12.5`} w="2.6" fill={SKIN} />
+      <Limb d={`M2 -12 L${2 + leg} -1.4`} w="3.4" />
+      <Limb d={`M${2 + leg} -0.6 h${3.4}`} w="2.4" fill={BG} />
+      {torso(-24, -12)}
+      <Limb d={climbing ? `M3 -22 L${6 - arm} -25` : `M3 -22 L${5 - arm} -12.5`} w="2.6" fill={SKIN} />
+      {face(0.4, -29)}
     </g>
   );
 }

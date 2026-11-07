@@ -459,7 +459,6 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
             {panel.kind === 'build' && !panel.type && (
               <div className="rm-vh-sheet-body">
                 <h3>CLEAR &amp; BUILD</h3>
-                <p>WHAT KIND OF ROOM? IT STARTS EMPTY, AND WHAT YOU PICK DECIDES THE FURNITURE YOU CAN ADD.</p>
                 <ul className="rm-vh-types">
                   {ROOM_DEFS.map((d) => {
                     const why = whyNotBuild(vault, d.id, panel.col, panel.row);
