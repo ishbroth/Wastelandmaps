@@ -68,6 +68,8 @@ export interface Account {
   loot: LootBag;
   /** Stimpaks in the pack. */
   stimpaks: number;
+  /** Legendary Time in the pack (it slows the enemies in the shooting gallery for four seconds). */
+  legendaryTime: number;
   arsenal: Arsenal;
   /** Places they have already looted: each can be looted once, and shows [Cleared] on the map. */
   cleared: Set<string>;
@@ -84,6 +86,7 @@ export function useAccount(): Account {
   const [points, setPoints] = useState(0);
   const [loot, setLoot] = useState<LootBag>({});
   const [stimpaks, setStimpaks] = useState(0);
+  const [legendaryTime, setLegendaryTime] = useState(0);
   const [arsenal, setArsenal] = useState<Arsenal>(STARTING_ARSENAL);
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [personal, setPersonal] = useState<PersonalPlace[]>([]);
@@ -102,6 +105,7 @@ export function useAccount(): Account {
       setPoints(0);
       setLoot({});
       setStimpaks(0);
+      setLegendaryTime(0);
       setArsenal(STARTING_ARSENAL);
       setCleared(new Set());
       setPersonal([]);
@@ -118,8 +122,10 @@ export function useAccount(): Account {
       db().from('player_loot').select('loot,qty').eq('user_id', s.user.id),
       db().from('player_weapons').select('weapon_class,tier').eq('user_id', s.user.id),
       db().from('player_stimpaks').select('qty').eq('user_id', s.user.id).maybeSingle(),
-    ]).then(([l, w, st]) => {
+      db().from('player_time').select('qty').eq('user_id', s.user.id).maybeSingle(),
+    ]).then(([l, w, st, tm]) => {
       setStimpaks((st.data?.qty as number | undefined) ?? 0);
+      setLegendaryTime((tm.data?.qty as number | undefined) ?? 0);
       const bag: LootBag = {};
       for (const r of (l.data ?? []) as { loot: LootId; qty: number }[]) bag[r.loot] = r.qty;
       const guns: Arsenal = { ...STARTING_ARSENAL };
@@ -185,7 +191,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, clearedPaid, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, legendaryTime, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, clearedPaid, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -373,10 +379,22 @@ export async function craftWeapon(weaponClass: WeaponClass): Promise<{ ok: boole
   return error || !data ? { ok: false, reason: 'server' } : (data as { ok: boolean; tier?: number; reason?: string });
 }
 
-/** Trades spare loot for a stimpak (the trade is one of STIMPAK_TRADES). */
-export async function tradeStimpak(trade: string): Promise<{ ok: boolean; qty?: number; reason?: string }> {
-  const { data, error } = await db().functions.invoke('stimpak', { body: { action: 'trade', trade } });
+/** Trades spare loot for stimpaks (the trade is one of STIMPAK_TRADES, and how many: the cost is multiplied). */
+export async function tradeStimpak(trade: string, qty = 1): Promise<{ ok: boolean; qty?: number; reason?: string }> {
+  const { data, error } = await db().functions.invoke('stimpak', { body: { action: 'trade', item: 'stimpak', trade, qty } });
   return error || !data ? { ok: false, reason: 'server' } : (data as { ok: boolean; qty?: number; reason?: string });
+}
+
+/** Trades spare loot for Legendary Time (the trade is one of TIME_TRADES, and how many). */
+export async function tradeTime(trade: string, qty = 1): Promise<{ ok: boolean; qty?: number; reason?: string }> {
+  const { data, error } = await db().functions.invoke('stimpak', { body: { action: 'trade', item: 'time', trade, qty } });
+  return error || !data ? { ok: false, reason: 'server' } : (data as { ok: boolean; qty?: number; reason?: string });
+}
+
+/** Uses one Legendary Time (the screen then slows the enemies for four seconds). */
+export async function useTime(): Promise<{ ok: boolean; qty?: number }> {
+  const { data, error } = await db().functions.invoke('stimpak', { body: { action: 'use', item: 'time' } });
+  return error || !data ? { ok: false } : (data as { ok: boolean; qty?: number });
 }
 
 /** Uses a stimpak (the screen then gives the survivor their strikes back). */
@@ -510,7 +528,7 @@ export async function loadClearable(metroId: string): Promise<string[]> {
 export type VaultAnswer = { ok: true; vault: VaultHome; version: number } | { ok: false; reason: string };
 
 /** Asks the vault function to do something: 'visit', 'build', 'furnish' or 'settler'. */
-export async function vaultCall(body: { action: 'visit' } | { action: 'build'; type: string; col: number; row: number; pay: Record<string, number | undefined> } | { action: 'furnish'; room: number; item: string; pay: Record<string, number | undefined> } | { action: 'settler'; kind: string }): Promise<VaultAnswer> {
+export async function vaultCall(body: { action: 'visit' } | { action: 'build'; type: string; col: number; row: number } | { action: 'furnish'; room: number; item: string } | { action: 'settler'; kind: string }): Promise<VaultAnswer> {
   const { data, error } = await db().functions.invoke('vault', { body });
   return error || !data ? { ok: false, reason: 'server' } : (data as VaultAnswer);
 }

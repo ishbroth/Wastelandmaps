@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { vaultCall, type Account } from '../lib/account';
-import { LOOT_TYPES, bagTotal } from '../lib/raid/loot';
+import ConfirmSpend from './ConfirmSpend';
+import { describeBag, lootName, type LootId } from '../lib/raid/loot';
 type Bag = Partial<Record<string, number>>;
 import {
-  COLS, ROOM_DEFS, ROWS, buildCost, furnishCost, furnitureOf, moodAt, roomAt, roomComplete, roomDef, settlersWaiting, slotsOf, whyNotBuild,
+  COLS, ROOM_DEFS, ROWS, buildRecipe, furnishCost, furnishRecipe, furnitureOf, moodAt, roomAt, roomComplete, roomDef, settlersWaiting, slotsOf, whyNotBuild,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { CEIL, DIM, ExitSign, FL, FURNITURE, Face, GAP_V, GLYPH, H, INK, LM, P, Q, ROUND, RoomShell, SETTLER_SCALE, SettlerArt, TM, TUNNEL_H, VIEW_H, VIEW_W, VaultDoor, W, floorY, furnitureFeet, roomBox, spread, standY, type Pose } from './vaultArt';
@@ -15,7 +16,6 @@ const REASONS: Record<string, string> = {
   not_cleared: 'CLEAR YOUR HOME VAULT FIRST',
   no_home: 'YOU HAVE NO HOME VAULT',
   server: 'COULD NOT REACH THE VAULT',
-  pay: 'THE LOOT DOES NOT ADD UP',
 };
 
 type Panel = { kind: 'build'; col: number; row: number; type?: RoomType } | { kind: 'room'; idx: number; item?: string } | null;
@@ -170,40 +170,42 @@ function useSettlers(vault: VaultHome | null) {
 
 // ---- the loot you pay with ----
 
-function LootPicker({ title, cost, have, busy, onPay, onBack }: { title: string; cost: number; have: Bag; busy: boolean; onPay: (pay: Bag) => void; onBack: () => void }) {
-  const [pay, setPay] = useState<Bag>({});
-  const chosen = bagTotal(pay as never);
-  const set = (id: string, n: number) => setPay((p) => ({ ...p, [id]: Math.max(0, Math.min(have[id] ?? 0, n)) }));
-  const total = LOOT_TYPES.reduce((n, l) => n + (have[l.id] ?? 0), 0);
-  const auto = () => {
-    const next: Bag = {};
-    for (let i = 0; i < cost; i++) {
-      const best = LOOT_TYPES.map((l) => ({ id: l.id, left: (have[l.id] ?? 0) - (next[l.id] ?? 0) })).sort((a, b) => b.left - a.left)[0];
-      if (!best || best.left <= 0) break;
-      next[best.id] = (next[best.id] ?? 0) + 1;
-    }
-    setPay(next);
-  };
+/** Does the loot cover this mix, and what is short? */
+function shortOf(recipe: Bag, have: Bag): { id: string; need: number }[] {
+  return Object.entries(recipe).filter(([id, n]) => (n ?? 0) > (have[id] ?? 0)).map(([id, n]) => ({ id, need: (n ?? 0) - (have[id] ?? 0) }));
+}
+
+/** The mix of loot a room or a piece of furniture costs: each kind with how many are needed and how many you have. The button works only when you have all of it. */
+function RecipeCard({ title, what, recipe, have, busy, onPay, onBack, verb }: { title: string; what: string; recipe: Bag; have: Bag; busy: boolean; onPay: () => Promise<void>; onBack: () => void; verb: string }) {
+  const short = shortOf(recipe, have);
+  // tapping the button asks first: nothing is spent until it is confirmed
+  const [asking, setAsking] = useState(false);
+  const kinds = Object.entries(recipe).filter(([, n]) => (n ?? 0) > 0);
   return (
     <div className="rm-vh-sheet-body">
       <h3>{title}</h3>
-      <p>PAY EXACTLY {cost} PIECES OF LOOT, ANY MIX. <b>{chosen}/{cost}</b></p>
-      {total < cost && <p className="rm-vh-warn">YOU ONLY HAVE {total} PIECES. GO LOOT SOME MORE PLACES.</p>}
-      <ul className="rm-vh-loot">
-        {LOOT_TYPES.map((l) => (
-          <li key={l.id} className={(have[l.id] ?? 0) === 0 ? 'none' : ''}>
-            <span>{l.name}</span><i>{have[l.id] ?? 0}</i>
-            <button type="button" disabled={(pay[l.id] ?? 0) <= 0} onClick={() => set(l.id, (pay[l.id] ?? 0) - 1)} aria-label={`less ${l.name}`}>−</button>
-            <b>{pay[l.id] ?? 0}</b>
-            <button type="button" disabled={(pay[l.id] ?? 0) >= (have[l.id] ?? 0) || chosen >= cost} onClick={() => set(l.id, (pay[l.id] ?? 0) + 1)} aria-label={`more ${l.name}`}>+</button>
-          </li>
-        ))}
+      <p>IT COSTS {kinds.map(([id, n]) => `${n} ${lootName(id as LootId).toUpperCase()}`).join(', ')}.</p>
+      <ul className="rm-vh-loot rm-vh-recipe">
+        {kinds.map(([id, n]) => {
+          const got = have[id] ?? 0;
+          return (
+            <li key={id} className={got >= (n ?? 0) ? 'ok' : 'short'}>
+              <span>{lootName(id as LootId)}</span><b>{n}</b><i>YOU HAVE {got}</i><em>{got >= (n ?? 0) ? '✓' : '✗'}</em>
+            </li>
+          );
+        })}
       </ul>
+      {short.length > 0 && <p className="rm-vh-warn">YOU ARE SHORT {short.map((x) => `${x.need} ${lootName(x.id as LootId).toUpperCase()}`).join(', ')}. LOOT SOME MORE PLACES.</p>}
       <div className="rm-vh-row">
         <button type="button" className="rm-btn rm-btn-ghost" onClick={onBack}>BACK</button>
-        <button type="button" className="rm-btn rm-btn-ghost" disabled={total < cost} onClick={auto}>AUTO</button>
-        <button type="button" className="rm-btn" disabled={busy || chosen !== cost} onClick={() => onPay(pay)}>{busy ? 'WORKING…' : 'BUILD'}</button>
+        <button type="button" className="rm-btn" disabled={busy || short.length > 0} onClick={() => setAsking(true)}>{busy ? 'WORKING…' : verb}</button>
       </div>
+      {asking && (
+        <ConfirmSpend
+          tone="vault" title="SPEND THIS LOOT?" what={what} cost={recipe as never} have={have as never} verb={verb}
+          onClose={() => setAsking(false)} onConfirm={async () => { await onPay(); return null; }}
+        />
+      )}
     </div>
   );
 }
@@ -420,7 +422,7 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
   const ownLoot = account.loot;
 
   return createPortal(
-    <div className="rm-vh" role="dialog" aria-label="Your home vault">
+    <div className="rm-vh" role="dialog" aria-label="Your home vault" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
       <div className="rm-vh-top">
         <b>{title}</b>
         <button type="button" className="rm-btn rm-vh-exit" onClick={onExit}>LEAVE</button>
@@ -461,12 +463,12 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
                 <ul className="rm-vh-types">
                   {ROOM_DEFS.map((d) => {
                     const why = whyNotBuild(vault, d.id, panel.col, panel.row);
-                    const cost = buildCost(vault, d.id);
+                    const mix = describeBag(buildRecipe(vault, d.id) as never).toUpperCase();
                     return (
                       <li key={d.id}>
                         <button type="button" disabled={!!why} onClick={() => setPanel({ ...panel, type: d.id })}>
                           <span>{d.name.toUpperCase()}{d.slots === 2 ? ' (2 SLOTS)' : ''}</span>
-                          <i>{why ? why.toUpperCase() : `${cost} PIECES`}</i>
+                          <i>{why ? why.toUpperCase() : mix}</i>
                         </button>
                       </li>
                     );
@@ -476,24 +478,24 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
               </div>
             )}
             {panel.kind === 'build' && panel.type && (
-              <LootPicker
-                title={`BUILD A ${roomDef(panel.type).name.toUpperCase()}`} cost={buildCost(vault, panel.type)} have={ownLoot} busy={busy}
+              <RecipeCard
+                verb="BUILD" what={roomDef(panel.type).name.toUpperCase()} title={`BUILD A ${roomDef(panel.type).name.toUpperCase()}`} recipe={buildRecipe(vault, panel.type)} have={ownLoot} busy={busy}
                 onBack={() => setPanel({ kind: 'build', col: panel.col, row: panel.row })}
-                onPay={(pay) => void act({ action: 'build', type: panel.type as string, col: panel.col, row: panel.row, pay }, (v) => setFresh({ room: v.rooms.length - 1 }))}
+                onPay={() => act({ action: 'build', type: panel.type as string, col: panel.col, row: panel.row }, (v) => setFresh({ room: v.rooms.length - 1 }))}
               />
             )}
             {panel.kind === 'room' && room && !panel.item && (
               <div className="rm-vh-sheet-body">
                 <button type="button" className="rm-vh-x" onClick={() => setPanel(null)} aria-label="Close">×</button>
                 <h3>{roomDef(room.type).name.toUpperCase()}</h3>
-                <p>{roomComplete(room) ? 'FULLY FURNISHED.' : `NEXT PIECE: ${furnishCost(room)} PIECES OF LOOT.`}</p>
+                <p>{roomComplete(room) ? 'FULLY FURNISHED.' : `EACH PIECE COSTS ${furnishCost(room)} PIECES OF LOOT, A DIFFERENT MIX FOR EACH.`}</p>
                 <ul className="rm-vh-types">
                   {furnitureOf(room.type).map((f) => {
                     const placed = room.furniture.includes(f.id);
                     return (
                       <li key={f.id}>
                         <button type="button" disabled={placed} onClick={() => setPanel({ ...panel, item: f.id })}>
-                          <span>{f.name.toUpperCase()}</span><i>{placed ? 'PLACED' : `${furnishCost(room)} PIECES`}</i>
+                          <span>{f.name.toUpperCase()}</span><i>{placed ? 'PLACED' : describeBag(furnishRecipe(vault, panel.idx, f.id) as never).toUpperCase()}</i>
                         </button>
                       </li>
                     );
@@ -503,10 +505,10 @@ export default function VaultHome({ title, account, onExit }: { title: string; a
               </div>
             )}
             {panel.kind === 'room' && room && panel.item && (
-              <LootPicker
-                title={`ADD ${(furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()}`} cost={furnishCost(room)} have={ownLoot} busy={busy}
+              <RecipeCard
+                verb="PLACE IT" what={(furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()} title={`ADD ${(furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()}`} recipe={furnishRecipe(vault, panel.idx, panel.item)} have={ownLoot} busy={busy}
                 onBack={() => setPanel({ kind: 'room', idx: panel.idx })}
-                onPay={(pay) => void act({ action: 'furnish', room: panel.idx, item: panel.item as string, pay }, () => setFresh({ room: panel.idx, item: panel.item }))}
+                onPay={() => act({ action: 'furnish', room: panel.idx, item: panel.item as string }, () => setFresh({ room: panel.idx, item: panel.item }))}
               />
             )}
           </div>

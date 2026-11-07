@@ -26,6 +26,9 @@ export const PERSON_HEIGHT = 0.3;
 const STRIKE_V = 0.98;
 /** How many strikes the survivor can take. */
 export const MAX_HITS = 3;
+/** How fast the enemies move while Legendary Time lasts, as a share of their usual speed, and how long it lasts in seconds. */
+export const SLOW_FACTOR = 0.3;
+export const SLOW_SECONDS = 4;
 
 /**
  * Seconds between one step of an enemy and the next (each enemy then varies 15% either way around this). Later waves step faster, and so do the quick kinds
@@ -139,6 +142,8 @@ export class Game {
   hits = 0;
   /** The action is stopped (the weapon wheel is open). */
   paused = false;
+  /** Seconds of Legendary Time left: the enemies walk, wait and strike at a fraction of their speed (the survivor's own gun, reloads and strikes are not slowed). */
+  slowLeft = 0;
   /** The survivor carries a stimpak: the third strike does not kill them yet, the fight stops and they are asked. */
   canRevive = false;
   /** Struck down the third time and waiting to answer whether to use a stimpak. */
@@ -318,11 +323,14 @@ export class Game {
     this.shake = Math.max(0, this.shake - dt * 3);
     this.hitFlash = Math.max(0, this.hitFlash - dt * 2.5);
     this.bannerT = Math.max(0, this.bannerT - dt);
+    // Legendary Time runs out in real seconds; meanwhile what the enemies and the waves do is measured in slowed ones
+    this.slowLeft = Math.max(0, this.slowLeft - dt);
+    const edt = this.slowLeft > 0 ? dt * SLOW_FACTOR : dt;
 
     // waves: one, then two, then more, with a breath between; the boss after the last
     if (this.toSpawn.length === 0 && this.alive.length === 0 && !this.enemies.some((e) => e.state === 'leaving')) {
       if (this.wave + 1 < this.order.length) {
-        this.pause -= dt;
+        this.pause -= edt;
         if (this.pause <= 0) {
           this.wave++;
           this.toSpawn = [...this.order[this.wave]];
@@ -331,7 +339,7 @@ export class Game {
           this.bannerT = 2;
         }
       } else if (this.plan.boss && !this.bossDone) {
-        this.pause -= dt;
+        this.pause -= edt;
         if (this.pause <= 0) {
           this.bossDone = true;
           this.toSpawn = [{ type: enemyById(this.plan.boss as BossId), boss: true }];
@@ -344,7 +352,7 @@ export class Game {
       }
     }
     // they come out staggered, a little closer together in each wave
-    this.spawnGap -= dt;
+    this.spawnGap -= edt;
     if (this.toSpawn.length > 0 && this.spawnGap <= 0) {
       const next = this.toSpawn.shift() as { type: EnemyType; boss: boolean };
       this.spawn(next.type, next.boss);
@@ -352,11 +360,11 @@ export class Game {
     }
 
     for (const e of this.enemies) {
-      e.t += dt;
+      e.t += edt;
       e.hurt = Math.max(0, e.hurt - dt * 4);
       if (e.state === 'dying') continue;
       if (e.state === 'leaving') {
-        e.u += e.exit * dt * 1.4;
+        e.u += e.exit * edt * 1.4;
         continue;
       }
       // walking follows a continuous curve through the steps; the other states (a boss backing off, an enemy at the screen) ease toward their step as before
@@ -367,7 +375,7 @@ export class Game {
       } else e.p += (e.step / e.steps - e.p) * Math.min(1, dt * 7);
       this.place(e);
       if (e.state === 'walking') {
-        e.stepT -= dt;
+        e.stepT -= edt;
         if (e.stepT <= 0) {
           e.stepT = e.stepGap;
           if (e.step < e.steps) e.step++;
@@ -382,7 +390,7 @@ export class Game {
         }
       } else if (e.state === 'retreating') {
         // the boss backs off three steps, then comes on again
-        e.stepT -= dt;
+        e.stepT -= edt;
         if (e.stepT <= 0) {
           e.stepT = 0.45;
           e.step = Math.max(0, e.step - 1);
@@ -395,6 +403,11 @@ export class Game {
     this.effects = this.effects.filter((fx) => fx.t < fx.life);
     for (const s of this.strikes) s.t += dt;
     this.strikes = this.strikes.filter((s) => s.t < s.life);
+  }
+
+  /** Legendary Time: the enemies slow down for this many seconds. */
+  slow(seconds: number) {
+    this.slowLeft = Math.max(this.slowLeft, seconds);
   }
 
   /** A stimpak: the survivor has all their strikes back. */

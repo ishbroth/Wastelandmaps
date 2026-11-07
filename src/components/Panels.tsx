@@ -5,15 +5,16 @@ import { LOOT_CAP } from '../lib/raid/loot';
 import { enemiesLine, homePlan, lootSummary, planEnemies, planFor, raidFor } from '../lib/raid/raid';
 import { personalId } from '../lib/personal';
 import { purchasesAvailable } from '../lib/native';
-import { purchasePack, usePackPrices } from '../lib/iap';
 import { faceIdName, forgetFaceId, savedFaceIds } from '../lib/faceid';
 import Leaderboard from './Leaderboard';
 import Caps, { CapIcon } from './Caps';
-import { STIMPAK_TRADES } from '../../supabase/functions/_shared/stimpak';
-import { METRO_COST, PACKS, caps, tradeStimpak, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
+import { STIMPAK_TRADES, TIME_TRADES, affordableQty } from '../../supabase/functions/_shared/stimpak';
+import ConfirmSpend from './ConfirmSpend';
+import BuyCaps from './BuyCaps';
+import { METRO_COST, caps, tradeStimpak, tradeTime, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag, type LootBag } from '../lib/raid/loot';
-import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt } from '../lib/raid/weapons';
+import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt, type WeaponClass } from '../lib/raid/weapons';
 
 import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
 import { iconHtmlFor } from '../lib/landmarkIcons';
@@ -153,6 +154,8 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
   onSnapshot: (place: FoundPlace) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  /** The "spend this loot?" question that is open, if any. */
+  const [ask, setAsk] = useState<{ kind: 'stimpak' | 'time'; id: string } | { kind: 'gun'; id: WeaponClass } | null>(null);
   // every place found, in the order found, starting with home
   const homeId = account.home?.placeId ? personalId(account.home.placeId) : null;
   const recent = useMemo(() => {
@@ -225,8 +228,19 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
       <ul className="rm-arsenal">
         {STIMPAK_TRADES.map((t) => (
           <li key={t.id}>
-            <button type="button" className="rm-btn rm-btn-ghost rm-arsenal-buy" disabled={!canAfford(account.loot, t.cost as LootBag)} onClick={() => { void tradeStimpak(t.id).then(() => account.refresh()); }}>
-              TRADE {describeBag(t.cost as LootBag).toUpperCase()} FOR 1 STIMPAK
+            <button type="button" className="rm-btn rm-btn-ghost rm-arsenal-buy" disabled={affordableQty(account.loot, t.cost) < 1} onClick={() => setAsk({ kind: 'stimpak', id: t.id })}>
+              {describeBag(t.cost as LootBag).toUpperCase()} FOR 1 STIMPAK
+            </button>
+          </li>
+        ))}
+      </ul>
+      <h3>LEGENDARY TIME: {account.legendaryTime}</h3>
+      <p className="rm-fine">Slows the enemies for four seconds in the shooting gallery. Tap the stopwatch.</p>
+      <ul className="rm-arsenal">
+        {TIME_TRADES.map((t) => (
+          <li key={t.id}>
+            <button type="button" className="rm-btn rm-btn-ghost rm-arsenal-buy" disabled={affordableQty(account.loot, t.cost) < 1} onClick={() => setAsk({ kind: 'time', id: t.id })}>
+              {describeBag(t.cost as LootBag).toUpperCase()} FOR 1 LEGENDARY TIME
             </button>
           </li>
         ))}
@@ -245,7 +259,7 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
                   type="button"
                   className="rm-btn rm-btn-ghost rm-arsenal-buy"
                   disabled={!canAfford(account.loot, next.recipe)}
-                  onClick={() => { void craftWeapon(cls).then(() => account.refresh()); }}
+                  onClick={() => setAsk({ kind: 'gun', id: cls })}
                   title={next.real}
                 >
                   {tier === 0 ? 'UNLOCK' : 'UPGRADE TO'} {next.name.toUpperCase()}: {describeBag(next.recipe)}
@@ -255,6 +269,32 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
           );
         })}
       </ul>
+
+      {ask && (() => {
+        const failed = (reason?: string) => (reason === 'full' ? 'YOU CAN HOLD AT MOST 99.' : reason === 'loot' ? 'NOT ENOUGH LOOT.' : 'THAT DID NOT GO THROUGH. NOTHING WAS SPENT.');
+        if (ask.kind === 'gun') {
+          const next = nextWeapon(account.arsenal, ask.id);
+          if (!next) return null;
+          return (
+            <ConfirmSpend
+              title={account.arsenal[ask.id] === 0 ? 'UNLOCK A GUN' : 'UPGRADE A GUN'} what={next.name.toUpperCase()} cost={next.recipe} have={account.loot} verb={account.arsenal[ask.id] === 0 ? 'UNLOCK' : 'UPGRADE'}
+              onClose={() => setAsk(null)}
+              onConfirm={async () => { const r = await craftWeapon(ask.id); await account.refresh(); return r.ok ? null : failed(r.reason); }}
+            />
+          );
+        }
+        const trade = (ask.kind === 'time' ? TIME_TRADES : STIMPAK_TRADES).find((t) => t.id === ask.id);
+        if (!trade) return null;
+        const owned = ask.kind === 'time' ? account.legendaryTime : account.stimpaks;
+        return (
+          <ConfirmSpend
+            title={ask.kind === 'time' ? 'BUY LEGENDARY TIME' : 'BUY STIMPAKS'} what={ask.kind === 'time' ? 'LEGENDARY TIME' : 'STIMPAK'} cost={trade.cost as LootBag} have={account.loot}
+            max={Math.min(affordableQty(account.loot, trade.cost), 99 - owned)} owned={owned} counted verb="BUY"
+            onClose={() => setAsk(null)}
+            onConfirm={async (qty) => { const r = await (ask.kind === 'time' ? tradeTime : tradeStimpak)(trade.id, qty); await account.refresh(); return r.ok ? null : failed(r.reason); }}
+          />
+        );
+      })()}
 
       <h3>PLACES YOU HAVE FOUND ({recent.length})</h3>
       {recent.length === 0 && <p className="rm-empty">Nothing found yet. Fast travel to a place, or turn on AUTO-DISCOVER and go for a walk.</p>}
@@ -404,30 +444,16 @@ function ForgetFaceId() {
   );
 }
 
-/** Buying credits: three packs. On the website the payment page (Stripe: card, Apple Pay, Google Pay); in the iPhone app the App Store's own purchase. */
+/** Buying caps: one button under the balance, which opens the three packs in a popup (the website's payment page, or the App Store's own purchase in the iPhone app). */
 function Packs({ onBought }: { onBought: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState('');
-  const prices = usePackPrices();
+  const [open, setOpen] = useState(false);
   if (!purchasesAvailable()) {
     return <p className="rm-fine">Caps cannot be bought inside the app yet. The ones you have, and the free ones from levelling up, work here.</p>;
   }
-  const buy = async (pack: string) => {
-    setBusy(true);
-    setNote('');
-    const { bought, problem } = await purchasePack(pack);
-    if (problem) setNote(problem);
-    if (bought) onBought();
-    setBusy(false);
-  };
   return (
     <div>
-      <div className="rm-packs">
-        {PACKS.map((pk) => (
-          <button key={pk.id} type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void buy(pk.id)}><Caps n={caps(pk.credits)} /> FOR {prices[pk.id] ?? pk.price}</button>
-        ))}
-      </div>
-      {note && <p className="rm-account-note">{note}</p>}
+      <button type="button" className="rm-btn rm-btn-ghost rm-trade-money" onClick={() => setOpen(true)}>TRADE PRE-WAR MONEY</button>
+      {open && <BuyCaps title="TRADE PRE-WAR MONEY" onClose={() => setOpen(false)} onBought={onBought} />}
     </div>
   );
 }

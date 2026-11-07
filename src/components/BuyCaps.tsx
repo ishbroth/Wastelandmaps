@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import Caps from './Caps';
 import { PACKS, caps } from '../lib/account';
 import { purchasesAvailable } from '../lib/native';
 import { purchasePack, usePackPrices } from '../lib/iap';
 
-/** The popup that opens when someone tries to spend caps they do not have: the three packs, each going straight to the payment page. */
-export default function BuyCaps({ onClose, onBought }: { onClose: () => void; /** Called when caps were added (in the iPhone app, where the purchase finishes here). */ onBought?: () => void }) {
+/** The popup with the three cap packs, each going straight to the payment page: opened when someone is short of caps, and from the Data tab's TRADE PRE-WAR MONEY. */
+export default function BuyCaps({ onClose, onBought, title = 'NEED MORE CAPS' }: { onClose: () => void; /** Called when caps were added (in the iPhone app, where the purchase finishes here). */ onBought?: () => void; title?: string }) {
   const prices = usePackPrices();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
@@ -17,11 +18,11 @@ export default function BuyCaps({ onClose, onBought }: { onClose: () => void; /*
     if (bought) { onBought?.(); onClose(); return; }
     setBusy(false);
   };
-  return (
-    <div className="rm-modal rm-modal-buy" role="dialog" aria-modal="true" aria-label="Buy caps" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+  return createPortal(
+    <div className="rm-modal rm-modal-buy" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => { e.stopPropagation(); onClose(); }}>
       <div className="rm-modal-card rm-buy-card" onClick={(e) => e.stopPropagation()}>
         <div className="rm-modal-head">
-          <div><h2>NEED MORE CAPS</h2></div>
+          <div><h2>{title}</h2></div>
           <button type="button" className="rm-btn rm-btn-ghost" onClick={onClose} aria-label="Close">CLOSE</button>
         </div>
         {purchasesAvailable() ? (
@@ -35,6 +36,7 @@ export default function BuyCaps({ onClose, onBought }: { onClose: () => void; /*
         )}
         {note && <p className="rm-account-note">{note}</p>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

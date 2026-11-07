@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { finishRaid, startRaid, useStimpak, type Account } from '../lib/account';
+import { finishRaid, startRaid, useStimpak, useTime, type Account } from '../lib/account';
 import { loadRaidAssets, type RaidAssets } from '../lib/raid/assets';
 import { playSound } from '../lib/raid/audio';
 import { enemyFiles, hasVoice, playEnemy, preloadSfx } from '../lib/sfx';
 import { buzz } from '../lib/haptics';
 import { enemyById } from '../lib/raid/enemies';
-import { Game, MAX_HITS, type Enemy, type Spawns } from '../lib/raid/engine';
+import { Game, MAX_HITS, SLOW_SECONDS, type Enemy, type Spawns } from '../lib/raid/engine';
 import { LOOT_CAP, lootName, type LootBag, type LootId } from '../lib/raid/loot';
 import type { RaidPlan } from '../lib/raid/raid';
 import { MAGAZINE, WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
@@ -23,6 +23,8 @@ interface Hud {
   banner: string;
   bossHp: number | null;
   bossName: string;
+  /** Seconds of Legendary Time left (0 when it is not running). */
+  slow: number;
 }
 
 /** Placeholder colors for an enemy whose art is missing. */
@@ -72,6 +74,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   const wasReloading = useRef<Partial<Record<WeaponClass, boolean>>>({});
   const [wheelOpen, setWheelOpen] = useState(false);
   const [stims, setStims] = useState(account.stimpaks);
+  const [times, setTimes] = useState(account.legendaryTime);
+  const [timing, setTiming] = useState(false);
   const [healing, setHealing] = useState(false);
   const [downed, setDowned] = useState(false);
   const [loot, setLoot] = useState<LootBag | null>(null);
@@ -175,7 +179,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           hits: g.hits, ammo: g.ammo[g.selected] ?? null, mag: g.mag[g.selected] ?? null, reload: g.reloadProgress,
           reserve: g.mag[g.selected] !== undefined && g.ammo[g.selected] !== undefined ? Math.max(0, (g.ammo[g.selected] as number) - (g.mag[g.selected] as number)) : null,
           selected: g.selected, remaining: g.remaining,
-          banner: g.bannerT > 0 ? g.banner : '', bossHp: boss ? boss.hp / boss.maxHp : null, bossName: boss?.type.name ?? '',
+          banner: g.bannerT > 0 ? g.banner : '', bossHp: boss ? boss.hp / boss.maxHp : null, bossName: boss?.type.name ?? '', slow: g.slowLeft,
         });
       }
       if (g.outcome !== 'fighting') {
@@ -482,6 +486,19 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
     if (game.current?.select(cls)) setHud((h) => (h ? { ...h, selected: cls } : h));
     closeWheel();
   };
+  // Legendary Time: one is used up (the server takes it), and for four seconds the enemies crawl
+  const slowTime = async () => {
+    const g = game.current;
+    if (!g || timing || g.slowLeft > 0 || times <= 0) return;
+    setTiming(true);
+    const result = await useTime();
+    if (result.ok) {
+      g.slow(SLOW_SECONDS);
+      setTimes(result.qty ?? Math.max(0, times - 1));
+      void account.refresh();
+    }
+    setTiming(false);
+  };
   const heal = async () => {
     const g = game.current;
     if (!g || healing || stims <= 0 || g.hits <= 0) return;
@@ -534,6 +551,16 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           <div className="rm-raid-bar">
             <button type="button" className="rm-btn rm-raid-btn" onClick={openWheel} disabled={wheelOpen || downed}>WEAPONS</button>
             <button type="button" className="rm-btn rm-raid-btn" onClick={() => void heal()} disabled={wheelOpen || downed || healing || stims <= 0 || hud.hits <= 0} title="Take back all your strikes">STIMPAK ×{stims}</button>
+            <button
+              type="button" className={`rm-btn rm-raid-btn rm-raid-time${hud.slow > 0 ? ' running' : ''}`} onClick={() => void slowTime()}
+              disabled={wheelOpen || downed || timing || hud.slow > 0 || times <= 0} title="Legendary Time: slow the enemies for four seconds" aria-label={`Legendary Time, ${times} left`}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="13.5" r="7.5" /><path d="M12 9.5v4l2.6 1.6M9.5 3h5M12 3v3M18.6 6.4l1.4-1.4" />
+              </svg>
+              <small>×{times}</small>
+            </button>
+            {hud.slow > 0 && <div className="rm-raid-slow" aria-live="polite">LEGENDARY TIME {hud.slow.toFixed(1)}</div>}
           </div>
           {downed && (
             <div className="rm-raid-center rm-raid-downed">

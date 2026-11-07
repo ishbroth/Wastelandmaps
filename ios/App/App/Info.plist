@@ -27,9 +27,9 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Face ID lets you sign in to WastelandMaps without typing your email and vault number.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>WastelandMaps uses your location to show where you are on the map, to discover places as you reach them, and to give you directions.</string>
+	<string>For the best wasteland experience, keep location on for automatic location discovery and XP! WastelandMaps uses your location to show where you are on the map, to discover places as you reach them, and to give you directions.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>WastelandMaps can keep discovering places as you walk or drive with your phone in your pocket. Your location is used only for that and for directions, and is never shared or sold.</string>
+	<string>For the best wasteland experience, keep location on for automatic location discovery and XP! WastelandMaps can keep discovering places as you walk or drive with your phone in your pocket. Your location is used only for that and for directions, and is never shared or sold.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

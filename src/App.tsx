@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import LocationCard from './components/LocationCard';
+import VaultHome from './components/VaultHome';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import FaceIdOffer from './components/FaceIdOffer';
@@ -8,6 +9,7 @@ import SceneModal from './components/SceneModal';
 import { accountsEnabled, atlasList, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { startPurchases } from './lib/iap';
+import { keepScreenOn } from './lib/awake';
 import { askForLocation, getFix, locationState, openLocationSettings, watchFixes, type GeoError } from './lib/geo';
 import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
 import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
@@ -90,6 +92,10 @@ export default function App() {
   const [liveName, setLiveName] = useState('');
   // while zoomed out the top of the map names the continent, country or state instead of the city
   const [zoomName, setZoomName] = useState<string | null>(null);
+  /** The home vault, opened straight from its card on the map (the title is its name). Null when it is not open. */
+  const [vaultOpen, setVaultOpen] = useState<string | null>(null);
+  // the title at the top of the screen never spills out of its box: a long name takes smaller letters, down to a floor
+  const titleRef = useRef<HTMLDivElement | null>(null);
   const [regionLabels, setRegionLabels] = useState<RegionLabel[]>([]);
   const [flood, setFlood] = useState<FloodPatch[]>([]);
   const [startView, setStartView] = useState<React.ComponentProps<typeof MapView>['startView']>(null);
@@ -855,6 +861,21 @@ export default function App() {
   const toggleVoice = useCallback(() => {
     setVoiceOn((on) => { setVoiceEnabled(!on); return !on; });
   }, []);
+  // Driving: from the moment a route starts until it ends, the navigation owns the screen. Everything else is shut: any open place, snapshot, loot run, vault or sign-in
+  // closes, and the map's pins, the lists and the Pip-Boy's tabs cannot be opened (see also the rm-navigating rules in index.css). Discoveries along the way still
+  // show as notices. The screen is kept awake for the route.
+  const driving = !!nav;
+  useEffect(() => {
+    void keepScreenOn(driving);
+    if (!driving) return;
+    setSceneId(null);
+    setSceneRaid(false);
+    setVaultOpen(null);
+    setAccountOpen(false);
+    setHomeOpen(false);
+    setSelectedId(null);
+  }, [driving]);
+
   const endNavigation = useCallback(() => {
     if (navRef.current) speak('Navigation terminated.');
     setNav(null);
@@ -1034,6 +1055,40 @@ export default function App() {
     sound('tick');
   };
 
+  // refit the title whenever its words change or the screen does
+  const titleWords = zoomName ?? (liveName || wasteland?.regionName) ?? '';
+  const titleCleared = !zoomName && !!account.session && !!metroInfo && account.metrosCleared.has(metroInfo.id);
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    const fit = () => {
+      // the title fades in with its letters spreading (an animation of its letter spacing, which overrides what is set here): measure when that is over
+      if (el.getAnimations().some((an) => an.playState === 'running')) { el.addEventListener('animationend', fit, { once: true }); return; }
+      el.style.fontSize = '';
+      el.style.letterSpacing = '';
+      if (el.scrollWidth <= el.clientWidth + 1) return;
+      const css = getComputedStyle(el);
+      const size = parseFloat(css.fontSize);
+      const spacing = parseFloat(css.letterSpacing) || 0;
+      // the largest size that fits: the letters shrink, and the space between them shrinks faster (never below 9px; past that only the spacing goes)
+      const apply = (k: number) => { el.style.fontSize = `${Math.max(9, size * k)}px`; el.style.letterSpacing = `${spacing * k * k}px`; };
+      const fits = () => el.scrollWidth <= el.clientWidth + 1;
+      let [lo, hi] = [0.2, 1];
+      for (let i = 0; i < 12; i++) {
+        const mid = (lo + hi) / 2;
+        apply(mid);
+        if (fits()) lo = mid; else hi = mid;
+      }
+      apply(lo);
+      if (!fits()) el.style.letterSpacing = '0px';
+    };
+    fit();
+    const watch = el.parentElement ? new ResizeObserver(fit) : null;
+    if (el.parentElement) watch?.observe(el.parentElement);
+    if (document.fonts?.ready) void document.fonts.ready.then(fit);
+    return () => { watch?.disconnect(); el.removeEventListener('animationend', fit); };
+  }, [titleWords, titleCleared]);
+
   const navView = useMemo(() => (nav?.route ? { path: nav.route.path, steps: nav.route.steps, step: nav.step } : null), [nav?.route, nav?.step]);
 
   return (
@@ -1053,12 +1108,12 @@ export default function App() {
 
       <main className="rm-device">
         <div className="rm-screen">
-          {(wasteland || zoomName) && <div className="rm-poster-title" key={zoomName ?? (liveName || wasteland?.regionName)}><span aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}{!zoomName && account.session && metroInfo && account.metrosCleared.has(metroInfo.id) && <small className="rm-poster-cleared">[CLEARED]</small>}</span><button type="button" className="rm-poster-share" onClick={() => void shareMap()} aria-label="Share this view of the map" title="Share this view of the map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></button></div>}
+          {(wasteland || zoomName) && <div className="rm-poster-title" ref={titleRef} key={zoomName ?? (liveName || wasteland?.regionName)}><span aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}{!zoomName && account.session && metroInfo && account.metrosCleared.has(metroInfo.id) && <small className="rm-poster-cleared">[CLEARED]</small>}</span><button type="button" className="rm-poster-share" onClick={() => void shareMap()} aria-label="Share this view of the map" title="Share this view of the map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></button></div>}
           {status === 'ready' ? (
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={mapLocations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { setSelectedId(id); if (id) sound('tick'); }} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
+              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { if (navRef.current) return; setSelectedId(id); if (id) sound('tick'); }} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
@@ -1108,7 +1163,7 @@ export default function App() {
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard
               spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
-              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onClose={() => setSelectedId(null)}
+              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen(selectedSpot.name); } : undefined} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
@@ -1121,6 +1176,7 @@ export default function App() {
               account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || place.personal) ? (place.personal?.home ? homePlan() : raidFor(place)) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => { setSceneId(null); setSceneRaid(false); }} onNeedDiscover={() => say('YOU MUST DISCOVER THIS LOCATION FIRST', true)}
             />
           )}
+          {vaultOpen !== null && <VaultHome title={vaultOpen} account={account} onExit={() => setVaultOpen(null)} />}
           {accountOpen && !account.session && <AccountModal auto={accountAuto} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
           <FaceIdOffer />
           {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped) || homeOpen) && (
@@ -1153,7 +1209,7 @@ export default function App() {
               <LocationsPanel
                 metro={metroInfo} account={account}
                 region={region} locations={locations} hidden={hidden} onToggleCategory={toggleCategory} selectedId={selectedId} visited={shownVisited} cleared={account.cleared}
-                onSelect={(id) => { setSelectedId(id); sound('select'); }}
+                onSelect={(id) => { if (navRef.current) return; setSelectedId(id); sound('select'); }}
               />
             )}
             {tab === 'data' && <AccountPanel account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}

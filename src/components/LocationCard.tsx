@@ -6,7 +6,7 @@ import { distanceMeters, subtitle, type LatLng, type Spot, type Wasteland } from
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
 /** The card that opens on the map when a place is selected: what it is, what it would cost to get there, and the two things to do about it. */
-export default function LocationCard({ spot, from, here, visited, cleared, unlocked, enemies, onRename, traveling, onTravel, onScene, onClose }: {
+export default function LocationCard({ spot, from, here, visited, cleared, unlocked, enemies, onRename, traveling, onTravel, onScene, onEnter, onClose }: {
   spot: Spot;
   /** Where the device is (while AUTO-DISCOVER is on), or null. */
   from: LatLng | null;
@@ -23,6 +23,8 @@ export default function LocationCard({ spot, from, here, visited, cleared, unloc
   traveling: boolean;
   onTravel: () => void;
   onScene: () => void;
+  /** Given for your own home vault once it is cleared: goes straight into the vault, without opening the scene first. */
+  onEnter?: () => void;
   onClose: () => void;
 }) {
   const away = from ? distanceMeters(from, spot.position) : 0;
@@ -66,6 +68,7 @@ export default function LocationCard({ spot, from, here, visited, cleared, unloc
       )}
       <div className="rm-card-actions">
         <button type="button" className="rm-btn" disabled={traveling || here} onClick={onTravel}>{here ? 'YOU ARE HERE' : traveling ? 'NAVIGATING…' : 'FAST TRAVEL'}</button>
+        {onEnter && <button type="button" className="rm-btn rm-card-enter" onClick={onEnter}>ENTER</button>}
         <button type="button" className="rm-btn rm-btn-ghost" onClick={onScene}>VIEW</button>
       </div>
     </div>

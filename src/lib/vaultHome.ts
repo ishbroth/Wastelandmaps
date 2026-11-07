@@ -56,9 +56,11 @@ export interface VaultHome {
   /** A temporary lift from building, in points, and when it was given (ms). */
   boost: number;
   boostAt: number;
+  /** Decides which mix of loot each room and piece of furniture costs in this vault (the server makes it up when the vault is made). */
+  seed?: number;
 }
 
-export const newVault = (now: number): VaultHome => ({ rooms: [{ type: 'living', col: 0, row: 0, furniture: [] }], settlers: [], from: 50, sessionAt: now, seenAt: now, boost: 0, boostAt: now });
+export const newVault = (now: number, seed = 0): VaultHome => ({ seed, rooms: [{ type: 'living', col: 0, row: 0, furniture: [] }], settlers: [], from: 50, sessionAt: now, seenAt: now, boost: 0, boostAt: now });
 
 // ---- the grid ----
 
@@ -102,6 +104,55 @@ export function furnishCost(r: VaultRoom): number {
 
 export const furnitureOf = (type: RoomType): FurnitureDef[] => roomDef(type).furniture;
 export const roomComplete = (r: VaultRoom): boolean => r.furniture.length >= furnitureOf(r.type).length;
+
+// ---- what things cost, as a mix of loot ----
+
+const KINDS = ['steel', 'wood', 'springs', 'adhesive', 'screws', 'fiberoptics', 'glass', 'circuitry', 'oil', 'gears', 'plastic'];
+
+/** A small repeatable random stream from a seed and a name (the same on the phone and on the server). */
+function stream(seed: number, key: string): () => number {
+  let h = (2166136261 ^ seed) >>> 0;
+  for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * The mix of loot that adds up to this many pieces: two to five kinds, at least one of each, the rest dealt out at random ("2 wood, 1 plastic"; "1 steel,
+ * 1 fiber optics, 1 screws"). The same seed and name always give the same mix. The cheap ones lean on steel and wood, which the very first raid pays.
+ */
+export function recipeFor(seed: number, key: string, pieces: number): LootBag {
+  const next = stream(seed, key);
+  const pool = KINDS.map((k) => ({ k, w: pieces <= 8 && (k === 'steel' || k === 'wood') ? 4 : 1 }));
+  const most = Math.max(1, Math.min(pieces, 3 + Math.floor(pieces / 8), 5));
+  const least = Math.min(pieces, 2);
+  const kinds = least + Math.floor(next() * (most - least + 1));
+  const chosen: string[] = [];
+  for (let i = 0; i < kinds; i++) {
+    let x = next() * pool.reduce((n, p) => n + p.w, 0);
+    let at = 0;
+    for (; at < pool.length - 1; at++) { x -= pool[at].w; if (x < 0) break; }
+    chosen.push(pool[at].k);
+    pool.splice(at, 1);
+  }
+  const bag: LootBag = {};
+  chosen.forEach((k) => { bag[k] = 1; });
+  for (let i = kinds; i < pieces; i++) { const k = chosen[Math.floor(next() * chosen.length)]; bag[k] = (bag[k] ?? 0) + 1; }
+  return bag;
+}
+
+/** What building a room of this type costs now, as a mix of loot. */
+export const buildRecipe = (v: VaultHome, type: RoomType): LootBag => recipeFor(v.seed ?? 0, `room:${type}:${slotsUsed(v)}`, buildCost(v, type));
+/** What the next piece of furniture in a room costs, as a mix of loot (each piece has its own). */
+export const furnishRecipe = (v: VaultHome, roomIndex: number, item: string): LootBag => {
+  const room = v.rooms[roomIndex];
+  return room ? recipeFor(v.seed ?? 0, `item:${roomIndex}:${room.type}:${item}:${room.furniture.length}`, furnishCost(room)) : {};
+};
 
 // ---- settlers ----
 
@@ -172,15 +223,16 @@ function settle(v: VaultHome, now: number): VaultHome {
 
 // ---- the things you can do (each returns the new vault, or the reason it cannot be done) ----
 
-export type Action<T> = { ok: true; vault: VaultHome; cost: number } & T | { ok: false; reason: string };
+export type Action<T> = { ok: true; vault: VaultHome; cost: number; /** The exact mix of loot it costs. */ recipe: LootBag } & T | { ok: false; reason: string };
 
 export function applyBuild(v: VaultHome, type: RoomType, col: number, row: number, now: number): Action<unknown> {
   if (!ROOM_DEFS.some((d) => d.id === type)) return { ok: false, reason: 'No such room' };
   const why = whyNotBuild(v, type, col, row);
   if (why) return { ok: false, reason: why };
   const cost = buildCost(v, type);
+  const recipe = buildRecipe(v, type);
   const s = settle(v, now);
-  return { ok: true, cost, vault: { ...s, rooms: [...s.rooms, { type, col, row, furniture: [] }], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
+  return { ok: true, cost, recipe, vault: { ...s, rooms: [...s.rooms, { type, col, row, furniture: [] }], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
 }
 
 export function applyFurnish(v: VaultHome, roomIndex: number, item: string, now: number): Action<unknown> {
@@ -189,23 +241,14 @@ export function applyFurnish(v: VaultHome, roomIndex: number, item: string, now:
   if (!furnitureOf(room.type).some((f) => f.id === item)) return { ok: false, reason: 'That does not belong in this room' };
   if (room.furniture.includes(item)) return { ok: false, reason: 'Already there' };
   const cost = furnishCost(room);
+  const recipe = furnishRecipe(v, roomIndex, item);
   const s = settle(v, now);
-  return { ok: true, cost, vault: { ...s, rooms: s.rooms.map((r, i) => (i === roomIndex ? { ...r, furniture: [...r.furniture, item] } : r)), boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
+  return { ok: true, cost, recipe, vault: { ...s, rooms: s.rooms.map((r, i) => (i === roomIndex ? { ...r, furniture: [...r.furniture, item] } : r)), boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
 }
 
 export function applySettler(v: VaultHome, kind: string): Action<unknown> {
   if (!SETTLER_KINDS.includes(kind as SettlerKind)) return { ok: false, reason: 'Not a settler' };
   if (settlersWaiting(v) < 1) return { ok: false, reason: 'No settler is waiting' };
   const id = v.settlers.reduce((m, s) => Math.max(m, s.id), 0) + 1;
-  return { ok: true, cost: 0, vault: { ...v, settlers: [...v.settlers, { id, kind: kind as SettlerKind }] } };
-}
-
-/** Is a payment a legal way to pay this many pieces: whole positive amounts that add up exactly? */
-export function validPayment(pay: LootBag, pieces: number, kinds: string[]): boolean {
-  let sum = 0;
-  for (const [k, n] of Object.entries(pay)) {
-    if (!kinds.includes(k) || !Number.isInteger(n) || (n as number) < 0) return false;
-    sum += n as number;
-  }
-  return sum === pieces;
+  return { ok: true, cost: 0, recipe: {}, vault: { ...v, settlers: [...v.settlers, { id, kind: kind as SettlerKind }] } };
 }

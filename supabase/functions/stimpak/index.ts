@@ -1,28 +1,33 @@
-// Stimpaks. A survivor trades spare loot for them and uses one in the shooting gallery to take back their three strikes. The count changes only here.
+// Stimpaks and Legendary Time. A survivor trades spare loot for them, several at a time, and uses one in the shooting gallery (a stimpak takes back their three
+// strikes; Legendary Time slows the enemies for four seconds). The counts change only here.
 //
-// POST { action: 'trade', trade }  ->  { ok: true, qty } | { ok: false, reason: 'loot' | 'full' }
-// POST { action: 'use' }           ->  { ok: true, qty } | { ok: false, reason: 'none' }
+// POST { action: 'trade', item?: 'stimpak' | 'time', trade, qty }  ->  { ok: true, qty } | { ok: false, reason: 'loot' | 'full' }
+// POST { action: 'use', item?: 'stimpak' | 'time' }                ->  { ok: true, qty } | { ok: false, reason: 'none' }
+// (item is 'stimpak' when it is left out, which is how older copies of the app ask.)
 // Deploy: supabase functions deploy stimpak
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
-import { STIMPAK_TRADES } from '../_shared/stimpak.ts';
+import { STIMPAK_TRADES, TIME_TRADES } from '../_shared/stimpak.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
   if (req.method !== 'POST') return reply(req, { error: 'POST only' }, 405);
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
-  const b = (await req.json().catch(() => ({}))) as { action?: string; trade?: string };
+  const b = (await req.json().catch(() => ({}))) as { action?: string; item?: string; trade?: string; qty?: number };
+  const item = b.item === 'time' ? 'time' : 'stimpak';
   const db = serviceClient();
 
   if (b.action === 'use') {
-    const { data, error } = await db.rpc('use_stimpak', { p_user: user });
+    const { data, error } = await db.rpc(item === 'time' ? 'use_time' : 'use_stimpak', { p_user: user });
     return error ? reply(req, { error: 'server' }, 500) : reply(req, data);
   }
   if (b.action === 'trade') {
-    const trade = STIMPAK_TRADES.find((t) => t.id === b.trade);
+    const trade = (item === 'time' ? TIME_TRADES : STIMPAK_TRADES).find((t) => t.id === b.trade);
     if (!trade) return reply(req, { error: 'bad_trade' }, 400);
-    const { data, error } = await db.rpc('trade_stimpak', { p_user: user, p_cost: trade.cost });
+    const qty = b.qty === undefined ? 1 : Number(b.qty);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 99) return reply(req, { error: 'bad_qty' }, 400);
+    const { data, error } = await db.rpc('trade_item', { p_user: user, p_item: item, p_cost: trade.cost, p_qty: qty });
     return error ? reply(req, { error: 'server' }, 500) : reply(req, data);
   }
   return reply(req, { error: 'bad_action' }, 400);

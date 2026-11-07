@@ -29,7 +29,8 @@ const SUPER: Record<string, { name: string; at: LatLng }> = {
   amazon: { name: 'The Amazon Ashes', at: { lat: -4, lng: -60 } },
   cone: { name: 'Pata-gone-ia', at: { lat: -41, lng: -66 } },
   oldworld: { name: 'The European Commonwealth', at: { lat: 49, lng: 15 } },
-  cold: { name: 'The Köldlands', at: { lat: 63, lng: 33 } },
+  // the label is centred on this point and is about 44 degrees wide on the world map: centred at 60 east, it starts at Moscow (37.6 east)
+  cold: { name: 'The New.S.S.R.', at: { lat: 63, lng: 60 } },
   sands: { name: 'The Sands', at: { lat: 26, lng: 22 } },
   congo: { name: 'The Cooked Congo', at: { lat: -8, lng: 24 } },
   subcontinent: { name: 'The Subcontinent', at: { lat: 22, lng: 79 } },
@@ -164,16 +165,49 @@ const contains = (o: Outline, p: LatLng) => o.rings.some((r) => inside(r, p.lat,
 /** The shortest way round between two longitudes, in degrees (across the antimeridian too). */
 const lngGap = (a: number, b: number) => ((((a - b) % 360) + 540) % 360) - 180;
 
+/** The box around a country's outlines (west, east, south, north), worked out once. */
+const boxes = new WeakMap<Outline, [number, number, number, number]>();
+function boxOf(o: Outline): [number, number, number, number] {
+  let b = boxes.get(o);
+  if (!b) {
+    b = [Infinity, -Infinity, Infinity, -Infinity];
+    for (const ring of o.rings) for (let i = 0; i < ring.length; i += 2) { b[0] = Math.min(b[0], ring[i]); b[1] = Math.max(b[1], ring[i]); b[2] = Math.min(b[2], ring[i + 1]); b[3] = Math.max(b[3], ring[i + 1]); }
+    boxes.set(o, b);
+  }
+  return b;
+}
+
+/** How far a point is from the nearest edge of a country's outline, in km (flat approximation; Infinity when the box says it is too far to matter). */
+function edgeKm(o: Outline, p: LatLng, within: number): number {
+  const [west, east, south, north] = boxOf(o);
+  const margin = within / 111.32;
+  const cosLat = Math.max(0.05, Math.cos((p.lat * Math.PI) / 180));
+  if (p.lat < south - margin || p.lat > north + margin) return Infinity;
+  if (east - west < 180 && Math.abs(lngGap(p.lng, (west + east) / 2)) - (east - west) / 2 > margin / cosLat) return Infinity;
+  const kx = 111.32 * cosLat;
+  let best = Infinity;
+  for (const r of o.rings) {
+    for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) {
+      const ax = lngGap(r[j], p.lng) * kx, ay = (r[j + 1] - p.lat) * 111.32, bx = lngGap(r[i], p.lng) * kx, by = (r[i + 1] - p.lat) * 111.32;
+      const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+      const t = len2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2)) : 0;
+      best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+  }
+  return best;
+}
+
 export interface Where { continent: string; region: string; country: string | null; countryName: string | null; state: string | null }
 
 /** Which continent, country and US state a point is in; null where the map is open sea. */
 export function whereIs(data: RegionsFile, p: LatLng): Where | null {
   let country = data.countries.find((c) => contains(c, p)) ?? null;
   if (!country) {
-    // the outlines are coarse, so a coast or an island can fall just outside: take the nearest country within a few hundred km
-    let nearest = 600;
+    // the outlines are coarse, so a coast or an island can fall just outside: take the country whose EDGE is nearest, within a few hundred km. (It used to be the
+    // country whose label point was nearest, which let small neighbours like Vietnam and Taiwan take the coast of a big country like China.)
+    let nearest = 350;
     for (const c of data.countries) {
-      const km = Math.hypot((c.label[0] - p.lat) * 111.32, lngGap(c.label[1], p.lng) * 111.32 * Math.cos((p.lat * Math.PI) / 180));
+      const km = edgeKm(c, p, nearest);
       if (km < nearest) { nearest = km; country = c; }
     }
   }

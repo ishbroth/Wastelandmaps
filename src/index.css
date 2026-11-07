@@ -114,7 +114,7 @@ html[data-look='parchment'] .rm-crt {
 @keyframes rm-flicker { 0%, 100% { opacity: 1; } 46% { opacity: 1; } 47% { opacity: 0.93; } 48% { opacity: 1; } 91% { opacity: 0.96; } }
 
 .rm-poster-title {
-  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 8; pointer-events: none;
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 8; pointer-events: none; box-sizing: border-box; width: max-content; max-width: calc(100% - 20px); overflow: hidden;
   font-family: var(--font-display); font-size: 34px; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap;
   color: var(--ink); text-shadow: 0 0 10px var(--glow), 0 0 2px #000; padding: 2px 14px;
   background: color-mix(in srgb, var(--panel) 70%, transparent); border: 1px solid var(--line);
@@ -178,7 +178,8 @@ html[data-look='parchment'] .rm-pin-rad { color: #a3401f; }
   background: transparent; color: var(--ink); border: 2px solid var(--ink); padding: 4px 12px; font-family: var(--font-display); font-size: 20px;
   letter-spacing: 2px; cursor: pointer; border-radius: 4px; white-space: nowrap;
 }
-.rm-btn:hover:not(:disabled), .rm-btn[aria-pressed='true'] { background: var(--ink); color: var(--on-ink); }
+@media (hover: hover) { .rm-btn:hover:not(:disabled) { background: var(--ink); color: var(--on-ink); } }
+.rm-btn[aria-pressed='true'] { background: var(--ink); color: var(--on-ink); }
 .rm-btn:disabled, .rm-quick button:disabled { opacity: 0.4; cursor: not-allowed; }
 .rm-btn-ghost { border-color: var(--line); color: var(--ink-dim); }
 
@@ -314,7 +315,7 @@ html[data-look='parchment'] .rm-modal { background: rgba(40, 28, 10, 0.6); }
 .rm-modal-head h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 32px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink); text-shadow: 0 0 8px var(--glow); }
 .rm-modal-head p { margin: 0; font-size: 12px; letter-spacing: 1.5px; color: var(--ink-dim); }
 .rm-modal-tabs { display: flex; gap: 6px; }
-.rm-modal-tabs button { white-space: nowrap; background: transparent; color: var(--ink-dim); border: 1px solid var(--line); padding: 2px 14px; font-family: var(--font-display); font-size: 20px; letter-spacing: 2px; cursor: pointer; }
+.rm-modal-tabs button { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; background: transparent; color: var(--ink-dim); border: 1px solid var(--line); padding: 7px 10px; font-family: var(--font-display); font-size: 26px; letter-spacing: 2px; cursor: pointer; }
 .rm-modal-tabs button.on { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .rm-modal-tabs button:disabled { opacity: 0.45; cursor: default; }
 .rm-modal-view { position: relative; border: 2px solid var(--line); background: #000; }
@@ -506,7 +507,7 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-arsenal-buy { width: 100%; margin-top: 4px; font-size: 13px; letter-spacing: 1px; white-space: normal; text-align: left; padding: 4px 8px; }
 
 /* ---- looting: the shooting gallery ---- */
-.rm-tab-loot { background: transparent; color: var(--ink); border: 1px solid var(--ink); padding: 2px 14px; font-family: var(--font-display); font-size: 20px; letter-spacing: 2px; cursor: pointer; animation: rm-loot-pulse 1.6s ease-in-out infinite; }
+.rm-tab-loot { background: transparent; color: var(--ink); border: 1px solid var(--ink); padding: 7px 10px; font-family: var(--font-display); font-size: 26px; letter-spacing: 2px; cursor: pointer; animation: rm-loot-pulse 1.6s ease-in-out infinite; }
 .rm-tab-loot:hover { background: var(--ink); color: var(--on-ink); }
 @keyframes rm-loot-pulse { 0%, 100% { box-shadow: 0 0 0 var(--glow); } 50% { box-shadow: 0 0 12px var(--glow); } }
 .rm-raid { position: fixed; inset: 0; height: 100vh; height: 100dvh; z-index: 200; background: #000; color: #e8e0c8; user-select: none; -webkit-user-select: none; font-family: var(--font-display); letter-spacing: 2px; }
@@ -538,6 +539,11 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 .rm-raid-bar { position: absolute; z-index: 3; left: max(14px, env(safe-area-inset-left)); bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px)); display: flex; gap: 8px; }
 .rm-raid-btn { color: #e8d58a; border-color: #8a7a4a; background: rgba(0, 0, 0, 0.55); font-size: 17px; padding: 4px 14px; }
 .rm-raid-btn:disabled { opacity: 0.45; }
+.rm-raid-time { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; }
+.rm-raid-time small { font-size: 16px; }
+.rm-raid-time.running { opacity: 1; color: #9fe8ff; border-color: #6fc8e8; box-shadow: 0 0 14px rgba(111, 200, 232, 0.8); }
+.rm-raid-slow { position: absolute; left: 0; bottom: calc(100% + 10px); white-space: nowrap; padding: 2px 16px; font-size: 22px; letter-spacing: 4px; color: #9fe8ff; background: rgba(0, 20, 30, 0.6); border: 1px solid #6fc8e8; text-shadow: 0 0 10px rgba(111, 200, 232, 0.9); pointer-events: none; animation: rm-slow-pulse 0.8s ease-in-out infinite; }
+@keyframes rm-slow-pulse { 50% { opacity: 0.55; } }
 .rm-wheel-overlay { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(0, 0, 0, 0.38); }
 .rm-raid-wheel { position: relative; width: 240px; height: 240px; opacity: 0.94; }
 .rm-wheel-slot { position: absolute; width: 90px; height: 90px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); border: 2px solid #8a7a4a; color: #e8d58a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; cursor: pointer; overflow: hidden; backdrop-filter: blur(2px); }
@@ -600,19 +606,21 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 /* bottle caps: the cap, then the amount */
 .rm-caps { display: inline-flex; align-items: center; gap: 0.3em; white-space: nowrap; }
 .rm-cap-icon { flex: none; vertical-align: -0.12em; }
-.rm-acct-credits b.rm-caps-big { display: inline-flex; align-items: center; gap: 10px; }
-.rm-acct-credits b.rm-caps-big .rm-cap-icon { width: 34px; height: 34px; }
+.rm-acct-credits b.rm-caps-big { display: inline-flex; align-items: center; gap: 8px; font-size: 28px; }
+.rm-acct-credits b.rm-caps-big .rm-cap-icon { width: 26px; height: 26px; }
+.rm-trade-money { width: 100%; margin-top: 8px; }
 
 .rm-buy-card { width: min(420px, 100%); display: block; }
 .rm-buy-card .rm-packs { margin-top: 10px; }
 
-/* a phone turned sideways while navigating: the map takes the whole screen, over the Pip-Boy's info side */
-@media (max-width: 960px) {
-  .rm-app.rm-navigating { padding: 0; max-width: none; }
-  .rm-app.rm-navigating .rm-head, .rm-app.rm-navigating .rm-foot, .rm-app.rm-navigating .rm-side { display: none; }
-  .rm-app.rm-navigating .rm-device { grid-template-columns: minmax(0, 1fr); padding: 0; border: none; border-radius: 0; box-shadow: none; gap: 0; }
-  .rm-app.rm-navigating .rm-screen { position: fixed; inset: 0; z-index: 30; height: 100vh; height: 100dvh; min-height: 0; border: none; border-radius: 0; }
-}
+/* Driving: while a route is followed the map takes the whole screen on any device (a phone upright or sideways, a tablet), and nothing else in the game can be reached:
+   the Pip-Boy's tabs and lists are gone, and the places on the map cannot be tapped. */
+.rm-app.rm-navigating { padding: 0; max-width: none; }
+.rm-app.rm-navigating .rm-head, .rm-app.rm-navigating .rm-foot, .rm-app.rm-navigating .rm-side { display: none; }
+.rm-app.rm-navigating .rm-device { grid-template-columns: minmax(0, 1fr); padding: 0; border: none; border-radius: 0; box-shadow: none; gap: 0; }
+.rm-app.rm-navigating .rm-screen { position: fixed; inset: 0; z-index: 30; height: 100vh; height: 100dvh; min-height: 0; border: none; border-radius: 0; }
+.rm-app.rm-navigating .rm-pin, .rm-app.rm-navigating .rm-region, .rm-app.rm-navigating .rm-poster-share, .rm-app.rm-navigating .rm-me { pointer-events: none; }
+.rm-app.rm-navigating .rm-poster-title { display: none; }
 
 /* clear the search field in one tap */
 .rm-clear { flex: none; width: 28px; height: 28px; display: grid; place-items: center; padding: 0 0 3px; background: transparent; color: var(--ink-dim); border: 1px solid var(--line); border-radius: 50%; font-size: 22px; line-height: 1; cursor: pointer; }
@@ -728,10 +736,10 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 @media (prefers-reduced-motion: reduce) { .rm-cog { animation-duration: 4s; } }
 
 /* the padlock on the snapshot button */
-.rm-lock { display: inline-block; width: 0.68em; height: 0.68em; vertical-align: -0.05em; margin-left: 0.15em; }
+.rm-lock { display: inline-block; width: 0.84em; height: 0.84em; vertical-align: -0.1em; margin-left: 0.2em; }
 
 /* narrow phones: keep SNAPSHOT and its padlock on one line without pushing the tabs off the screen */
-@media (max-width: 400px) { .rm-modal-tabs { gap: 4px; } .rm-modal-tabs button { padding: 2px 8px; font-size: 17px; letter-spacing: 1px; } }
+@media (max-width: 400px) { .rm-modal-tabs { gap: 4px; } .rm-modal-tabs button { padding: 7px 4px; font-size: 22px; letter-spacing: 1px; } }
 
 /* ---- the home vault you can enter (VaultHome.tsx): green-screen, whatever look the rest of the map has ---- */
 .rm-vh { position: fixed; inset: 0; height: 100vh; height: 100dvh; z-index: 220; display: flex; flex-direction: column; background: #021a0c; color: #3dff8a; font-family: var(--font-display); letter-spacing: 2px; user-select: none; -webkit-user-select: none; }
@@ -783,6 +791,12 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .rm-vh-loot li b { text-align: center; font-weight: 400; }
 .rm-vh-loot button { background: transparent; color: #3dff8a; border: 1px solid #3dff8a; font: inherit; font-size: 20px; line-height: 1; padding: 0; height: 26px; cursor: pointer; }
 .rm-vh-loot button:disabled { opacity: 0.3; }
+.rm-vh-recipe li { grid-template-columns: 1fr 30px auto 26px; }
+.rm-vh-recipe li b { text-align: right; font-size: 22px; }
+.rm-vh-recipe li i { font-size: 16px; text-align: right; padding-left: 6px; }
+.rm-vh-recipe li em { font-style: normal; text-align: center; }
+.rm-vh-recipe li.short { color: #ff9d3d; }
+.rm-vh-recipe li.short i { color: #ff9d3d; }
 .rm-vh-kinds { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .rm-vh-kinds button { display: grid; justify-items: center; gap: 2px; padding: 8px; background: transparent; color: #3dff8a; border: 1px solid #3dff8a; font: inherit; font-size: 22px; letter-spacing: 3px; cursor: pointer; }
 .rm-vh-kinds button:hover:not(:disabled) { background: rgba(61, 255, 138, 0.15); }
@@ -801,4 +815,21 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .rm-board-lv, .rm-board-places { color: var(--ink-dim); font-size: 13px; white-space: nowrap; }
 .rm-board-row.mine { background: rgba(61, 255, 138, 0.12); box-shadow: inset 3px 0 0 var(--ink); }
 html[data-look='parchment'] .rm-board-row.mine { background: rgba(120, 80, 20, 0.14); }
+/* the question asked before any loot is spent */
+.rm-confirm { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; padding: 14px; background: rgba(0, 8, 3, 0.78); font-family: var(--font-display); letter-spacing: 2px; }
+.rm-confirm-card { width: min(420px, 100%); max-height: 100%; overflow: auto; padding: 14px 16px 16px; background: var(--panel, #021a0c); color: var(--ink); border: 2px solid var(--ink); box-shadow: 0 0 24px var(--glow); }
+.rm-confirm-card h3 { margin: 0 0 8px; font-weight: 400; font-size: 26px; }
+.rm-confirm-card p { margin: 0 0 8px; font-size: 19px; line-height: 1.15; }
+.rm-confirm-card p b { font-weight: 400; color: var(--ink); text-shadow: 0 0 8px var(--glow); }
+.rm-confirm-lines { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 2px; }
+.rm-confirm-lines li { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; font-size: 18px; border-bottom: 1px dashed var(--line); padding: 2px 0; }
+.rm-confirm-lines li b { font-weight: 400; } .rm-confirm-lines li i { font-style: normal; color: var(--ink-dim); min-width: 78px; text-align: right; }
+.rm-confirm-qty { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.rm-confirm-qty button { width: 44px; height: 40px; font: inherit; font-size: 26px; line-height: 1; color: var(--ink); background: transparent; border: 2px solid var(--ink); cursor: pointer; }
+.rm-confirm-qty button:disabled { opacity: 0.35; }
+.rm-confirm-qty b { min-width: 46px; text-align: center; font-weight: 400; font-size: 34px; }
+.rm-confirm-qty span { font-size: 16px; color: var(--ink-dim); }
+.rm-confirm-note { color: #ff9d3d; }
+.rm-confirm-row { display: flex; gap: 10px; justify-content: flex-end; }
+.rm-confirm-vault { --ink: #3dff8a; --ink-dim: #13a550; --line: #0a5a2c; --glow: rgba(61, 255, 138, 0.5); --panel: #021a0c; --on-ink: #021a0c; }
 .rm-link { background: none; border: none; padding: 0; color: var(--ink); font: inherit; text-decoration: underline; cursor: pointer; }

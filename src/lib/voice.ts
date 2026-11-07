@@ -33,15 +33,49 @@ export function stopSpeaking(): void {
   if (voiceAvailable()) window.speechSynthesis.cancel();
 }
 
+interface NativeVoice { index?: number; lang: string; pitch: number; rate: number; name: string }
+let nativeChoice: Promise<NativeVoice> | null = null;
+
+/**
+ * The phone's voice for the navigation, found once. A British butler robot (Codsworth) if the phone has a British male voice: the best one it has, with "Premium" and
+ * "Enhanced" ones (which can be downloaded in Settings, Accessibility, Spoken Content, Voices) ahead of the plain ones, and a little lower and slower than a person so it
+ * sounds built rather than born. With no British voice, the machine goes evil instead: one of the phone's robot or deep novelty voices, or failing those a low, slow
+ * English one. (An app can only use the voices the phone has installed; it cannot add its own.)
+ */
+function chooseNativeVoice(): Promise<NativeVoice> {
+  nativeChoice ??= (async (): Promise<NativeVoice> => {
+    const butler = { pitch: 0.82, rate: 0.93 };
+    const evil = { pitch: 0.5, rate: 0.82 };
+    try {
+      const { voices } = await TextToSpeech.getSupportedVoices();
+      const named = voices.map((v, index) => ({ v, index, name: v.name ?? '' }));
+      const quality = (n: string) => (/premium/i.test(n) ? 8 : /enhanced/i.test(n) ? 5 : 0);
+      const british = named
+        .filter(({ v }) => /^en[-_]GB/i.test(v.lang ?? ''))
+        .map((x) => ({ ...x, score: (/\b(arthur|daniel|oliver|malcolm|gordon|thomas|james|george)\b/i.test(x.name) ? 20 : /\b(kate|serena|martha|stephanie|fiona|moira|susan)\b/i.test(x.name) ? 0 : 6) + (/arthur/i.test(x.name) ? 6 : /daniel/i.test(x.name) ? 4 : 0) + quality(x.name) }))
+        .sort((p, q) => q.score - p.score)[0];
+      if (british && british.score >= 6) return { index: british.index, lang: british.v.lang, name: british.name, ...butler };
+      const robot = named.find(({ name }) => /zarvox|trinoids|bad news|albert|fred|ralph|junior/i.test(name));
+      if (robot) return { index: robot.index, lang: robot.v.lang || 'en-US', name: robot.name, ...evil };
+      if (british) return { index: british.index, lang: british.v.lang, name: british.name, ...butler };
+      const deep = named.find(({ v, name }) => /^en/i.test(v.lang ?? '') && /\b(alex|aaron|reed|rocko|evan|nathan|tom)\b/i.test(name));
+      if (deep) return { index: deep.index, lang: deep.v.lang, name: deep.name, ...evil };
+    } catch { /* the phone would not list its voices: ask for British English by language */ }
+    return { lang: 'en-GB', name: 'default', ...butler };
+  })();
+  return nativeChoice;
+}
+
 /** Says it, in the machine's voice, over whatever it was saying. */
 export function speak(text: string): void {
   if (!voiceEnabled() || !text) return;
   if (isNative()) {
     // 'playback' so it is heard with the screen locked, over the car's speakers, with other audio lowered meanwhile
-    void TextToSpeech.speak({ text, lang: 'en-GB', rate: 0.9, pitch: 0.5, volume: 1, category: 'playback', queueStrategy: QueueStrategy.Flush }).catch(() => {
-      // no British voice on this phone: any English one will do
-      void TextToSpeech.speak({ text, lang: 'en-US', rate: 0.9, pitch: 0.5, volume: 1, category: 'playback', queueStrategy: QueueStrategy.Flush }).catch(() => undefined);
-    });
+    void chooseNativeVoice().then((c) => TextToSpeech.speak({ text, lang: c.lang, ...(c.index !== undefined ? { voice: c.index } : {}), rate: c.rate, pitch: c.pitch, volume: 1, category: 'playback', queueStrategy: QueueStrategy.Flush }))
+      .catch(() => {
+        // that voice would not speak: any English one will do
+        void TextToSpeech.speak({ text, lang: 'en-US', rate: 0.9, pitch: 0.5, volume: 1, category: 'playback', queueStrategy: QueueStrategy.Flush }).catch(() => undefined);
+      });
     return;
   }
   const synth = window.speechSynthesis;
