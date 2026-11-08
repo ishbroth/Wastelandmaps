@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
 import { freeRenderFor } from '../lib/renders';
 import { LOOT_CAP } from '../lib/raid/loot';
+import { waitingLine } from '../lib/waitingLoot';
 import { enemiesLine, homePlan, lootSummary, planEnemies, planFor, raidFor } from '../lib/raid/raid';
 import { personalId } from '../lib/personal';
 import { purchasesAvailable } from '../lib/native';
@@ -114,6 +115,7 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
                 <b>{l.name}{visited.has(l.id) ? ' ✓' : ''}{cleared.has(l.id) ? ' [CLEARED]' : ''}</b>
                 <i>{subtitle(l)}</i>
                 <small>{enemiesLine(l)}{l.rads > 60 ? ` · ${l.rads} RADS` : ''} · loot: {lootSummary(raidFor(l))}</small>
+                {waitingLine(account.waiting.get(l.id)) && <small className="rm-waiting">WAITING FOR YOU: {waitingLine(account.waiting.get(l.id))}</small>}
               </span>
               <span className="rm-row-dist">{miles(d)}</span>
             </button>

@@ -41,7 +41,7 @@ export type FamousIconId =
   | 'main300' | 'parliamentcanada' | 'maryqueen' | 'notredamemontreal' | 'maestria' | 'quebecparliament'
   | 'chateaufrontenac' | 'halifaxclock' | 'customhouseme' | 'industrialtrust' | 'travelerstower' | 'buffalocityhall'
   | 'empirestateplaza';
-export type IconId = BaseIconId | FamousIconId | `local:${string}`;
+export type IconId = BaseIconId | FamousIconId | `local:${string}` | `vacation:${string}`;
 /** Makers for icons that are built from their id (the local landmarks of famousIcons2.ts). */
 export const ICON_MAKERS: ((id: string) => string | undefined)[] = [];
 /** Filled in by famousIcons.ts when it loads. */
@@ -297,3 +297,11 @@ export function addressIcon(kind: 'house' | 'park' | 'office' | 'church' | 'medi
   if (kind === 'office') return ['monument', 'column', 'flag', 'statue', 'ringart'].includes(picked) ? 'skyscraper' : picked;
   return picked;
 }
+
+/** A vacation vault on the map: the vault cog (as the home vault's) with the place's own icon, as it was, inside it. Made from the id "vacation:<the old icon's id>". */
+function vacationIcon(innerId: string): string {
+  const inner = placeIcon(innerId as IconId);
+  const body = inner.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '');
+  return svg(`<path class="f" fill-rule="evenodd" d="${COG}${cut(12, 12, 7.6)}"/><g transform="translate(5.9 5.9) scale(0.508)">${body}</g>`);
+}
+ICON_MAKERS.push((id) => (id.startsWith('vacation:') ? vacationIcon(id.slice('vacation:'.length)) : undefined));

@@ -38,6 +38,9 @@ export const METRO_COST = 48;
 
 export interface Home { placeId?: string; name?: string; address?: string; lat?: number; lng?: number; skipped: boolean; /** The four-digit number of their home vault. */ vaultNumber?: number }
 
+/** A place turned into a vacation vault: where it is, what it was called and the icon it had (it is drawn inside a vault cog now). */
+export interface Vacation { placeId: string; name: string; icon: string; lat: number; lng: number }
+
 export interface Account {
   /** Where home is (null until they have said or skipped), and whether that is known yet. */
   home: Home | null;
@@ -48,6 +51,8 @@ export interface Account {
   metrosCleared: Set<string>;
   /** The places they have looted, by the metro that was on the map at the time. */
   clearedByMetro: Map<string, Set<string>>;
+  /** The loot waiting at each cleared place that has not been discovered yet (released the moment it is). */
+  waiting: Map<string, LootBag>;
   /** The places looted whose loot has been delivered (all of them, except a permanent landmark fought from afar and not yet discovered). */
   clearedPaid: Set<string>;
   /** Addresses they have travelled to: their own pins. */
@@ -71,6 +76,8 @@ export interface Account {
   /** Legendary Time in the pack (it slows the enemies in the shooting gallery for four seconds). */
   legendaryTime: number;
   arsenal: Arsenal;
+  /** Their vacation vaults (up to four): places turned into extra vaults. */
+  vacations: Vacation[];
   /** Places they have already looted: each can be looted once, and shows [Cleared] on the map. */
   cleared: Set<string>;
   refresh: () => Promise<void>;
@@ -87,6 +94,7 @@ export function useAccount(): Account {
   const [loot, setLoot] = useState<LootBag>({});
   const [stimpaks, setStimpaks] = useState(0);
   const [legendaryTime, setLegendaryTime] = useState(0);
+  const [vacations, setVacations] = useState<Vacation[]>([]);
   const [arsenal, setArsenal] = useState<Arsenal>(STARTING_ARSENAL);
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [personal, setPersonal] = useState<PersonalPlace[]>([]);
@@ -95,6 +103,7 @@ export function useAccount(): Account {
   const [metros, setMetros] = useState<Set<string>>(new Set());
   const [metrosCleared, setMetrosCleared] = useState<Set<string>>(new Set());
   const [clearedPaid, setClearedPaid] = useState<Set<string>>(new Set());
+  const [waiting, setWaiting] = useState<Map<string, LootBag>>(new Map());
   const [clearedByMetro, setClearedByMetro] = useState<Map<string, Set<string>>>(new Map());
 
   const load = async (s: Session | null) => {
@@ -106,6 +115,7 @@ export function useAccount(): Account {
       setLoot({});
       setStimpaks(0);
       setLegendaryTime(0);
+      setVacations([]);
       setArsenal(STARTING_ARSENAL);
       setCleared(new Set());
       setPersonal([]);
@@ -115,6 +125,7 @@ export function useAccount(): Account {
       setMetrosCleared(new Set());
       setClearedByMetro(new Map());
       setClearedPaid(new Set());
+      setWaiting(new Map());
       return;
     }
     // loot and guns (empty if the raids migration has not been run)
@@ -123,7 +134,9 @@ export function useAccount(): Account {
       db().from('player_weapons').select('weapon_class,tier').eq('user_id', s.user.id),
       db().from('player_stimpaks').select('qty').eq('user_id', s.user.id).maybeSingle(),
       db().from('player_time').select('qty').eq('user_id', s.user.id).maybeSingle(),
-    ]).then(([l, w, st, tm]) => {
+      db().from('vacation_vault').select('place_id,name,icon,lat,lng').eq('user_id', s.user.id).eq('status', 'ready'),
+    ]).then(([l, w, st, tm, vc]) => {
+      setVacations(((vc.data ?? []) as { place_id: string; name: string; icon: string; lat: number; lng: number }[]).map((r) => ({ placeId: r.place_id, name: r.name, icon: r.icon, lat: r.lat, lng: r.lng })));
       setStimpaks((st.data?.qty as number | undefined) ?? 0);
       setLegendaryTime((tm.data?.qty as number | undefined) ?? 0);
       const bag: LootBag = {};
@@ -133,8 +146,17 @@ export function useAccount(): Account {
       setLoot(bag);
       setArsenal(guns);
     });
-    void db().from('raid_runs').select('place_id,metro_id,paid').eq('user_id', s.user.id).eq('won', true).then((r) => {
-      const rows = (r.data ?? []) as { place_id: string; metro_id: string | null; paid: boolean | null }[];
+    void db().from('raid_runs').select('place_id,metro_id,paid,loot').eq('user_id', s.user.id).eq('won', true).then((r) => {
+      const rows = (r.data ?? []) as { place_id: string; metro_id: string | null; paid: boolean | null; loot: LootBag | null }[];
+      // cleared, but not yet discovered: the loot is held with the place
+      const held = new Map<string, LootBag>();
+      for (const x of rows) {
+        if (x.paid !== false || !x.loot) continue;
+        const bag = held.get(x.place_id) ?? {};
+        for (const [k, n] of Object.entries(x.loot)) bag[k as LootId] = (bag[k as LootId] ?? 0) + (n ?? 0);
+        held.set(x.place_id, bag);
+      }
+      setWaiting(held);
       setCleared(new Set(rows.map((x) => x.place_id)));
       // looted AND delivered: a permanent landmark fought from afar is only delivered once it is discovered
       const delivered = rows.filter((x) => x.paid !== false);
@@ -191,7 +213,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, legendaryTime, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, clearedPaid, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, legendaryTime, vacations, waiting, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, clearedPaid, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -528,7 +550,31 @@ export async function loadClearable(metroId: string): Promise<string[]> {
 export type VaultAnswer = { ok: true; vault: VaultHome; version: number } | { ok: false; reason: string };
 
 /** Asks the vault function to do something: 'visit', 'build', 'furnish' or 'settler'. */
-export async function vaultCall(body: { action: 'visit' } | { action: 'build'; type: string; col: number; row: number } | { action: 'furnish'; room: number; item: string } | { action: 'settler'; kind: string }): Promise<VaultAnswer> {
+export async function vaultCall(body: ({ action: 'visit' } | { action: 'build'; type: string; level: number; col: number; row: number } | { action: 'furnish'; room: number; item: string } | { action: 'settler'; kind: string }) & { vault?: string }): Promise<VaultAnswer> {
   const { data, error } = await db().functions.invoke('vault', { body });
   return error || !data ? { ok: false, reason: 'server' } : (data as VaultAnswer);
+}
+
+// ---- vacation vaults (the vacation-vault function: it makes the picture with the vault door in it and takes the loot) ----
+
+export type VacationAnswer = { ok: true; url: string } | { ok: false; error: string; resetsAt?: string };
+
+/** Turns a discovered place into a vacation vault: its picture is made again with a vault door in it, and 8 pieces of loot are taken once it exists. */
+export async function vacationUnlock(placeId: string, icon: string): Promise<VacationAnswer> {
+  const { data, error } = await db().functions.invoke('vacation-vault', { body: { action: 'unlock', placeId, icon } });
+  if (error || !data) {
+    // a refusal comes back as an error with a body: read what it said
+    try { const body = await (error as { context?: Response } | null)?.context?.json?.(); if (body?.error) return { ok: false, error: String(body.error), resetsAt: body.resetsAt }; } catch { /* no body */ }
+    return { ok: false, error: 'server' };
+  }
+  const r = data as { status?: string; url?: string; error?: string };
+  if (r.status === 'ready' && r.url) return { ok: true, url: r.url };
+  if (r.status === 'working') return { ok: false, error: 'working' };
+  return { ok: false, error: r.error ?? 'server' };
+}
+
+/** A link to the picture of one of their vacation vaults (the place with the vault door in it). */
+export async function vacationPicture(placeId: string): Promise<string | null> {
+  const { data } = await db().functions.invoke('vacation-vault', { body: { action: 'url', placeId } });
+  return (data as { url?: string } | null)?.url ?? null;
 }

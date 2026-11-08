@@ -6,7 +6,9 @@ import { distanceMeters, subtitle, type LatLng, type Spot, type Wasteland } from
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
 /** The card that opens on the map when a place is selected: what it is, what it would cost to get there, and the two things to do about it. */
-export default function LocationCard({ spot, from, here, visited, cleared, unlocked, enemies, onRename, traveling, onTravel, onScene, onEnter, onClose }: {
+export default function LocationCard({ waiting, spot, from, here, visited, cleared, unlocked, enemies, onRename, traveling, onTravel, onScene, onEnter, onClose }: {
+  /** The loot waiting here until the place is discovered, as a short line. */
+  waiting?: string;
   spot: Spot;
   /** Where the device is (while AUTO-DISCOVER is on), or null. */
   from: LatLng | null;
@@ -61,6 +63,7 @@ export default function LocationCard({ spot, from, here, visited, cleared, unloc
       <p className="rm-card-meta">
         {spot.personal ? <>{spot.personal.home ? 'YOUR HOME' : cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : spot.personal.atlas ? 'ADDRESS ATLAS' : spot.personal.saved ? 'YOUR PLACE · DISCOVERED' : 'DESTINATION'}{enemies ? ` · ${enemies}` : ''}</> : <>{cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : visited ? 'DISCOVERED' : 'UNDISCOVERED'}{enemies ? ` · ${enemies}` : ''}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}</>}
       </p>
+      {waiting && <p className="rm-waiting">WAITING FOR YOU: {waiting}</p>}
       {!here && from && (
         <p className="rm-card-trip">
           <span>{miles(away)} from you</span>

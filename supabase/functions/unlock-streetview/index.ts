@@ -114,7 +114,7 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
   try {
     const cap = dailyRenderCap();
     const since = new Date(); since.setUTCHours(0, 0, 0, 0);
-    const counts = await Promise.all(['renders', 'address_renders', 'home_renders'].map((t) => db.from(t).select('*', { count: 'exact', head: true }).gte('started_at', since.toISOString())));
+    const counts = await Promise.all(['renders', 'address_renders', 'home_renders', 'vacation_vault'].map((t) => db.from(t).select('*', { count: 'exact', head: true }).gte('started_at', since.toISOString())));
     if (counts.reduce((n: number, c: { count: number | null }) => n + (c.count ?? 0), 0) >= cap) { await giveBack(); return reply(req, { error: 'busy', resetsAt: nextRenderReset() }, 503); }
     const row = { user_id: user, google_id: googleId, vault_number: number, status: 'generating', storage_path: null, started_at: new Date().toISOString() };
     const claim = existing

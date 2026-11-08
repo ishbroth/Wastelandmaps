@@ -10,6 +10,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { wastelandName } from '../src/lib/lore.ts';
 import { distanceMeters, hashString } from '../src/lib/wasteland.ts';
+import { FAMOUS } from '../src/lib/famous.ts';
+import { loadLand } from './land.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const RAW = path.join(ROOT, '_data', 'raw');
@@ -337,6 +339,15 @@ const RADIUS_OVERRIDE: Record<string, number> = { 'us-ca-los-angeles': 46, 'us-c
 /** Places east of this longitude belong to The Hub, not to the metro named. */
 const EXCLUDE_EAST: Record<string, number> = { 'us-ca-los-angeles': -117.75, 'us-ca-anaheim': -117.75 };
 
+/** Land and sea: an icon has to be somewhere you can get to (by road, or by ferry or plane and then on foot), not out in the water. */
+const land = loadLand();
+const FAMOUS_IDS = new Set((FAMOUS as { qid?: string }[]).map((x) => x.qid).filter(Boolean) as string[]);
+/** Places that are meant to be on a rock or a pier in the water: reached by boat. */
+const BY_BOAT = /light ?house|\blight\b|farol|phare|faro\b|leuchtturm|\bisland\b|\bisle\b|\bilha\b|\bisla\b|\bîle\b|\bcay\b|\bpier\b/i;
+/** The water's edge may be a kilometer off in the coarse coastline: a place has to be farther out than that to count as in the sea. */
+const SEA_TOLERANCE_M = 1500;
+export const inTheSea = (id: string, name: string, lat: number, lng: number): boolean => !FAMOUS_IDS.has(id) && !BY_BOAT.test(name) && !land.onLand(lat, lng, SEA_TOLERANCE_M);
+
 /** Not wanted on any map (the Statue of Liberty National Monument is the same spot as the Statue of Liberty). */
 const DROPPED_ITEMS = new Set(['Q359939']);
 
@@ -355,6 +366,7 @@ function candidatesOf(metro: Metro, rows: Row[]): Place[] {
     if (distanceMeters(metro.city, row) / 1000 > metro.radiusKm) continue;
     if (EXCLUDE_EAST[metro.id] !== undefined && row.lng > EXCLUDE_EAST[metro.id]) continue;
     if (countryAt(row.lat, row.lng) !== metro.city.country) continue; // a border ends a metro
+    if (inTheSea(row.item, row.label, row.lat, row.lng)) continue; // out in the water: nobody can get there
     // the towns, suburbs and villages of the metro stand for the outer parts of it: a neighborhood-kind place away from the middle
     const settlement = classes.some((l) => /^(city|town|village|borough|suburb|census-designated place|unincorporated community|hamlet)/i.test(l));
     const category = categoryOf(classes) ?? (settlement && distanceMeters(metro.city, row) / 1000 > 3 ? 'other' : null);
@@ -375,8 +387,12 @@ function candidatesOf(metro: Metro, rows: Row[]): Place[] {
   return out.sort((x, y) => y.sl - x.sl);
 }
 
-async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
-  const n = wanted(metro.pop);
+/** A place already in a metro's file, as a Place (so a second pass can keep it and add more around it). */
+type Stored = [string, string, number, number, string, number, number];
+const fromStored = (p: Stored): Place => ({ id: p[0], name: p[1], lat: p[2], lng: p[3], category: p[4], sl: p[5], fame: p[5], station: false, neighborhood: p[6] === 1, gov: false, downtown: false });
+
+async function choose(metro: Metro, rows: Row[], keep: Stored[] = [], total?: number): Promise<Place[]> {
+  const n = total ?? wanted(metro.pop);
   const all = candidatesOf(metro, rows.concat(await fetchExtraRows(metro), await fetchDowntownRows(metro)));
   // look at the best few times what is needed, and prefer the ones that have a photo to make a snapshot from
   const pool = all.slice(0, Math.min(2600, n * 6 + 40)); // a wider look, so the outer parts of a metro have candidates too
@@ -390,7 +406,7 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
   const area = Math.PI * Math.min(metro.radiusKm, 55) ** 2;
   const baseGap = 0.42 * Math.sqrt(area / n);
   if (process.env.DEBUGZONES) { const zc = (list: Place[]) => [0, 0, 0].map((_, z) => list.filter((c) => { const d = distanceMeters(metro.city, c) / 1000; return (d <= Math.min(metro.radiusKm, 55) * 0.2 ? 0 : d <= Math.min(metro.radiusKm, 55) * 0.5 ? 1 : 2) === z; }).length).join('/'); console.log('candidates', all.length, zc(all), 'pool', pool.length, zc(pool), 'wanted', n); }
-  const picked: Place[] = [];
+  const picked: Place[] = keep.map(fromStored);
   const count = (cat: string) => picked.filter((p) => p.category === cat).length;
   // stops of a line: about 3% of a metro's places, a little more only if the metro has hardly anything else to show
   let stationShare = 0.015;
@@ -475,6 +491,11 @@ async function choose(metro: Metro, rows: Row[]): Promise<Place[]> {
   return picked;
 }
 
+// ---- 4b. the extra pass: more icons for the metros of 100,000 to 3 million, and the sea cleaned out ----
+//   EXTRA=1 npx tsx _tools/build-metros.ts      keeps every place a metro has (unless it is out in the water) and adds more, around them:
+//   100,000 to 500,000 people: 3 more, 500,000 to 1 million: 5 more, 1 to 3 million: 8 more.
+const extraFor = (pop: number) => (pop >= 1_000_000 && pop <= 3_000_000 ? 8 : pop >= 500_000 && pop < 1_000_000 ? 5 : pop >= 100_000 && pop < 500_000 ? 3 : 0);
+
 // ---- 5. run ----
 const only = process.argv[2]?.toLowerCase();
 const metros = findMetros().filter((m) => !only || m.city.name.toLowerCase().includes(only));
@@ -489,6 +510,60 @@ interface IndexEntry { id: string; name: string; country: string; lat: number; l
 const indexPath = path.join(OUT, 'index.json');
 const index = new Map<string, IndexEntry>();
 if (fs.existsSync(indexPath)) for (const e of JSON.parse(fs.readFileSync(indexPath, 'utf8')) as IndexEntry[]) index.set(e.id, e);
+
+if (process.env.EXTRA) {
+  let n = 0, added = 0, dropped = 0;
+  for (const metro of metros) {
+    const extra = extraFor(metro.pop);
+    const file = path.join(OUT, 'metros', `${metro.id}.json`);
+    if (!fs.existsSync(file)) continue;
+    if (!extra) {
+      // the biggest metros get no extra icons, but they are cleaned of anything out in the water too
+      const body0 = JSON.parse(fs.readFileSync(file, 'utf8')) as { places: Stored[] };
+      const dry = body0.places.filter((p) => !inTheSea(p[0], p[1], p[2], p[3]));
+      if (dry.length !== body0.places.length) {
+        dropped += body0.places.length - dry.length;
+        body0.places = dry;
+        fs.writeFileSync(file, JSON.stringify(body0));
+        const entry0 = index.get(metro.id);
+        if (entry0) entry0.places = dry.length;
+      }
+      continue;
+    }
+    const body = JSON.parse(fs.readFileSync(file, 'utf8')) as { places: Stored[]; extra?: number; [k: string]: unknown };
+    if (body.extra) continue; // already done
+    const before = body.places.length;
+    const kept = body.places.filter((p) => !inTheSea(p[0], p[1], p[2], p[3]));
+    dropped += before - kept.length;
+    let places: Place[] = [];
+    try {
+      for (const minSl of metro.pop > 1_000_000 ? [8, 5, 3, 2] : [4, 3, 2, 1]) {
+        const saved = fs.existsSync(rowsCache(metro, minSl));
+        const rows = await fetchRows(metro, minSl);
+        if (!saved) await sleep(900);
+        places = await choose(metro, rows, kept, before + extra);
+        if (places.length >= before + extra) break;
+      }
+    } catch (e) {
+      console.log(`  ${metro.city.name}: failed (${e instanceof Error ? e.message : e}), will retry next run`);
+      continue;
+    }
+    // the ones that were kept stay exactly as they were; only the new ones are written from the candidates
+    const keptIds = new Set(kept.map((p) => p[0]));
+    const fresh = places.filter((p) => !keptIds.has(p.id)).map((p) => [p.id, p.name, Number(p.lat.toFixed(5)), Number(p.lng.toFixed(5)), p.category, Math.min(999, p.fame), p.neighborhood ? 1 : 0] as Stored);
+    body.places = [...kept, ...fresh];
+    body.extra = extra;
+    fs.writeFileSync(file, JSON.stringify(body));
+    const entry = index.get(metro.id);
+    if (entry) entry.places = body.places.length;
+    added += body.places.length - before;
+    n++;
+    if (n % 25 === 0) { fs.writeFileSync(indexPath, JSON.stringify([...index.values()].sort((a, b) => b.pop - a.pop))); console.log(`[${n}] ${metro.city.name}: ${before} -> ${body.places.length}`); }
+  }
+  fs.writeFileSync(indexPath, JSON.stringify([...index.values()].sort((a, b) => b.pop - a.pop)));
+  console.log(`extra pass: ${n} metros, net ${added} more places, ${dropped} dropped from the sea`);
+  process.exit(0);
+}
 
 let done = 0;
 for (const metro of metros) {

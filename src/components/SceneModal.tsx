@@ -3,7 +3,7 @@ import Caps from './Caps';
 import CogSpinner from './CogSpinner';
 import LockIcon from './LockIcon';
 import BuyCaps from './BuyCaps';
-import { accountsEnabled, caps, checkAddress, type Account } from '../lib/account';
+import { accountsEnabled, caps, checkAddress, vacationPicture, type Account } from '../lib/account';
 import { freeRenderFor } from '../lib/renders';
 import { usePaidRender } from '../lib/usePaidRender';
 import { findSnapshot, type Snapshot } from '../lib/snapshot';
@@ -18,7 +18,7 @@ import BlowApart from './BlowApart';
 import RaidScreen from './RaidScreen';
 import ProjectorDown from './ProjectorDown';
 import { buzz } from '../lib/haptics';
-import VaultHome from './VaultHome';
+import VaultHome, { type VacationOffer } from './VaultHome';
 import { spawnsFor } from '../lib/raid/spawnData';
 import { lootSummary, planEnemies, type RaidPlan } from '../lib/raid/raid';
 import { lootName } from '../lib/raid/loot';
@@ -30,7 +30,9 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ zones = [], startOn = 'scene', startRaid = false, spot, regionName, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
+export default function SceneModal({ vacation, zones = [], startOn = 'scene', startRaid = false, spot, regionName, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
+  /** What the home vault needs to offer vacation vaults. */
+  vacation?: VacationOffer;
   /** The metro the map is showing: an address rendered here belongs to its atlas. */
   metroId?: string | null;
   /** The radiation clouds on the map. */
@@ -46,13 +48,6 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
   const [raiding, setRaiding] = useState(false);
   const [entering, setEntering] = useState(false);
   const [buying, setBuying] = useState(false);
-  // the reason the LOOT button will not work yet, flashed over the picture
-  const [needDiscover, setNeedDiscover] = useState(0);
-  useEffect(() => {
-    if (!needDiscover) return;
-    const t = window.setTimeout(() => setNeedDiscover(0), 3800);
-    return () => window.clearTimeout(t);
-  }, [needDiscover]);
   // the photo search answers for one place at a time; until it answers for this one, we are still searching (the vault is made up: no photo)
   const [found, setFound] = useState<{ id: string; snapshot: Snapshot | null } | null>(null);
   const snapshot: Snapshot | null | 'searching' = spot.kind === 'vault' ? null : found?.id === spot.id ? found.snapshot : 'searching';
@@ -106,13 +101,23 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
   const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated }, !!rendered?.owned || homeOwned);
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
-  const locked = canPay && !paidReady;
+  // a vacation vault: its picture is the place with a vault door in it (made when it was unlocked)
+  const vacationPlace = account.vacations.some((v) => v.placeId === spot.id);
+  const [vacationUrl, setVacationUrl] = useState<{ id: string; url: string } | null>(null);
+  useEffect(() => {
+    if (!vacationPlace) return;
+    let off = false;
+    void vacationPicture(spot.id).then((url) => { if (!off && url) setVacationUrl({ id: spot.id, url }); });
+    return () => { off = true; };
+  }, [vacationPlace, spot.id]);
+  const vacationReveal = vacationPlace && vacationUrl?.id === spot.id ? { before: vacationUrl.url, after: vacationUrl.url, name: spot.name, file: `${spot.name.replace(/[^A-Za-z0-9]+/g, '-')}-vault-wastelandmaps.png`, pristine: true, credit: null } : null;
+  const locked = canPay && !paidReady && !vacationPlace;
 
   // what the reveal plays between: the real photo, and the finished picture
-  const reveal = render
+  const reveal = vacationReveal ?? (render
     ? { before: render.before, after: render.url, name: render.name, file: `${render.name.replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`, pristine: !!render.pristine, credit: render.pristine ? null : { photo: render.photo, author: render.author, license: render.license, page: render.page } }
     : paidReady && personal ? (beforeStreet?.id === spot.id ? { before: beforeStreet.url ?? '', after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : null)
-    : paidReady && (photo || supplied) ? { before: photo?.imageUrl ?? supplied ?? '', after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : null;
+    : paidReady && (photo || supplied) ? { before: photo?.imageUrl ?? supplied ?? '', after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : null);
 
   // look for the photo of the place (the famous few already come with their snapshot)
   useEffect(() => {
@@ -146,7 +151,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const snapshotAvailable = !!render || canPay || !!paidReady;
+  const snapshotAvailable = !!render || canPay || !!paidReady || !!vacationReveal;
 
   return (
     <div className="rm-modal" role="dialog" aria-modal="true" aria-label={spot.name} onClick={onClose}>
@@ -169,7 +174,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
             {!render && searching ? 'SNAPSHOT…' : snapshotAvailable ? <>SNAPSHOT <LockIcon open={!locked} /></> : 'NO SNAPSHOT'}
           </button>
           {reveal && raid && (
-            <button type="button" className={`rm-tab-loot${visited || render || spot.personal ? '' : ' rm-tab-loot-faded'}`} disabled={account.cleared.has(spot.id) && !home} onClick={() => (home && account.cleared.has(spot.id) ? setEntering(true) : visited || render || spot.personal ? setRaiding(true) : setNeedDiscover(Date.now()))} title={home && account.cleared.has(spot.id) ? 'Go into your home vault' : account.cleared.has(spot.id) ? 'Already cleared' : 'Fight what lives there and loot it'}>{home && account.cleared.has(spot.id) ? 'ENTER' : account.cleared.has(spot.id) ? 'CLEARED' : 'LOOT'}</button>
+            <button type="button" className="rm-tab-loot" disabled={account.cleared.has(spot.id) && !home} onClick={() => (home && account.cleared.has(spot.id) ? setEntering(true) : setRaiding(true))} title={home && account.cleared.has(spot.id) ? 'Go into your home vault' : account.cleared.has(spot.id) ? 'Already cleared' : 'Clear out what lives there (the loot is yours once you have discovered the place)'}>{home && account.cleared.has(spot.id) ? 'ENTER' : account.cleared.has(spot.id) ? 'CLEARED' : 'CLEAR'}</button>
           )}
         </div>
 
@@ -196,7 +201,6 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
           )}
           <div className="rm-modal-crt" aria-hidden="true" />
         </div>
-        {needDiscover > 0 && <div className="rm-modal-flash" key={needDiscover} role="alert">YOU MUST DISCOVER THIS LOCATION FIRST. GO THERE, OR FAST TRAVEL TO IT, THEN COME BACK TO LOOT IT.</div>}
 
         {tab === 'snapshot' && reveal && personal && (
           <p className="rm-modal-credit">{home ? 'Made from Google Street View imagery. The original is shown straight from Google and is not kept by us; only this render is kept, and only you can open it.' : 'Made from Google Street View imagery. The original is shown straight from Google and is not kept by us. This render is part of the public atlas: everyone who unlocks this address sees the same picture, and it has a page of its own on the site.'}</p>
@@ -221,7 +225,7 @@ export default function SceneModal({ zones = [], startOn = 'scene', startRaid = 
         )}
       </div>
       {buying && <BuyCaps onClose={() => setBuying(false)} onBought={() => void account.refresh()} />}
-      {entering && home && <VaultHome title={spot.name} account={account} onExit={() => setEntering(false)} />}
+      {entering && home && <VaultHome title={spot.name} account={account} onExit={() => setEntering(false)} vacation={vacation} />}
       {raiding && reveal && raid && (
         <RaidScreen metroId={metroId} plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} sound={sound} onExit={() => setRaiding(false)} onSignIn={onAccount} />
       )}

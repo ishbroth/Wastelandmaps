@@ -51,11 +51,13 @@ function floodLayerColor(look: Look, layer: number, alpha: number): string {
 /** Opacity of each nested layer of a flooded patch, outermost first: the streets go from this dim at the shore to nearly gone in the deepest part. */
 function floodLayerAlphas(strength: number, layers: number, edge = 0.16): number[] {
   if (layers <= 1) return [strength];
-  const deepest = Math.min(0.97, strength + 0.15); // a little darker than before, where it is deepest
+  // Where it is deepest the streets are very faint but still there (about 8% shows through). The edge starts dark enough (see floodEdge in looks.ts) that the
+  // outer layer's tint can cancel the land exactly: any lighter and the tint would have to go below black, and the water comes out lighter than the sea.
+  const deepest = Math.min(0.92, strength + 0.1);
   const out: number[] = [];
   let before = 0;
   for (let k = 0; k < layers; k++) {
-    const total = edge + (deepest - edge) * Math.pow(k / (layers - 1), 1.5); // how dark it should be after this layer
+    const total = edge + (deepest - edge) * Math.pow(k / (layers - 1), 0.5); // how dark (the streets fade out quickly in from the shore, then hold at nearly gone) it should be after this layer
     out.push(Math.min(0.99, Math.max(0.02, 1 - (1 - total) / (1 - before))));
     before = total;
   }

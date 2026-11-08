@@ -837,3 +837,21 @@ html[data-look='parchment'] .rm-board-row.mine { background: rgba(120, 80, 20, 0
 .rm-confirm-row { display: flex; gap: 10px; justify-content: flex-end; }
 .rm-confirm-vault { --ink: #3dff8a; --ink-dim: #13a550; --line: #0a5a2c; --glow: rgba(61, 255, 138, 0.5); --panel: #021a0c; --on-ink: #021a0c; }
 .rm-link { background: none; border: none; padding: 0; color: var(--ink); font: inherit; text-decoration: underline; cursor: pointer; }
+
+/* the vault floorplan: the arrows between levels, the flashing "why not" message, and the vacation button */
+.rm-vh-levels { position: absolute; right: max(4px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); z-index: 2; display: grid; justify-items: center; gap: 4px; padding: 4px 3px; background: rgba(2, 26, 12, 0.7); border: 1px solid #13a550; }
+.rm-vh-levels span { font-size: 13px; line-height: 1; text-align: center; letter-spacing: 1px; }
+.rm-vh-levels span i { display: block; font-style: normal; color: #13a550; font-size: 11px; margin-top: 2px; }
+.rm-vh-lv { width: 36px; height: 32px; background: transparent; color: #3dff8a; border: 1px solid #3dff8a; font: inherit; font-size: 18px; line-height: 1; cursor: pointer; }
+.rm-vh-lv:disabled { opacity: 0.25; cursor: default; }
+.rm-vh-lv.locked { border-style: dashed; opacity: 0.6; }
+.rm-vh-flash { margin: 0; padding: 5px 12px; background: #3dff8a; color: #021a0c; font-size: 18px; line-height: 1.15; animation: rm-vh-blink 0.7s steps(2) infinite; }
+.rm-vh-vac { margin-left: auto !important; }
+.rm-vh-leave { margin-left: 0 !important; }
+
+.rm-vh-viewwrap { flex: 1; position: relative; min-height: 0; display: flex; flex-direction: column; }
+.rm-vh-viewwrap > .rm-vh-view { flex: 1; }
+
+/* loot waiting at a place until it is discovered: small, in the list rows and on the info card */
+.rm-row-text small.rm-waiting, .rm-waiting { display: block; margin: 2px 0 0; font-size: 10px; letter-spacing: 0.5px; line-height: 1.2; color: var(--ink-dim); }
+.rm-waiting { font-family: var(--font-display); }

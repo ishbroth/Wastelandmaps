@@ -6,7 +6,7 @@ import AccountModal from './components/AccountModal';
 import FaceIdOffer from './components/FaceIdOffer';
 import { savedFaceIds } from './lib/faceid';
 import SceneModal from './components/SceneModal';
-import { accountsEnabled, atlasList, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import { accountsEnabled, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { startPurchases } from './lib/iap';
 import { keepScreenOn } from './lib/awake';
@@ -40,9 +40,12 @@ import { buzz } from './lib/haptics';
 import { START_MINUTES, type TravelRun } from './lib/travel';
 import NavBanner from './components/NavBanner';
 import { setVoiceEnabled, speak, spokenDistance, stopSpeaking, voiceEnabled } from './lib/voice';
+import type { VacationOffer } from './components/VaultHome';
+import { waitingLine } from './lib/waitingLoot';
+import { ferryUrl, isFerryByName, loadFerryIds, ROAD_STOPS_SHORT_M } from './lib/ferry';
 import { currentFix, flightsUrl, isOverseas, progressAlong, requestRoute, type NavRoute } from './lib/navigation';
 import {
-  VAULT_ID, distanceMeters, generateWasteland, spotFromLocation, vaultSpot,
+  VAULT_ID, distanceMeters, generateWasteland, locationFromData, spotFromLocation, vaultSpot,
   type CategoryId, type LatLng, type Location, type Spot, type Wasteland,
 } from './lib/wasteland';
 
@@ -84,7 +87,7 @@ export default function App() {
   // the "+50 XP" that flashes on the map when a place is discovered
   const [xpFlash, setXpFlash] = useState<{ text: string; id: number } | null>(null);
   const xpTimer = useRef<number | undefined>(undefined);
-  const [flightLink, setFlightLink] = useState<{ url: string; place: string } | null>(null);
+  const [flightLink, setFlightLink] = useState<{ url: string; place: string; ferry?: boolean } | null>(null);
   // everything this survivor has found (kept on the account when signed in)
   const [found, setFound] = useState<FoundPlace[]>([]);
   const foundRef = useRef<FoundPlace[]>([]);
@@ -93,7 +96,7 @@ export default function App() {
   // while zoomed out the top of the map names the continent, country or state instead of the city
   const [zoomName, setZoomName] = useState<string | null>(null);
   /** The home vault, opened straight from its card on the map (the title is its name). Null when it is not open. */
-  const [vaultOpen, setVaultOpen] = useState<string | null>(null);
+  const [vaultOpen, setVaultOpen] = useState<{ title: string; key?: string } | null>(null);
   // the title at the top of the screen never spills out of its box: a long name takes smaller letters, down to a floor
   const titleRef = useRef<HTMLDivElement | null>(null);
   const [regionLabels, setRegionLabels] = useState<RegionLabel[]>([]);
@@ -156,8 +159,53 @@ export default function App() {
   // what the map draws and what can be opened: the loaded city's places plus the permanent landmarks of the rest of the world
   const mapLocations = useMemo(() => {
     const have = new Set(allLocations.map((l) => l.id));
-    return [...allLocations, ...GLOBAL_LANDMARKS.filter((g) => !have.has(g.id))];
-  }, [allLocations]);
+    const base = [...allLocations, ...GLOBAL_LANDMARKS.filter((g) => !have.has(g.id))];
+    if (account.vacations.length === 0) return base;
+    // a vacation vault is drawn as a vault cog with the place's old icon inside, wherever it is (even when its own metro is not the one loaded)
+    const byId = new Map(account.vacations.map((v) => [v.placeId, v]));
+    const out = base.map((l) => { const v = byId.get(l.id); return v ? { ...l, icon: `vacation:${v.icon}` as Location['icon'], famous: true } : l; });
+    const present = new Set(out.map((l) => l.id));
+    for (const v of account.vacations) {
+      if (present.has(v.placeId)) continue;
+      out.push({ ...locationFromData(v.placeId, v.name, { lat: v.lat, lng: v.lng }, 'other', 999), icon: `vacation:${v.icon}` as Location['icon'], famous: true });
+    }
+    return out;
+  }, [allLocations, account.vacations]);
+  const vacationIds = useMemo(() => new Set(account.vacations.map((v) => v.placeId)), [account.vacations]);
+  /** Vacation vaults: the places they have discovered more than 80 km from home (outside the home metro area), and the way to turn one into a vault. */
+  const vacationOffer = useMemo<VacationOffer | undefined>(() => {
+    const h = account.home;
+    if (!account.session || h?.lat === undefined || h?.lng === undefined) return undefined;
+    const home = { lat: h.lat, lng: h.lng };
+    const have = new Set(account.vacations.map((v) => v.placeId));
+    const choices: VacationOffer['choices'] = [];
+    const seen = new Set<string>();
+    const add = (placeId: string, name: string, lat: number, lng: number, icon: string) => {
+      if (have.has(placeId) || seen.has(placeId)) return;
+      const km = distanceMeters(home, { lat, lng }) / 1000;
+      if (km < 80) return;
+      seen.add(placeId);
+      choices.push({ placeId, name, icon, km });
+    };
+    for (const f of found) add(f.id, f.name, f.lat, f.lng, mapLocations.find((l) => l.id === f.id)?.icon ?? 'monument');
+    // an address typed in whose snapshot has been unlocked
+    for (const p of account.personal) if (account.unlocked.has(`me:${p.placeId}`)) add(`me:${p.placeId}`, p.name, p.lat, p.lng, mapLocations.find((l) => l.id === `me:${p.placeId}`)?.icon ?? 'house');
+    choices.sort((a, b) => a.km - b.km);
+    return {
+      choices,
+      count: account.vacations.length,
+      unlock: async (placeId, icon) => {
+        const r = await vacationUnlock(placeId, icon);
+        if (r.ok) { await account.refresh(); return null; }
+        const says: Record<string, string> = {
+          loot: 'NOT ENOUGH LOOT', full: 'YOU ALREADY HAVE ALL FOUR VACATION VAULTS', too_close: 'THAT PLACE IS INSIDE YOUR HOME METRO AREA', too_few_rooms: 'BUILD TEN ROOMS FIRST',
+          no_picture: 'NO PICTURE OF THAT PLACE COULD BE FOUND: PICK ANOTHER. NOTHING WAS TAKEN', failed: 'THE PICTURE COULD NOT BE MADE. NOTHING WAS TAKEN: TRY AGAIN',
+          working: 'IT IS BEING MADE: TRY AGAIN IN A MINUTE', busy: 'THE VAULT PROJECTOR IS DOWN FOR NOW. NOTHING WAS TAKEN',
+        };
+        return says[r.error] ?? 'COULD NOT DO THAT RIGHT NOW';
+      },
+    };
+  }, [account, found, mapLocations]);
   /** The icon of a found place, for the Data tab's list: the place's own when it is on the loaded map, the landmark's when it is a permanent one. */
   const iconOfFound = useCallback((id: string): string => {
     const loc = mapLocations.find((l) => l.id === id);
@@ -368,7 +416,7 @@ export default function App() {
         setClearAsk({ id: ask.id, name: ask.name });
         void pushNotice(`Discovered ${ask.name}`, 'Clear the area now? Tap to open the fight.', ask.id);
       }
-      for (const p of fresh.filter((q) => freeRenderFor(q.id))) {
+      for (const p of fresh.filter((q) => freeRenderFor(q.id) || acc.waiting.has(q.id))) {
         const paid = await claimLoot(p.id);
         if (paid.claimed > 0) {
           const list = Object.entries(paid.loot).filter(([, n]) => (n ?? 0) > 0).map(([id, n]) => `+${n} ${id.toUpperCase()}`).join(' ');
@@ -857,6 +905,15 @@ export default function App() {
     say(`OVERSEAS: FLIGHTS TO ${place.toUpperCase()}`);
   }, [say]);
 
+  /** The search for ferries to an island, a lighthouse, a fort on a rock: a place with no road to it. */
+  const openFerries = useCallback(async (spot: Spot) => {
+    const place = spot.oldName ?? spot.name;
+    const url = ferryUrl(place);
+    const opened = await openExternal(url);
+    if (!opened) setFlightLink({ url, place, ferry: true });
+    say(`NO ROAD: FERRIES TO ${place.toUpperCase()}`);
+  }, [say]);
+
   const [voiceOn, setVoiceOn] = useState(voiceEnabled());
   const toggleVoice = useCallback(() => {
     setVoiceOn((on) => { setVoiceEnabled(!on); return !on; });
@@ -906,12 +963,28 @@ export default function App() {
       void openFlights(spot);
       return;
     }
+    // a place on an island or a rock: no road reaches it, so it is a ferry (the famous ones by name; the rest from the list the metro tools make)
+    const byBoat = isFerryByName(spot.oldName ?? spot.name) || isFerryByName(spot.name) || (await loadFerryIds()).has(spot.id.replace(/^wd:/, ''));
+    if (byBoat && isFerryByName(spot.oldName ?? spot.name)) {
+      setNav(null);
+      void openFerries(spot);
+      return;
+    }
     setNav({ spot, route: null, step: 0, toTurn: null, remaining: null, busy: 'ROUTING' });
     const answer = await requestRoute(here, spot.position);
     if (answer.kind === 'no_route') {
       setNav(null);
-      void openFlights(spot); // no road from here: it is across the water
+      void (byBoat ? openFerries(spot) : openFlights(spot)); // no road from here: it is across the water (a ferry if it is an island, else a flight)
       return;
+    }
+    if (answer.kind === 'route' && byBoat) {
+      // the road may only get as close as the shore: a ferry place whose road stops short is reached by boat
+      const end = answer.route.path[answer.route.path.length - 1];
+      if (end && distanceMeters(end, spot.position) > ROAD_STOPS_SHORT_M) {
+        setNav(null);
+        void openFerries(spot);
+        return;
+      }
     }
     if (answer.kind === 'unavailable') {
       // no route service could be reached: say so, and stay on the Pip-Boy map (the navigation is ours; it never hands over to another app)
@@ -925,7 +998,7 @@ export default function App() {
     setNav({ spot, route: answer.route, step: 0, toTurn: first?.meters ?? null, remaining: answer.route.meters, busy: '' });
     setMessage(`NAVIGATING TO ${spot.name.toUpperCase()}`);
     sound('travel');
-  }, [tracking, say, sound, openFlights]);
+  }, [tracking, say, sound, openFlights, openFerries]);
 
   /** Every new position while navigating: the next turn, the distance left, rerouting if you left the road, and arriving. */
   const onNavFix = useCallback(async (here: LatLng) => {
@@ -1136,8 +1209,8 @@ export default function App() {
           {toast && <div className={`rm-toast${flash ? ' rm-toast-flash' : ''}`} role="status">{toast}</div>}
           {flightLink && (
             <div className="rm-flights" role="status">
-              <span>OVERSEAS</span>
-              <a className="rm-btn" href={flightLink.url} target="_blank" rel="noopener noreferrer" onClick={() => setFlightLink(null)}>FLIGHTS TO {flightLink.place.toUpperCase()}</a>
+              <span>{flightLink.ferry ? 'NO ROAD' : 'OVERSEAS'}</span>
+              <a className="rm-btn" href={flightLink.url} target="_blank" rel="noopener noreferrer" onClick={() => setFlightLink(null)}>{flightLink.ferry ? 'FERRIES TO' : 'FLIGHTS TO'} {flightLink.place.toUpperCase()}</a>
               <button type="button" className="rm-btn rm-btn-ghost" onClick={() => setFlightLink(null)}>×</button>
             </div>
           )}
@@ -1161,13 +1234,13 @@ export default function App() {
             </div>
           )}
           {selectedSpot && wasteland && !sceneSpot && !nav && (
-            <LocationCard
+            <LocationCard waiting={waitingLine(account.waiting.get(selectedSpot.id))}
               spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
-              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen(selectedSpot.name); } : undefined} onClose={() => setSelectedId(null)}
+              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
-            <SceneModal
+            <SceneModal vacation={vacationOffer}
               zones={wasteland?.zones}
               startOn={sceneStart}
               startRaid={sceneRaid}
@@ -1176,7 +1249,7 @@ export default function App() {
               account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || place.personal) ? (place.personal?.home ? homePlan() : raidFor(place)) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => { setSceneId(null); setSceneRaid(false); }} onNeedDiscover={() => say('YOU MUST DISCOVER THIS LOCATION FIRST', true)}
             />
           )}
-          {vaultOpen !== null && <VaultHome title={vaultOpen} account={account} onExit={() => setVaultOpen(null)} />}
+          {vaultOpen !== null && <VaultHome key={vaultOpen.key ?? 'home'} title={vaultOpen.title} vaultKey={vaultOpen.key} account={account} onExit={() => setVaultOpen(null)} vacation={vaultOpen.key ? undefined : vacationOffer} />}
           {accountOpen && !account.session && <AccountModal auto={accountAuto} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
           <FaceIdOffer />
           {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped) || homeOpen) && (

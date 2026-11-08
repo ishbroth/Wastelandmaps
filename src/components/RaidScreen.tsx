@@ -7,7 +7,7 @@ import { enemyFiles, hasVoice, playEnemy, preloadSfx } from '../lib/sfx';
 import { buzz } from '../lib/haptics';
 import { enemyById } from '../lib/raid/enemies';
 import { Game, MAX_HITS, SLOW_SECONDS, type Enemy, type Spawns } from '../lib/raid/engine';
-import { LOOT_CAP, lootName, type LootBag, type LootId } from '../lib/raid/loot';
+import { LOOT_CAP, describeBag, lootName, type LootBag, type LootId } from '../lib/raid/loot';
 import type { RaidPlan } from '../lib/raid/raid';
 import { MAGAZINE, WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
 
@@ -117,7 +117,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       if (cancelled) return;
       if ('error' in started) {
         setNeedsSignIn(started.error === 'sign_in');
-        setMessage(started.error === 'sign_in' ? 'YOU MUST BE SIGNED IN TO LOOT' : started.error === 'locked' ? 'UNLOCK THIS SNAPSHOT FIRST' : started.error === 'cleared' ? 'THIS PLACE IS ALREADY CLEARED' : started.error === 'too_many' ? 'YOU HAVE BEEN FIGHTING A LOT. REST A WHILE' : 'THE RAID COULD NOT START. TRY AGAIN IN A MOMENT');
+        setMessage(started.error === 'sign_in' ? 'YOU MUST BE SIGNED IN TO CLEAR A PLACE' : started.error === 'locked' ? 'UNLOCK THIS SNAPSHOT FIRST' : started.error === 'cleared' ? 'THIS PLACE IS ALREADY CLEARED' : started.error === 'too_many' ? 'YOU HAVE BEEN FIGHTING A LOT. REST A WHILE' : 'THE RAID COULD NOT START. TRY AGAIN IN A MOMENT');
         setPhase('error');
         return;
       }
@@ -606,7 +606,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           {phase === 'won' ? (
             loot === null ? <p>COUNTING THE LOOT…</p> : pending ? (
               <>
-                <p>You fended off the hordes from afar, but you must actually enter this landmark in your timeline. Once you discover it you will be automatically awarded your loot.</p>
+                <p>You have cleared the enemies from afar, but you must actually visit this location in real life to discover it. Your loot ({describeBag(waiting as never).toUpperCase() || 'NOTHING'}) is waiting and is yours the moment you do.</p>
                 <ul className="rm-raid-loot">
                   {(Object.entries(waiting) as [LootId, number][]).map(([id, n]) => <li key={id}><b>+{n}</b> {lootName(id)} <small>WAITING</small></li>)}
                 </ul>

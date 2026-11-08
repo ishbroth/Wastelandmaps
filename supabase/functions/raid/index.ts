@@ -8,8 +8,8 @@
 // Vault 0 (Vault Tech Headquarters, Antarctica) is the exception to the rules below: the server fixes its raid itself (36 bosses, 20 pieces of loot, whatever the
 // browser sends), anyone can fight it from anywhere, a win pays at once (loot and 100 XP, once) and does NOT discover it. Discovering it is report-discovery's job.
 //
-// Looting needs the place to be discovered, except the permanent landmarks: those can be fought at once, but pay only once discovered. A person's own home is
-// discovered from the start (no XP) and can be looted as soon as its snapshot is unlocked.
+// Any place whose snapshot the person holds can be cleared from anywhere, but a place they have not discovered in real life pays nothing yet: the loot waits (paid = false)
+// and is released by 'claim' the moment the place is discovered. A person's own home is discovered from the start and pays at once.
 // Deploy: supabase functions deploy raid
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
@@ -85,8 +85,6 @@ Deno.serve(async (req) => {
       isHome = !!home && home.place_id === placeId.slice(3);
     }
     const permanent = !personal && (vault || FREE.has(placeId.startsWith('famous:') ? placeId : placeId.slice(3)));
-    // everywhere else it has to be discovered first (a permanent landmark can be fought from afar)
-    if (!personal && !permanent && !(await discovered(db, user, placeId))) return reply(req, { error: 'undiscovered' }, 403);
     if (isHome) {
       if (worth > 10) return reply(req, { error: 'bad_raid' }, 400);
       const { data: mine } = await db.from('unlocks').select('place_id').eq('user_id', user).like('place_id', `vault:${placeId.slice(3)}:%`).limit(1);
