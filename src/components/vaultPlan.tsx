@@ -29,17 +29,39 @@ const K = 0.55;
 
 export const cellX = (col: number) => LM + col * (CW + GAP);
 export const cellY = (row: number) => TM + row * (RH + GAP);
-export const roomBox = (r: { type: RoomType; col: number; row: number }) => {
-  const slots = roomDef(r.type).slots;
-  return { x: cellX(r.col), y: cellY(r.row), w: slots * CW + (slots - 1) * GAP, h: RH };
+
+/** The thickness of a wall seen from above (its top), and how much of its inner face shows leaning in toward the floor. */
+export const WALL = 7;
+export const LEAN = 8;
+/** The size of a small room (the entryway and the bathroom): smaller than the standard room that fills a whole cell. */
+const SMALL = { w: 116, h: 104 };
+export const isSmall = (type: RoomType): boolean => roomDef(type).small === true;
+
+export interface Box { x: number; y: number; w: number; h: number }
+/** Where a room is drawn: a standard room fills its cell, a wide one two cells, and a small one (the entryway, the bathroom) sits in the middle of its cell. */
+export const roomBox = (r: { type: RoomType; col: number; row: number }): Box => {
+  const def = roomDef(r.type);
+  const cx = cellX(r.col);
+  const cy = cellY(r.row);
+  if (def.small) return { x: cx + (CW - SMALL.w) / 2, y: cy + (RH - SMALL.h) / 2, w: SMALL.w, h: SMALL.h };
+  return { x: cx, y: cy, w: def.slots * CW + (def.slots - 1) * GAP, h: RH };
 };
 /** The screen position of a spot on a room's floor: fx across (0 to 1) and fd deep (0 at the back wall, 1 at the front edge). */
 export const floorPoint = (r: { type: RoomType; col: number; row: number }, fx: number, fd: number) => {
   const b = roomBox(r);
-  return { x: b.x + 10 + fx * (b.w - 20), y: b.y + WH + 8 + fd * (FD - 14) };
+  const side = WALL + LEAN + 4;
+  return { x: b.x + side + fx * (b.w - 2 * side), y: b.y + WH + 6 + fd * (b.h - WH - 14) };
 };
 
-// ---- the shell of a room ----
+/** Where a doorway between two rooms side by side is (the height of its floor), and where the one between a room and the one below it is (its x). */
+export const hallY = (a: Box, b: Box): number => (Math.max(a.y, b.y) + WH + 14 + Math.min(a.y + a.h, b.y + b.h) - 12) / 2;
+export const hallX = (a: Box, b: Box, cellLeft: number, cellRight: number): number => {
+  const lo = Math.max(a.x, b.x, cellLeft) + 22;
+  const hi = Math.min(a.x + a.w, b.x + b.w, cellRight) - 22;
+  return hi > lo ? (lo + hi) / 2 : (Math.max(a.x, b.x, cellLeft) + Math.min(a.x + a.w, b.x + b.w, cellRight)) / 2;
+};
+
+// ---- the shell of a room: a little 3D box seen from above, with its walls standing up ----
 
 type Wall = 'panels' | 'tiles' | 'bricks' | 'dots';
 type Floor = 'planks' | 'tiles' | 'dots';
@@ -54,28 +76,51 @@ const STYLE: Record<RoomType, { wall: Wall; floor: Floor }> = {
   game: { wall: 'bricks', floor: 'planks' },
   workshop: { wall: 'dots', floor: 'dots' },
 };
+const CAP = '#157a3d';
+const FACE = '#052e14';
+const SIDE = '#063c1b';
+const FLOOR = '#031f0e';
 
-export function RoomShell({ x, y, w, name, type }: { x: number; y: number; w: number; name: string; type: RoomType }) {
+/**
+ * A room as a box with its front cut away (the Sims, or the old Shadowrun): the floor, the back wall standing up with its face toward you, and the two side walls
+ * with their tops showing as thick strips and their inner faces leaning in. Everything is old green-screen line art.
+ */
+export function RoomShell({ x, y, w, h = RH, name, type }: { x: number; y: number; w: number; h?: number; name: string; type: RoomType }) {
   const st = STYLE[type];
+  const ix = x + WALL + LEAN; // where the floor starts across, and how wide it is
+  const iw = w - 2 * (WALL + LEAN);
+  const fy = y + WH; // the foot of the back wall
   let wall = '';
-  if (st.wall === 'panels') for (let i = 30; i < w; i += 30) wall += `M${x + i} ${y + 3}V${y + WH - 3}`;
-  if (st.wall === 'tiles') { for (let i = 14; i < w; i += 14) wall += `M${x + i} ${y + 3}V${y + WH - 3}`; wall += `M${x + 3} ${y + WH / 2}H${x + w - 3}`; }
-  if (st.wall === 'bricks') for (let r = 0; r < 3; r++) { const yy = y + 4 + r * 10; wall += `M${x + 3} ${yy}H${x + w - 3}`; for (let i = (r % 2) * 14 + 14; i < w; i += 28) wall += `M${x + i} ${yy}V${yy + 10}`; }
+  const x0 = x + WALL + 2;
+  const x1 = x + w - WALL - 2;
+  if (st.wall === 'panels') for (let i = x0 + 26; i < x1; i += 26) wall += `M${i} ${y + WALL + 3}V${fy - 3}`;
+  if (st.wall === 'tiles') { for (let i = x0 + 12; i < x1; i += 12) wall += `M${i} ${y + WALL + 3}V${fy - 3}`; wall += `M${x0} ${(y + WALL + fy) / 2}H${x1}`; }
+  if (st.wall === 'bricks') for (let r = 0; r < 3; r++) { const yy = y + WALL + 3 + r * 8; wall += `M${x0} ${yy}H${x1}`; for (let i = x0 + (r % 2) * 12 + 12; i < x1; i += 24) wall += `M${i} ${yy}V${yy + 8}`; }
   let floor = '';
-  const fy = y + WH;
-  if (st.floor === 'planks') for (let yy = fy + 14; yy < y + RH - 4; yy += 14) floor += `M${x + 3} ${yy}H${x + w - 3}`;
-  if (st.floor === 'tiles') { for (let yy = fy + 16; yy < y + RH - 4; yy += 16) floor += `M${x + 3} ${yy}H${x + w - 3}`; for (let i = 20; i < w - 4; i += 20) floor += `M${x + i} ${fy + 3}V${y + RH - 3}`; }
+  if (st.floor === 'planks') for (let yy = fy + 13; yy < y + h - 5; yy += 13) floor += `M${ix} ${yy}H${ix + iw}`;
+  if (st.floor === 'tiles') { for (let yy = fy + 15; yy < y + h - 5; yy += 15) floor += `M${ix} ${yy}H${ix + iw}`; for (let i = ix + 18; i < ix + iw - 4; i += 18) floor += `M${i} ${fy + 2}V${y + h - 5}`; }
   let dots = '';
-  if (st.floor === 'dots') for (let yy = fy + 12; yy < y + RH - 6; yy += 16) for (let i = 14 + ((yy / 16) % 2) * 9; i < w - 6; i += 22) dots += `M${x + i} ${yy}h.1`;
+  if (st.floor === 'dots') for (let yy = fy + 12; yy < y + h - 7; yy += 15) for (let i = ix + 10 + ((yy / 15) % 2) * 8; i < ix + iw - 4; i += 20) dots += `M${i} ${yy}h.1`;
   return (
     <g>
-      <rect x={x} y={y} width={w} height={RH} rx="7" fill={BG} strokeWidth="2.4" />
-      <rect x={x + 1.2} y={y + 1.2} width={w - 2.4} height={WH - 1.2} rx="6" fill="#04270f" stroke="none" />
-      <path d={wall} stroke={DIM} strokeWidth="0.8" opacity="0.7" />
-      <path d={`M${x} ${y + WH}H${x + w}`} strokeWidth="1.8" />
+      {/* a soft shadow under the whole box */}
+      <rect x={x + 3} y={y + 5} width={w} height={h} rx="4" fill="#000" opacity="0.4" stroke="none" />
+      {/* the floor, and its front edge */}
+      <rect x={x + WALL} y={fy} width={w - 2 * WALL} height={h - WH} fill={FLOOR} stroke="none" />
       <path d={floor} stroke={DIM} strokeWidth="0.7" opacity="0.55" />
       {dots && <path d={dots} stroke={DIM} strokeWidth="2.2" opacity="0.6" />}
-      <text x={x + 10} y={y + 25} fontSize="17" fill={INK} stroke="none" fontFamily="'VT323', monospace" letterSpacing="1">{name}</text>
+      <rect x={x + WALL} y={y + h - 5} width={w - 2 * WALL} height="5" fill="#0b5a2a" strokeWidth="1.2" />
+      {/* the inner faces of the side walls: they lean in from the top of the wall to the floor */}
+      <path d={`M${x + WALL} ${y + WALL} L${ix} ${fy} L${ix} ${y + h - 7} L${x + WALL} ${y + h - 5} Z`} fill={SIDE} strokeWidth="1.2" />
+      <path d={`M${x + w - WALL} ${y + WALL} L${ix + iw} ${fy} L${ix + iw} ${y + h - 7} L${x + w - WALL} ${y + h - 5} Z`} fill={SIDE} strokeWidth="1.2" />
+      {/* the back wall's face, standing up */}
+      <rect x={x + WALL} y={y + WALL} width={w - 2 * WALL} height={WH - WALL} fill={FACE} strokeWidth="1.2" />
+      <path d={wall} stroke={DIM} strokeWidth="0.8" opacity="0.7" />
+      {/* the tops of the walls, as thick strips */}
+      <rect x={x} y={y} width={w} height={WALL} rx="2" fill={CAP} strokeWidth="2" />
+      <rect x={x} y={y} width={WALL} height={h - 3} rx="2" fill={CAP} strokeWidth="2" />
+      <rect x={x + w - WALL} y={y} width={WALL} height={h - 3} rx="2" fill={CAP} strokeWidth="2" />
+      <text x={x + WALL + 8} y={y + WALL + 17} fontSize="16" fill={INK} stroke="none" fontFamily="'VT323', monospace" letterSpacing="1">{name}</text>
     </g>
   );
 }
@@ -122,7 +167,7 @@ export const FURNITURE: Record<string, Piece> = {
   shoebench: { fx: 0.42, fd: 0.5, art: <g><Box x={-20} w={40} d={12} h={12} /><Line d="M-18 -7H18" /><ellipse cx="-9" cy="-14.5" rx="5" ry="2.4" fill={INK} /><ellipse cx="2" cy="-14.5" rx="5" ry="2.4" fill={INK} /><ellipse cx="13" cy="-14.5" rx="4" ry="2.2" fill={INK} /></g> },
   decon: { fx: 0.82, fd: 0.62, art: <g><Box x={-15} w={30} d={26} h={52} top={GLASS} front={GLASS} /><ellipse cx="0" cy="-3" rx="8" ry="2.6" /><Line d="M0 -52V-60h8M-7 -48h14l-2 4h-10z" /><Line d="M-5 -40v12M0 -40v14M5 -40v12" /><circle cx="0" cy="-22" r="0" /><path d="M-15 -52V0M15 -52V0" strokeWidth="2" /></g> },
   couch: { fx: 0.3, fd: 0.82, art: <g><Box x={-30} y={12} w={60} d={6} h={24} /><Box x={-30} w={60} d={14} h={12} /><Box x={-30} w={7} d={14} h={20} /><Box x={23} w={7} d={14} h={20} /><Line d="M-1 -12V0" /></g> },
-  tv: { fx: 0.58, fd: 0.38, art: <g><Box x={-26} w={52} d={10} h={10} /><Box x={-22} y={2} w={44} d={4} h={28} z={10} front="#04180b" /><rect x="-18" y="-35" width="36" height="21" fill="rgba(61,255,138,0.18)" /></g> },
+  tv: { fx: 0.72, fd: 0.38, art: <g><Box x={-26} w={52} d={10} h={10} /><Box x={-22} y={2} w={44} d={4} h={28} z={10} front="#04180b" /><rect x="-18" y="-35" width="36" height="21" fill="rgba(61,255,138,0.18)" /></g> },
   armchair: { fx: 0.84, fd: 0.8, art: <g><Box x={-14} y={8} w={28} d={5} h={22} /><Box x={-14} w={28} d={14} h={12} /><Box x={-14} w={6} d={14} h={19} /><Box x={8} w={6} d={14} h={19} /></g> },
   coffeetable: { fx: 0.56, fd: 0.96, art: <g><Line d="M-16 -6V0M16 -6V0" /><Box x={-18} w={36} d={16} h={4} z={6} /></g> },
   table: { fx: 0.5, fd: 0.7, art: <g><Line d="M-31 -14V0M31 -14V0M-27 -20V-12M27 -20V-12" /><Box x={-34} w={68} d={28} h={5} z={14} /></g> },
@@ -160,12 +205,37 @@ export function PlacedPiece({ room, id, fresh }: { room: VaultRoom; id: string; 
   const p = FURNITURE[id];
   if (!p) return null;
   const at = floorPoint(room, p.fx, p.fd);
-  return <g className={fresh ? 'rm-vh-fresh' : undefined} transform={`translate(${at.x} ${at.y})`}>{p.art}</g>;
+  // the small rooms (the entryway, the bathroom) hold the same things a little smaller
+  const scale = isSmall(room.type) ? 0.84 : 1;
+  return <g className={fresh ? 'rm-vh-fresh' : undefined} transform={`translate(${at.x} ${at.y}) scale(${scale})`}>{p.art}</g>;
 }
 
-/** Joined rooms: a doorway cut into the wall between them. */
-export function Doorway({ x, y, vertical }: { x: number; y: number; vertical?: boolean }) {
-  return vertical
-    ? <g><rect x={x - 15} y={y - 4} width="30" height="8" fill={BG} stroke="none" /><path d={`M${x - 15} ${y - 4}V${y + 4}M${x + 15} ${y - 4}V${y + 4}`} strokeWidth="1.6" /></g>
-    : <g><rect x={x - 3} y={y - 15} width="6" height="30" fill={BG} stroke="none" /><path d={`M${x - 3} ${y - 15}H${x + 3}M${x - 3} ${y + 15}H${x + 3}`} strokeWidth="1.6" /></g>;
+/**
+ * A doorway between two rooms side by side, with the short hallway between them when they do not touch (a small room is narrower than its cell). It cuts through
+ * both walls (their tops and their leaning faces) and lays a strip of floor across, with a line along each side.
+ */
+export function HallAcross({ left, right }: { left: Box; right: Box }) {
+  const y = hallY(left, right);
+  const open = 15;
+  const a = left.x + left.w - WALL - LEAN; // the foot of the left room's right wall
+  const b = right.x + WALL + LEAN; // the foot of the right room's left wall
+  return (
+    <g>
+      <rect x={a} y={y - open} width={Math.max(0, b - a)} height={open * 2} fill={FLOOR} stroke="none" />
+      <path d={`M${a} ${y - open}H${b}M${a} ${y + open}H${b}`} strokeWidth="2" />
+    </g>
+  );
+}
+
+/** A doorway between a room and the one below it, with the hallway between them when they do not touch: it cuts through the lower room's back wall. */
+export function HallDown({ above, below, x }: { above: Box; below: Box; x: number }) {
+  const open = 15;
+  const y1 = above.y + above.h - 6;
+  const y2 = below.y + WH + 2;
+  return (
+    <g>
+      <rect x={x - open} y={y1} width={open * 2} height={Math.max(0, y2 - y1)} fill={FLOOR} stroke="none" />
+      <path d={`M${x - open} ${y1}V${y2}M${x + open} ${y1}V${y2}`} strokeWidth="2" />
+    </g>
+  );
 }

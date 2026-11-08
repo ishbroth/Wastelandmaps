@@ -32,15 +32,17 @@ export interface RoomDef {
   furniture: FurnitureDef[];
   /** False for the entryway: every vault has it from the start and it cannot be built. */
   buildable?: boolean;
+  /** A small room (the entryway, the bathroom): drawn smaller than the standard room that fills a cell. It still takes one slot. */
+  small?: boolean;
 }
 
 export const ROOM_DEFS: RoomDef[] = [
-  { id: 'entry', name: 'Entryway', slots: 1, max: 1, buildable: false, furniture: [{ id: 'coatrack', name: 'Coat Rack' }, { id: 'shoebench', name: 'Shoe Bench' }, { id: 'decon', name: 'Decontamination Shower' }] },
+  { id: 'entry', name: 'Entryway', slots: 1, max: 1, buildable: false, small: true, furniture: [{ id: 'coatrack', name: 'Coat Rack' }, { id: 'shoebench', name: 'Shoe Bench' }, { id: 'decon', name: 'Decontamination Shower' }] },
   { id: 'living', name: 'Living Room', slots: 1, max: 3, furniture: [{ id: 'couch', name: 'Couch' }, { id: 'tv', name: 'TV' }, { id: 'armchair', name: 'Chair' }, { id: 'coffeetable', name: 'Coffee Table' }] },
   { id: 'dining', name: 'Dining Room', slots: 1, max: 3, furniture: [{ id: 'table', name: 'Dining Table' }, { id: 'chairs', name: 'Dining Chairs' }, { id: 'chandelier', name: 'Candle Chandelier' }, { id: 'chinacabinet', name: 'China Cabinet' }] },
   { id: 'kitchen', name: 'Kitchen', slots: 1, max: 3, furniture: [{ id: 'sinkcabinets', name: 'Cabinets & Sink' }, { id: 'fridge', name: 'Refrigerator' }, { id: 'stove', name: 'Stove' }] },
   { id: 'bedroom', name: 'Bedroom', slots: 1, max: 6, furniture: [{ id: 'bed', name: 'Bed' }, { id: 'nightstand', name: 'Nightstands' }, { id: 'dresser', name: 'Dresser' }, { id: 'lamp', name: 'Lamp' }] },
-  { id: 'bathroom', name: 'Bathroom', slots: 1, max: 3, furniture: [{ id: 'toilet', name: 'Toilet' }, { id: 'bathsink', name: 'Sink' }, { id: 'shower', name: 'Shower' }] },
+  { id: 'bathroom', name: 'Bathroom', slots: 1, max: 3, small: true, furniture: [{ id: 'toilet', name: 'Toilet' }, { id: 'bathsink', name: 'Sink' }, { id: 'shower', name: 'Shower' }] },
   { id: 'entertainment', name: 'Entertainment Room', slots: 2, max: 1, furniture: [{ id: 'seating', name: 'Theatre Seating' }, { id: 'screen', name: 'Screen' }, { id: 'speakers', name: 'Speakers' }] },
   { id: 'game', name: 'Game Room', slots: 2, max: 1, furniture: [{ id: 'pooltable', name: 'Pool Table' }, { id: 'bar', name: 'Bar' }, { id: 'pinball', name: 'Pinball Machine' }] },
   { id: 'workshop', name: 'Workshop', slots: 2, max: 1, furniture: [{ id: 'toolchest', name: 'Tool Chest' }, { id: 'armorstand', name: 'Power Armor Stand' }, { id: 'craftingtable', name: 'Weapon Crafting Table' }] },
@@ -142,6 +144,9 @@ export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: nu
  * three rooms to dig down) do not apply to it. A vault already in the new layout is returned as it is.
  */
 export function normalize(v: VaultHome): VaultHome {
+  // a vault that was only ever the first living room (and the entryway added beside it): nothing was built, so it starts again as the entryway alone
+  const untouched = (rooms: { type: string; furniture: string[] }[]) => rooms.length > 0 && rooms.length <= 2 && rooms.every((r) => (r.type === 'living' || r.type === 'entry') && r.furniture.length === 0) && rooms.some((r) => r.type === 'living');
+  if (v.settlers.length === 0 && untouched(v.rooms)) return { ...newVault(v.seenAt || Date.now(), v.seed ?? 0), from: v.from, sessionAt: v.sessionAt, seenAt: v.seenAt, boost: v.boost, boostAt: v.boostAt };
   if (v.layout === 2) return v;
   const rooms: VaultRoom[] = v.rooms.map((r) => ({ type: r.type, furniture: r.furniture, level: (r as unknown as { row: number }).row, col: r.col + 1, row: 1 }));
   const ahead: [number, number][] = [[0, 1], [4, 1], [1, 0], [1, 2], [2, 0], [2, 2], [3, 0], [3, 2]];

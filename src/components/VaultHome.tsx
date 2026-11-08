@@ -5,12 +5,12 @@ import ConfirmSpend from './ConfirmSpend';
 import { describeBag, lootName, type LootId } from '../lib/raid/loot';
 type Bag = Partial<Record<string, number>>;
 import {
-  COLS, LEVELS, ROOMS_FOR_VACATION, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
+  COLS, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
   whyNotBuild, whyNotDig, DECON_REASON, MAX_VACATIONS, vacationRecipe,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt, type Pose } from './vaultArt';
-import { CW, DIM, Doorway, ExitSign, FD, FURNITURE, GAP, INK, LIE, LIFT, LM, PlacedPiece, RH, RoomShell, SIT, TM, VIEW_H, VIEW_W, WH, cellX, cellY, floorPoint, roomBox } from './vaultPlan';
+import { CW, DIM, ExitSign, FURNITURE, GAP, HallAcross, HallDown, INK, LEAN, LIE, LIFT, LM, PlacedPiece, RH, RoomShell, SIT, TM, VIEW_H, VIEW_W, WALL, WH, cellX, cellY, floorPoint, hallX, hallY, roomBox } from './vaultPlan';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -60,12 +60,29 @@ function route(v: VaultHome, level: number, from: [number, number], to: [number,
     const [c, r] = cells[i];
     const [pc, pr] = cells[i - 1];
     if (r === pr) {
-      const gate = LM + Math.max(c, pc) * (CW + GAP) - GAP / 2;
-      path.push({ x: gate - 8 * (c - pc), y: cellY(r) + WH + FD * 0.55 }, { x: gate + 8 * (c - pc), y: cellY(r) + WH + FD * 0.55 });
+      // sideways, from one room to the next: out of the one's wall and into the other's, at the height of the hall between them
+      const ra = roomAt(v, level, pc, r);
+      const rb = roomAt(v, level, c, r);
+      if (ra && rb && ra !== rb) {
+        const A = roomBox(ra);
+        const B = roomBox(rb);
+        const dir = c > pc ? 1 : -1;
+        const y = hallY(A, B);
+        const margin = WALL + LEAN + 5;
+        path.push({ x: dir > 0 ? A.x + A.w - margin : A.x + margin, y }, { x: dir > 0 ? B.x + margin : B.x + B.w - margin, y });
+      }
     } else {
-      const cx = cellX(c) + CW / 2;
+      // up or down: through the hall between the room above and the one below
       const upper = Math.min(r, pr);
-      path.push({ x: cx, y: cellY(upper) + RH - 6 }, { x: cx, y: cellY(upper + 1) + WH + 8 });
+      const ra = roomAt(v, level, c, upper);
+      const rb = roomAt(v, level, c, upper + 1);
+      if (ra && rb) {
+        const A = roomBox(ra);
+        const B = roomBox(rb);
+        const x = hallX(A, B, cellX(c), cellX(c) + CW);
+        if (r > pr) path.push({ x, y: A.y + A.h - 10 }, { x, y: B.y + WH + 10 });
+        else path.push({ x, y: B.y + WH + 10 }, { x, y: A.y + A.h - 10 });
+      }
     }
   }
   path.push(end);
@@ -333,7 +350,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
       vault.rooms.forEach((r, i) => {
         if (r.level !== level - 1) return;
         const b = roomBox(r);
-        ghosts.push(<rect key={`g${i}`} x={b.x} y={b.y} width={b.w} height={RH} rx="7" strokeDasharray="3 6" stroke={DIM} strokeWidth="1" opacity="0.45" />);
+        ghosts.push(<rect key={`g${i}`} x={b.x} y={b.y} width={b.w} height={b.h} rx="7" strokeDasharray="3 6" stroke={DIM} strokeWidth="1" opacity="0.45" />);
       });
     }
     vault.rooms.forEach((room, idx) => {
@@ -341,15 +358,16 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
       const def = roomDef(room.type);
       const b = roomBox(room);
       const slots = slotsOf(room);
-      // doorways to the room on the right and to the room below
+      // the hall to the room on the right and to each room below
       const right = roomAt(vault, level, room.col + slots, room.row);
-      if (right) doors.push(<Doorway key={`dr${idx}`} x={b.x + b.w + GAP / 2} y={b.y + WH + FD * 0.55} />);
+      if (right) doors.push(<HallAcross key={`dr${idx}`} left={b} right={roomBox(right)} />);
       for (let c = room.col; c < room.col + slots; c++) {
-        if (roomAt(vault, level, c, room.row + 1)) doors.push(<Doorway key={`dd${idx}-${c}`} x={cellX(c) + CW / 2} y={b.y + RH + GAP / 2} vertical />);
+        const below = roomAt(vault, level, c, room.row + 1);
+        if (below) doors.push(<HallDown key={`dd${idx}-${c}`} above={b} below={roomBox(below)} x={hallX(b, roomBox(below), cellX(c), cellX(c) + CW)} />);
       }
       rooms.push(
         <g key={`r${idx}`} className={`rm-vh-room${fresh && fresh.room === idx && !fresh.item ? ' rm-vh-fresh' : ''}`} onClick={(e) => tapRoom(e, idx)} role="button" aria-label={def.name}>
-          <RoomShell x={b.x} y={b.y} w={b.w} name={def.name.toUpperCase()} type={room.type} />
+          <RoomShell x={b.x} y={b.y} w={b.w} h={b.h} name={def.name.toUpperCase()} type={room.type} />
         </g>,
       );
     });
@@ -366,7 +384,8 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             if (!hasDecon(vault)) { say(DECON_REASON); return; }
             setPanel({ kind: 'build', level, col, row });
           }} role="button" aria-label="Clear and build a room here">
-            <rect x={x} y={y} width={CW} height={RH} rx="7" strokeDasharray="6 5" fill="rgba(61,255,138,0.04)" />
+            <g opacity="0.3"><RoomShell x={x} y={y} w={CW} name="" type="living" /></g>
+            <rect x={x} y={y} width={CW} height={RH} rx="7" strokeDasharray="6 5" fill="rgba(61,255,138,0.03)" />
             <text x={x + CW / 2} y={y + RH / 2 - 2} fontSize="38" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="middle">+</text>
             <text x={x + CW / 2} y={y + RH / 2 + 22} fontSize="20" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="middle" letterSpacing="1.5">{here.length === 0 ? 'DIG DOWN' : 'CLEAR & BUILD'}</text>
           </g>,
@@ -402,10 +421,10 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     const b = roomBox(room);
     const usable = docked ? Math.max(120, size.h - window.innerHeight * 0.46) : size.h;
     const pad = 14;
-    const sc = Math.min(size.w / (b.w + 2 * pad), usable / (RH + 2 * pad), 4);
+    const sc = Math.min(size.w / (b.w + 2 * pad), usable / (b.h + 2 * pad), 4);
     const w = size.w / sc;
     const h = size.h / sc;
-    return [b.x + b.w / 2 - w / 2, b.y + RH / 2 - usable / 2 / sc, w, h];
+    return [b.x + b.w / 2 - w / 2, b.y + b.h / 2 - usable / 2 / sc, w, h];
   };
   const ready = !!vault && !!size;
   // a new level (and the first picture) starts with the entryway, or the first room, in the middle of the screen when the level is wider than it
@@ -478,7 +497,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
               {scene.cells}
               {scene.rooms}
               {scene.doors}
-              {scene.entry && <ExitSign x={roomBox(scene.entry).x + roomBox(scene.entry).w - 46} y={roomBox(scene.entry).y + 4} />}
+              {scene.entry && <ExitSign x={roomBox(scene.entry).x + roomBox(scene.entry).w / 2 - 19} y={roomBox(scene.entry).y - 17} />}
               {[
                 ...pieces,
                 ...sims.filter((s) => s.level === level).map((s) => ({ key: `s${s.id}`, fd: 2, y: s.y + 0.01, el: <g key={`s${s.id}`} transform={`translate(${s.x} ${s.y - s.lift * SETTLER_SCALE}) scale(${s.face * SETTLER_SCALE} ${SETTLER_SCALE})`}><SettlerArt kind={s.kind} pose={s.pose} phase={s.phase} /></g> })),
@@ -487,7 +506,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
           </div>
         )}
       </div>
-        {vault && (
+        {vault && (vault.legacy || deepestLevel(vault) > 0 || roomsOn(vault, level).length >= ROOMS_TO_DIG) && (
           <div className="rm-vh-levels" role="group" aria-label="Levels">
             <button type="button" className="rm-vh-lv" disabled={level <= 0} onClick={() => goLevel(level - 1)} aria-label="Up one level">▲</button>
             <span>LEVEL {level + 1}<i>OF {LEVELS}</i></span>
