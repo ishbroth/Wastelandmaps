@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C0A1B1E101FE0000000000AA /* CarPlayHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B1E001FE0000000000AA /* CarPlayHub.swift */; };
+		C0A1B1E102FE0000000000AA /* CarPlayPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B1E002FE0000000000AA /* CarPlayPlugin.swift */; };
+		C0A1B1E103FE0000000000AA /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B1E003FE0000000000AA /* CarPlaySceneDelegate.swift */; };
+		C0A1B1E104FE0000000000AA /* CarMapViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B1E004FE0000000000AA /* CarMapViewController.swift */; };
+		C0A1B1E105FE0000000000AA /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B1E005FE0000000000AA /* MainViewController.swift */; };
 		AA00000000000000000000A1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000A2 /* PrivacyInfo.xcprivacy */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
@@ -20,6 +25,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C0A1B1E001FE0000000000AA /* CarPlayHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayHub.swift; sourceTree = "<group>"; };
+		C0A1B1E002FE0000000000AA /* CarPlayPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayPlugin.swift; sourceTree = "<group>"; };
+		C0A1B1E003FE0000000000AA /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
+		C0A1B1E004FE0000000000AA /* CarMapViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarMapViewController.swift; sourceTree = "<group>"; };
+		C0A1B1E005FE0000000000AA /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -67,6 +77,11 @@
 			isa = PBXGroup;
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
+				C0A1B1E001FE0000000000AA /* CarPlayHub.swift */,
+				C0A1B1E002FE0000000000AA /* CarPlayPlugin.swift */,
+				C0A1B1E003FE0000000000AA /* CarPlaySceneDelegate.swift */,
+				C0A1B1E004FE0000000000AA /* CarMapViewController.swift */,
+				C0A1B1E005FE0000000000AA /* MainViewController.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -164,6 +179,11 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+				C0A1B1E101FE0000000000AA /* CarPlayHub.swift in Sources */,
+				C0A1B1E102FE0000000000AA /* CarPlayPlugin.swift in Sources */,
+				C0A1B1E103FE0000000000AA /* CarPlaySceneDelegate.swift in Sources */,
+				C0A1B1E104FE0000000000AA /* CarMapViewController.swift in Sources */,
+				C0A1B1E105FE0000000000AA /* MainViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

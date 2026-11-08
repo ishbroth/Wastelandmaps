@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import CarPlay
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -38,7 +39,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                      options: UIScene.ConnectionOptions) -> UISceneConfiguration {
         let config = UISceneConfiguration(name: "Default Configuration",
                                           sessionRole: connectingSceneSession.role)
-        config.delegateClass = SceneDelegate.self
+        // a car's screen (only ever asked for once Apple has granted the CarPlay entitlement and a car connects) gets its own scene; the phone's is the web app
+        if connectingSceneSession.role == .carTemplateApplication {
+            config.sceneClass = CPTemplateApplicationScene.self
+            config.delegateClass = CarPlaySceneDelegate.self
+        } else {
+            config.delegateClass = SceneDelegate.self
+        }
         return config
     }
 }

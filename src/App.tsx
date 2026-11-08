@@ -41,6 +41,7 @@ import { START_MINUTES, type TravelRun } from './lib/travel';
 import NavBanner from './components/NavBanner';
 import { setVoiceEnabled, speak, spokenDistance, stopSpeaking, voiceEnabled } from './lib/voice';
 import type { VacationOffer } from './components/VaultHome';
+import { carEnd, carUpdate, onCarEndRequested, type CarPayload } from './lib/carplay';
 import { waitingLine } from './lib/waitingLoot';
 import { ferryUrl, isFerryByName, loadFerryIds, ROAD_STOPS_SHORT_M } from './lib/ferry';
 import { currentFix, flightsUrl, isOverseas, progressAlong, requestRoute, type NavRoute } from './lib/navigation';
@@ -933,11 +934,38 @@ export default function App() {
     setSelectedId(null);
   }, [driving]);
 
+  // The car's screen (CarPlay), when a car is connected: the same map, the route and the places plotted near it, sent about once a second. With no car these calls do nothing.
+  const carSent = useRef(0);
+  useEffect(() => {
+    if (!nav?.route || !fix) { carEnd(); return; }
+    const route = nav.route;
+    const send = () => {
+      carSent.current = Date.now();
+      const flat = (pts: { lat: number; lng: number }[]) => pts.flatMap((p) => [Math.round(p.lat * 1e5) / 1e5, Math.round(p.lng * 1e5) / 1e5]);
+      const near = mapLocations
+        .map((l) => ({ l, d: distanceMeters(fix, l.position) }))
+        .filter((x) => x.d < 30_000)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 80)
+        .map(({ l }) => ({ id: l.id, name: l.name, category: l.category, icon: String(l.icon), lat: l.position.lat, lng: l.position.lng }));
+      const payload: CarPayload = {
+        active: true, destination: nav.spot.name, destLat: nav.spot.position.lat, destLng: nav.spot.position.lng, hereLat: fix.lat, hereLng: fix.lng,
+        path: flat(route.path), steps: route.steps.map((s) => ({ text: s.text, meters: s.meters, path: flat(s.path.length ? s.path : [s.start, s.end]) })), step: nav.step,
+        instruction: route.steps[nav.step]?.text ?? '', distanceToTurn: nav.toTurn ?? 0, remainingMeters: nav.remaining ?? route.meters, remainingSeconds: route.seconds, markers: near,
+      };
+      carUpdate(payload);
+    };
+    const id = window.setTimeout(send, Math.max(0, 1200 - (Date.now() - carSent.current)));
+    return () => window.clearTimeout(id);
+  }, [nav?.route, nav?.step, nav?.toTurn, nav?.remaining, nav?.spot, fix, mapLocations]);
+
   const endNavigation = useCallback(() => {
     if (navRef.current) speak('Navigation terminated.');
     setNav(null);
     navRef.current = null;
   }, []);
+  // the trip was ended on the car's own screen
+  useEffect(() => onCarEndRequested(endNavigation), [endNavigation]);
 
   const startNavigation = useCallback(async (spot: Spot) => {
     if (navRef.current) return;

@@ -1,0 +1,32 @@
+name: Android compile check
+
+# Builds the Android app (debug, no signing, no upload) on a GitHub-hosted machine, to see that the Java code compiles (the Android Auto code especially).
+# Run it by hand: Actions > "Android compile check" > Run workflow.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+
+      - name: Compile
+        working-directory: android
+        run: ./gradlew --no-daemon :app:compileDebugJavaWithJavac :app:processDebugManifest

@@ -2,6 +2,7 @@
 // for when the page is in the background. It needs the person's permission, asked for when they switch AUTO-DISCOVER on. In the app the system's local
 // notifications are used (the browser's Notification API does not exist in an iPhone's web view).
 
+import { carAlert } from './carplay';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { isNative } from './native';
 
@@ -29,6 +30,7 @@ export async function enableNotifications(): Promise<boolean> {
 
 /** A system notification, if allowed and the page is not in front (the toast covers that case). */
 export async function pushNotice(title: string, body: string, clearId?: string): Promise<void> {
+  carAlert(title, body); // on a car's screen too, when one is connected
   if (isNative()) {
     if (!document.hidden) return;
     try {

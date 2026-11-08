@@ -1,0 +1,37 @@
+name: iOS compile check
+
+# Builds the iPhone app for the simulator on a GitHub-hosted Mac, with no signing and no upload, just to see that the Swift code compiles (the CarPlay code especially,
+# which cannot be compiled on Windows). Run it by hand: Actions > "iOS compile check" > Run workflow. It takes a few minutes and costs nothing in TestFlight builds.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - name: Use Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync ios
+
+      - name: Build for the simulator
+        working-directory: ios/App
+        run: |
+          xcodebuild build \
+            -project App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO | tail -60
