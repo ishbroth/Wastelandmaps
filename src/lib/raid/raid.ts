@@ -79,6 +79,8 @@ export function planFor(id: string, worth: number): RaidPlan {
   const least = hardest > 300 * HP_SCALE ? 2 : hardest > 150 * HP_SCALE ? 3 : 5;
   let total = Math.max(least, Math.min(40, Math.round((boss ? budget * 0.6 : budget) / avgHp)));
   if (boss) total = Math.max(3, Math.min(total, 24));
+  // the weakest kinds (raiders, radroaches, bloatflies) come in a couple more: one or two, the same for the same place
+  if (!boss && enemies.every((e) => e === 'raider' || e === 'radroach' || e === 'bloatfly')) total += 1 + (hashString(`${id}|extra`) % 2);
 
   // never more kinds than pieces (a win pays at least one of each kind)
   const kinds = Math.min(lootRangeFor(worth)[0], 1 + Math.floor(rand() * 3));

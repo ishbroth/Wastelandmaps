@@ -19,7 +19,7 @@ import RaidScreen from './RaidScreen';
 import ProjectorDown from './ProjectorDown';
 import { buzz } from '../lib/haptics';
 import VaultHome, { type VacationOffer } from './VaultHome';
-import { spawnsFor } from '../lib/raid/spawnData';
+import { spawnsForSpot } from '../lib/raid/spawnData';
 import { lootSummary, planEnemies, type RaidPlan } from '../lib/raid/raid';
 import { lootName } from '../lib/raid/loot';
 
@@ -193,7 +193,7 @@ export default function SceneModal({ vacation, zones = [], startOn = 'scene', st
                 : <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>}
               {paid.state.kind === 'error' && (paid.state.resetsAt ? <ProjectorDown resetsAt={paid.state.resetsAt} /> : <p className="rm-account-note">{paid.state.message}</p>)}
               {paid.state.kind === 'working' ? (
-                <button type="button" className="rm-btn" disabled><CogSpinner /> DEVELOPING… ABOUT 20 SECONDS</button>
+                <button type="button" className="rm-btn rm-developing" disabled><CogSpinner /> RETRIEVING FILM… 20 SECONDS</button>
               ) : (
                 <button type="button" className="rm-btn" onClick={() => (!account.session ? onAccount() : (account.credits ?? 0) < cost ? setBuying(true) : void paid.run())}>{home ? 'BLOW UP MY HOME' : 'UNLOCK'} FOR <Caps n={account.session ? `${caps(cost)}/${caps(account.credits ?? 0).toLocaleString('en-US')}` : caps(cost)} /></button>
               )}
@@ -227,7 +227,7 @@ export default function SceneModal({ vacation, zones = [], startOn = 'scene', st
       {buying && <BuyCaps onClose={() => setBuying(false)} onBought={() => void account.refresh()} />}
       {entering && home && <VaultHome title={spot.name} account={account} onExit={() => setEntering(false)} vacation={vacation} />}
       {raiding && reveal && raid && (
-        <RaidScreen metroId={metroId} plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsFor(spot.id)} account={account} sound={sound} onExit={() => setRaiding(false)} onSignIn={onAccount} />
+        <RaidScreen metroId={metroId} plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsForSpot(spot)} account={account} sound={sound} onExit={() => setRaiding(false)} onSignIn={onAccount} />
       )}
     </div>
   );

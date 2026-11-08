@@ -2,6 +2,7 @@
 // other place gets the spots the image model marked when its picture was made (see unlock-render), or the default ground band.
 
 import { DEFAULT_SPAWNS, type Spawns } from './engine';
+import { EXTRA_ICONS } from '../placeIcons';
 import { VAULT_ZERO_ID } from '../../../supabase/functions/_shared/vaultZero';
 
 /** By Wikidata id: the horizon line and the spots on the ground, in the picture's coordinates (0-1, left to right and top to bottom). */
@@ -45,3 +46,27 @@ export const LANDMARK_SPAWNS: Record<string, Spawns> = {
 const VAULT_ZERO_SPAWNS: Spawns = { horizon: 0.62, points: [{ u: 0.2, v: 0.78 }, { u: 0.35, v: 0.85 }, { u: 0.5, v: 0.9 }, { u: 0.15, v: 0.92 }, { u: 0.6, v: 0.82 }, { u: 0.3, v: 0.72 }, { u: 0.72, v: 0.9 }, { u: 0.45, v: 0.76 }] };
 
 export const spawnsFor = (placeId: string, fromRender?: Spawns | null): Spawns => (placeId === VAULT_ZERO_ID ? VAULT_ZERO_SPAWNS : placeId.startsWith('wd:') && LANDMARK_SPAWNS[placeId.slice(3)]) || fromRender || DEFAULT_SPAWNS;
+
+// ---- how close the picture looks ----
+
+/** Icons of things photographed from far off (a landmark, a tower, a stadium): the enemies start small, as if far away. */
+const FAR_ICONS = new Set(['skyscraper', 'tower', 'castle', 'capitol', 'stadium', 'bridge', 'monument', 'column', 'statue', 'arch', 'eiffel', 'liberty', 'spaceneedle', 'opera', 'redeemer', 'kremlin', 'clocktower', 'cathedral', 'mosque', 'temple', 'museum', 'cluster', 'lighthouse', 'radiotower', 'observatory', 'ship', 'plane', 'anchor']);
+/** Icons of small things photographed from close by (a house, a shop, a restaurant): the enemies start bigger, since they are nearer the camera. */
+const NEAR_ICONS = new Set(['house', 'houses', 'apartment', 'trailer', 'smallbuilding', 'fork', 'cart', 'basket', 'bag', 'mug', 'pump', 'wrench', 'car', 'tent', 'tractor', 'bed', 'key', 'pill', 'ambulance', 'ruins']);
+
+/** How big enemies look at the start of a fight in this place's picture (1 is the usual). */
+export function sceneScale(spot: { id: string; icon: string; personal?: { kind?: string; home?: boolean } }): number {
+  if (spot.personal) {
+    // an address typed in: a house is shot from the street, close; a park or an office block from farther back
+    if (spot.personal.home || spot.personal.kind === 'house') return 2.5;
+    if (spot.personal.kind === 'park') return 1.2;
+    return 1.8;
+  }
+  if (spot.id.startsWith('wd:') && LANDMARK_SPAWNS[spot.id.slice(3)]) return 0.65; // the permanent landmarks: seen from afar
+  if (FAR_ICONS.has(spot.icon) || spot.icon in EXTRA_ICONS || spot.icon.startsWith('local:')) return 0.65; // (a famous landmark has an icon drawn as itself)
+  if (NEAR_ICONS.has(spot.icon)) return 2.1;
+  return 1.2;
+}
+
+/** Where the enemies come from in a place's picture, and how big they start. */
+export const spawnsForSpot = (spot: { id: string; icon: string; personal?: { kind?: string; home?: boolean } }, fromRender?: Spawns | null): Spawns => ({ ...spawnsFor(spot.id, fromRender), scale: sceneScale(spot) });

@@ -48,9 +48,13 @@ function roll(worth: number, types: string[]): Record<string, number> {
   return out;
 }
 
-/** Has this person discovered the place (on foot, or by arriving there)? Their own home counts from the start. */
+/** Has this person discovered the place (on foot, or by arriving there)? An address they typed in counts only once they have really been there (a found place): unlocking its snapshot is not discovering it. */
 // deno-lint-ignore no-explicit-any
 async function discovered(db: any, user: string, placeId: string): Promise<boolean> {
+  if (placeId.startsWith('me:')) {
+    const { data } = await db.from('found_places').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
+    return !!data;
+  }
   const [a, b] = await Promise.all([
     db.from('discoveries').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle(),
     db.from('found_places').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle(),
@@ -128,7 +132,13 @@ Deno.serve(async (req) => {
     // a permanent landmark fought from afar pays only once the person has discovered it
     const place = String(run.place_id);
     const vault = place === VAULT_ZERO_ID;
-    const owner = vault || place.startsWith('me:') || (await discovered(db, user, place));
+    // their own home is theirs from the start; everything else (an address they typed in too) pays once they have been there
+    let ownHome = false;
+    if (place.startsWith('me:')) {
+      const { data: home } = await db.from('user_home').select('place_id').eq('user_id', user).maybeSingle();
+      ownHome = !!home && home.place_id === place.slice(3);
+    }
+    const owner = vault || ownHome || (await discovered(db, user, place));
     if (!owner) {
       await db.from('raid_runs').update({ paid: false }).eq('id', run.id);
       return reply(req, { ok: true, won: true, pending: true, waiting: run.loot });

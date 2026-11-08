@@ -57,6 +57,33 @@ export function metroAt(metros: MetroEntry[], point: LatLng, slackKm = 0): Metro
 }
 
 /**
+ * Parts of a metro that carry a name of their own on the title as the map moves over them (the metro, its places and its count stay as they are). The East Bay is
+ * Smokeland when you cross the bay from San Francisco, and San Blam again when you cross back. Each area is a rough outline, as [latitude, longitude] points.
+ */
+const AREA_TITLES: Record<string, { title: string; outline: [number, number][] }[]> = {
+  'us-ca-san-francisco': [{
+    title: 'Smokeland',
+    outline: [[38.0, -122.42], [38.0, -122.1], [37.9, -121.98], [37.62, -121.9], [37.48, -121.95], [37.5, -122.07], [37.62, -122.16], [37.7, -122.21], [37.77, -122.33], [37.8, -122.36], [37.88, -122.42], [37.95, -122.45]],
+  }],
+};
+
+const inside = (point: LatLng, outline: [number, number][]): boolean => {
+  let in_ = false;
+  for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+    const [yi, xi] = outline[i];
+    const [yj, xj] = outline[j];
+    if (yi > point.lat !== yj > point.lat && point.lng < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi) in_ = !in_;
+  }
+  return in_;
+};
+
+/** The name on the title for a spot in a metro: the metro's own, or that of the named part of it the spot is in (Smokeland, east of the bay). */
+export function titleAt(metro: MetroEntry, point: LatLng): string {
+  const area = AREA_TITLES[metro.id]?.find((a) => inside(point, a.outline));
+  return area?.title ?? metro.title;
+}
+
+/**
  * The landmarks with a free snapshot always appear on the map of the metro they stand in, even if the pre-built list left them out, and the ones
  * with a special wasteland name carry it ("F&F Tower" is "Revolution Tower").
  */

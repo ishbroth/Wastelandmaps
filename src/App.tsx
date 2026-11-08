@@ -28,7 +28,7 @@ import SearchBar from './components/SearchBar';
 import SetupNotice from './components/SetupNotice';
 import { AccountPanel, LocationsPanel, SharePanel } from './components/Panels';
 import { geocodeLatLng, geocodeQuery, loadGoogle, type Region } from './lib/google';
-import { dedupePlaces, loadIndex, loadMetro, metroAt } from './lib/metros';
+import { dedupePlaces, loadIndex, loadMetro, metroAt, titleAt } from './lib/metros';
 import { wastelandName } from './lib/lore';
 import { loadFlood, type FloodPatch } from './lib/flood';
 import { loadZones, zoneFromEntry } from './lib/zones';
@@ -44,7 +44,7 @@ import type { VacationOffer } from './components/VaultHome';
 import { carEnd, carUpdate, onCarEndRequested, type CarPayload } from './lib/carplay';
 import { waitingLine } from './lib/waitingLoot';
 import { ferryUrl, isFerryByName, loadFerryIds, ROAD_STOPS_SHORT_M } from './lib/ferry';
-import { currentFix, flightsUrl, isOverseas, progressAlong, requestRoute, type NavRoute } from './lib/navigation';
+import { currentFix, flightsUrl, isOverseas, progressAlong, requestRoute, spokenInstruction, type NavRoute } from './lib/navigation';
 import {
   VAULT_ID, distanceMeters, generateWasteland, locationFromData, spotFromLocation, vaultSpot,
   type CategoryId, type LatLng, type Location, type Spot, type Wasteland,
@@ -107,7 +107,7 @@ export default function App() {
   const lastSaved = useRef(0);
   const accountRef = useRef<ReturnType<typeof useAccount> | null>(null);
   const scanId = useRef(0);
-  const metroSeen = useRef<{ current: string; loaded: Set<string> }>({ current: '', loaded: new Set() });
+  const metroSeen = useRef<{ current: string; loaded: Set<string>; title?: string }>({ current: '', loaded: new Set() });
   const viewTimer = useRef<number | undefined>(undefined);
   const busyRef = useRef(false);
   const wastelandRef = useRef<Wasteland | null>(null);
@@ -382,19 +382,29 @@ export default function App() {
       } else {
         void savePersonalPlace(who.user.id, { placeId: mine.id.slice(3), name: mine.name, address: mine.personal?.address ?? '', lat: mine.position.lat, lng: mine.position.lng, kind: mine.personal?.kind ?? 'house' })
           .then(() => accountRef.current?.refresh())
-          .then(() => setToast(`DISCOVERED: ${mine.name}`));
-        void recordFound([mine]);
-        // an address from a city atlas they bought is worth exactly 1 XP (the server checks they own that atlas)
-        if (mine.personal?.atlas && onFoot) {
-          void reportDiscovery(mine.id, mine.position, onFoot, 1).then((result) => {
-            if (!result || !((result.added ?? 0) > 0)) return;
-            setXpFlash({ text: `+${result.added ?? 1} XP`, id: Date.now() });
-            buzz('xp');
-            window.clearTimeout(xpTimer.current);
-            xpTimer.current = window.setTimeout(() => setXpFlash(null), 2600);
+          .then(() => setToast(`DISCOVERED: ${mine.name}`))
+          .then(async () => {
+            await recordFound([mine]);
+            // an address from a city atlas they bought is worth exactly 1 XP (the server checks they own that atlas); one they typed in and unlocked, 10: both only now that they have been there
+            if (onFoot) {
+              const result = await reportDiscovery(mine.id, mine.position, onFoot, mine.personal?.atlas ? 1 : 10);
+              if (result && (result.added ?? 0) > 0) {
+                setXpFlash({ text: `+${result.added ?? 1} XP`, id: Date.now() });
+                buzz('xp');
+                window.clearTimeout(xpTimer.current);
+                xpTimer.current = window.setTimeout(() => setXpFlash(null), 2600);
+              }
+            }
+            // what they cleared from afar and has been waiting for them
+            const paid = await claimLoot(mine.id);
+            if (paid.claimed > 0) {
+              const list = Object.entries(paid.loot).filter(([, n]) => (n ?? 0) > 0).map(([id, n]) => `+${n} ${id.toUpperCase()}`).join(' ');
+              setToast(`LOOT AWARDED FROM ${mine.name.toUpperCase()}: ${list || 'PACK FULL'}`);
+              window.clearTimeout(toastTimer.current);
+              toastTimer.current = window.setTimeout(() => setToast(''), 6000);
+            }
             void accountRef.current?.refresh();
           });
-        }
       }
       window.clearTimeout(toastTimer.current);
       toastTimer.current = window.setTimeout(() => setToast(''), 4200);
@@ -586,13 +596,21 @@ export default function App() {
       return;
     }
     const near = under ?? metroAt(metros, center, 120);
-    if (near && near.id !== seen.current) {
-      seen.current = near.id;
-      setMetroInfo({ id: near.id, name: near.name, lat: near.lat, lng: near.lng, radiusKm: near.radiusKm });
-      setLiveName(near.title);
-      setToast(`ENTERING ${near.title.toUpperCase()}`);
-      window.clearTimeout(toastTimer.current);
-      toastTimer.current = window.setTimeout(() => setToast(''), 3200);
+    if (near) {
+      // the title follows the map over the named parts of a metro too (San Blam, then Smokeland across the bay), though it is the same metro
+      const title = titleAt(near, center);
+      const entered = near.id !== seen.current;
+      if (entered) {
+        seen.current = near.id;
+        setMetroInfo({ id: near.id, name: near.name, lat: near.lat, lng: near.lng, radiusKm: near.radiusKm });
+      }
+      if (entered || title !== seen.title) {
+        seen.title = title;
+        setLiveName(title);
+        setToast(`ENTERING ${title.toUpperCase()}`);
+        window.clearTimeout(toastTimer.current);
+        toastTimer.current = window.setTimeout(() => setToast(''), 3200);
+      }
     }
     if (under && !seen.loaded.has(under.id)) {
       seen.loaded.add(under.id);
@@ -761,8 +779,10 @@ export default function App() {
   }, [!!nav]);
   // the voice: the first instruction of a route, every new turn, and the turn again when it is close
   const spoken = useRef<{ route: unknown; step: number; near: boolean; rerouting: boolean } | null>(null);
+  const arriving = useRef(false);
   useEffect(() => {
-    if (!nav) { spoken.current = null; stopSpeaking(); return; }
+    // (arriving ends the navigation too: the arrival announcement is let finish, not cut off by this)
+    if (!nav) { spoken.current = null; if (!arriving.current) stopSpeaking(); return; }
     const said = spoken.current;
     if (nav.busy === 'REROUTING') {
       if (!said?.rerouting) speak('Recalculating route.');
@@ -771,7 +791,7 @@ export default function App() {
     }
     if (!nav.route || nav.busy) return;
     const next = nav.route.steps[nav.step + 1]?.text ?? 'Continue to your destination';
-    const plain = next.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    const plain = spokenInstruction(next);
     const lower = plain.charAt(0).toLowerCase() + plain.slice(1);
     if (!said || said.route !== nav.route) {
       speak(`${said ? 'Route updated.' : `Navigation online. Destination: ${nav.spot.name}.`} ${nav.toTurn !== null ? `In ${spokenDistance(nav.toTurn)}, ` : ''}${lower}.`);
@@ -1041,7 +1061,9 @@ export default function App() {
       const place = locationsRef.current.find((l) => l.id === spot.id);
       if (place) markFound([place], here);
       say(`ARRIVED: ${spot.name}`);
-      speak(`Destination reached: ${spot.name}.`);
+      arriving.current = true;
+      window.setTimeout(() => { arriving.current = false; }, 6000);
+      speak('Arrived.');
       buzz('arrive');
       if (soundRef.current) beep('arrive');
       setSceneStart('scene');

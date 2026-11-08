@@ -190,3 +190,30 @@ export function turnArrow(text: string): string {
   if (/destination|arrive/.test(t)) return '⚑';
   return '⬆';
 }
+
+// ---- the spoken directions, trimmed ----
+
+/** A road's number, as the start of its name: "U.S. 94", "I-5", "State Route 163", "CA-94", "Highway 101". */
+const DESIGNATION = /^((?:U\.?\s?S\.?|I|Interstate|SR|State Route|State Highway|CA|Route|Rte|Highway|Hwy|County Road|CR)[\s-]?\d+[A-Z]?)\b/i;
+const DIRECTIONS = /\s+(?:north|south|east|west|northeast|northwest|southeast|southwest|N|S|E|W|NE|NW|SE|SW)\.?$/i;
+
+/** The short name of a road for the voice: a numbered highway keeps just its number ("U.S. 94 Martin Luther King Jr Parkway Southwest" is "U.S. 94"); any other name loses its compass direction. */
+function shortRoad(name: string): string {
+  let n = name.split(/\s+[/|]\s+|\s+-\s+/)[0].trim(); // "A / B" and "A - B" are two names for the same road: the first will do
+  const number = DESIGNATION.exec(n);
+  if (number) return number[1];
+  n = n.replace(DIRECTIONS, '').trim();
+  return n || name;
+}
+
+/**
+ * What the voice says for an instruction: the same, but without the road's long name and without the extras. "Turn left onto U.S. 94 Martin Luther King Jr Parkway
+ * Southwest toward Downtown" is spoken "Turn left onto U.S. 94". The banner on the screen keeps the whole text.
+ */
+export function spokenInstruction(text: string): string {
+  let t = text.replace(/<[^>]+>/g, ' ').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  // "toward ...", "Pass by ...", "Continue for 2 miles", "Destination will be ..." keep only what is needed to act
+  t = t.replace(/\s+toward\s+.*$/i, '').replace(/\.\s+(?:Pass by|Continue for|Then).*$/i, '');
+  t = t.replace(/\b(onto|on|at|via|to stay on|to merge onto|onto the)\s+([^,]+?)(?=$|,)/i, (_m, word: string, road: string) => `${word} ${shortRoad(road)}`);
+  return t.replace(/[.,]+$/, '').trim() || text;
+}

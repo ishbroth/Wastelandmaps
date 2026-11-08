@@ -859,3 +859,18 @@ html[data-look='parchment'] .rm-board-row.mine { background: rgba(120, 80, 20, 0
 /* the map on a car's screen (CarPlay, ?car=1): just the map; no ME button, no zoom buttons, and it takes no touches */
 .rm-car .rm-me, .rm-car .gm-bundled-control, .rm-car .gm-fullscreen-control { display: none !important; }
 .rm-car { pointer-events: none; }
+
+/* "RETRIEVING FILM… 20 SECONDS" on the sealed-snapshot window: one line, whatever the width of the window */
+.rm-locked .rm-developing { display: inline-flex; align-items: center; justify-content: center; gap: 0.5em; max-width: 100%; box-sizing: border-box; white-space: nowrap; font-size: clamp(11px, 3.6vw, 18px); letter-spacing: 1px; padding-left: 0.8em; padding-right: 0.8em; overflow: hidden; }
+.rm-locked .rm-developing svg { flex: none; width: 1.2em; height: 1.2em; }
+
+/* ---- wider screen on phones: slimmer margins around the Pip-Boy (upright and sideways), and a little more room on the info side sideways ---- */
+@media (max-width: 960px) {
+  .rm-app { padding-left: max(6px, env(safe-area-inset-left)); padding-right: max(6px, env(safe-area-inset-right)); }
+  .rm-device { padding: 6px; }
+}
+/* sideways: the notch side still keeps clear (the margin is the safe area less 15px, and the device's own border and padding take up the rest), and the info side is wide enough for AUTO-DISCOVER and the sound and vibration buttons on one line */
+@media (max-width: 960px) and (orientation: landscape) and (max-height: 620px) {
+  .rm-app { padding-left: max(6px, calc(env(safe-area-inset-left) - 15px)); padding-right: max(6px, calc(env(safe-area-inset-right) - 15px)); }
+  .rm-device { grid-template-columns: minmax(0, 1fr) minmax(275px, calc(38% - 16px)); gap: 6px; padding: 5px; }
+}

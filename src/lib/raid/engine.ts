@@ -12,6 +12,8 @@ import { MAGAZINE, WEAPON_CLASS_IDS, usesMagazine, weaponAt, type Arsenal, type 
 export interface Spawns {
   horizon: number;
   points: { u: number; v: number }[];
+  /** How big enemies look when they start, against the usual (1): a picture taken from far away (a big landmark) makes them small, a close one (a house) bigger. */
+  scale?: number;
 }
 
 /** For a picture nobody has marked: the ground band across the lower half. */
@@ -303,7 +305,9 @@ export class Game {
 
   /** An enemy's height in picture heights: small and far away at the start, filling the screen when it strikes. */
   heightOf(e: Enemy): number {
-    const start = Math.max(0.035, PERSON_HEIGHT * this.depthAt(e.v0) * e.type.size);
+    // The size at the start follows the picture (scale) and is not so very different between a small creature and a big one: they are all far away. Only the strike is big.
+    const scale = this.spawns.scale ?? 1;
+    const start = Math.max(0.035 * Math.max(1, scale * 0.7), PERSON_HEIGHT * this.depthAt(e.v0) * scale * Math.pow(e.type.size, 0.55));
     const end = Math.max(start, strikeHeight(e.type.size));
     return start * Math.pow(end / start, Math.min(1.08, Math.max(0, e.p))) * this.attackScale(e);
   }

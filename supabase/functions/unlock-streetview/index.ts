@@ -143,12 +143,6 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
   }
 }
 
-/** An address they have unlocked the snapshot of is discovered: it counts once toward their level (10 points), like any place found. */
-// deno-lint-ignore no-explicit-any
-async function discoverAddress(db: any, user: string, placeId: string): Promise<void> {
-  try { await db.rpc('record_discovery', { p_user: user, p_place: placeId, p_points: 10 }); } catch { /* the unlock still stands */ }
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
   if (req.method !== 'POST') return reply(req, { error: 'POST only' }, 405);
@@ -188,7 +182,6 @@ Deno.serve(async (req) => {
       charged = spent === 'spent';
     }
     const url = await signed(existing!.storage_path as string);
-    if (url) await discoverAddress(db, user, placeId);
     if (!url) {
       if (charged) await db.rpc('refund_personal', { p_user: user, p_place: placeId, p_cost: COST });
       return reply(req, { error: 'server' }, 500);
@@ -244,7 +237,6 @@ Deno.serve(async (req) => {
     await db.from('address_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString() }).eq('place_id', googleId);
     const url = await signed(path);
     if (!url) throw new Error('no link');
-    await discoverAddress(db, user, placeId);
     return reply(req, { status: 'ready', url, charged: spent === 'spent' });
   } catch (e) {
     await db.from('address_renders').update({ status: 'failed' }).eq('place_id', googleId);

@@ -31,12 +31,21 @@ Deno.serve(async (req) => {
   if (atlas) {
     const db = serviceClient();
     const { data: render } = await db.from('address_renders').select('metro_id,lat,lng,created_by').eq('place_id', b.placeId!.slice(3)).eq('status', 'ready').maybeSingle();
-    if (!render || render.created_by === user) return reply(req, { error: 'not_atlas' }, 400);
-    const { data: has } = await db.from('metro_unlocks').select('metro_id').eq('user_id', user).eq('metro_id', render.metro_id).maybeSingle();
-    if (!has) return reply(req, { error: 'not_atlas' }, 403);
-    b.lat = render.lat as number;
-    b.lng = render.lng as number;
-    b.points = 1;
+    if (render && render.created_by !== user) {
+      // somebody else's address, from a metro atlas they own: 1 point
+      const { data: has } = await db.from('metro_unlocks').select('metro_id').eq('user_id', user).eq('metro_id', render.metro_id).maybeSingle();
+      if (!has) return reply(req, { error: 'not_atlas' }, 403);
+      b.lat = render.lat as number;
+      b.lng = render.lng as number;
+      b.points = 1;
+    } else {
+      // an address they typed in and unlocked themselves: worth 10 points, but only when they get there (unlocking its snapshot is not discovering it)
+      const { data: own } = await db.from('personal_places').select('lat,lng').eq('user_id', user).eq('place_id', b.placeId!.slice(3)).maybeSingle();
+      if (!own) return reply(req, { error: 'not_atlas' }, 400);
+      b.lat = own.lat as number;
+      b.lng = own.lng as number;
+      b.points = 10;
+    }
   }
   // Vault 0, Vault Tech Headquarters: found by being anywhere in Antarctica, not by being near a point. Pays 1000 XP and 20 pieces of loot, once (the
   // discovery row is the lock: a second report finds it already there and pays nothing). The server fixes the amounts, never the browser.

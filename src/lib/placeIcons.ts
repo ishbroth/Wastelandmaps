@@ -11,7 +11,7 @@ type BaseIconId =
   | 'book' | 'beaker' | 'houses' | 'skyscraper' | 'statue' | 'ringart' | 'flag' | 'column' | 'railcross' | 'tram' | 'mosque' | 'cathedral' | 'temple' | 'badge' | 'firebadge' | 'fork' | 'cart' | 'theatre' | 'leafytree' | 'fountain'
   | 'factory' | 'apartment' | 'trailer'
   | 'radiotower' | 'lighthouse' | 'gasmask' | 'tractor' | 'cannon' | 'bus' | 'tent' | 'observatory' | 'lifebuoy' | 'ruins' | 'ship' | 'pinetree'
-  | 'mountain' | 'palm' | 'windmill' | 'camera' | 'fish' | 'cactus' | 'star' | 'lamp' | 'pump' | 'wrench' | 'car' | 'basket' | 'bag' | 'gradcap' | 'pill' | 'ambulance' | 'helmet' | 'mug' | 'bell' | 'ball' | 'trophy' | 'key' | 'vault0' | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
+  | 'officeslab' | 'twintowers' | 'artdeco' | 'glasstower' | 'plaza' | 'officepark' | 'curvedtower' | 'campus' | 'mall' | 'mountain' | 'palm' | 'windmill' | 'camera' | 'fish' | 'cactus' | 'star' | 'lamp' | 'pump' | 'wrench' | 'car' | 'basket' | 'bag' | 'gradcap' | 'pill' | 'ambulance' | 'helmet' | 'mug' | 'bell' | 'ball' | 'trophy' | 'key' | 'vault0' | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
 
 /** The world-famous buildings and monuments, drawn as themselves (famousIcons.ts). */
 export type FamousIconId =
@@ -140,6 +140,16 @@ const ICONS: Record<BaseIconId, string> = {
   cactus: svg(f('M10.2 21V6.5a1.8 1.8 0 0 1 3.6 0V21Z') + s('M10.2 14H7.5a1.5 1.5 0 0 1-1.5-1.5V9M13.8 12h2.7a1.5 1.5 0 0 0 1.5-1.5V7') + s('M3 21.5h18')),
   star: svg(f('M12 2.8l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2L12 16.5l-5.6 3.3 1.3-6.2L3 9.3l6.3-.7Z')),
   lamp: svg(f('M6 3.5h12L16 10H8Z') + s('M12 10v11M9 21.5h6') + d('M9.5 6.5h5')),
+  // office blocks, towers, plazas and the like: more shapes, so the commercial places are not all the same two
+  officeslab: svg(f('M6 21V4h12v17Z') + d('M8.5 7h2M13.5 7h2M8.5 10.5h2M13.5 10.5h2M8.5 14h2M13.5 14h2') + d('M10.5 21v-3h3v3')),
+  twintowers: svg(f('M3.5 21V8h6.5v13Z') + f('M14 21V4h6.5v17Z') + d('M5.5 11h2.5M5.5 14.5h2.5M16 8h2.5M16 11.5h2.5M16 15h2.5') + s('M17.2 4V1.8')),
+  artdeco: svg(f('M6.5 21V12h11v9Z') + f('M9 12V7.5h6V12Z') + f('M10.8 7.5V4.5h2.4v3Z') + s('M12 4.5V1.6') + d('M9 15h6M9 18h6')),
+  glasstower: svg(f('M8 21 9.5 5.5h5L16 21Z') + d('M10.2 9h3.6M10 13h4M9.8 17h4.4') + s('M12 5.5V1.8')),
+  plaza: svg(f('M2.5 21V8.5H9V21Z') + f('M15 21V6h6.5v15Z') + d('M4.5 12h2.5M4.5 15.5h2.5M17 9.5h2.5M17 13h2.5M17 16.5h2.5') + f('M12 18.4a1.2 1.2 0 1 0 .01 0Z') + s('M12 17.6v-3.4M10.2 15.4c1-1.2 2.6-1.2 3.6 0M9.6 21h4.8')),
+  officepark: svg(f('M2.5 21v-8h19v8Z') + f('M5 13V9.5h9V13Z') + d('M4.5 17h2M9 17h2M13.5 17h2M18 17h2') + d('M7 11.3h5')),
+  curvedtower: svg(f('M7.5 21V8.5a4.5 4.5 0 0 1 9 0V21Z') + d('M10.2 9.5h3.6M10.2 13h3.6M10.2 16.5h3.6') + d('M11 21v-2.2h2V21')),
+  campus: svg(f('M2.5 21V12h6v9Z') + f('M9 21V8h6v13Z') + f('M15.5 21v-7h6v7Z') + d('M4.5 15h2M4.5 18h2M11 11.5h2M11 15h2M11 18.5h2M17.5 17h2')),
+  mall: svg(f('M2.5 21V10h19v11Z') + f('M2.5 10 4 6h16l1.5 4Z') + d('M9.5 21v-5h5v5Z') + d('M5 14h2.5M16.5 14H19')),
   // more kinds of place, so that the same sort of place does not always get the same picture
   pump: svg(f('M6 21V5a1.5 1.5 0 0 1 1.5-1.5h6A1.5 1.5 0 0 1 15 5v16Z') + d('M8 6.5h5v4H8Z') + s('M15 9h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0v-5l-2.5-3') + s('M4 21h13')),
   wrench: svg(f('M14.5 3a5 5 0 0 0-4.6 6.9L3.6 16.2a2 2 0 0 0 2.8 2.8l6.3-6.3A5 5 0 0 0 19.6 8l-3 3-2.5-.6-.6-2.5 3-3A5 5 0 0 0 14.5 3Z')),
@@ -154,7 +164,7 @@ const ICONS: Record<BaseIconId, string> = {
   bell: svg(f('M12 3a6 6 0 0 0-6 6v4.5L4 17h16l-2-3.5V9a6 6 0 0 0-6-6Z') + f('M10 19.5a2 2 0 0 0 4 0Z')),
   ball: svg(f('M12 2.5a9.5 9.5 0 1 0 .01 0Z') + d('M2.5 12h19M12 2.5c3.5 3 3.5 16 0 19M12 2.5c-3.5 3-3.5 16 0 19')),
   trophy: svg(f('M7 3.5h10v6a5 5 0 0 1-10 0Z') + s('M7 5.5H4.5v1.5a3 3 0 0 0 3 3M17 5.5h2.5v1.5a3 3 0 0 1-3 3') + f('M10.5 14.5h3V18h-3Z') + f('M7.5 18h9v3h-9Z')),
-  key: svg(f('M7.5 3.5a4.5 4.5 0 1 0 .01 0Z') + d('M7.5 6.8a1.2 1.2 0 1 0 .01 0Z') + s('M11 11.5l9.5 9.5M16 16l2.5-2.5M13.5 13.5 16 11')),
+  key: svg('<g transform="rotate(45 12 12)">' + f('M12 1.2a4.2 4.2 0 1 0 .01 0Z') + d('M12 3.6a1.8 1.8 0 1 0 .01 0Z') + f('M10.2 9.2h3.6v1.6h-3.6Z') + f('M11.2 10.8h1.6V22.5h-1.6Z') + f('M12.8 15.2h3.4v1.8h-3.4ZM12.8 18.6h2.4v1.8h-2.4Z') + '</g>'),
   // Vault 0 in Antarctica: not a cog but the door itself, a round blast door set in a snowy hillside, with a snowflake above
   vault0: svg(f('M1.5 21.5C2.5 13 7 9.6 12 9.6s9.5 3.4 10.5 11.9Z') + d('M12 11.6a4.9 4.9 0 1 0 .01 0Z') + d('M12 13.6a2.9 2.9 0 1 0 .01 0Z') + d('M12 12.6v4.8M9.6 15h4.8') + s('M12 1.8v5.4M9.7 3.1l4.6 2.8M14.3 3.1 9.7 5.9') + s('M1.5 21.5h21')),
   homevault: svg(`<path class="f" fill-rule="evenodd" d="${COG}${cut(12, 12, 5.8)}"/>` + f('M8.7 13.2 12 10l3.3 3.2v3.4H8.7Z') + d('M7.9 13.3 12 9.2l4.1 4.1') + d('M11.1 16.6v-2.2h1.8v2.2')),
@@ -197,7 +207,7 @@ const churchIcon = (name: string): IconId =>
   : /cathedral|cath[eé]drale|kathedrale|basilica|duomo|minster|abbey/.test(name) ? mix(name, ['cathedral', 'cathedral', 'church'])
   : mix(name, ['church', 'church', 'cathedral']);
 /** A district of the city: a few buildings together, or a cluster of small houses. */
-export const neighborhoodIcon = (name: string): IconId => mix(name, ['cluster', 'houses', 'houses', 'cluster']);
+export const neighborhoodIcon = (name: string): IconId => mix(name, ['cluster', 'houses', 'houses', 'cluster', 'campus']);
 
 const test = (re: RegExp, name: string) => re.test(name);
 
@@ -263,7 +273,11 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (test(/sculpture|installation|cloud gate|public art|mural/, n)) return 'ringart';
   if (test(/\bstatue\b|estatua|statua|standbild/, n)) return 'statue';
   if (test(/\b(?:house|mansion|villa|manor|cottage|homestead|birthplace|residence|home)\b/, n) && !test(/opera house|light ?house|power ?house|custom ?house|guest ?house|town house|boat ?house|wareh|club ?house|play ?house|coffee ?house|green ?house|steak ?house/, n)) return 'house';
-  if (test(/tower|plaza|center|centre|building|skyscraper|complex|campus|financial|headquarters|\bplace\b|square|trade|exchange|bank|insurance/, n) && category !== 'park') return mix(n, ['cluster', 'skyscraper', 'cluster']);
+  if (test(/\bplaza\b|\bsquare\b|\bcourt\b/, n) && category !== 'park') return mix(n, ['plaza', 'plaza', 'cluster', 'campus']);
+  if (test(/shopping|\bmall\b|galleria|marketplace|outlet/, n)) return mix(n, ['mall', 'campus', 'officepark']);
+  if (test(/financial|bank|exchange|insurance|trade|\bcapital\b/, n) && category !== 'park') return mix(n, ['officeslab', 'artdeco', 'skyscraper', 'glasstower', 'twintowers']);
+  if (test(/\btowers?\b|skyscraper/, n) && category !== 'park') return mix(n, ['skyscraper', 'twintowers', 'artdeco', 'glasstower', 'curvedtower', 'officeslab']);
+  if (test(/campus|complex|\bcenter\b|\bcentre\b|building|headquarters|\bplace\b/, n) && category !== 'park') return mix(n, ['campus', 'officepark', 'officeslab', 'cluster', 'curvedtower', 'glasstower', 'skyscraper']);
   if (test(/monument|memorial|statue|obelisk|column|mus[eé]e en plein|sculpture/, n)) return mix(n, ['monument', 'column', 'flag', 'statue']);
 
   if (test(/\bmount(?:ain)?\b|\bpeak\b|\bridge\b|canyon|volcano|\bhill\b|\bsummit\b|\bcliffs?\b|\bglacier\b/, n)) return mix(n, ['mountain', 'mountain', 'pinetree']);
