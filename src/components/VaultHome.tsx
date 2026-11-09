@@ -6,11 +6,11 @@ import { canAfford, describeBag, lootName, type LootId } from '../lib/raid/loot'
 type Bag = Partial<Record<string, number>>;
 import {
   COLS, ENTRY_AT, MAX_HALLWAYS_PER_LEVEL, hallwaysOn, isDoorCell, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
-  whyNotBuild, whyNotDig, DECON_REASON, MAX_VACATIONS, vacationRecipe,
+  whyNotBuild, whyNotDig, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt, type Pose } from './vaultArt';
-import { CELL, FURNITURE, SEATS, pieceScale, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, pieceAt, roomRect, screenBox, type Rect } from './vaultIso';
+import { CELL, FURNITURE, SEATS, pieceScale, setHallLookup, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, pieceAt, roomRect, screenBox, type Rect } from './vaultIso';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -36,7 +36,7 @@ export interface VacationOffer {
   unlock: (placeId: string, icon: string, replace?: string) => Promise<string | null>;
 }
 
-type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType } | { kind: 'room'; idx: number; item?: string } | { kind: 'vacation'; pick?: VacationChoice } | null;
+type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType } | { kind: 'room'; idx: number; item?: string } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | null;
 
 // ---- the settlers' wandering ----
 
@@ -75,12 +75,12 @@ function route(v: VaultHome, level: number, from: [number, number], to: [number,
     if (r === pr) {
       // along x, through the doorway in the right room's left wall
       const dir = c > pc ? 1 : -1;
-      const y = (Math.max(A.y, B.y) + Math.min(A.y + A.d, B.y + B.d)) / 2;
+      const y = A.yc ?? B.yc ?? (Math.max(A.y, B.y) + Math.min(A.y + A.d, B.y + B.d)) / 2;
       path.push({ x: dir > 0 ? A.x + A.w - 9 : A.x + 9, y }, { x: dir > 0 ? B.x + 9 : B.x + B.w - 9, y });
     } else {
       // along y, through the doorway in the front room's right wall
       const dir = r > pr ? 1 : -1;
-      const x = (Math.max(A.x, B.x, c * CELL) + Math.min(A.x + A.w, B.x + B.w, (c + 1) * CELL)) / 2;
+      const x = A.xc ?? B.xc ?? (Math.max(A.x, B.x, c * CELL) + Math.min(A.x + A.w, B.x + B.w, (c + 1) * CELL)) / 2;
       path.push({ x, y: dir > 0 ? A.y + A.d - 9 : A.y + 9 }, { x, y: dir > 0 ? B.y + 9 : B.y + B.d - 9 });
     }
   }
@@ -226,6 +226,14 @@ function RecipeCard({ title, what, recipe, have, busy, onPay, onBack, verb }: { 
   );
 }
 
+/** Names to start from when a settler arrives (the owner can type their own). */
+const STARTER_NAMES: Record<SettlerKind, string[]> = {
+  male: ['Gus', 'Walt', 'Otis', 'Hank', 'Dale', 'Moe', 'Cliff', 'Ned', 'Rufus', 'Abe'],
+  female: ['Dot', 'Edna', 'Lou', 'Peggy', 'Mabel', 'Ruth', 'Ida', 'Josie', 'Vera', 'Pearl'],
+  dog: ['Rex', 'Duke', 'Boomer', 'Scrap', 'Dogmeat', 'Rusty', 'Biscuit', 'Bolt', 'Ziggy', 'Tank'],
+  cat: ['Whisk', 'Soot', 'Pickles', 'Ash', 'Mittens', 'Fuse', 'Biscuit', 'Gizmo', 'Sparky', 'Pixel'],
+};
+
 /** What a settler looks like in the picker. */
 function SettlerPreview({ kind }: { kind: SettlerKind }) {
   return (
@@ -279,6 +287,9 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
   const svgRef = useRef<SVGSVGElement>(null);
   const vbRef = useRef<number[] | null>(null);
   const animating = useRef(false);
+  /** Moving the picture with a finger (when a room is blown up and its upgrades are closed): where the touch began, and whether it has moved far enough to be a drag. */
+  const drag = useRef<{ x: number; y: number; moved: boolean; id: number } | null>(null);
+  const dragged = useRef(false);
   const prevFocus = useRef<number | null>(null);
   // The camera: the picture is an svg whose window (its viewBox) is fitted to the floorplan, so a vault of one room is close up and a bigger one farther back.
   const setWindow = (w: number[]) => {
@@ -314,6 +325,8 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
 
   const mood = vault ? moodAt({ ...vault, seenAt: now }, now) : null;
   const waiting = vault ? settlersWaiting(vault) : 0;
+  /** A new settler whose name is being chosen. */
+  const [naming, setNaming] = useState<{ kind: SettlerKind; name: string } | null>(null);
 
   /** Moves to another level (back to the whole-level view). */
   const goLevel = useCallback((to: number) => { setFocus(null); setPanel(null); setLevel(to); }, []);
@@ -324,6 +337,9 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     if (why) { say(why); return; }
     goLevel(level + 1);
   };
+
+  // the drawing needs to know which cells have a room (a hallway runs the way its neighbors are)
+  setHallLookup(vault ? (l, c, r) => !!roomAt(vault, l, c, r) : null);
 
   // the cells where a room could be built: next to a room of this level, or (on a level with no rooms yet) under a room of the level above
   const openCells = useMemo<[number, number][]>(() => {
@@ -346,8 +362,8 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     const here = roomsOn(vault, level);
     const at = (c: number, r: number) => roomAt(vault, level, c, r);
     const tapRoom = (e: React.MouseEvent, idx: number) => {
-      if (focusRef.current !== null) return; // while a room is blown up, a tap anywhere (this room too) shrinks it back
       e.stopPropagation();
+      if (dragged.current) return; // the finger moved the picture: it is not a tap
       setFocus(idx);
       setPanel({ kind: 'room', idx });
     };
@@ -371,7 +387,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
         el: (
           <g className={`rm-vh-room${fresh && fresh.room === idx && !fresh.item ? ' rm-vh-fresh' : ''}`} role="button" aria-label={def.name}>
             {halls}
-            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} doorsL={doorsL} doorsR={doorsR} hole={roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} furniture={room.furniture} />
+            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} level={room.level} labelFront={[at(room.col - 1, room.row), ...Array.from({ length: slots }, (_, k) => at(room.col + k, room.row - 1))].some((n) => n?.type === 'hallway')} doorsL={doorsL} doorsR={doorsR} hole={roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} furniture={room.furniture} />
           </g>
         ),
       });
@@ -501,9 +517,42 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
           const rooms = scene.layers.filter((l) => l.room);
           const frontIdx = rooms.length ? (rooms[rooms.length - 1].room as { idx: number }).idx : -1;
           const ownerOf = (x: number, y: number): number => rooms.find((l) => { const r = roomRect((l.room as { room: VaultRoom }).room); return x >= r.x - 5 && x <= r.x + r.w + 5 && y >= r.y - 5 && y <= r.y + r.d + 5; })?.room?.idx ?? frontIdx;
-          const settlers = sims.filter((s) => s.level === level).map((s) => ({ owner: ownerOf(s.x, s.y), key: `s${s.id}`, depth: s.x + s.y + 0.5, el: (() => { const [X, Y] = P(s.x, s.y, 0); return <g key={`s${s.id}`} transform={`translate(${X} ${Y - s.lift * SETTLER_SCALE}) scale(${s.face * SETTLER_SCALE} ${SETTLER_SCALE})`}><SettlerArt kind={s.kind} pose={s.pose} phase={s.phase} /></g>; })() }));
+          const settlers = sims.filter((s) => s.level === level).map((s) => ({ owner: ownerOf(s.x, s.y), key: `s${s.id}`, depth: s.x + s.y + 0.5, el: (() => {
+            const [X, Y] = P(s.x, s.y, 0);
+            const name = (vault.settlers as Settler[]).find((st) => st.id === s.id)?.name ?? '';
+            const top = (s.pose === 'lie' ? 16 : s.pose === 'sit' ? 38 : 47) * SETTLER_SCALE;
+            return (
+              <g key={`s${s.id}`} transform={`translate(${X} ${Y - s.lift * SETTLER_SCALE})`} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setPanel({ kind: 'settler', id: s.id, name }); }}>
+                <g transform={`scale(${s.face * SETTLER_SCALE} ${SETTLER_SCALE})`}><SettlerArt kind={s.kind} pose={s.pose} phase={s.phase} /></g>
+                <rect x={-12} y={-top - 4} width={24} height={top + 4} fill="transparent" stroke="none" />
+                {name && (
+                  <g transform={`translate(0 ${-top - 2})`} pointerEvents="none">
+                    <rect x={-(name.length * 2.1 + 3)} y={-8} width={name.length * 4.2 + 6} height={8.4} rx={2} fill="rgba(2,26,12,0.8)" stroke={INK} strokeWidth={0.5} />
+                    <text y={-1.8} fontSize="7" textAnchor="middle" fill={INK} stroke="none" fontFamily="'VT323', monospace" letterSpacing="0.4">{name}</text>
+                  </g>
+                )}
+              </g>
+            );
+          })() }));
           return (
-            <svg ref={svgRef} className="rm-vh-svg" style={{ width: size.w, height: size.h }} fill="none" stroke={INK} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" onClick={() => { if (focus !== null && !panel) setFocus(null); }}>
+            <svg ref={svgRef} className="rm-vh-svg" style={{ width: size.w, height: size.h, touchAction: focus !== null && !panel ? 'none' : undefined }} fill="none" stroke={INK} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
+              onPointerDown={(e) => { if (focus !== null && !panel && !animating.current) drag.current = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId }; }}
+              onPointerMove={(e) => {
+                const d = drag.current;
+                const vb = vbRef.current;
+                if (!d || !vb || !size) return;
+                const dx = e.clientX - d.x;
+                const dy = e.clientY - d.y;
+                if (!d.moved && Math.hypot(dx, dy) < 8) return;
+                if (!d.moved) { d.moved = true; (e.currentTarget as SVGSVGElement).setPointerCapture?.(d.id); }
+                const k = vb[2] / size.w;
+                setWindow([vb[0] - dx * k, vb[1] - dy * k, vb[2], vb[3]]);
+                d.x = e.clientX;
+                d.y = e.clientY;
+              }}
+              onPointerUp={() => { const d = drag.current; drag.current = null; if (d?.moved) { dragged.current = true; window.setTimeout(() => { dragged.current = false; }, 60); } }}
+              onPointerCancel={() => { drag.current = null; }}
+              onClick={() => { if (dragged.current) return; if (focus !== null) { if (panel) setPanel(null); else setFocus(null); } }}>
               {scene.ghosts}
               {scene.layers.map((l) => {
                 const here = l.room;
@@ -524,11 +573,25 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
         )}
       </div>
       {focus !== null && !panel && !waiting && <button type="button" className="rm-btn rm-vh-fab" onClick={() => setPanel({ kind: 'room', idx: focus })}>UPGRADES</button>}
-      {docked && !waiting && <div className="rm-vh-backdrop" onClick={() => setPanel(null)} />}
 
       {vault && panel && !waiting && (
         <div className={`rm-vh-sheet${panel.kind === 'room' ? ' dock' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setPanel(null); }}>
           <div className="rm-vh-sheet-card">
+            {panel.kind === 'settler' && (
+              <div className="rm-vh-sheet-body">
+                <h3>RENAME</h3>
+                <p>{(vault.settlers as Settler[]).find((st) => st.id === panel.id)?.name ? 'WHAT SHOULD THEY BE CALLED NOW?' : 'GIVE THEM A NAME.'} ({SETTLER_NAME_MAX} CHARACTERS AT MOST)</p>
+                <div className="rm-vh-name">
+                  <input value={panel.name} maxLength={SETTLER_NAME_MAX} autoFocus autoComplete="off" spellCheck={false} aria-label="Name"
+                    onChange={(e) => setPanel({ ...panel, name: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && cleanSettlerName(panel.name)) void act({ action: 'rename', id: panel.id, name: cleanSettlerName(panel.name) as string }); }} />
+                </div>
+                <div className="rm-vh-row">
+                  <button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel(null)}>CANCEL</button>
+                  <button type="button" className="rm-btn" disabled={busy || !cleanSettlerName(panel.name)} onClick={() => void act({ action: 'rename', id: panel.id, name: cleanSettlerName(panel.name) as string })}>SAVE</button>
+                </div>
+              </div>
+            )}
             {panel.kind === 'vacation' && vacation && !panel.pick && (
               <div className="rm-vh-sheet-body">
                 <h3>VACATION VAULT</h3>
@@ -627,12 +690,30 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
           <div className="rm-vh-sheet-card">
             <div className="rm-vh-sheet-body">
               <h3>A SETTLER HAS ARRIVED</h3>
-              <p>THEY HAVE MOVED INTO YOUR VAULT. WHO ARE THEY?</p>
-              <div className="rm-vh-kinds">
-                {(['male', 'female', 'dog', 'cat'] as SettlerKind[]).map((k) => (
-                  <button key={k} type="button" disabled={busy} onClick={() => void act({ action: 'settler', kind: k })}><SettlerPreview kind={k} /><span>{k === 'male' ? 'MAN' : k === 'female' ? 'WOMAN' : k.toUpperCase()}</span></button>
-                ))}
-              </div>
+              {!naming ? (
+                <>
+                  <p>THEY HAVE MOVED INTO YOUR VAULT. WHO ARE THEY?</p>
+                  <div className="rm-vh-kinds">
+                    {(['male', 'female', 'dog', 'cat'] as SettlerKind[]).map((k) => (
+                      <button key={k} type="button" disabled={busy} onClick={() => setNaming({ kind: k, name: STARTER_NAMES[k][Math.floor(Math.random() * STARTER_NAMES[k].length)] })}><SettlerPreview kind={k} /><span>{k === 'male' ? 'MAN' : k === 'female' ? 'WOMAN' : k.toUpperCase()}</span></button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p>WHAT IS THEIR NAME? ({SETTLER_NAME_MAX} CHARACTERS AT MOST)</p>
+                  <div className="rm-vh-name">
+                    <SettlerPreview kind={naming.kind} />
+                    <input value={naming.name} maxLength={SETTLER_NAME_MAX} autoFocus autoComplete="off" spellCheck={false} aria-label="Name"
+                      onChange={(e) => setNaming({ ...naming, name: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && cleanSettlerName(naming.name)) void act({ action: 'settler', kind: naming.kind, name: cleanSettlerName(naming.name) as string }, () => setNaming(null)); }} />
+                  </div>
+                  <div className="rm-vh-row">
+                    <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setNaming(null)}>BACK</button>
+                    <button type="button" className="rm-btn" disabled={busy || !cleanSettlerName(naming.name)} onClick={() => void act({ action: 'settler', kind: naming.kind, name: cleanSettlerName(naming.name) as string }, () => setNaming(null))}>MOVE IN</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

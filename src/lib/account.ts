@@ -291,7 +291,7 @@ export type UnlockResult =
   | { kind: 'error'; reason: 'no_credits' | 'no_photo' | 'busy' | 'failed' | 'sign_in' | 'server'; /** For 'busy': when the day's count of new renders starts again (an ISO time). */ resetsAt?: string };
 
 /** Unlocks a place (one credit, once) and returns the render. 'working' means it is still being made: ask again in a few seconds, free. */
-export async function unlockRender(placeId: string, name: string, extra?: { kind?: string; metroId?: string | null; home?: boolean; flooded?: boolean; irradiated?: boolean }): Promise<UnlockResult> {
+export async function unlockRender(placeId: string, name: string, extra?: { kind?: string; metroId?: string | null; home?: boolean; flooded?: boolean; irradiated?: boolean; /** The number of the vault this place is the entrance to (its picture has the vault door in it). */ vault?: number }): Promise<UnlockResult> {
   const { data, error } = await db().functions.invoke(placeId.startsWith('me:') ? 'unlock-streetview' : 'unlock-render', { body: { placeId, name, ...extra } });
   if (error) {
     // the function answers with an error code in the body even on a 4xx/5xx
@@ -570,7 +570,7 @@ export async function loadClearable(metroId: string): Promise<string[]> {
 export type VaultAnswer = { ok: true; vault: VaultHome; version: number } | { ok: false; reason: string };
 
 /** Asks the vault function to do something: 'visit', 'build', 'furnish' or 'settler'. */
-export async function vaultCall(body: ({ action: 'visit' } | { action: 'build'; type: string; level: number; col: number; row: number } | { action: 'furnish'; room: number; item: string } | { action: 'settler'; kind: string }) & { vault?: string }): Promise<VaultAnswer> {
+export async function vaultCall(body: ({ action: 'visit' } | { action: 'build'; type: string; level: number; col: number; row: number } | { action: 'furnish'; room: number; item: string } | { action: 'settler'; kind: string; name?: string } | { action: 'rename'; id: number; name: string }) & { vault?: string }): Promise<VaultAnswer> {
   const { data, error } = await db().functions.invoke('vault', { body });
   return error || !data ? { ok: false, reason: 'server' } : (data as VaultAnswer);
 }

@@ -26,7 +26,7 @@ export const P = (x: number, y: number, z = 0): [number, number] => [(x - y) * K
 type V3 = [number, number, number];
 const pts = (list: V3[]): string => list.map(([x, y, z]) => P(x, y, z).map((n) => Math.round(n * 10) / 10).join(',')).join(' ');
 
-export interface Rect { x: number; y: number; w: number; d: number }
+export interface Rect { x: number; y: number; w: number; d: number; /** Where a corridor's middle line runs (hallways), when it is not the middle of the box. */ xc?: number; yc?: number }
 export const cellRect = (col: number, row: number): Rect => ({ x: col * CELL, y: row * CELL, w: CELL, d: CELL });
 // ---- the shapes of the rooms ----
 // Each kind of room has a few shapes and sizes; which one a room gets is picked from where it is built (so it is always the same for that room). A room is
@@ -62,14 +62,57 @@ const hashOf = (s: string): number => {
 };
 type Pt = [number, number];
 export interface Shape { rect: Rect; poly: Pt[]; notch: Rect | null }
+/** The hallway's floor: a corridor 30 wide through the middle of its cell, a whole cell long. It runs the way its neighbors are (left and right, or up and down); with neighbors on two axes it is an elbow, a tee or a crossing. */
+let hallLookup: ((level: number, col: number, row: number) => boolean) | null = null;
+/** Tells the drawing which cells have a room (so a hallway knows which way it runs). Set it before drawing. */
+export const setHallLookup = (f: ((level: number, col: number, row: number) => boolean) | null): void => { hallLookup = f; };
+
+const HALL_W = 30;
+function hallwayShape(r: { col: number; row: number; level?: number }): Shape & { nb: { l: boolean; r: boolean; b: boolean; f: boolean } } {
+  const level = r.level ?? 0;
+  const has = (dc: number, dr: number) => !!hallLookup?.(level, r.col + dc, r.row + dr);
+  const nb = { l: has(-1, 0), r: has(1, 0), b: has(0, -1), f: has(0, 1) };
+  const horiz = nb.l || nb.r;
+  const vert = nb.b || nb.f;
+  let al = nb.l, ar = nb.r, ab = nb.b, af = nb.f;
+  // with neighbors on one axis only (or none) it runs the whole cell along that axis, a dead end included
+  if (horiz && !vert) { al = true; ar = true; } else if (vert && !horiz) { ab = true; af = true; } else if (!horiz && !vert) { al = true; ar = true; }
+  const X0 = r.col * CELL, Y0 = r.row * CELL;
+  const cx = X0 + CELL / 2, cy = Y0 + CELL / 2, h = HALL_W / 2;
+  const xs = [X0, cx - h, cx + h, X0 + CELL];
+  const ys = [Y0, cy - h, cy + h, Y0 + CELL];
+  const fill = [[false, ab, false], [al, true, ar], [false, af, false]]; // [row][col]
+  const filled = (i: number, j: number) => i >= 0 && i < 3 && j >= 0 && j < 3 && fill[j][i];
+  // the outline of the filled cells, clockwise
+  const next = new Map<string, Pt>();
+  const key = (p: Pt) => `${p[0]},${p[1]}`;
+  for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) {
+    if (!filled(i, j)) continue;
+    if (!filled(i, j - 1)) next.set(key([xs[i], ys[j]]), [xs[i + 1], ys[j]]);
+    if (!filled(i + 1, j)) next.set(key([xs[i + 1], ys[j]]), [xs[i + 1], ys[j + 1]]);
+    if (!filled(i, j + 1)) next.set(key([xs[i + 1], ys[j + 1]]), [xs[i], ys[j + 1]]);
+    if (!filled(i - 1, j)) next.set(key([xs[i], ys[j + 1]]), [xs[i], ys[j]]);
+  }
+  const start: Pt = next.size ? ([...next.keys()][0].split(',').map(Number) as Pt) : [xs[1], ys[1]];
+  const raw: Pt[] = [start];
+  for (let p = next.get(key(start)); p && key(p) !== key(start) && raw.length < 40; p = next.get(key(p))) raw.push(p);
+  // only the corners
+  const poly = raw.filter((p, i) => {
+    const a = raw[(i + raw.length - 1) % raw.length], b = raw[(i + 1) % raw.length];
+    return !((a[0] === p[0] && p[0] === b[0]) || (a[1] === p[1] && p[1] === b[1]));
+  });
+  const x = al ? xs[0] : xs[1], x1 = ar ? xs[3] : xs[2], y = ab ? ys[0] : ys[1], y1 = af ? ys[3] : ys[2];
+  return { rect: { x, y, w: x1 - x, d: y1 - y, xc: cx, yc: cy }, poly, notch: null, nb };
+}
+
 /** The footprint of a room: its rect, the outline of its floor, and the notch if it has one. */
-export function shapeOf(r: { type: RoomType; col: number; row: number }): Shape {
+export function shapeOf(r: { type: RoomType; col: number; row: number; level?: number }): Shape {
   const def = roomDef(r.type);
   const list = VARIANTS[r.type];
   // a hallway is a narrow square in the middle of its cell (a little wider than a doorway); the tunnels to its neighbors make it long
   const cx = r.col * CELL;
   const cy = r.row * CELL;
-  if (r.type === 'hallway') { const hw = 30; return { rect: { x: cx + (CELL - hw) / 2, y: cy + (CELL - hw) / 2, w: hw, d: hw }, poly: [], notch: null }; }
+  if (r.type === 'hallway') return hallwayShape(r);
   if (!list) return { rect: { x: cx + (CELL - SMALL) / 2, y: cy + (CELL - SMALL) / 2, w: SMALL, d: SMALL }, poly: [], notch: null };
   const v = list[hashOf(`${r.type}:${r.col}:${r.row}`) % list.length];
   const w = def.slots * CELL * v.w;
@@ -283,26 +326,51 @@ function WallThing({ along, wall, t, kind }: { along: 'y' | 'x'; wall: number; t
 
 const THINGS: ('window' | 'thumbs' | 'cog' | 'atom' | 'calm' | 'junction')[] = ['window', 'thumbs', 'cog', 'atom', 'calm', 'junction'];
 
-/** A hallway: a small square of floor in the middle of its cell, low walls on the sides with no passage, and tunnels (see HallX and HallY) joining it to whatever is next to it. Chained, they make long corridors and corners. */
-function HallwayShell({ rect, hasLeft, hasBack }: { rect: Rect; hasLeft: boolean; hasBack: boolean }): ReactElement {
-  const { x, y, w, d } = rect;
-  const x1 = x + w;
-  const y1 = y + d;
+/** A hallway: the floor of a corridor with low walls along its sides, open where it joins a neighbor (see HallX and HallY for the tunnels to rooms). Chained, hallways make long corridors and corners. It has no name. */
+function HallwayShell({ type, col, row, level }: { type: RoomType; col: number; row: number; level: number }): ReactElement {
+  const shape = hallwayShape({ col, row, level });
+  const { poly, nb } = shape;
   const H = 18;
   const T = 4;
+  const X0 = col * CELL, Y0 = row * CELL;
+  // an edge on the border of the cell where a neighbor joins is an opening, not a wall
+  const opening = (a: Pt, b: Pt): boolean =>
+    (a[0] === X0 && b[0] === X0 && nb.l) || (a[0] === X0 + CELL && b[0] === X0 + CELL && nb.r) || (a[1] === Y0 && b[1] === Y0 && nb.b) || (a[1] === Y0 + CELL && b[1] === Y0 + CELL && nb.f);
+  const slabs: ReactElement[] = [];
+  const walls: ReactElement[] = [];
+  const front: { a: Pt; b: Pt; nx: number; ny: number }[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const nx = Math.sign(b[1] - a[1]);
+    const ny = -Math.sign(b[0] - a[0]);
+    if (nx > 0 || ny > 0) front.push({ a, b, nx, ny });
+    else if (!opening(a, b)) {
+      if (nx < 0) {
+        const lo = Math.min(a[1], b[1]), hi = Math.max(a[1], b[1]), x = a[0];
+        walls.push(<g key={`w${i}`}><Poly p={[[x, lo, 0], [x, hi, 0], [x, hi, H], [x, lo, H]]} fill={FACE_L} /><Poly p={[[x, lo, H], [x, hi, H], [x - T, hi, H], [x - T, lo, H]]} fill={CAP} sw={1.6} /></g>);
+      } else {
+        const lo = Math.min(a[0], b[0]), hi = Math.max(a[0], b[0]), y = a[1];
+        walls.push(<g key={`w${i}`}><Poly p={[[lo, y, 0], [hi, y, 0], [hi, y, H], [lo, y, H]]} fill={FACE_R} /><Poly p={[[lo, y, H], [hi, y, H], [hi, y - T, H], [lo, y - T, H]]} fill={CAP} sw={1.6} /></g>);
+      }
+    }
+  }
+  front.sort((p, q) => p.a[0] + p.a[1] + p.b[0] + p.b[1] - (q.a[0] + q.a[1] + q.b[0] + q.b[1]));
+  front.forEach((e, i) => slabs.push(<Poly key={`s${i}`} p={[[e.a[0], e.a[1], 0], [e.b[0], e.b[1], 0], [e.b[0], e.b[1], -9], [e.a[0], e.a[1], -9]]} fill={e.nx > 0 ? SLAB : '#073a1b'} />));
   const seams: ReactNode[] = [];
-  for (let t = 10; t < w - 2; t += 10) seams.push(<Seg key={`a${t}`} a={[x + t, y, 0]} b={[x + t, y1, 0]} o={0.4} />, <Seg key={`b${t}`} a={[x, y + t, 0]} b={[x1, y + t, 0]} o={0.4} />);
+  const { rect } = shape;
+  const clip = `hv${col}_${row}_${level}`;
+  for (let t = rect.x + 10; t < rect.x + rect.w; t += 10) seams.push(<Seg key={`a${t}`} a={[t, rect.y, 0]} b={[t, rect.y + rect.d, 0]} o={0.35} />);
+  for (let t = rect.y + 10; t < rect.y + rect.d; t += 10) seams.push(<Seg key={`b${t}`} a={[rect.x, t, 0]} b={[rect.x + rect.w, t, 0]} o={0.35} />);
+  const outline = poly.map(([px, py]) => P(px, py, 0).join(',')).join(' ');
+  void type;
   return (
     <g>
-      <Poly p={[[x1, y, 0], [x1, y1, 0], [x1, y1, -9], [x1, y, -9]]} fill={SLAB} />
-      <Poly p={[[x, y1, 0], [x1, y1, 0], [x1, y1, -9], [x, y1, -9]]} fill="#073a1b" />
-      <Poly p={[[x, y, 0], [x1, y, 0], [x1, y1, 0], [x, y1, 0]]} fill={FLOOR} />
-      {seams}
-      {!hasLeft && <Poly p={[[x, y, 0], [x, y1, 0], [x, y1, H], [x, y, H]]} fill={FACE_L} />}
-      {!hasBack && <Poly p={[[x, y, 0], [x1, y, 0], [x1, y, H], [x, y, H]]} fill={FACE_R} />}
-      {!hasLeft && <Poly p={[[x, y, H], [x, y1, H], [x - T, y1, H], [x - T, y, H]]} fill={CAP} sw={1.6} />}
-      {!hasBack && <Poly p={[[x, y, H], [x1, y, H], [x1, y - T, H], [x, y - T, H]]} fill={CAP} sw={1.6} />}
-      {!hasLeft && !hasBack && <Poly p={[[x, y, H], [x - T, y, H], [x - T, y - T, H], [x, y - T, H]]} fill={CAP} sw={1.6} />}
+      <defs><clipPath id={clip}><polygon points={outline} /></clipPath></defs>
+      {slabs}
+      <polygon points={outline} fill={FLOOR} stroke={INK} strokeWidth="1.2" strokeLinejoin="round" />
+      <g clipPath={`url(#${clip})`}>{seams}</g>
+      {walls}
     </g>
   );
 }
@@ -312,8 +380,8 @@ function HallwayShell({ rect, hasLeft, hasBack }: { rect: Rect; hasLeft: boolean
  * are the heights (y) of the doorways in the left back wall, `doorsR` the positions (x) of those in the right back wall. The walls are vault walls: molded steel with
  * a baseboard and rivets, a rounded corner post, piping and conduit, a fake window or two, and the odd poster.
  */
-export function RoomShell({ rect, name, type, col, row, doorsL, doorsR, hole = false, furniture = [] }: { rect: Rect; name: string; type: RoomType; col: number; row: number; doorsL: number[]; doorsR: number[]; /** A stairwell below: a hole in the floor with stairs going down. */ hole?: boolean; furniture?: string[] }): ReactElement {
-  if (type === 'hallway') return <HallwayShell rect={rect} hasLeft={doorsL.length > 0} hasBack={doorsR.length > 0} />;
+export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doorsR, hole = false, furniture = [], labelFront = false }: { rect: Rect; name: string; type: RoomType; col: number; row: number; level?: number; doorsL: number[]; doorsR: number[]; /** A stairwell below: a hole in the floor with stairs going down. */ hole?: boolean; furniture?: string[]; /** The name goes below the front corner instead of above the back one (a hallway runs behind the room, and the name would seem to be its). */ labelFront?: boolean }): ReactElement {
+  if (type === 'hallway') return <HallwayShell type={type} col={col} row={row} level={level} />;
   const { x, y, w, d } = rect;
   const x1 = x + w;
   const y1 = y + d;
@@ -387,7 +455,7 @@ export function RoomShell({ rect, name, type, col, row, doorsL, doorsR, hole = f
     const frame: V3[] = alongY ? [[x, lo - 2, 0], [x, hi + 2, 0], [x, hi + 2, 45], [x, lo - 2, 45]] : [[lo - 2, y, 0], [hi + 2, y, 0], [hi + 2, y, 45], [lo - 2, y, 45]];
     return <g key={`dr${alongY}${c}`}><Poly p={frame} fill={STEEL} sw={1} /><Poly p={quad} fill={DOOR} sw={1.6} /></g>;
   };
-  const [lx, ly] = P(x - T, y - T, H + 13);
+  const [lx, ly] = labelFront ? P(x1, y1, -22) : P(x - T, y - T, H + 13);
   // the slab edges at the front: every edge of the floor that faces the viewer (+x or +y), farthest first
   const edges: { a: Pt; b: Pt; nx: number; ny: number }[] = [];
   for (let i = 0; i < poly.length; i++) {
@@ -508,7 +576,7 @@ export function ExitSign({ rect }: { rect: Rect }): ReactElement {
 
 /** A doorway between two rooms side by side along x (a left one and a right one), with the hallway between them when they do not touch. */
 export function HallX({ left, right }: { left: Rect; right: Rect }): ReactElement | null {
-  const yc = (Math.max(left.y, right.y) + Math.min(left.y + left.d, right.y + right.d)) / 2;
+  const yc = left.yc ?? right.yc ?? (Math.max(left.y, right.y) + Math.min(left.y + left.d, right.y + right.d)) / 2;
   const a = left.x + left.w;
   const b = right.x;
   if (b - a < 1) return null;
@@ -524,7 +592,7 @@ export function HallX({ left, right }: { left: Rect; right: Rect }): ReactElemen
 
 /** A doorway between a room and the one in front of it along y (a back one and a front one), with the hallway between them when they do not touch. */
 export function HallY({ back, front }: { back: Rect; front: Rect }): ReactElement | null {
-  const xc = (Math.max(back.x, front.x) + Math.min(back.x + back.w, front.x + front.w)) / 2;
+  const xc = back.xc ?? front.xc ?? (Math.max(back.x, front.x) + Math.min(back.x + back.w, front.x + front.w)) / 2;
   const a = back.y + back.d;
   const b = front.y;
   if (b - a < 1) return null;
@@ -545,14 +613,14 @@ export function doorsOf(room: VaultRoom, at: (col: number, row: number) => Vault
   const doorsL: number[] = [];
   const doorsR: number[] = [];
   const left = at(room.col - 1, room.row);
-  if (left) { const l = roomRect(left); doorsL.push((Math.max(me.y, l.y) + Math.min(me.y + me.d, l.y + l.d)) / 2); }
+  if (left) { const l = roomRect(left); doorsL.push(l.yc ?? (Math.max(me.y, l.y) + Math.min(me.y + me.d, l.y + l.d)) / 2); }
   for (let c = room.col; c < room.col + slots; c++) {
     const back = at(c, room.row - 1);
     if (!back) continue;
     const b = roomRect(back);
     const lo = Math.max(me.x, b.x, c * CELL);
     const hi = Math.min(me.x + me.w, b.x + b.w, (c + 1) * CELL);
-    doorsR.push((lo + hi) / 2);
+    doorsR.push(b.xc ?? (lo + hi) / 2);
   }
   return { doorsL, doorsR };
 }
@@ -784,6 +852,7 @@ function clearOfDoors(t: number, lo: number, hi: number, doors: number[], half: 
 export function pieceAt(room: VaultRoom, id: string, doors?: Doors): { x: number; y: number } | null {
   const p = FURNITURE[id];
   if (!p) return null;
+  if (room.type === 'hallway') { const r = roomRect(room); return { x: r.xc ?? r.x + r.w / 2, y: r.yc ?? r.y + r.d / 2 }; }
   // the pieces stand against the walls, closer in than the open floor spots people walk to
   const pt = floorPoint(room, stretch(p.u), stretch(p.v), 8);
   if (!doors) return pt;

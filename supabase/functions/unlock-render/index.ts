@@ -36,7 +36,7 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-async function generate(photo: Photo, name: string, entity: string, flooded: boolean, irradiated: boolean): Promise<Uint8Array> {
+async function generate(photo: Photo, name: string, entity: string, flooded: boolean, irradiated: boolean, vaultNumber?: number): Promise<Uint8Array> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) throw new Error('image generation is not set up');
   const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
@@ -44,7 +44,7 @@ async function generate(photo: Photo, name: string, entity: string, flooded: boo
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: renderPrompt(name, entity, flooded, irradiated) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }],
+      contents: [{ parts: [{ text: renderPrompt(name, entity, flooded, irradiated, vaultNumber) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     }),
   });
@@ -63,7 +63,9 @@ Deno.serve(async (req) => {
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
 
-  const { placeId, name, flooded, irradiated } = (await req.json().catch(() => ({}))) as { placeId?: string; name?: string; flooded?: boolean; irradiated?: boolean };
+  const { placeId, name, flooded, irradiated, vault } = (await req.json().catch(() => ({}))) as { placeId?: string; name?: string; flooded?: boolean; irradiated?: boolean; vault?: number };
+  // a place that is the entrance to a vault: its picture has the vault door in it (the number is the vault's)
+  const vaultNum = Number.isInteger(vault) && (vault as number) >= 1 && (vault as number) <= 999 ? (vault as number) : null;
   // a Wikidata place, or the one second-tier landmark whose render was supplied (see the renders row for it)
   if (!placeId || !/^(wd:Q\d+|famous:east-county-courthouse-el-cajon-)$/.test(placeId)) return reply(req, { error: 'bad_place' }, 400);
   const entity = placeId.slice(3);
@@ -87,43 +89,49 @@ Deno.serve(async (req) => {
       return reply(req, { status: 'working' });
     }
 
-    if (row?.status !== 'ready') {
+    // a render made before this place became a vault entrance (or after it stopped being one) has the wrong picture: it is made again, once, for everyone
+    const before = row;
+    const stale = row?.status === 'ready' && ((row.vault_number as number | null) ?? null) !== vaultNum;
+    if (row?.status !== 'ready' || stale) {
       // 3. make it. First, the daily cap on new renders, so one bad day cannot run up a bill.
       const cap = dailyRenderCap();
       const since = new Date(); since.setUTCHours(0, 0, 0, 0);
       const { count } = await db.from('renders').select('place_id', { count: 'exact', head: true }).gte('started_at', since.toISOString());
-      if ((count ?? 0) >= cap) { await giveBack(); return reply(req, { error: 'busy', resetsAt: nextRenderReset() }, 503); }
+      if ((count ?? 0) >= cap) {
+        if (stale) { /* the old picture is shown for today */ } else { await giveBack(); return reply(req, { error: 'busy', resetsAt: nextRenderReset() }, 503); }
+      } else {
+        // claim it, so two people unlocking the same place at once make one render, not two
+        const now = new Date().toISOString();
+        const claim = row
+          ? await db.from('renders').update({ status: 'generating', started_at: now }).eq('place_id', placeId).eq('status', row.status).eq('started_at', row.started_at).select()
+          : await db.from('renders').insert({ place_id: placeId, status: 'generating', place_name: placeName, started_at: now }).select();
+        if (claim.error || !claim.data || claim.data.length === 0) return reply(req, { status: 'working' }); // someone else just claimed it
+        // a picture that was already made stays as it was if the new one cannot be
+        const keepOld = async () => { await db.from('renders').update({ status: 'ready', started_at: (before as { started_at: string }).started_at }).eq('place_id', placeId); row = before; };
 
-      // claim it, so two people unlocking the same place at once make one render, not two
-      const now = new Date().toISOString();
-      const claim = row
-        ? await db.from('renders').update({ status: 'generating', started_at: now }).eq('place_id', placeId).eq('status', row.status).eq('started_at', row.started_at).select()
-        : await db.from('renders').insert({ place_id: placeId, status: 'generating', place_name: placeName, started_at: now }).select();
-      if (claim.error || !claim.data || claim.data.length === 0) return reply(req, { status: 'working' }); // someone else just claimed it
-
-      const photo = await fetchPhoto(entity, placeName).catch(() => null);
-      if (!photo) {
-        await db.from('renders').delete().eq('place_id', placeId);
-        await giveBack();
-        return reply(req, { error: 'no_photo' }, 404);
-      }
-      try {
-        const png = await generate(photo, placeName, entity, flooded === true, irradiated === true);
-        const path = `${entity}.png`;
-        const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
-        if (up.error) throw new Error('could not store the image');
-        // the render is part of the public atlas: a copy goes where its page can show it
-        await db.storage.from('public-renders').upload(`wd/${entity}.png`, png, { contentType: 'image/png', upsert: true }).catch(() => null);
-        const done = await db.from('renders').update({
-          status: 'ready', storage_path: path, place_name: placeName, photo_title: photo.title, photo_author: photo.author,
-          photo_license: photo.license, photo_page: photo.page, created_at: new Date().toISOString(),
-        }).eq('place_id', placeId).select().single();
-        row = done.data;
-      } catch (e) {
-        await db.from('renders').update({ status: 'failed' }).eq('place_id', placeId);
-        await giveBack();
-        console.error('render failed', placeId, e instanceof Error ? e.message : e);
-        return reply(req, { error: 'failed' }, 502);
+        const photo = await fetchPhoto(entity, placeName).catch(() => null);
+        if (!photo) {
+          if (stale) await keepOld();
+          else { await db.from('renders').delete().eq('place_id', placeId); await giveBack(); return reply(req, { error: 'no_photo' }, 404); }
+        } else {
+          try {
+            const png = await generate(photo, placeName, entity, flooded === true, irradiated === true, vaultNum ?? undefined);
+            const path = `${entity}.png`;
+            const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
+            if (up.error) throw new Error('could not store the image');
+            // the render is part of the public atlas: a copy goes where its page can show it
+            await db.storage.from('public-renders').upload(`wd/${entity}.png`, png, { contentType: 'image/png', upsert: true }).catch(() => null);
+            const done = await db.from('renders').update({
+              status: 'ready', storage_path: path, place_name: placeName, photo_title: photo.title, photo_author: photo.author,
+              photo_license: photo.license, photo_page: photo.page, created_at: new Date().toISOString(), vault_number: vaultNum,
+            }).eq('place_id', placeId).select().single();
+            row = done.data;
+          } catch (e) {
+            console.error('render failed', placeId, e instanceof Error ? e.message : e);
+            if (stale) await keepOld();
+            else { await db.from('renders').update({ status: 'failed' }).eq('place_id', placeId); await giveBack(); return reply(req, { error: 'failed' }, 502); }
+          }
+        }
       }
     }
 

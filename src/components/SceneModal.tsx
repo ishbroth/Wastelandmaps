@@ -101,7 +101,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   const irradiated = isIrradiated(spot.position, zones);
   const supplied = manualBefore(spot.id);
   const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || !!supplied || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned || (streetState === 'no' && !spot.personal?.home))));
-  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated }, !!rendered?.owned || homeOwned);
+  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated, vault: spot.vault?.number }, !!rendered?.owned || homeOwned);
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
   // a vacation vault: its picture is the place with a vault door in it (made when it was unlocked)

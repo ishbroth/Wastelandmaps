@@ -74,7 +74,16 @@ export interface VaultRoom {
 
 export type SettlerKind = 'male' | 'female' | 'dog' | 'cat';
 export const SETTLER_KINDS: SettlerKind[] = ['male', 'female', 'dog', 'cat'];
-export interface Settler { id: number; kind: SettlerKind }
+export interface Settler { id: number; kind: SettlerKind; /** What the owner calls them (up to ten characters). Settlers from before names have none. */ name?: string }
+export const SETTLER_NAME_MAX = 10;
+/** A settler's name as it is kept (one space at a time, ten characters at most, letters and numbers), or null if it is not a name. */
+export function cleanSettlerName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const n = raw.normalize('NFC').replace(/\s+/g, ' ').trim();
+  if (n.length < 1 || n.length > SETTLER_NAME_MAX) return null;
+  if (!/^[\p{L}\p{N} '.-]+$/u.test(n)) return null;
+  return n;
+}
 
 export interface VaultHome {
   rooms: VaultRoom[];
@@ -360,9 +369,19 @@ export function applyFurnish(v: VaultHome, roomIndex: number, item: string, now:
   return { ok: true, cost, recipe, vault: { ...s, rooms: s.rooms.map((r, i) => (i === roomIndex ? { ...r, furniture: [...r.furniture, item] } : r)), boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
 }
 
-export function applySettler(v: VaultHome, kind: string): Action<unknown> {
+export function applySettler(v: VaultHome, kind: string, name?: unknown): Action<unknown> {
   if (!SETTLER_KINDS.includes(kind as SettlerKind)) return { ok: false, reason: 'Not a settler' };
   if (settlersWaiting(v) < 1) return { ok: false, reason: 'No settler is waiting' };
+  const clean = name === undefined ? undefined : cleanSettlerName(name);
+  if (clean === null) return { ok: false, reason: 'A name is 1 to 10 letters or numbers' };
   const id = v.settlers.reduce((m, s) => Math.max(m, s.id), 0) + 1;
-  return { ok: true, cost: 0, recipe: {}, vault: { ...v, settlers: [...v.settlers, { id, kind: kind as SettlerKind }] } };
+  return { ok: true, cost: 0, recipe: {}, vault: { ...v, settlers: [...v.settlers, { id, kind: kind as SettlerKind, ...(clean ? { name: clean } : {}) }] } };
+}
+
+/** Gives a settler a new name. */
+export function applyRename(v: VaultHome, id: number, name: unknown): Action<unknown> {
+  const clean = cleanSettlerName(name);
+  if (!clean) return { ok: false, reason: 'A name is 1 to 10 letters or numbers' };
+  if (!v.settlers.some((s) => s.id === id)) return { ok: false, reason: 'No such settler' };
+  return { ok: true, cost: 0, recipe: {}, vault: { ...v, settlers: v.settlers.map((s) => (s.id === id ? { ...s, name: clean } : s)) } };
 }
