@@ -903,3 +903,8 @@ html[data-look='parchment'] .rm-board-row.mine { background: rgba(120, 80, 20, 0
 /* the vault is a diorama fitted to the screen (no scrolling): the window zooms out as it grows */
 .rm-vh-view { overflow: hidden !important; }
 .rm-vh-svg { position: absolute; inset: 0; }
+
+/* the info card: all three buttons on one line; the home vault's cog needs no ring of its own */
+.rm-card-actions { flex-wrap: nowrap; }
+.rm-card-actions .rm-btn { flex: 1 1 auto; min-width: 0; padding-left: 8px; padding-right: 8px; white-space: nowrap; font-size: 17px; letter-spacing: 1px; }
+.rm-card-icon-bare { border: none; border-radius: 0; padding: 0; }

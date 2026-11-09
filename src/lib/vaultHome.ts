@@ -112,6 +112,10 @@ export function whyNotDig(v: VaultHome, level: number): string | null {
   return null;
 }
 
+/** The cell on the entryway's front-left side stays empty for good: that wall holds the vault door. */
+export const isDoorCell = (v: VaultHome, level: number, col: number, row: number): boolean =>
+  v.rooms.some((r) => r.type === 'entry' && r.level === level && col === r.col && row === r.row + 1);
+
 /** Can a room of this type be built with its left cell here? Returns null if yes, or the reason. */
 export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number): string | null {
   const def = roomDef(type);
@@ -121,6 +125,7 @@ export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: nu
   if (slotsUsed(v) + def.slots > MAX_SLOTS) return `A vault holds at most ${MAX_SLOTS} rooms`;
   if (v.rooms.filter((r) => r.type === type).length >= def.max) return `A vault holds at most ${def.max} ${def.name}${def.max > 1 ? 's' : ''}`;
   for (let c = col; c < col + def.slots; c++) if (roomAt(v, level, c, row)) return 'That space is taken';
+  for (let c = col; c < col + def.slots; c++) if (isDoorCell(v, level, c, row)) return 'That wall is the vault door: it stays clear';
   if (roomsOn(v, level).length === 0) {
     // the first room of a new level is dug under a room of the level above, and only once that level has enough rooms
     if (level === 0) return 'There is nothing here to build on';

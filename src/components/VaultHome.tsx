@@ -5,12 +5,12 @@ import ConfirmSpend from './ConfirmSpend';
 import { describeBag, lootName, type LootId } from '../lib/raid/loot';
 type Bag = Partial<Record<string, number>>;
 import {
-  COLS, ENTRY_AT, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
+  COLS, ENTRY_AT, isDoorCell, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
   whyNotBuild, whyNotDig, DECON_REASON, MAX_VACATIONS, vacationRecipe,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt, type Pose } from './vaultArt';
-import { CELL, ExitSign, FURNITURE, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, RoomShell, SIT, cellRect, doorsOf, floorPoint, pieceAt, roomRect, screenBox, type Rect } from './vaultIso';
+import { CELL, ExitSign, FURNITURE, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, pieceAt, roomRect, screenBox, type Rect } from './vaultIso';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -325,7 +325,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     const here = roomsOn(vault, level);
     for (let row = 0; row < ROWS; row++) {
       for (let col = 0; col < COLS; col++) {
-        if (roomAt(vault, level, col, row)) continue;
+        if (roomAt(vault, level, col, row) || isDoorCell(vault, level, col, row)) continue;
         const ok = here.length === 0 ? level > 0 && !!roomAt(vault, level - 1, col, row) : [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => roomAt(vault, level, col + dc, row + dr));
         if (ok) out.push([col, row]);
       }
@@ -379,7 +379,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             if (!hasDecon(vault)) { say(DECON_REASON); return; }
             setPanel({ kind: 'build', level, col, row });
           }}>
-            <RoomOutline rect={cellRect(col, row)} label={here.length === 0 ? 'DIG DOWN' : 'CLEAR & BUILD'} />
+            <RoomOutline rect={cellRect(col, row)} label={here.length === 0 ? 'DIG DOWN' : 'CLEAR & BUILD'} near={roomAt(vault, level, col - 1, row) ? 'left' : roomAt(vault, level, col, row - 1) ? 'back' : roomAt(vault, level, col + 1, row) ? 'right' : roomAt(vault, level, col, row + 1) ? 'front' : undefined} />
           </g>
         ),
       });
@@ -501,6 +501,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                 return <g key={l.key} onClick={here ? (e) => scene.tapRoom(e, here.idx) : undefined}>{l.el}{things.map((t) => t.el)}</g>;
               })}
               {scene.entry && <ExitSign rect={roomRect(scene.entry)} />}
+              {scene.entry && <VaultDoor rect={roomRect(scene.entry)} onTap={onExit} />}
             </svg>
           );
         })()}

@@ -148,14 +148,12 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
 
 /** A camera with a mushroom cloud in it: this place's snapshot is unlocked. */
 function SnapshotIcon() {
+  // a photograph: a frame with a sun and hills
   return (
     <svg viewBox="0 0 40 34" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="2" y="8" width="36" height="24" rx="4" />
-      <path d="M13 8 15 3h10l2 5" />
-      <ellipse cx="20" cy="16.5" rx="8" ry="4.6" fill="currentColor" />
-      <circle cx="13.6" cy="18" r="3" fill="currentColor" />
-      <circle cx="26.4" cy="18" r="3" fill="currentColor" />
-      <path d="M17.2 21c0 5-1 7-3 8.2h11.6c-2-1.2-3-3.2-3-8.2Z" fill="currentColor" />
+      <rect x="4" y="4" width="32" height="26" rx="2.5" />
+      <circle cx="13" cy="12" r="3" fill="currentColor" />
+      <path d="M4 26 14 17l7 7 5-4 10 8" />
     </svg>
   );
 }

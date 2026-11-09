@@ -155,20 +155,69 @@ export function RoomShell({ rect, name, type, doorsL, doorsR }: { rect: Rect; na
 }
 
 /** A room that could be built here: a faded outline of one, with a plus. */
-export function RoomOutline({ rect, label, plain = false }: { rect: Rect; label: string; plain?: boolean }): ReactElement {
+export function RoomOutline({ rect, label, plain = false, near }: { rect: Rect; label: string; plain?: boolean; /** The side that touches a built room (the outline is clearest there and fades into the dark away from it). */ near?: 'left' | 'right' | 'back' | 'front' }): ReactElement {
   const { x, y, w, d } = rect;
   const x1 = x + w;
   const y1 = y + d;
   const H = WALL_H * 0.5;
   const [cx, cy] = P(x + w / 2, y + d / 2, 0);
+  const id = `fade${Math.round(x)}_${Math.round(y)}${plain ? 'p' : ''}`;
+  // the fade runs across the screen from the side by the built room to about a third of the way in
+  const from = near === 'left' ? P(x, y1, 0) : near === 'right' ? P(x1, y, 0) : near === 'back' ? P(x, y, 0) : P(x1, y1, 0);
+  const to = near === 'left' ? P(x1, y, 0) : near === 'right' ? P(x, y1, 0) : near === 'back' ? P(x1, y1, 0) : P(x, y, 0);
   return (
-    <g opacity={plain ? 0.4 : 0.5} strokeDasharray="5 4" fill="rgba(61,255,138,0.05)">
-      <polygon points={pts([[x, y, 0], [x1, y, 0], [x1, y1, 0], [x, y1, 0]])} stroke={INK} strokeWidth="1.4" />
-      <polyline points={pts([[x, y1, 0], [x, y, 0], [x1, y, 0]])} fill="none" stroke={INK} strokeWidth="1.2" />
-      <polygon points={pts([[x, y, 0], [x, y1, 0], [x, y1, H], [x, y, H]])} stroke={DIM} strokeWidth="1" />
-      <polygon points={pts([[x, y, 0], [x1, y, 0], [x1, y, H], [x, y, H]])} stroke={DIM} strokeWidth="1" />
-      {!plain && <text x={cx} y={cy - 2} fontSize="34" textAnchor="middle" fill={INK} stroke="none" strokeDasharray="none" fontFamily="'VT323', monospace">+</text>}
-      {!plain && <text x={cx} y={cy + 16} fontSize="14" textAnchor="middle" fill={INK} stroke="none" strokeDasharray="none" fontFamily="'VT323', monospace" letterSpacing="1.5">{label}</text>}
+    <g strokeDasharray="5 4" opacity={plain ? 0.4 : 1}>
+      {!plain && (
+        <defs>
+          <linearGradient id={id} gradientUnits="userSpaceOnUse" x1={from[0]} y1={from[1]} x2={to[0]} y2={to[1]}>
+            <stop offset="0" stopColor="#fff" stopOpacity="1" />
+            <stop offset="0.34" stopColor="#fff" stopOpacity="0.04" />
+            <stop offset="1" stopColor="#fff" stopOpacity="0" />
+          </linearGradient>
+          <mask id={id + 'm'} maskUnits="userSpaceOnUse" x={cx - 400} y={cy - 400} width="800" height="800">
+            <rect x={cx - 400} y={cy - 400} width="800" height="800" fill={`url(#${id})`} />
+          </mask>
+        </defs>
+      )}
+      <g mask={plain ? undefined : `url(#${id}m)`} fill="rgba(61,255,138,0.07)">
+        <polygon points={pts([[x, y, 0], [x1, y, 0], [x1, y1, 0], [x, y1, 0]])} stroke={INK} strokeWidth="1.8" />
+        <polyline points={pts([[x, y1, 0], [x, y, 0], [x1, y, 0]])} fill="none" stroke={INK} strokeWidth="1.5" />
+        <polygon points={pts([[x, y, 0], [x, y1, 0], [x, y1, H], [x, y, H]])} stroke={INK} strokeWidth="1.2" />
+        <polygon points={pts([[x, y, 0], [x1, y, 0], [x1, y, H], [x, y, H]])} stroke={INK} strokeWidth="1.2" />
+      </g>
+      {!plain && <text x={cx} y={cy - 2} fontSize="34" textAnchor="middle" fill={INK} stroke="none" strokeDasharray="none" opacity="0.55" fontFamily="'VT323', monospace">+</text>}
+      {!plain && <text x={cx} y={cy + 16} fontSize="14" textAnchor="middle" fill={INK} stroke="none" strokeDasharray="none" opacity="0.55" fontFamily="'VT323', monospace" letterSpacing="1.5">{label}</text>}
+    </g>
+  );
+}
+
+/** The outline of a vault door (a cogwheel) on the entryway's cut-away front-left wall: tap it to leave. */
+export function VaultDoor({ rect, onTap }: { rect: Rect; onTap: () => void }): ReactElement {
+  // the wall plane y = rect.y + rect.d, running along x; a point (u, v) on it is x = mid + u, z = v
+  const xm = rect.x + rect.w / 2;
+  const yw = rect.y + rect.d;
+  const zc = WALL_H * 0.5;
+  const R = 21;
+  const teeth = 12;
+  const pt = (r: number, a: number) => P(xm + Math.cos(a) * r, yw, zc + Math.sin(a) * r).join(',');
+  let cog = '';
+  for (let i = 0; i < teeth; i++) {
+    const a0 = (i / teeth) * Math.PI * 2;
+    const st = (Math.PI * 2) / teeth;
+    cog += `${i ? 'L' : 'M'}${pt(R - 5, a0)}L${pt(R, a0 + st * 0.12)}L${pt(R, a0 + st * 0.38)}L${pt(R - 5, a0 + st * 0.5)}`;
+  }
+  cog += 'Z';
+  const ring = (r: number) => Array.from({ length: 24 }, (_, i) => pt(r, (i / 24) * Math.PI * 2)).join(' ');
+  const [lx, ly] = P(xm, yw, zc - R - 7);
+  return (
+    <g role="button" aria-label="Leave the vault" style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onTap(); }}>
+      <polygon points={[[xm - 30, yw, zc - 30], [xm + 30, yw, zc - 30], [xm + 30, yw, zc + 30], [xm - 30, yw, zc + 30]].map(([a, b, c]) => P(a, b, c).join(',')).join(' ')} fill="rgba(61,255,138,0.001)" stroke="none" />
+      <g strokeDasharray="4 3" opacity="0.75">
+        <path d={cog} fill="rgba(61,255,138,0.08)" stroke={INK} strokeWidth="1.5" />
+        <polygon points={ring(R - 9)} stroke={INK} strokeWidth="1.2" />
+        <polygon points={ring(5)} stroke={INK} strokeWidth="1.2" />
+      </g>
+      <text x={lx} y={ly} fontSize="12" textAnchor="middle" fill={INK} stroke="none" opacity="0.8" fontFamily="'VT323', monospace" letterSpacing="1.5">LEAVE</text>
     </g>
   );
 }
