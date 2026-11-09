@@ -168,6 +168,21 @@ function withLoreSites(metro: MetroEntry, places: Location[]): Location[] {
       if (places.some((p) => p.id === id)) continue;
       const lat = town.anchor.lat + site.dy / 111_320;
       const lng = town.anchor.lng + site.dx / (111_320 * Math.max(0.2, Math.cos((town.anchor.lat * Math.PI) / 180)));
+      if (site.on) {
+        // it stands on a real place instead: the nearest ordinary one, which keeps its spot and its snapshot and gets the site's name ("formerly ...")
+        let best = -1;
+        let reach = 3000;
+        places.forEach((p, i) => {
+          if (!p.id.startsWith('wd:') || p.famous || p.neighborhood || p.lore || p.vault || p.personal || p.category === 'transit' || p.category === 'guard' || freeLandmark(p.id)) return;
+          const d = distanceMeters(p.position, { lat, lng });
+          if (d < reach) { reach = d; best = i; }
+        });
+        if (best >= 0) {
+          const was = places[best];
+          places[best] = { ...was, name: `${site.name} (formerly ${was.oldName || was.name})`, icon: site.icon, lore: { town: town.town, text: `${site.text} Before the ghouls came to an arrangement with it, this was ${was.oldName || was.name}.` } };
+          continue;
+        }
+      }
       places.push({
         id, oldName: '', name: site.name, category: 'other', position: { lat, lng }, loot: 'A story or two', threat: 'Quiet', rads: 0,
         icon: site.icon, lore: { town: town.town, text: site.text },

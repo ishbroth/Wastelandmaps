@@ -6,10 +6,14 @@
 
 import type { IconId } from './placeIcons';
 
-export interface LoreSite { slug: string; name: string; icon: IconId; dx: number; dy: number; text: string }
+export interface LoreSite {
+  slug: string; name: string; icon: IconId; dx: number; dy: number; text: string;
+  /** Stand on a real place: the nearest ordinary place to the spot (within 3 km) becomes this site, named "Site (formerly Place)", so it never floats on open water or empty ground. */
+  on?: boolean;
+}
 export interface LoreTown { town: string; anchor: { lat: number; lng: number }; sites: LoreSite[] }
 
-const s = (slug: string, name: string, icon: IconId, dx: number, dy: number, text: string): LoreSite => ({ slug, name, icon, dx, dy, text });
+const s = (slug: string, name: string, icon: IconId, dx: number, dy: number, text: string, on = false): LoreSite => ({ slug, name, icon, dx, dy, text, ...(on ? { on } : {}) });
 
 export const LORE_TOWNS: LoreTown[] = [
   {
@@ -200,7 +204,8 @@ export const LORE_TOWNS: LoreTown[] = [
     anchor: { lat: 32.7157, lng: -117.1611 },
     sites: [
       s('dg-glow', 'The Glow', 'monument', 14000, -3000, 'The irradiated crater where the West Tek facility took a direct hit. Dayglow can see it from its borders.'),
-      s('dg-new-adytum', 'New Adytum', 'house', -3000, -6000, 'A settlement whose scavenging companies partnered with the ghouls of Dayglow.'),
+      // the game puts it out on the water; here it stands on the nearest real place south of downtown, which it renames
+      s('dg-new-adytum', 'New Adytum', 'house', 4000, -5000, 'A settlement whose scavenging companies partnered with the ghouls of Dayglow.', true),
     ],
   },
 ];
