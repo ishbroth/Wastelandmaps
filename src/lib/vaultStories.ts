@@ -81,6 +81,16 @@ const TESTS = [
   'what happens to a community of strangers given one shared bedroom and a lot of paperwork',
   'whether people can be made homesick for a place they have never seen',
   'whether a society will obey a rule so ridiculous nobody will admit it has no reason',
+  "whether a population will politely follow a sign that is clearly wrong",
+  "how long a community will keep a ribbon-cutting going once the scissors are lost",
+  "what happens when every resident is told, privately, that they are the Overseer",
+  "whether a vault with only one working door can be talked into believing it has two",
+  "how many people it takes to hold a surprise party for someone who never leaves the room",
+  "whether a population fed entirely on cheerful announcements can digest a bad one",
+  "whether the dead are more reasonable than the living if you give them the same chairs",
+  "whether people will argue about the temperature of a room that has no temperature control",
+  "how a town handles being told that the lottery has been held, and it was theirs",
+  "whether neighbors will keep a feud going through the end of the world, to be thorough",
 ];
 
 /** What went wrong. `{O}` is the Overseer, `{n}` the headcount. */
@@ -115,6 +125,14 @@ const WRONG = [
   'A fire in the records room destroyed the instructions. The residents rebuilt them from memory, and every memory was different.',
   'The Overseer, tired of the test, tried to end it. This was not allowed for in the schedule and was therefore punished by the schedule.',
   'The company never answered a single report. The Overseers kept writing them anyway, and the reports grew into a literature.',
+  "The intercom was left on one night, and the residents learned how the Overseer really spoke to the vault when he thought it was asleep.",
+  "A resident discovered the control panel had a big red button marked DO NOT, and the whole vault has been quietly arguing about it since.",
+  "Overseer {O} taught everyone a calming chant, and the chant outlasted the calm, the Overseer, and the vault door.",
+  "The mascot costume was worn by three different people in secret, and they each believe they are the only one. The mascot is the most reliable member of the vault's leadership.",
+  "The suggestion box was emptied, every night, by someone who answered every note in the same careful handwriting. They were never found, and the suggestions were always good.",
+  "A flood in the lower levels was blamed on {O2}, who spent the next ten years being tried for it by a jury that was, in fact, the flood.",
+  "The quarantine ward was never used, until someone realized it was the only room with a window, and now it has a waiting list.",
+  "The vault's cafeteria served one dish for eleven years, and the people grew so fond of it that the recipe is now a religion.",
 ];
 
 /** What became of them, and what is down there now. `{n}` is the headcount, `{O}` the last Overseer. */
@@ -150,6 +168,14 @@ const FATE = [
   'Nobody can find the exit that the first residents used, and the ones who did are not forthcoming.',
   'The last Overseer is still down there, they say, and has been telling the same story, with slight improvements, since before the walls went up.',
   'People go in to loot it and stay for the company.',
+  "The vault keeps a single light burning at the end of its longest hall. Whoever tends it has never once been seen.",
+  "The last Overseer left a note taped to the door of the vault: SORRY. It is the only message on the whole level that is entirely true.",
+  "A family of mole rats runs the place now. They are not good at it, but they are better than the last thing that tried.",
+  "Visitors say the vault hums at night. The hum is a hymn. The hymn is a jingle. The jingle is for a product that never existed.",
+  "Somebody has been repainting the hazard stripes every spring. There's nobody there to do it. The paint is always still wet.",
+  "The vault door is open a hand-width, as if someone were politely holding it, and has been for a very long time.",
+  "Its residents voted to stay, and then voted on a second question, and then a third. The vote is still in progress.",
+  "The population is now exactly one, and he is extremely well informed.",
 ];
 
 function pick<T>(list: readonly T[], rand: () => number): T {

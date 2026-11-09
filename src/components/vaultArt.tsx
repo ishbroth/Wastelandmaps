@@ -54,7 +54,7 @@ export const furnitureFeet = (roomTop: number, id: string): number => (id === 'c
 export const standY = (row: number): number => floorY(row);
 
 type Wall = 'panels' | 'tiles' | 'bricks' | 'dots';
-const WALLS: Record<RoomType, Wall> = { laundry: 'tiles', entry: 'panels', living: 'panels', dining: 'panels', bedroom: 'panels', kitchen: 'tiles', bathroom: 'tiles', entertainment: 'panels', game: 'bricks', workshop: 'dots' };
+const WALLS: Record<RoomType, Wall> = { hallway: 'panels', garden: 'tiles', stairs: 'dots', laundry: 'tiles', entry: 'panels', living: 'panels', dining: 'panels', bedroom: 'panels', kitchen: 'tiles', bathroom: 'tiles', entertainment: 'panels', game: 'bricks', workshop: 'dots' };
 
 /** The faint pattern on the back wall, between the ceiling and the floor, kept clear of the rounded corners. */
 function wallPattern(kind: Wall, w: number): string {
@@ -499,63 +499,161 @@ export function SettlerArt({ kind, pose, phase }: { kind: SettlerKind; pose: Pos
       </g>
     );
   }
-  const f = kind === 'female';
-  const hair = (cx: number, cy: number) => (
-    <path
-      d={f ? `M${cx - 5} ${cy + 1} Q${cx - 6} ${cy - 6.5} ${cx} ${cy - 6} Q${cx + 5.4} ${cy - 5.5} ${cx + 4.6} ${cy - 1} Q${cx} ${cy - 3.6} ${cx - 3} ${cy - 2} Q${cx - 7.4} ${cy + 3} ${cx - 5.6} ${cy + 8} Q${cx - 4} ${cy + 3} ${cx - 5} ${cy + 1} Z` : `M${cx - 5} ${cy - 0.6} Q${cx - 5.6} ${cy - 6.6} ${cx} ${cy - 6} Q${cx + 5.6} ${cy - 5.8} ${cx + 4.8} ${cy - 0.8} Q${cx + 1} ${cy - 3.6} ${cx - 5} ${cy - 0.6} Z`}
-      fill={BG} strokeWidth="1.1"
-    />
-  );
-  const face = (cx: number, cy: number) => (
+  return <Person female={kind === 'female'} pose={pose} phase={phase} />;
+}
+
+// ---- the people: rounded, soft-shaded cartoons in a vault suit (a little like the Sims), in the same green-screen colours ----
+
+const SUIT = '#0e7a3c';
+const SUIT_DARK = '#094d25';
+const SUIT_LIGHT = '#17a752';
+const SKIN_SHADE = '#8fd9a8';
+const HAIR = '#1b8f4c';
+const BOOT = '#052a13';
+
+type Pt = [number, number];
+
+/** A tapered, round-ended limb between two points (radius r1 at the first, r2 at the second): filled, outlined, with a lighter strip along it. */
+function Seg({ a, b, r1, r2, fill, shade }: { a: Pt; b: Pt; r1: number; r2: number; fill: string; shade?: string }) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  const f = (n: number) => Math.round(n * 100) / 100;
+  const d = `M${f(a[0] + nx * r1)} ${f(a[1] + ny * r1)}L${f(b[0] + nx * r2)} ${f(b[1] + ny * r2)}A${r2} ${r2} 0 0 0 ${f(b[0] - nx * r2)} ${f(b[1] - ny * r2)}L${f(a[0] - nx * r1)} ${f(a[1] - ny * r1)}A${r1} ${r1} 0 0 0 ${f(a[0] + nx * r1)} ${f(a[1] + ny * r1)}Z`;
+  return (
     <g>
-      <circle cx={cx} cy={cy} r="4.7" fill={SKIN} strokeWidth="1.1" />
-      <circle cx={cx + 1.9} cy={cy + 0.4} r="0.85" fill={BG} stroke="none" />
-      <path d={`M${cx + 0.8} ${cy + 2.6} q1.4 0.9 2.6 0`} strokeWidth="0.8" />
-      {hair(cx, cy)}
+      <path d={d} fill={fill} stroke={INK} strokeWidth="0.9" />
+      {shade && <path d={`M${f(a[0] - nx * r1 * 0.55)} ${f(a[1] - ny * r1 * 0.55)}L${f(b[0] - nx * r2 * 0.55)} ${f(b[1] - ny * r2 * 0.55)}`} stroke={shade} strokeWidth={Math.max(0.8, r2 * 0.7)} opacity="0.7" />}
     </g>
   );
-  /** The vault suit: a torso with a zip and a belt, and (for a woman) a short skirt panel. */
-  const torso = (top: number, bottom: number) => (
-    <g strokeWidth="1.1">
-      <path d={`M-5.2 ${top + 1} Q0 ${top - 1.4} 5.2 ${top + 1} L${f ? 4.2 : 4.7} ${bottom} Q0 ${bottom + 1.6} ${f ? -4.2 : -4.7} ${bottom} Z`} fill={DIM} />
-      <path d={`M0 ${top} V${bottom}`} strokeWidth="0.8" />
-      <path d={`M-4.4 ${bottom - 2.4} H4.4`} stroke={BG} strokeWidth="1.6" />
-      {f && <path d={`M-4.6 ${bottom - 0.6} L-6.4 ${bottom + 3.6} H6.4 L4.6 ${bottom - 0.6} Z`} fill={DIM} />}
+}
+
+/** The head: an egg with an ear, hair, brows, an eye, a nose and a smile, looking to the right. */
+function Head({ cx, cy, female, tilt = 0 }: { cx: number; cy: number; female: boolean; tilt?: number }) {
+  return (
+    <g transform={`translate(${cx} ${cy}) rotate(${tilt})`} strokeLinejoin="round" strokeLinecap="round">
+      {/* the girl's bob, hanging behind the head and curling out at the ends */}
+      {female && <path d="M-4.6 -3 Q-10.6 0.4 -9.2 8.4 Q-8.6 11.8 -5.4 12.2 Q-3 12.4 -2.4 10.4 Q-5.2 9.6 -4.2 4 Z" fill={HAIR} strokeWidth="0.9" />}
+      {female && <path d="M-8.2 6.4 Q-7 9.6 -4.6 10.4" stroke={INK} strokeWidth="0.6" fill="none" opacity="0.8" />}
+      <path d="M-4.6 -0.4 Q-5 -5.4 0 -5.8 Q5.2 -5.6 5 -0.2 Q4.8 5.4 0.4 6 Q-4.2 5.8 -4.6 -0.4Z" fill={SKIN} strokeWidth="0.95" />
+      <path d="M-4 3.6 Q0 6.4 4.2 3.2 Q3 6 0.4 6 Q-3 5.8 -4 3.6Z" fill={SKIN_SHADE} stroke="none" opacity="0.8" />
+      <ellipse cx="-3.9" cy="1.2" rx="0.9" ry="1.5" fill={SKIN_SHADE} strokeWidth="0.6" />
+      {/* hair: the Vault Boy's quiff, the Vault Girl's swept fringe */}
+      {female ? (
+        <g>
+          <path d="M-5.6 0.4 Q-7.6 -7.4 0 -8.2 Q6.6 -8.8 6.8 -3.6 Q7 -1.6 5.6 -0.6 Q4.6 -3.4 1.6 -3.6 Q-1.4 -3.4 -3.4 -0.4 Q-4.2 0 -5.6 0.4Z" fill={HAIR} strokeWidth="0.9" />
+          <path d="M-3 -6.8 Q1 -8.2 5.2 -6.2 M-1.6 -5.4 Q2 -6.4 5.2 -4.4" stroke={INK} strokeWidth="0.6" fill="none" opacity="0.85" />
+          <path d="M5.8 -1.4 Q7.6 -0.6 6.4 1.2 Q5.6 0.2 5.8 -1.4Z" fill={HAIR} strokeWidth="0.6" />
+        </g>
+      ) : (
+        <g>
+          <path d="M-5.6 1 Q-7.4 -6 -1.4 -7.6 Q2.6 -10.8 7.4 -8.8 Q10.4 -7.4 8.2 -4.8 Q9.6 -3.4 7.2 -2.8 Q5.6 -3.8 4 -3.4 Q1 -3.6 -1.4 -3.2 Q-3.4 -2.6 -4 0 Q-4.8 -0.6 -5.6 1Z" fill={HAIR} strokeWidth="0.9" />
+          <path d="M-3 -6.2 Q1.4 -9 6.4 -7.6 M-1 -4.8 Q3 -6.6 6.6 -5.4" stroke={INK} strokeWidth="0.6" fill="none" opacity="0.9" />
+          <path d="M7.6 -4.8 Q6.4 -3.4 7.6 -2.6" stroke={INK} strokeWidth="0.55" fill="none" />
+        </g>
+      )}
+      {/* brow, eye, nose, mouth */}
+      <path d="M0.6 -1.9 Q2.4 -2.8 4.2 -2" stroke={BG} strokeWidth="0.8" fill="none" />
+      <ellipse cx="2.5" cy="-0.2" rx="1" ry="1.3" fill={BG} stroke="none" />
+      <circle cx="2.8" cy="-0.6" r="0.35" fill={INK} stroke="none" />
+      <path d="M4.9 0.8 Q6.2 1.8 4.8 2.8" strokeWidth="0.8" fill="none" />
+      <path d="M2.2 4 Q3.6 5 4.8 3.9" stroke={BG} strokeWidth="0.8" fill="none" />
     </g>
   );
+}
+
+/** The chest of the suit: the bright collar and zip stripe, and the number on a patch. */
+function Chest({ top, bottom, female, lean = 0 }: { top: number; bottom: number; female: boolean; lean?: number }) {
+  const w = female ? 5 : 5.8;
+  const waist = female ? 3.8 : 4.8;
+  const mid = (top + bottom) / 2;
+  return (
+    <g transform={`rotate(${lean} 0 ${bottom})`} strokeLinejoin="round" strokeLinecap="round">
+      <path d={`M${-w} ${top + 1.6} Q0 ${top - 1.4} ${w} ${top + 1.6} Q${w + 0.4} ${mid} ${waist} ${bottom} Q0 ${bottom + 1.2} ${-waist} ${bottom} Q${-w - 0.4} ${mid} ${-w} ${top + 1.6}Z`} fill={SUIT} stroke={INK} strokeWidth="0.95" />
+      <path d={`M${-w + 0.8} ${top + 2.4} Q${-w + 0.2} ${mid} ${-waist + 0.8} ${bottom - 0.6} L${-waist + 2.2} ${bottom - 0.6} Q${-w + 2.2} ${mid} ${-w + 2.2} ${top + 2.6}Z`} fill={SUIT_DARK} stroke="none" opacity="0.8" />
+      <path d={`M${-2.6} ${top + 0.4} L0 ${top + 3.6} L2.6 ${top + 0.4}`} fill="none" stroke={INK} strokeWidth="1.5" />
+      <path d={`M0 ${top + 3.6} V${bottom - 0.4}`} stroke={INK} strokeWidth="0.9" />
+      <rect x="-3.7" y={mid - 0.8} width="3.2" height="2.6" rx="0.5" fill={BG} stroke={INK} strokeWidth="0.5" />
+      <path d={`M-3 ${mid + 0.5}h1.8M-3 ${mid + 1.3}h1.1`} stroke={INK} strokeWidth="0.5" />
+      <path d={`M${-waist} ${bottom - 1.8} H${waist}`} stroke={BG} strokeWidth="1.5" />
+      <rect x="-1" y={bottom - 2.5} width="2" height="1.5" rx="0.3" fill={INK} stroke="none" />
+    </g>
+  );
+}
+
+const Boot = ({ at, toe = 1 }: { at: Pt; toe?: number }) => (
+  <path d={`M${at[0] - 2} ${at[1] - 3.4} L${at[0] + 1.4} ${at[1] - 3.4} L${at[0] + 1.6} ${at[1] - 1.6} Q${at[0] + 1.6 + 3.6 * toe} ${at[1] - 1.4} ${at[0] + 1.8 + 3.6 * toe} ${at[1] + 0.6} L${at[0] - 2.2} ${at[1] + 0.6}Z`} fill={BOOT} stroke={INK} strokeWidth="0.85" strokeLinejoin="round" />
+);
+const Hand = ({ at }: { at: Pt }) => <circle cx={at[0]} cy={at[1]} r="1.55" fill={SKIN} stroke={INK} strokeWidth="0.7" />;
+
+function Person({ female, pose, phase }: { female: boolean; pose: Pose; phase: number }) {
+  const s = Math.sin(phase * Math.PI * 2);
+  const c = Math.cos(phase * Math.PI * 2);
+  const moving = pose === 'walk' || pose === 'climb';
+  const rt = female ? 1.0 : 1.2; // limb thickness
   if (pose === 'lie') {
     return (
-      <g transform="translate(0 -4)">
-        <Limb d="M-4 0 H11 M11 0 l4 -1" w="3.6" />
-        <path d="M-9 -3.4 Q-3 -5.6 5 -3.4 L5 3.2 Q-3 5.4 -9 3.2 Z" fill={DIM} strokeWidth="1.1" />
-        {face(-13.4, -1)}
+      <g transform="translate(0 -4.4)" strokeLinejoin="round" strokeLinecap="round">
+        <Seg a={[-1, 0.4]} b={[12.4, 0.8]} r1={2.5 * rt} r2={2 * rt} fill={SUIT} shade={SUIT_LIGHT} />
+        <Boot at={[14, 3.4]} toe={0.3} />
+        <path d={`M-10 -3 Q-4 -5.6 3 -3.8 L3.6 3.6 Q-4 5.4 -10 3.4Z`} fill={SUIT} stroke={INK} strokeWidth="0.95" />
+        <path d="M-9 -2.4 L2 -2.4" stroke={INK} strokeWidth="1.2" />
+        <Seg a={[-6, 2.4]} b={[2, 3.4]} r1={1.7} r2={1.5} fill={SUIT} shade={SUIT_LIGHT} />
+        <Hand at={[3.8, 3.6]} />
+        <Head cx={-14} cy={-0.6} female={female} tilt={-76} />
       </g>
     );
   }
   if (pose === 'sit') {
+    const hipX = -1.4;
+    const hipY = -8;
     return (
-      <g>
-        <Limb d="M1 -8 H9 M9 -8 V-1.4" w="3.4" />
-        <Limb d="M9 -1 H12.4" w="2.4" fill={BG} />
-        {torso(-21, -8)}
-        <Limb d="M0 -19 L5.4 -13 L8.6 -11.4" w="2.6" fill={SKIN} />
-        {face(0.4, -26)}
+      <g strokeLinejoin="round" strokeLinecap="round">
+        {/* the far leg, then the near leg: thigh forward, shin down */}
+        <Seg a={[hipX + 1.4, hipY + 0.4]} b={[9.4, hipY + 0.6]} r1={2.4 * rt} r2={2 * rt} fill={SUIT_DARK} />
+        <Seg a={[9.4, hipY + 0.6]} b={[9.8, -2.2]} r1={2 * rt} r2={1.7 * rt} fill={SUIT_DARK} />
+        <Boot at={[10.6, 0]} />
+        <Seg a={[hipX, hipY]} b={[8, hipY - 0.2]} r1={2.6 * rt} r2={2.1 * rt} fill={SUIT} shade={SUIT_LIGHT} />
+        <Seg a={[8, hipY - 0.2]} b={[8.8, -2.4]} r1={2.1 * rt} r2={1.8 * rt} fill={SUIT} shade={SUIT_LIGHT} />
+        <Boot at={[9.6, 0.2]} />
+        <Chest top={-21.6} bottom={-9} female={female} lean={2} />
+        <Seg a={[-0.4, -20]} b={[3.6, -14.4]} r1={1.9} r2={1.6} fill={SUIT} shade={SUIT_LIGHT} />
+        <Seg a={[3.6, -14.4]} b={[7.6, -12]} r1={1.6} r2={1.4} fill={SUIT} />
+        <Hand at={[8.6, -11.6]} />
+        <Seg a={[0.6, -22.4]} b={[0.8, -24.4]} r1={1.7} r2={1.7} fill={SKIN_SHADE} />
+        <Head cx={1} cy={-29} female={female} />
       </g>
     );
   }
-  const leg = moving ? s * 5 : 0;
-  const arm = moving ? -s * 4 : 0;
+  const stride = moving ? s * 5.2 : 0;
+  const lift = moving ? Math.max(0, c) * 1.6 : 0;
+  const lift2 = moving ? Math.max(0, -c) * 1.6 : 0;
+  const bob = moving ? Math.abs(s) * -0.7 : 0;
+  const armSwing = moving ? -s * 4.4 : 0;
   const climbing = pose === 'climb';
+  const hipY = -13.4;
   return (
-    <g>
-      <Limb d={`M-2 -12 L${-2 - leg} -1.4`} w="3.4" />
-      <Limb d={`M${-2 - leg} -0.6 h${3.4}`} w="2.4" fill={BG} />
-      <Limb d={climbing ? `M-3 -22 L${-6 + arm} -27` : `M-3 -22 L${-5 + arm} -12.5`} w="2.6" fill={SKIN} />
-      <Limb d={`M2 -12 L${2 + leg} -1.4`} w="3.4" />
-      <Limb d={`M${2 + leg} -0.6 h${3.4}`} w="2.4" fill={BG} />
-      {torso(-24, -12)}
-      <Limb d={climbing ? `M3 -22 L${6 - arm} -25` : `M3 -22 L${5 - arm} -12.5`} w="2.6" fill={SKIN} />
-      {face(0.4, -29)}
+    <g transform={`translate(0 ${bob})`} strokeLinejoin="round" strokeLinecap="round">
+      {/* the far leg and arm */}
+      <Seg a={[2.2, hipY]} b={[2.2 + stride * 0.55, hipY + 6.4 - lift2]} r1={2.4 * rt} r2={2 * rt} fill={SUIT_DARK} />
+      <Seg a={[2.2 + stride * 0.55, hipY + 6.4 - lift2]} b={[2.2 + stride, -3.4 - lift2]} r1={2 * rt} r2={1.7 * rt} fill={SUIT_DARK} />
+      <Boot at={[2.4 + stride, 0 - lift2 * 1.2]} />
+      <Seg a={[2.6, -21.2]} b={climbing ? [5.4, -26] : [3.6 - armSwing * 0.6, -16.4]} r1={1.7} r2={1.5} fill={SUIT_DARK} />
+      <Seg a={climbing ? [5.4, -26] : [3.6 - armSwing * 0.6, -16.4]} b={climbing ? [7, -30] : [4.2 - armSwing, -10.6]} r1={1.5} r2={1.3} fill={SUIT_DARK} />
+      <Hand at={climbing ? [7.4, -31] : [4.4 - armSwing, -9.6]} />
+      {/* the near leg */}
+      <Seg a={[-2.2, hipY]} b={[-2.2 - stride * 0.55, hipY + 6.4 - lift]} r1={2.6 * rt} r2={2.1 * rt} fill={SUIT} shade={SUIT_LIGHT} />
+      <Seg a={[-2.2 - stride * 0.55, hipY + 6.4 - lift]} b={[-2.2 - stride, -3.4 - lift]} r1={2.1 * rt} r2={1.8 * rt} fill={SUIT} shade={SUIT_LIGHT} />
+      <Boot at={[-2 - stride, 0 - lift * 1.2]} />
+      <Chest top={-25} bottom={-12.6} female={female} />
+      {/* the near arm */}
+      <Seg a={[-2.6, -22.6]} b={climbing ? [-5, -27.6] : [-3.4 + armSwing * 0.6, -17.2]} r1={1.9} r2={1.6} fill={SUIT} shade={SUIT_LIGHT} />
+      <Seg a={climbing ? [-5, -27.6] : [-3.4 + armSwing * 0.6, -17.2]} b={climbing ? [-6.4, -31.4] : [-3 + armSwing, -11.4]} r1={1.6} r2={1.4} fill={SUIT} shade={SUIT_LIGHT} />
+      <Hand at={climbing ? [-6.8, -32.4] : [-3 + armSwing, -10.4]} />
+      <Seg a={[0.4, -25.6]} b={[0.6, -27.4]} r1={1.7} r2={1.7} fill={SKIN_SHADE} />
+      <Head cx={0.8} cy={-32} female={female} />
     </g>
   );
 }

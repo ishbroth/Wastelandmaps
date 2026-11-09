@@ -10,8 +10,12 @@ export const COLS = 11;
 export const ROWS = 11;
 /** Levels down: the one you start on and four more. */
 export const LEVELS = 5;
-/** The most room slots a vault can hold, on whatever levels (a wide room takes two). */
-export const MAX_SLOTS = 15;
+/** The most room slots a vault can hold, on whatever levels (a wide room takes two). Hallways and stairwells do not count. */
+export const MAX_SLOTS = 20;
+/** The most hallways on one level. */
+export const MAX_HALLWAYS_PER_LEVEL = 4;
+/** What the dearest room costs, in pieces of loot (the cheapest costs 4). */
+export const MAX_ROOM_PRICE = 40;
 /** A level needs this many rooms before the next one can be dug under it: the entryway counts for the first level, so you can dig down at once once the decontamination shower is in. */
 export const ROOMS_TO_DIG = 1;
 /** Rooms it takes before a vacation vault can be bought, and how many of them a person can have. */
@@ -20,7 +24,7 @@ export const MAX_VACATIONS = 4;
 /** Where the entryway stands on the first level. */
 export const ENTRY_AT = { col: 5, row: 5 };
 
-export type RoomType = 'entry' | 'living' | 'kitchen' | 'bedroom' | 'dining' | 'bathroom' | 'laundry' | 'entertainment' | 'workshop' | 'game';
+export type RoomType = 'entry' | 'living' | 'kitchen' | 'bedroom' | 'dining' | 'bathroom' | 'laundry' | 'entertainment' | 'workshop' | 'game' | 'stairs' | 'hallway' | 'garden';
 
 export interface FurnitureDef { id: string; name: string }
 export interface RoomDef {
@@ -39,6 +43,11 @@ export interface RoomDef {
 
 export const ROOM_DEFS: RoomDef[] = [
   { id: 'entry', name: 'Entryway', slots: 1, max: 1, buildable: false, small: true, furniture: [{ id: 'coatrack', name: 'Coat Rack' }, { id: 'shoebench', name: 'Shoe Bench' }, { id: 'decon', name: 'Decontamination Shower' }] },
+  // the way down: digging to a new level makes this stairwell there (under the room you dug from, which gets a hole in its floor with stairs going down); it is not built from the list and does not count toward the slots
+  { id: 'stairs', name: 'Stairwell', slots: 1, max: LEVELS - 1, buildable: false, small: true, furniture: [] },
+  // a narrow passage, long and thin: it joins to rooms and to other hallways (straight, or turning a corner); four to a level, no slot, no happiness; one piece in it
+  { id: 'hallway', name: 'Hallway', slots: 1, max: MAX_HALLWAYS_PER_LEVEL * LEVELS, small: true, furniture: [{ id: 'fishtank', name: 'Fish Tank' }, { id: 'weaponrack', name: 'Weapon Rack' }, { id: 'statue', name: 'Art Statue' }, { id: 'plant', name: 'Indoor Tree' }] },
+  { id: 'garden', name: 'Garden', slots: 2, max: 2, furniture: [{ id: 'corn', name: 'Corn' }, { id: 'tatoes', name: 'Tato Plants' }, { id: 'mutfruit', name: 'Mutfruit Plants' }] },
   { id: 'living', name: 'Living Room', slots: 1, max: 3, furniture: [{ id: 'couch', name: 'Couch' }, { id: 'tv', name: 'TV' }, { id: 'armchair', name: 'Chair' }, { id: 'coffeetable', name: 'Coffee Table' }] },
   { id: 'dining', name: 'Dining Room', slots: 1, max: 3, furniture: [{ id: 'table', name: 'Dining Table' }, { id: 'chairs', name: 'Dining Chairs' }, { id: 'chandelier', name: 'Candle Chandelier' }, { id: 'chinacabinet', name: 'China Cabinet' }] },
   { id: 'kitchen', name: 'Kitchen', slots: 1, max: 3, furniture: [{ id: 'sinkcabinets', name: 'Cabinets & Sink' }, { id: 'fridge', name: 'Refrigerator' }, { id: 'stove', name: 'Stove' }] },
@@ -90,8 +99,11 @@ export const newVault = (now: number, seed = 0): VaultHome => ({ seed, layout: 3
 // ---- the grid ----
 
 export const slotsOf = (r: VaultRoom): number => roomDef(r.type).slots;
-export const slotsUsed = (v: VaultHome): number => v.rooms.reduce((n, r) => n + slotsOf(r), 0);
-export const furnitureCount = (v: VaultHome): number => v.rooms.reduce((n, r) => n + r.furniture.length, 0);
+/** Stairwells and hallways are passages: they take no slot, add no happiness and make no settlers. */
+export const isPassage = (r: { type: RoomType }): boolean => r.type === 'stairs' || r.type === 'hallway';
+export const slotsUsed = (v: VaultHome): number => v.rooms.reduce((n, r) => n + (isPassage(r) ? 0 : slotsOf(r)), 0);
+export const furnitureCount = (v: VaultHome): number => v.rooms.reduce((n, r) => n + (isPassage(r) ? 0 : r.furniture.length), 0);
+export const hallwaysOn = (v: VaultHome, level: number): number => v.rooms.filter((r) => r.type === 'hallway' && r.level === level).length;
 export const roomsOn = (v: VaultHome, level: number): VaultRoom[] => v.rooms.filter((r) => r.level === level);
 /** The deepest level that has a room. */
 export const deepestLevel = (v: VaultHome): number => v.rooms.reduce((m, r) => Math.max(m, r.level), 0);
@@ -117,23 +129,35 @@ export function whyNotDig(v: VaultHome, level: number): string | null {
 export const isDoorCell = (v: VaultHome, level: number, col: number, row: number): boolean =>
   v.rooms.some((r) => r.type === 'entry' && r.level === level && col === r.col && row === r.row + 1);
 
+/** Can a stairwell be dug at this cell of this level (the first thing on a new level, under a room of the level above that is not a stairwell)? Null if yes, or the reason. */
+export function whyNotStairs(v: VaultHome, level: number, col: number, row: number): string | null {
+  if (level < 1 || level >= LEVELS) return 'There is nothing to dig down to there';
+  if (roomsOn(v, level).length > 0) return 'This level is already dug: build onto it';
+  const dig = whyNotDig(v, level - 1);
+  if (dig) return dig;
+  const above = roomAt(v, level - 1, col, row);
+  if (!above) return 'It has to be dug under a room of the level above';
+  if (above.type === 'stairs') return 'You cannot dig down under a stairwell: pick another room';
+  if (above.type === 'hallway') return 'You cannot dig down under a hallway: pick a room';
+  return null;
+}
+
 /** Can a room of this type be built with its left cell here? Returns null if yes, or the reason. */
 export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number): string | null {
   const def = roomDef(type);
+  if (type === 'stairs') return whyNotStairs(v, level, col, row);
   if (def.buildable === false) return 'There is only one entryway';
   if (!hasDecon(v)) return DECON_REASON;
   if (level < 0 || level >= LEVELS || row < 0 || row >= ROWS || col < 0 || col + def.slots > COLS) return 'There is no room for it there';
-  if (slotsUsed(v) + def.slots > MAX_SLOTS) return `A vault holds at most ${MAX_SLOTS} rooms`;
-  if (v.rooms.filter((r) => r.type === type).length >= def.max) return `A vault holds at most ${def.max} ${def.name}${def.max > 1 ? 's' : ''}`;
+  if (type !== 'hallway' && slotsUsed(v) + def.slots > MAX_SLOTS) return `A vault holds at most ${MAX_SLOTS} rooms (hallways and stairwells do not count)`;
+  if (type === 'hallway' && hallwaysOn(v, level) >= MAX_HALLWAYS_PER_LEVEL) return `A level holds at most ${MAX_HALLWAYS_PER_LEVEL} hallways`;
+  if (type !== 'hallway' && v.rooms.filter((r) => r.type === type).length >= def.max) return `A vault holds at most ${def.max} ${def.name}${def.max > 1 ? 's' : ''}`;
   for (let c = col; c < col + def.slots; c++) if (roomAt(v, level, c, row)) return 'That space is taken';
   for (let c = col; c < col + def.slots; c++) if (isDoorCell(v, level, c, row)) return 'That wall is the vault door: it stays clear';
   if (roomsOn(v, level).length === 0) {
-    // the first room of a new level is dug under a room of the level above, and only once that level has enough rooms
+    // a new level starts with its stairwell, dug under a room of the level above (see whyNotStairs)
     if (level === 0) return 'There is nothing here to build on';
-    const dig = whyNotDig(v, level - 1);
-    if (dig) return dig;
-    for (let c = col; c < col + def.slots; c++) if (!roomAt(v, level - 1, c, row)) return 'It has to be dug under a room of the level above';
-    return null;
+    return 'Dig a stairwell down to this level first';
   }
   // after that, it must touch a room of the same level, not at a corner
   let touches = false;
@@ -168,13 +192,19 @@ export function normalize(v: VaultHome): VaultHome {
   return w;
 }
 
-/** The price of the nth room slot (the second is 4, the third 6, the fourth 8, and so on). */
-export const slotPrice = (n: number): number => 2 * n;
+/** The price of the nth room slot: the second is 4 (the cheapest), the twentieth is 40 (the dearest), and it climbs gently at first and faster toward the end. */
+export const slotPrice = (n: number): number => {
+  if (n <= 2) return 4;
+  if (n >= MAX_SLOTS) return MAX_ROOM_PRICE;
+  return Math.round(4 + (MAX_ROOM_PRICE - 4) * Math.pow((n - 2) / (MAX_SLOTS - 2), 1.3));
+};
 
 /** Pieces of loot to build a room of this type now: the price of each slot it takes. A 2-slot room as your 4th slot costs 8 + 10. */
 export function buildCost(v: VaultHome, type: RoomType): number {
+  // a hallway is priced by how many hallways there are already, on the same climb as the rooms (the first costs what the cheapest room does)
+  if (type === 'hallway') return slotPrice(v.rooms.filter((r) => r.type === 'hallway').length + 2);
   const first = slotsUsed(v) + 1;
-  return roomDef(type).slots === 2 ? slotPrice(first) + slotPrice(first + 1) : slotPrice(first);
+  return roomDef(type).slots === 2 ? Math.min(MAX_ROOM_PRICE, slotPrice(first) + slotPrice(first + 1)) : slotPrice(first);
 }
 
 /** Pieces of loot for the next piece of furniture in a room (3, 4, 5, then 6 for the last of four). */
@@ -183,7 +213,7 @@ export function furnishCost(r: VaultRoom): number {
 }
 
 export const furnitureOf = (type: RoomType): FurnitureDef[] => roomDef(type).furniture;
-export const roomComplete = (r: VaultRoom): boolean => r.furniture.length >= furnitureOf(r.type).length;
+export const roomComplete = (r: VaultRoom): boolean => r.furniture.length >= (r.type === 'hallway' ? 1 : furnitureOf(r.type).length);
 
 // ---- what things cost, as a mix of loot ----
 
@@ -227,7 +257,7 @@ export function recipeFor(seed: number, key: string, pieces: number): LootBag {
 }
 
 /** What building a room of this type costs now, as a mix of loot. */
-export const buildRecipe = (v: VaultHome, type: RoomType): LootBag => recipeFor(v.seed ?? 0, `room:${type}:${slotsUsed(v)}`, buildCost(v, type));
+export const buildRecipe = (v: VaultHome, type: RoomType): LootBag => recipeFor(v.seed ?? 0, `room:${type}:${type === 'hallway' ? v.rooms.filter((r) => r.type === 'hallway').length : slotsUsed(v)}`, buildCost(v, type));
 /** Pieces of loot a vacation vault costs, as a random mix (the same for the same place in the same vault, on the phone and on the server). */
 export const VACATION_PIECES = 8;
 export const vacationRecipe = (v: VaultHome, placeId: string): LootBag => recipeFor(v.seed ?? 0, `vacation:${placeId}`, VACATION_PIECES);
@@ -323,6 +353,7 @@ export function applyFurnish(v: VaultHome, roomIndex: number, item: string, now:
   if (!room) return { ok: false, reason: 'No such room' };
   if (!furnitureOf(room.type).some((f) => f.id === item)) return { ok: false, reason: 'That does not belong in this room' };
   if (room.furniture.includes(item)) return { ok: false, reason: 'Already there' };
+  if (room.type === 'hallway' && room.furniture.length >= 1) return { ok: false, reason: 'A hallway holds one piece' };
   const cost = furnishCost(room);
   const recipe = furnishRecipe(v, roomIndex, item);
   const s = settle(v, now);

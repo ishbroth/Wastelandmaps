@@ -2,6 +2,7 @@
 // kept on the account. What kind of place an address is decides its icon and its scene.
 
 import { addressIcon, type IconId } from './placeIcons';
+import { sceneLinesFor } from './sceneLines';
 import type { CategoryId, Location } from './wasteland';
 
 export type PersonalKind = 'house' | 'park' | 'office' | 'church' | 'medical' | 'gov';
@@ -64,8 +65,12 @@ const FLAVOR: Record<PersonalKind, string[]> = {
   gov: ['Stone steps lead up to doors that no clerk will open. The records inside outlived the people who kept them.', 'Columns and a cracked flag pole: the old order left its marks in marble.'],
 };
 
-export function describePersonal(name: string, address: string, kind: PersonalKind, regionName: string): string[] {
-  const options = FLAVOR[kind];
-  const pick = options[(name.length + address.length) % options.length];
+export function describePersonal(name: string, address: string, kind: PersonalKind, regionName: string, icon?: string): string[] {
+  // the pool of what the building would have been (by its icon, counted twice), and the plainer lines for its kind
+  const options = [...(icon ? sceneLinesFor(icon) : []), ...(icon ? sceneLinesFor(icon) : []), ...FLAVOR[kind]];
+  let h = 2166136261;
+  for (const c of `${name}|${address}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13;
+  const pick = options[(h >>> 0) % options.length];
   return [`${name}, ${regionName}. ${address}.`, pick, 'Yours: a place you walked to yourself, and the map remembers it for you.'];
 }

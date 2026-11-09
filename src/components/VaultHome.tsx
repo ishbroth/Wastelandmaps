@@ -5,7 +5,7 @@ import ConfirmSpend from './ConfirmSpend';
 import { canAfford, describeBag, lootName, type LootId } from '../lib/raid/loot';
 type Bag = Partial<Record<string, number>>;
 import {
-  COLS, ENTRY_AT, isDoorCell, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
+  COLS, ENTRY_AT, MAX_HALLWAYS_PER_LEVEL, hallwaysOn, isDoorCell, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
   whyNotBuild, whyNotDig, DECON_REASON, MAX_VACATIONS, vacationRecipe,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
@@ -102,7 +102,7 @@ function plan(s: Sim, v: VaultHome) {
   s.seatFace = undefined;
   if (use && SEATS[use]) {
     const seat = pick(SEATS[use]);
-    const at = pieceAt(room, use);
+    const at = pieceAt(room, use, doorsOf(room, (c, r) => roomAt(v, s.level, c, r)));
     if (at) { const k = pieceScale(room); spot = { x: at.x + seat.dx * k, y: at.y + seat.dy * k }; s.seatFace = seat.face; }
   }
   s.path = route(v, s.level, cellOf(s.x, s.y), cellOf(spot.x, spot.y), spot);
@@ -333,7 +333,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     for (let row = 0; row < ROWS; row++) {
       for (let col = 0; col < COLS; col++) {
         if (roomAt(vault, level, col, row) || isDoorCell(vault, level, col, row)) continue;
-        const ok = here.length === 0 ? level > 0 && !!roomAt(vault, level - 1, col, row) : [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => roomAt(vault, level, col + dc, row + dr));
+        const ok = here.length === 0 ? level > 0 && !!roomAt(vault, level - 1, col, row) && roomAt(vault, level - 1, col, row)?.type !== 'stairs' : [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => roomAt(vault, level, col + dc, row + dr));
         if (ok) out.push([col, row]);
       }
     }
@@ -371,7 +371,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
         el: (
           <g className={`rm-vh-room${fresh && fresh.room === idx && !fresh.item ? ' rm-vh-fresh' : ''}`} role="button" aria-label={def.name}>
             {halls}
-            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} doorsL={doorsL} doorsR={doorsR} />
+            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} doorsL={doorsL} doorsR={doorsR} hole={roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} furniture={room.furniture} />
           </g>
         ),
       });
@@ -384,7 +384,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             if (focusRef.current !== null) return;
             e.stopPropagation();
             if (!hasDecon(vault)) { say(DECON_REASON); return; }
-            setPanel({ kind: 'build', level, col, row });
+            setPanel({ kind: 'build', level, col, row, ...(here.length === 0 ? { type: 'stairs' as RoomType } : {}) });
           }}>
             <RoomOutline rect={cellRect(col, row)} label={here.length === 0 ? 'DIG DOWN' : 'CLEAR & BUILD'} near={roomAt(vault, level, col - 1, row) ? 'left' : roomAt(vault, level, col, row - 1) ? 'back' : roomAt(vault, level, col + 1, row) ? 'right' : roomAt(vault, level, col, row + 1) ? 'front' : undefined} />
           </g>
@@ -404,9 +404,10 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     if (!vault) return out;
     vault.rooms.forEach((room, idx) => {
       if (room.level !== level) return;
+      const doors = doorsOf(room, (c, r) => roomAt(vault, level, c, r));
       out.set(idx, room.furniture.flatMap((id) => {
-        const at = pieceAt(room, id);
-        return at ? [{ key: `f${idx}-${id}`, depth: at.x + at.y, el: <PlacedPiece key={`f${idx}-${id}`} room={room} id={id} fresh={!!fresh && fresh.room === idx && fresh.item === id} /> }] : [];
+        const at = pieceAt(room, id, doors);
+        return at ? [{ key: `f${idx}-${id}`, depth: at.x + at.y, el: <PlacedPiece key={`f${idx}-${id}`} room={room} id={id} doors={doors} fresh={!!fresh && fresh.room === idx && fresh.item === id} /> }] : [];
       }));
     });
     return out;
@@ -572,7 +573,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                     return (
                       <li key={d.id}>
                         <button type="button" className={!why && canAfford(ownLoot as never, buildRecipe(vault, d.id) as never) ? 'can' : undefined} disabled={!!why} onClick={() => setPanel({ ...panel, type: d.id })}>
-                          <span>{d.name.toUpperCase()}{d.slots === 2 ? ' (2 SLOTS)' : ''}</span>
+                          <span>{d.name.toUpperCase()}{d.slots === 2 ? ' (2 SLOTS)' : ''}{d.id === 'hallway' ? ` (${hallwaysOn(vault, panel.level)} OF ${MAX_HALLWAYS_PER_LEVEL} HERE)` : ''}</span>
                           <i>{why ? why.toUpperCase() : mix}</i>
                         </button>
                       </li>
@@ -584,8 +585,8 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             )}
             {panel.kind === 'build' && panel.type && (
               <RecipeCard
-                verb="BUILD" what={roomDef(panel.type).name.toUpperCase()} title={`BUILD A ${roomDef(panel.type).name.toUpperCase()}`} recipe={buildRecipe(vault, panel.type)} have={ownLoot} busy={busy}
-                onBack={() => setPanel({ kind: 'build', level: panel.level, col: panel.col, row: panel.row })}
+                verb={panel.type === 'stairs' ? 'DIG' : 'BUILD'} what={roomDef(panel.type).name.toUpperCase()} title={panel.type === 'stairs' ? 'DIG A STAIRWELL DOWN' : `BUILD A ${roomDef(panel.type).name.toUpperCase()}`} recipe={buildRecipe(vault, panel.type)} have={ownLoot} busy={busy}
+                onBack={() => setPanel(panel.type === 'stairs' ? null : { kind: 'build', level: panel.level, col: panel.col, row: panel.row })}
                 onPay={() => act({ action: 'build', type: panel.type as string, level: panel.level, col: panel.col, row: panel.row }, (v) => setFresh({ room: v.rooms.length - 1 }))}
               />
             )}
@@ -593,14 +594,15 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
               <div className="rm-vh-sheet-body">
                 <button type="button" className="rm-vh-x" onClick={() => setPanel(null)} aria-label="Close">×</button>
                 <h3>{roomDef(room.type).name.toUpperCase()}</h3>
-                <p>{roomComplete(room) ? 'FULLY FURNISHED.' : `EACH PIECE COSTS ${furnishCost(room)} PIECES OF LOOT, A DIFFERENT MIX FOR EACH.`}</p>
+                <p>{room.type === 'stairs' ? 'THE STAIRS GO BACK UP. THE ROOM ABOVE HAS A HOLE IN ITS FLOOR FOR THEM.' : room.type === 'hallway' ? (room.furniture.length ? 'ONE PIECE IN A HALLWAY, AND IT IS HERE.' : `A HALLWAY HOLDS ONE PIECE: CHOOSE WELL. IT COSTS ${furnishCost(room)} PIECES OF LOOT.`) : roomComplete(room) ? 'FULLY FURNISHED.' : `EACH PIECE COSTS ${furnishCost(room)} PIECES OF LOOT, A DIFFERENT MIX FOR EACH.`}</p>
                 <ul className="rm-vh-types">
                   {furnitureOf(room.type).map((f) => {
-                    const placed = room.furniture.includes(f.id);
+                    const placed = room.furniture.includes(f.id) || (room.type === 'hallway' && room.furniture.length >= 1);
+                    const here = room.furniture.includes(f.id);
                     return (
                       <li key={f.id}>
                         <button type="button" className={!placed && canAfford(ownLoot as never, furnishRecipe(vault, panel.idx, f.id) as never) ? 'can' : undefined} disabled={placed} onClick={() => setPanel({ ...panel, item: f.id })}>
-                          <span>{f.name.toUpperCase()}</span><i>{placed ? 'PLACED' : describeBag(furnishRecipe(vault, panel.idx, f.id) as never).toUpperCase()}</i>
+                          <span>{f.name.toUpperCase()}</span><i>{placed ? (here ? 'PLACED' : 'ONE PIECE ONLY') : describeBag(furnishRecipe(vault, panel.idx, f.id) as never).toUpperCase()}</i>
                         </button>
                       </li>
                     );

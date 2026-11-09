@@ -33,6 +33,7 @@ import { RESERVED_VAULT_NUMBERS } from './loreVaults';
 import { vaultStory } from './vaultStories';
 import { neighborhoodIcon, pickIcon, type IconId } from './placeIcons';
 import { backstoryFor } from './backstories';
+import { sceneLine } from './sceneLines';
 import { VAULT_ZERO_ID } from '../../supabase/functions/_shared/vaultZero';
 import { enemyById, type BossId, type EnemyId } from './raid/enemies';
 import { lootName, type LootId } from './raid/loot';
@@ -325,6 +326,12 @@ const VAULT_LINES = [
   'The door is sealed from the inside, or from the outside. The sign says nobody has been in or out in a long time.',
   'A vault door as wide as a house, with a gear on it that has not turned in two centuries. Someone keeps the bolts oiled.',
   'The hazard stripes are still bright. Behind the door, a hum. Survivors say the lights never went out.',
+  'The door has a small mail slot, and the mail slot has a small mail. It is addressed to everyone.',
+  'A ring of old traffic cones marks the way in. Somebody replaces the cones every year, and nobody replaces the somebody.',
+  'The Vault-Tec cog on the door is the only thing for a mile that looks exactly like the brochure.',
+  'A welcome mat sits in front of the door. It says WELCOME HOME, and it has seen a great many people wipe their feet on it, and one come back.',
+  'The intercom by the door crackles on every hour, says one word, and clicks off. The word changes.',
+  'The hatch is clean. That is the strange part: everything around it is dust, and the hatch is clean.',
 ];
 
 /** A few lines for a place's journal entry, the same every time for the same place. */
@@ -344,7 +351,7 @@ export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabit
     const number = Number(spot.name.replace(/\D/g, '')) || 0;
     return [`${spot.name}, ${regionName}. Your home: ${spot.personal.address}.`, ...vaultStory(`home-${number}`, number)];
   }
-  if (spot.personal) return describePersonal(spot.name, spot.personal.address, spot.personal.kind, regionName);
+  if (spot.personal) return describePersonal(spot.name, spot.personal.address, spot.personal.kind, regionName, spot.icon);
   const rand = seeded(hashString(`${spot.id}|journal`));
   if (spot.lore && !spot.vault) {
     return [`${spot.name}, ${regionName}. ${spot.lore.town}.`, spot.lore.text, 'The ruins keep it quieter than the stories do.'];
@@ -372,7 +379,7 @@ export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabit
   const story = backstoryFor(spot.id, spot.oldName);
   return [
     `${spot.name}, ${regionName}.`,
-    story ?? openers[Math.floor(rand() * openers.length)],
+    story ?? sceneLine(spot.icon, spot.id, openers),
     plan ? presentDay(plan) : `${THREAT_LINES[spot.threat]} Worth a look for: ${spot.loot.toLowerCase()}.`,
   ];
 }

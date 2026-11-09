@@ -52,6 +52,7 @@ const VARIANTS: Partial<Record<RoomType, Variant[]>> = {
   entertainment: [{ w: 0.98, d: 0.9 }, { w: 0.92, d: 1, bump: [0.35, 0.65, 10] }, { w: 0.9, d: 0.8 }],
   game: [{ w: 0.96, d: 0.84, notch: [0.2, 0.3] }, { w: 0.9, d: 0.95 }, { w: 1, d: 0.78 }],
   workshop: [{ w: 0.94, d: 1, notch: [0.16, 0.3] }, { w: 0.98, d: 0.86, bump: [0.55, 0.85, 9] }, { w: 0.9, d: 0.9 }],
+  garden: [{ w: 0.96, d: 0.9 }, { w: 0.92, d: 1, bump: [0.35, 0.65, 10] }, { w: 1, d: 0.84 }],
 };
 const hashOf = (s: string): number => {
   let h = 2166136261;
@@ -65,8 +66,10 @@ export interface Shape { rect: Rect; poly: Pt[]; notch: Rect | null }
 export function shapeOf(r: { type: RoomType; col: number; row: number }): Shape {
   const def = roomDef(r.type);
   const list = VARIANTS[r.type];
+  // a hallway is a narrow square in the middle of its cell (a little wider than a doorway); the tunnels to its neighbors make it long
   const cx = r.col * CELL;
   const cy = r.row * CELL;
+  if (r.type === 'hallway') { const hw = 30; return { rect: { x: cx + (CELL - hw) / 2, y: cy + (CELL - hw) / 2, w: hw, d: hw }, poly: [], notch: null }; }
   if (!list) return { rect: { x: cx + (CELL - SMALL) / 2, y: cy + (CELL - SMALL) / 2, w: SMALL, d: SMALL }, poly: [], notch: null };
   const v = list[hashOf(`${r.type}:${r.col}:${r.row}`) % list.length];
   const w = def.slots * CELL * v.w;
@@ -123,7 +126,10 @@ export function screenBox(rects: Rect[]): { x: number; y: number; w: number; h: 
 type Wall = 'panels' | 'tiles' | 'bricks' | 'dots';
 type Floor = 'planks' | 'tiles' | 'dots';
 const STYLE: Record<RoomType, { wall: Wall; floor: Floor }> = {
+  hallway: { wall: 'panels', floor: 'tiles' },
+  garden: { wall: 'tiles', floor: 'dots' },
   entry: { wall: 'panels', floor: 'tiles' },
+  stairs: { wall: 'bricks', floor: 'dots' },
   living: { wall: 'panels', floor: 'planks' },
   dining: { wall: 'panels', floor: 'planks' },
   bedroom: { wall: 'panels', floor: 'planks' },
@@ -147,6 +153,70 @@ const GLASS = 'rgba(61,255,138,0.10)';
 
 const Poly = ({ p, fill, sw = 1.2, stroke = INK }: { p: V3[]; fill: string; sw?: number; stroke?: string }): ReactElement => <polygon points={pts(p)} fill={fill} stroke={stroke} strokeWidth={sw} strokeLinejoin="round" />;
 const Seg = ({ a, b, c = DIM, sw = 0.8, o = 0.6 }: { a: V3; b: V3; c?: string; sw?: number; o?: number }): ReactElement => { const [x1, y1] = P(...a); const [x2, y2] = P(...b); return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={c} strokeWidth={sw} opacity={o} />; };
+
+// ---- the stairs between levels ----
+
+/** A solid box drawn with its three visible faces (for the steps). */
+const Slab = ({ x0, y0, x1, y1, z0 = 0, z1, k }: { x0: number; y0: number; x1: number; y1: number; z0?: number; z1: number; k: string }): ReactElement => (
+  <g key={k}>
+    <Poly p={[[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]]} fill={SIDE_Y} sw={0.9} />
+    <Poly p={[[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]]} fill={SIDE_X} sw={0.9} />
+    <Poly p={[[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]} fill={TOP} sw={0.9} />
+  </g>
+);
+
+/** The hole in the floor of a room that has a stairwell under it: out of the way of the furniture, in a front corner (the walls there are cut away). */
+export function holeRect(room: { type: RoomType; col: number; row: number; furniture: string[] }): Rect {
+  const S = 30;
+  const { rect, notch } = shapeOf(room);
+  const m = 9;
+  const spots: Rect[] = [
+    { x: rect.x + rect.w - m - S, y: rect.y + rect.d - m - S, w: S, d: S },
+    { x: rect.x + m, y: rect.y + rect.d - m - S, w: S, d: S },
+    { x: rect.x + rect.w - m - S, y: rect.y + (rect.d - S) / 2, w: S, d: S },
+    { x: rect.x + (rect.w - S) / 2, y: rect.y + rect.d - m - S, w: S, d: S },
+  ];
+  const centers = room.furniture.map((id) => pieceAt(room as VaultRoom, id)).filter((p): p is { x: number; y: number } => !!p);
+  const free = (r: Rect) =>
+    !(notch && r.x < notch.x + notch.w && r.x + r.w > notch.x && r.y < notch.y + notch.d && r.y + r.d > notch.y)
+    && centers.every((c) => Math.abs(c.x - (r.x + S / 2)) > S / 2 + 15 || Math.abs(c.y - (r.y + S / 2)) > S / 2 + 15);
+  return spots.find(free) ?? spots[0];
+}
+
+/** A hole in the floor with a flight of stairs going down into it, and a railing along its open sides. */
+function StairHole({ hole }: { hole: Rect }): ReactElement {
+  const hx0 = hole.x, hy0 = hole.y, hx1 = hole.x + hole.w, hy1 = hole.y + hole.d;
+  const D = 17;
+  const steps = [2, 1, 0].map((k) => {
+    const y0 = hy1 - (k + 1) * 7.5 - 2;
+    return <Poly key={`t${k}`} p={[[hx0 + 3, y0, -(k + 1) * 4.2], [hx1 - 3, y0, -(k + 1) * 4.2], [hx1 - 3, y0 + 7.5, -(k + 1) * 4.2], [hx0 + 3, y0 + 7.5, -(k + 1) * 4.2]]} fill={k === 0 ? SLAB : '#0a3a1c'} sw={0.9} />;
+  });
+  const post = (x: number, y: number, key: string) => <Seg key={key} a={[x, y, 0]} b={[x, y, 15]} c={INK} sw={1.2} o={0.9} />;
+  return (
+    <g>
+      <Poly p={[[hx0, hy0, 0], [hx1, hy0, 0], [hx1, hy1, 0], [hx0, hy1, 0]]} fill="#010a05" sw={1.6} />
+      <Poly p={[[hx0, hy0, 0], [hx0, hy1, 0], [hx0, hy1, -D], [hx0, hy0, -D]]} fill="#042a12" sw={1} />
+      <Poly p={[[hx0, hy0, 0], [hx1, hy0, 0], [hx1, hy0, -D], [hx0, hy0, -D]]} fill="#06361a" sw={1} />
+      {steps}
+      {post(hx0, hy1, 'p0')}{post(hx1, hy1, 'p1')}{post(hx1, hy0, 'p2')}
+      <Seg a={[hx0, hy1, 15]} b={[hx1, hy1, 15]} c={INK} sw={1.4} o={0.95} />
+      <Seg a={[hx1, hy1, 15]} b={[hx1, hy0, 15]} c={INK} sw={1.4} o={0.95} />
+    </g>
+  );
+}
+
+/** The flight of stairs up in a stairwell room: eight steps rising along the left back wall toward the back, as high as the wall. */
+function StairsUp({ rect }: { rect: Rect }): ReactElement {
+  const n = 8;
+  const lo = rect.y + 8;
+  const hi = rect.y + rect.d - 8;
+  const run = (hi - lo) / n;
+  const x0 = rect.x + 3;
+  const x1 = rect.x + 29;
+  const out: ReactElement[] = [];
+  for (let i = n - 1; i >= 0; i--) out.push(<Slab key={`s${i}`} k={`s${i}`} x0={x0} x1={x1} y0={hi - (i + 1) * run} y1={hi - i * run} z1={(i + 1) * 5.4} />);
+  return <g>{out}</g>;
+}
 
 const STEEL = '#0b5a2a';
 const PANEL = '#06301a';
@@ -213,12 +283,37 @@ function WallThing({ along, wall, t, kind }: { along: 'y' | 'x'; wall: number; t
 
 const THINGS: ('window' | 'thumbs' | 'cog' | 'atom' | 'calm' | 'junction')[] = ['window', 'thumbs', 'cog', 'atom', 'calm', 'junction'];
 
+/** A hallway: a small square of floor in the middle of its cell, low walls on the sides with no passage, and tunnels (see HallX and HallY) joining it to whatever is next to it. Chained, they make long corridors and corners. */
+function HallwayShell({ rect, hasLeft, hasBack }: { rect: Rect; hasLeft: boolean; hasBack: boolean }): ReactElement {
+  const { x, y, w, d } = rect;
+  const x1 = x + w;
+  const y1 = y + d;
+  const H = 18;
+  const T = 4;
+  const seams: ReactNode[] = [];
+  for (let t = 10; t < w - 2; t += 10) seams.push(<Seg key={`a${t}`} a={[x + t, y, 0]} b={[x + t, y1, 0]} o={0.4} />, <Seg key={`b${t}`} a={[x, y + t, 0]} b={[x1, y + t, 0]} o={0.4} />);
+  return (
+    <g>
+      <Poly p={[[x1, y, 0], [x1, y1, 0], [x1, y1, -9], [x1, y, -9]]} fill={SLAB} />
+      <Poly p={[[x, y1, 0], [x1, y1, 0], [x1, y1, -9], [x, y1, -9]]} fill="#073a1b" />
+      <Poly p={[[x, y, 0], [x1, y, 0], [x1, y1, 0], [x, y1, 0]]} fill={FLOOR} />
+      {seams}
+      {!hasLeft && <Poly p={[[x, y, 0], [x, y1, 0], [x, y1, H], [x, y, H]]} fill={FACE_L} />}
+      {!hasBack && <Poly p={[[x, y, 0], [x1, y, 0], [x1, y, H], [x, y, H]]} fill={FACE_R} />}
+      {!hasLeft && <Poly p={[[x, y, H], [x, y1, H], [x - T, y1, H], [x - T, y, H]]} fill={CAP} sw={1.6} />}
+      {!hasBack && <Poly p={[[x, y, H], [x1, y, H], [x1, y - T, H], [x, y - T, H]]} fill={CAP} sw={1.6} />}
+      {!hasLeft && !hasBack && <Poly p={[[x, y, H], [x - T, y, H], [x - T, y - T, H], [x, y - T, H]]} fill={CAP} sw={1.6} />}
+    </g>
+  );
+}
+
 /**
  * A room: its floor (the shape of this room), the inside of its two back walls, the thick tops of those walls, and the edge of the floor slab at the front. `doorsL`
  * are the heights (y) of the doorways in the left back wall, `doorsR` the positions (x) of those in the right back wall. The walls are vault walls: molded steel with
  * a baseboard and rivets, a rounded corner post, piping and conduit, a fake window or two, and the odd poster.
  */
-export function RoomShell({ rect, name, type, col, row, doorsL, doorsR }: { rect: Rect; name: string; type: RoomType; col: number; row: number; doorsL: number[]; doorsR: number[] }): ReactElement {
+export function RoomShell({ rect, name, type, col, row, doorsL, doorsR, hole = false, furniture = [] }: { rect: Rect; name: string; type: RoomType; col: number; row: number; doorsL: number[]; doorsR: number[]; /** A stairwell below: a hole in the floor with stairs going down. */ hole?: boolean; furniture?: string[] }): ReactElement {
+  if (type === 'hallway') return <HallwayShell rect={rect} hasLeft={doorsL.length > 0} hasBack={doorsR.length > 0} />;
   const { x, y, w, d } = rect;
   const x1 = x + w;
   const y1 = y + d;
@@ -309,6 +404,7 @@ export function RoomShell({ rect, name, type, col, row, doorsL, doorsR }: { rect
       {edges.map((e, i) => <Poly key={`sl${i}`} p={[[e.a[0], e.a[1], 0], [e.b[0], e.b[1], 0], [e.b[0], e.b[1], -9], [e.a[0], e.a[1], -9]]} fill={e.nx > 0 ? SLAB : '#073a1b'} />)}
       <polygon points={poly.map(([px, py]) => P(px, py, 0).join(',')).join(' ')} fill={FLOOR} stroke={INK} strokeWidth="1.2" strokeLinejoin="round" />
       <g clipPath={`url(#${clip})`}>{floor}</g>
+      {hole && <StairHole hole={holeRect({ type, col, row, furniture })} />}
       {/* the inside of the left back wall, and of the right one */}
       <Poly p={[[x, y, 0], [x, y1, 0], [x, y1, H], [x, y, H]]} fill={FACE_L} />
       {wallL}
@@ -316,6 +412,7 @@ export function RoomShell({ rect, name, type, col, row, doorsL, doorsR }: { rect
       {wallR}
       {doorsL.map((c) => door(true, c))}
       {doorsR.map((c) => door(false, c))}
+      {type === 'stairs' && <StairsUp rect={rect} />}
       {/* the thick tops of the walls, rounded off, and the molded post in the corner */}
       <Poly p={[[x, y, H], [x, y1, H], [x - T, y1, H], [x - T, y, H]]} fill={CAP} sw={2} />
       <Poly p={[[x, y, H], [x1, y, H], [x1, y - T, H], [x, y - T, H]]} fill={CAP} sw={2} />
@@ -518,44 +615,136 @@ interface Piece { u: number; v: number; face: 'x' | 'y'; art: (g: G) => ReactNod
 const DARK: Skin = { top: '#0a3a1c', l: '#06280f', r: '#041c0b' };
 const GLASS_SKIN: Skin = { top: GLASS, l: GLASS, r: GLASS };
 const SCREEN = 'rgba(61,255,138,0.28)';
+// ---- skins and small helpers for the furniture ----
+const UPH: Skin = { top: '#1a9a4e', l: '#0e6a32', r: '#084d24' }; // upholstery: couches, chairs, seats
+const UPH2: Skin = { top: '#2fc86e', l: '#16a050', r: '#0d7a3c' }; // cushions: a little brighter
+const PILLOW: Skin = { top: '#8dffbc', l: '#46cf80', r: '#2aa862' };
+const APPL: Skin = { top: '#27a85a', l: '#16703a', r: '#0c4f28' }; // enamel: appliances
+const WORKTOP: Skin = { top: '#22b862', l: '#12803e', r: '#0b5e2c' };
+const TILE: Skin = { top: '#0f8a42', l: '#0a5a28', r: '#063a1a' };
+const GLOWS: Skin = { top: INK, l: INK, r: INK };
+const GROOVE: Skin = { top: '#02130a', l: '#02130a', r: '#02130a', line: '#0b5a2a' };
+const GLINT = 'rgba(205,255,225,0.42)';
+
+/** A box with its top edge bevelled (cushions, mattresses, counters): the top is a slightly smaller box on the body. */
+const soft = (g: G, cx: number, cy: number, z: number, w: number, d: number, h: number, skin: Skin = {}) => (
+  <g key={`sf${cx}-${cy}-${z}-${w}`}>{g.box(cx, cy, z, w, d, Math.max(0.6, h - 1.2), skin)}{g.box(cx, cy, z + Math.max(0.6, h - 1.2), Math.max(1, w - 1.6), Math.max(1, d - 1.6), 1.2, skin)}</g>
+);
+/** A round shape on a face of a piece (a porthole, a speaker cone, a plate): plane 'x' at x = at, or 'y' at y = at; centered (a, b) on it with radius r. */
+const disc = (g: G, plane: 'x' | 'y', at: number, a: number, b: number, r: number, fill: string, n = 14) =>
+  g.flat(Array.from({ length: n }, (_, i) => { const t = (i / n) * Math.PI * 2; const p = a + Math.cos(t) * r; const q = b + Math.sin(t) * r; return (plane === 'x' ? [at, p, q] : [p, at, q]) as V3; }), fill);
+/** Seams and grooves on a front face: a horizontal one, and a vertical one (front along y at `at`, or along x at `at`). */
+const hY = (g: G, x0: number, x1: number, at: number, z: number) => g.box((x0 + x1) / 2, at, z, x1 - x0, 0.6, 0.7, GROOVE);
+const vY = (g: G, x: number, at: number, z0: number, z1: number) => g.box(x, at, z0, 0.7, 0.6, z1 - z0, GROOVE);
+const hX = (g: G, y0: number, y1: number, at: number, z: number) => g.box(at, (y0 + y1) / 2, z, 0.6, y1 - y0, 0.7, GROOVE);
+const vX = (g: G, y: number, at: number, z0: number, z1: number) => g.box(at, y, z0, 0.6, 0.7, z1 - z0, GROOVE);
+
 /** A chair at (cx, cy); `dir` is the way it faces along y (1: toward +y, with its back on the -y side; -1: the other way round). */
-const chair = (g: G, cx: number, cy: number, dir = 1) => <g key={`ch${cx}-${cy}`}>{g.box(cx - 5, cy - 4, 0, 2, 2, 6, DARK)}{g.box(cx + 5, cy - 4, 0, 2, 2, 6, DARK)}{dir > 0 && g.box(cx, cy - 6, 6, 12, 2.5, 17)}{g.box(cx, cy, 6, 12, 12, 3)}{dir < 0 && g.box(cx, cy + 6, 6, 12, 2.5, 17)}{g.box(cx - 5, cy + 4, 0, 2, 2, 6, DARK)}{g.box(cx + 5, cy + 4, 0, 2, 2, 6, DARK)}</g>;
+const chair = (g: G, cx: number, cy: number, dir = 1) => (
+  <g key={`ch${cx}-${cy}`}>
+    {g.box(cx - 5, cy - 4, 0, 1.8, 1.8, 6, DARK)}{g.box(cx + 5, cy - 4, 0, 1.8, 1.8, 6, DARK)}
+    {dir > 0 && <g>{g.box(cx - 5, cy - 6, 6, 1.8, 2, 17, DARK)}{g.box(cx + 5, cy - 6, 6, 1.8, 2, 17, DARK)}{g.box(cx, cy - 6, 12, 8, 1.2, 8, UPH)}{g.box(cx, cy - 6, 20, 12, 2.2, 3)}</g>}
+    {g.box(cx, cy, 6, 12, 12, 2.4)}{g.box(cx, cy, 8.4, 10.5, 10.5, 1.2, UPH2)}
+    {dir < 0 && <g>{g.box(cx - 5, cy + 6, 6, 1.8, 2, 17, DARK)}{g.box(cx + 5, cy + 6, 6, 1.8, 2, 17, DARK)}{g.box(cx, cy + 6, 12, 8, 1.2, 8, UPH)}{g.box(cx, cy + 6, 20, 12, 2.2, 3)}</g>}
+    {g.box(cx - 5, cy + 4, 0, 1.8, 1.8, 6, DARK)}{g.box(cx + 5, cy + 4, 0, 1.8, 1.8, 6, DARK)}
+  </g>
+);
+
+// ---- little plants, drawn flat in the screen from a point on the ground (for the hallway pieces and the garden) ----
+let plantKey = 0;
+/** A leaf (an oval) whose middle stands at (x, y, z) of the piece, turned by `rot` degrees. */
+const leaf = (x: number, y: number, z: number, rx: number, ry: number, rot: number, fill: string): ReactElement => {
+  const [X, Y] = P(x, y, z);
+  return <ellipse key={`lf${plantKey++}`} cx={X} cy={Y} rx={rx} ry={ry} transform={`rotate(${rot} ${X} ${Y})`} fill={fill} stroke={INK} strokeWidth={0.7} />;
+};
+/** A few blades of grass or water weed standing from (x, y, z), this high. */
+const sprig = (x: number, y: number, z: number, h: number): ReactElement => {
+  const [X, Y] = P(x, y, z);
+  return <path key={`sp${plantKey++}`} d={`M${X} ${Y}q-1.6 ${-h / 2} 0.8 ${-h}M${X} ${Y}q2 ${-h / 2} -0.6 ${-h * 0.8}`} fill="none" stroke={INK} strokeWidth={0.9} strokeLinecap="round" />;
+};
+/** A corn plant: a stalk, long leaves bending out, and a cob. */
+const cornStalk = (x: number, y: number, z: number, h: number): ReactElement => {
+  const [X, Y] = P(x, y, z);
+  return (
+    <g key={`cs${plantKey++}`} strokeLinecap="round" strokeLinejoin="round">
+      <path d={`M${X} ${Y}L${X} ${Y - h}`} stroke={INK} strokeWidth={1.5} />
+      <path d={`M${X} ${Y - h * 0.3}q-10 -3 -12 -10q8 3 12 6M${X} ${Y - h * 0.5}q10 -3 12 -10q-8 3 -12 6M${X} ${Y - h * 0.72}q-9 -2 -10 -9q7 2 10 5M${X} ${Y - h * 0.9}q8 -2 9 -8q-6 2 -9 5`} fill={DIM} stroke={INK} strokeWidth={0.7} />
+      <ellipse cx={X + 2.2} cy={Y - h * 0.55} rx={1.8} ry={4.4} fill={INK} stroke="none" />
+      <path d={`M${X} ${Y - h}l-1.4 -4M${X} ${Y - h}l1.4 -4M${X} ${Y - h}l0 -5`} stroke={INK} strokeWidth={0.8} />
+    </g>
+  );
+};
+/** A tato plant (a mutated potato): a low bush of broad leaves with a couple of tubers showing in the soil. */
+const tatoPlant = (x: number, y: number): ReactElement => {
+  const [X, Y] = P(x, y, 0.4);
+  return (
+    <g key={`tp${plantKey++}`}>
+      <ellipse cx={X + 3} cy={Y + 0.5} rx={2.6} ry={1.4} fill={INK} stroke="none" opacity={0.8} />
+      <ellipse cx={X - 4} cy={Y - 4} rx={4.6} ry={2.6} transform={`rotate(-30 ${X - 4} ${Y - 4})`} fill={DIM} stroke={INK} strokeWidth={0.7} />
+      <ellipse cx={X + 4} cy={Y - 4.6} rx={4.6} ry={2.6} transform={`rotate(30 ${X + 4} ${Y - 4.6})`} fill={DIM} stroke={INK} strokeWidth={0.7} />
+      <ellipse cx={X} cy={Y - 7} rx={4.2} ry={2.8} fill={INK} stroke={INK} strokeWidth={0.7} />
+      <ellipse cx={X} cy={Y - 3} rx={3.4} ry={2.2} fill={DIM} stroke={INK} strokeWidth={0.7} />
+    </g>
+  );
+};
+/** A mutfruit bush: round and leafy, hung with bright fruit. */
+const mutfruitBush = (x: number, y: number, z: number): ReactElement => {
+  const [X, Y] = P(x, y, z);
+  const blobs: [number, number, number][] = [[-8, -6, 7], [8, -6, 7], [0, -13, 8], [-4, -3, 7], [5, -2, 7], [0, -20, 6]];
+  const fruit: [number, number][] = [[-9, -7], [9, -8], [3, -14], [-4, -4], [6, -3], [-2, -19], [0, -9]];
+  return (
+    <g key={`mb${plantKey++}`}>
+      <path d={`M${X} ${Y}L${X} ${Y - 12}`} stroke={INK} strokeWidth={1.4} />
+      {blobs.map(([dx, dy, r], i) => <circle key={`b${i}`} cx={X + dx} cy={Y + dy} r={r} fill={DIM} stroke={INK} strokeWidth={0.7} />)}
+      {fruit.map(([dx, dy], i) => <circle key={`f${i}`} cx={X + dx} cy={Y + dy} r={2.6} fill={INK} stroke="none" />)}
+    </g>
+  );
+};
 
 /** Where each piece of furniture stands in its room (u across, v deep), which wall it faces from, and what it is made of. */
 export const FURNITURE: Record<string, Piece> = {
-  coatrack: { u: 0.1, v: 0.22, face: 'x', art: (g) => <g>{g.cyl(0, 0, 0, 5, 2, DARK)}{g.box(0, 0, 2, 2.4, 2.4, 40)}{g.box(4, 0, 34, 7, 1.8, 1.8)}{g.box(-4, 0, 30, 7, 1.8, 1.8)}{g.box(5, 0, 12, 7, 6, 20, { top: DIM })}</g> },
-  shoebench: { u: 0.1, v: 0.62, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 12, 34, 12)}{g.box(0, -9, 12, 8, 6, 3, DARK)}{g.box(0, 2, 12, 8, 6, 3, DARK)}{g.box(0, 12, 12, 7, 5, 3, DARK)}</g> },
-  decon: { u: 0.72, v: 0.14, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 26, 26, 2, DARK)}{g.box(0, 0, 2, 26, 26, 46, GLASS_SKIN)}{g.box(0, -7, 46, 10, 10, 3)}{g.box(0, -7, 28, 1.4, 1.4, 18, DARK)}{g.box(-5, -2, 8, 1, 1, 14, { top: INK, l: INK, r: INK })}{g.box(5, -2, 8, 1, 1, 14, { top: INK, l: INK, r: INK })}</g> },
-  couch: { u: 0.5, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, -10, 0, 54, 6, 28)}{g.box(0, 1, 0, 54, 18, 10)}{g.box(0, 2, 10, 40, 14, 3, { top: DIM })}{g.box(-24, 1, 10, 6, 18, 9)}{g.box(24, 1, 10, 6, 18, 9)}</g> },
-  tv: { u: 0.1, v: 0.5, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 12, 36, 10, DARK)}{g.box(-1, 0, 10, 4, 32, 22, DARK)}{g.flat([[1.4, -14, 12], [1.4, 14, 12], [1.4, 14, 30], [1.4, -14, 30]], SCREEN)}</g> },
-  armchair: { u: 0.78, v: 0.62, face: 'y', art: (g) => <g>{g.box(0, -9, 0, 26, 5, 26)}{g.box(0, 1, 0, 26, 18, 10)}{g.box(0, 2, 10, 16, 14, 3, { top: DIM })}{g.box(-10, 1, 10, 5, 18, 8)}{g.box(10, 1, 10, 5, 18, 8)}</g> },
-  coffeetable: { u: 0.5, v: 0.62, face: 'y', art: (g) => <g>{g.box(-12, -6, 0, 2, 2, 8, DARK)}{g.box(12, -6, 0, 2, 2, 8, DARK)}{g.box(-12, 6, 0, 2, 2, 8, DARK)}{g.box(12, 6, 0, 2, 2, 8, DARK)}{g.box(0, 0, 8, 30, 18, 3)}</g> },
-  table: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(-24, -12, 0, 3, 3, 16, DARK)}{g.box(24, -12, 0, 3, 3, 16, DARK)}{g.box(-24, 12, 0, 3, 3, 16, DARK)}{g.box(24, 12, 0, 3, 3, 16, DARK)}{g.box(0, 0, 16, 56, 32, 3)}</g> },
+  coatrack: { u: 0.1, v: 0.22, face: 'x', art: (g) => <g>{g.cyl(0, 0, 0, 5.5, 1.6, DARK)}{g.cyl(0, 0, 1.6, 3.4, 1.4, DARK)}{g.box(0, 0, 3, 2.2, 2.2, 40)}{g.cyl(0, 0, 43, 2.2, 3, { top: INK })}{g.box(4, 0, 38, 7, 1.6, 1.6)}{g.box(-4, 0, 34, 7, 1.6, 1.6)}{g.box(0, 4, 36, 1.6, 7, 1.6)}{g.box(0, -4, 31, 1.6, 7, 1.6)}{soft(g, 6, 0, 10, 6, 8, 24, UPH)}{g.box(6, 0, 12, 1, 1, 12, GROOVE)}{g.cyl(4, 0, 39.6, 3.6, 1.6, DARK)}</g> },
+  shoebench: { u: 0.1, v: 0.62, face: 'x', art: (g) => <g>{g.box(-4, -14, 0, 2, 2, 9, DARK)}{g.box(-4, 14, 0, 2, 2, 9, DARK)}{g.box(4, -14, 0, 2, 2, 9, DARK)}{g.box(4, 14, 0, 2, 2, 9, DARK)}{g.box(0, 0, 3, 11, 32, 1.4, DARK)}{g.box(1.5, -9, 4.4, 6, 4, 2.6, DARK)}{g.box(1.5, -2, 4.4, 6, 4, 2.6, DARK)}{g.box(1.5, 7, 4.4, 6, 4, 2.6, DARK)}{g.box(1.5, 13, 4.4, 5, 3.4, 2.4, DARK)}{g.box(0, 0, 9, 12, 34, 3)}{soft(g, 0, 0, 12, 10, 30, 3, UPH2)}{g.box(0, 6, 15, 7, 5, 3, DARK)}{g.box(0, -4, 15, 7, 5, 3, DARK)}</g> },
+  decon: { u: 0.72, v: 0.14, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 26, 26, 2, DARK)}{Array.from({ length: 5 }, (_, i) => <g key={`dz${i}`}>{g.box(-10 + i * 5, 12.4, 0.2, 2.6, 0.8, 1.6, i % 2 ? GLOWS : DARK)}</g>)}{g.box(0, -11, 2, 26, 3, 46, DARK)}{g.box(-8, -9, 8, 1.2, 1.2, 30, GLOWS)}{g.box(0, -9, 8, 1.2, 1.2, 30, GLOWS)}{g.box(8, -9, 8, 1.2, 1.2, 30, GLOWS)}{g.box(0, -6, 46, 24, 11, 3)}{g.cyl(-7, -2, 44, 2, 2, { top: INK })}{g.cyl(7, -2, 44, 2, 2, { top: INK })}{g.cyl(0, -6, 49, 1.8, 1.8, { top: INK })}{g.box(0, 0, 2, 26, 26, 44, GLASS_SKIN)}{g.box(11, 0, 24, 1, 1, 4, GLOWS)}</g> },
+  couch: { u: 0.5, v: 0.2, face: 'y', art: (g) => <g>{g.box(-24, -8, 0, 3, 3, 3, DARK)}{g.box(24, -8, 0, 3, 3, 3, DARK)}{g.box(-24, 8, 0, 3, 3, 3, DARK)}{g.box(24, 8, 0, 3, 3, 3, DARK)}{g.box(0, -10, 3, 54, 6, 25, UPH)}{g.box(0, 1, 3, 54, 18, 7, UPH)}{soft(g, -17, -6, 10, 17, 7, 17, UPH2)}{soft(g, 0, -6, 10, 17, 7, 17, UPH2)}{soft(g, 17, -6, 10, 17, 7, 17, UPH2)}{soft(g, -10, 4, 10, 19, 13, 4, UPH2)}{soft(g, 10, 4, 10, 19, 13, 4, UPH2)}{soft(g, -25, 1, 3, 5.5, 19, 15, UPH)}{soft(g, 25, 1, 3, 5.5, 19, 15, UPH)}{soft(g, -17, 3, 14, 8, 4, 8, PILLOW)}</g> },
+  tv: { u: 0.1, v: 0.5, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 12, 36, 10, DARK)}{vX(g, 0, 6, 1.4, 9)}{g.box(6.5, -6, 4, 1, 1.6, 3, GLOWS)}{g.box(6.5, 6, 4, 1, 1.6, 3, GLOWS)}{g.box(-1, 0, 10, 3, 10, 2, DARK)}{g.box(-1, 0, 12, 4, 32, 20, DARK)}{g.flat([[1.4, -14, 14], [1.4, 14, 14], [1.4, 14, 30], [1.4, -14, 30]], SCREEN)}{g.flat([[1.5, -12, 25], [1.5, -5, 25], [1.5, -9, 29], [1.5, -12, 29]], GLINT)}{g.box(1.2, 12.5, 12.6, 0.8, 1.4, 0.8, GLOWS)}</g> },
+  armchair: { u: 0.78, v: 0.62, face: 'y', art: (g) => <g>{g.box(-10, -7, 0, 2.5, 2.5, 3, DARK)}{g.box(10, -7, 0, 2.5, 2.5, 3, DARK)}{g.box(-10, 8, 0, 2.5, 2.5, 3, DARK)}{g.box(10, 8, 0, 2.5, 2.5, 3, DARK)}{g.box(0, -9, 3, 26, 5, 23, UPH)}{g.box(0, 1, 3, 26, 18, 7, UPH)}{soft(g, 0, -5, 10, 17, 6, 14, UPH2)}{soft(g, 0, 4, 10, 17, 13, 4, UPH2)}{soft(g, -11, 1, 3, 5, 19, 14, UPH)}{soft(g, 11, 1, 3, 5, 19, 14, UPH)}</g> },
+  coffeetable: { u: 0.5, v: 0.62, face: 'y', art: (g) => <g>{g.box(-12, -6, 0, 2, 2, 8, DARK)}{g.box(12, -6, 0, 2, 2, 8, DARK)}{g.box(-12, 6, 0, 2, 2, 8, DARK)}{g.box(12, 6, 0, 2, 2, 8, DARK)}{g.box(0, 0, 2.5, 26, 14, 1.2, DARK)}{soft(g, 0, 0, 8, 30, 18, 3)}{g.box(-7, -2, 11, 9, 6, 1.6, UPH2)}{g.box(-7, -2, 12.6, 8, 5, 1.4, PILLOW)}{g.cyl(8, 3, 11, 1.7, 3, { top: INK })}</g> },
+  table: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(-24, -12, 0, 3, 3, 16, DARK)}{g.box(24, -12, 0, 3, 3, 16, DARK)}{g.box(-24, 12, 0, 3, 3, 16, DARK)}{g.box(24, 12, 0, 3, 3, 16, DARK)}{g.box(0, 0, 13, 50, 26, 3, DARK)}{soft(g, 0, 0, 16, 56, 32, 3)}{g.cyl(-14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(-14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(0, 0, 19, 4.2, 1.8, DARK)}{g.cyl(0, 0, 20.8, 2.4, 2, { top: INK })}{g.cyl(-8, 0, 19, 0.9, 6, { top: INK })}{g.cyl(8, 0, 19, 0.9, 6, { top: INK })}</g> },
   chairs: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{chair(g, -14, -26, 1)}{chair(g, 14, -26, 1)}{chair(g, -14, 26, -1)}{chair(g, 14, 26, -1)}</g> },
-  chandelier: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, 0, 50, 1.4, 1.4, 12, DARK)}{g.cyl(0, 0, 42, 11, 8)}{g.box(-9, 0, 50, 1.4, 1.4, 4, { top: INK, l: INK, r: INK })}{g.box(9, 0, 50, 1.4, 1.4, 4, { top: INK, l: INK, r: INK })}</g> },
-  chinacabinet: { u: 0.1, v: 0.78, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 14, 36, 50)}{g.flat([[7.4, -15, 8], [7.4, 15, 8], [7.4, 15, 46], [7.4, -15, 46]], GLASS)}{g.flat([[7.4, -15, 26], [7.4, 15, 26], [7.4, 15, 27], [7.4, -15, 27]], INK)}</g> },
-  sinkcabinets: { u: 0.5, v: 0.1, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 60, 18, 24)}{g.box(-12, 0, 24, 18, 12, 2, DARK)}{g.box(-12, -4, 26, 2, 2, 10, DARK)}</g> },
-  fridge: { u: 0.1, v: 0.35, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 24, 24, 58)}{g.box(12.6, -8, 30, 1.4, 1.4, 14, { top: INK, l: INK, r: INK })}{g.box(12.6, -8, 8, 1.4, 1.4, 14, { top: INK, l: INK, r: INK })}</g> },
-  stove: { u: 0.85, v: 0.1, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 28, 24, 26)}{g.cyl(-6, -4, 26, 5, 1, DARK)}{g.cyl(6, -4, 26, 5, 1, DARK)}{g.cyl(-6, 6, 26, 5, 1, DARK)}{g.cyl(6, 6, 26, 5, 1, DARK)}{g.flat([[-10, 12.1, 4], [10, 12.1, 4], [10, 12.1, 18], [-10, 12.1, 18]], SCREEN)}</g> },
-  bed: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, -34, 0, 44, 3, 30)}{g.box(0, 0, 0, 44, 66, 10)}{g.box(0, 6, 10, 40, 52, 6, { top: DIM })}{g.box(-10, -26, 16, 14, 9, 3, { top: INK })}{g.box(10, -26, 16, 14, 9, 3, { top: INK })}</g> },
-  nightstand: { u: 0.88, v: 0.14, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 16, 16, 16)}{g.box(0, 8.4, 6, 8, 1, 1.6, { top: INK, l: INK, r: INK })}</g> },
-  dresser: { u: 0.1, v: 0.75, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 18, 40, 28)}{g.box(9.4, -8, 6, 1, 8, 1.6, { top: INK, l: INK, r: INK })}{g.box(9.4, 8, 6, 1, 8, 1.6, { top: INK, l: INK, r: INK })}{g.box(9.4, -8, 18, 1, 8, 1.6, { top: INK, l: INK, r: INK })}{g.box(9.4, 8, 18, 1, 8, 1.6, { top: INK, l: INK, r: INK })}</g> },
-  lamp: { u: 0.12, v: 0.2, face: 'x', art: (g) => <g>{g.cyl(0, 0, 0, 5, 2, DARK)}{g.box(0, 0, 2, 2, 2, 32, DARK)}{g.cyl(0, 0, 32, 7, 11, { top: INK, l: DIM, r: '#0c6b30' })}</g> },
-  toilet: { u: 0.7, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, -7, 0, 14, 6, 18)}{g.box(0, 0, 0, 16, 14, 10)}{g.cyl(0, 2, 10, 6, 1, DARK)}</g> },
-  bathsink: { u: 0.25, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, -3, 0, 8, 8, 20)}{g.box(0, 0, 20, 24, 16, 5)}{g.box(0, 1, 25, 14, 9, 1, DARK)}{g.box(0, -6, 25, 2, 2, 8, DARK)}</g> },
-  shower: { u: 0.78, v: 0.74, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 26, 26, 2, DARK)}{g.box(0, 0, 2, 26, 26, 46, GLASS_SKIN)}{g.box(0, -8, 44, 10, 8, 3)}{g.box(-6, 4, 2, 10, 14, 40, { top: DIM, l: '#0a5a28', r: '#06401c' })}</g> },
-  washer: { u: 0.22, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 24, 24, 30, { top: '#15904a' })}{g.flat([[-5, 12.1, 6], [5, 12.1, 6], [9, 12.1, 12], [9, 12.1, 20], [5, 12.1, 26], [-5, 12.1, 26], [-9, 12.1, 20], [-9, 12.1, 12]], '#02130a')}{g.flat([[-4, 12.2, 9], [4, 12.2, 9], [7, 12.2, 14], [7, 12.2, 18], [4, 12.2, 23], [-4, 12.2, 23], [-7, 12.2, 18], [-7, 12.2, 14]], SCREEN)}{g.box(7, 12.4, 27, 4, 1, 2, { top: INK, l: INK, r: INK })}</g> },
-  dryer: { u: 0.62, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 24, 24, 30, { top: '#15904a' })}{g.flat([[-5, 12.1, 6], [5, 12.1, 6], [9, 12.1, 12], [9, 12.1, 20], [5, 12.1, 26], [-5, 12.1, 26], [-9, 12.1, 20], [-9, 12.1, 12]], '#02130a')}{g.box(-6, 12.4, 27, 4, 1, 2, { top: INK, l: INK, r: INK })}{g.box(0, 12.4, 27, 4, 1, 2, { top: INK, l: INK, r: INK })}</g> },
-  ironingboard: { u: 0.78, v: 0.7, face: 'y', art: (g) => <g>{g.box(-8, -4, 0, 1.6, 1.6, 22, DARK)}{g.box(8, 4, 0, 1.6, 1.6, 22, DARK)}{g.box(-8, 4, 0, 1.6, 1.6, 22, DARK)}{g.box(8, -4, 0, 1.6, 1.6, 22, DARK)}{g.box(0, 0, 22, 34, 12, 2)}{g.box(-9, 0, 24, 8, 5, 4, DARK)}</g> },
-  seating: { u: 0.5, v: 0.62, face: 'y', art: (g) => <g>{[-32, 0, 32].map((cx) => <g key={cx}>{g.box(cx, -7, 6, 22, 4, 24)}{g.box(cx, 0, 0, 22, 16, 10)}</g>)}</g> },
-  screen: { u: 0.5, v: 0.06, face: 'y', art: (g) => <g>{g.box(0, 0, 6, 100, 4, 48, DARK)}{g.flat([[-47, 2.1, 9], [47, 2.1, 9], [47, 2.1, 51], [-47, 2.1, 51]], SCREEN)}</g> },
-  speakers: { u: 0.1, v: 0.3, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 16, 16, 40)}{g.cyl(8.6, 0, 26, 4, 1, DARK)}{g.cyl(8.6, 0, 10, 6, 1, DARK)}</g> },
-  pooltable: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(-30, -14, 0, 4, 4, 14, DARK)}{g.box(30, -14, 0, 4, 4, 14, DARK)}{g.box(-30, 14, 0, 4, 4, 14, DARK)}{g.box(30, 14, 0, 4, 4, 14, DARK)}{g.box(0, 0, 14, 68, 36, 6)}{g.box(0, 0, 20, 62, 30, 0.6, { top: DIM })}{g.cyl(12, 0, 20.6, 2, 1.4, { top: INK })}</g> },
-  bar: { u: 0.5, v: 0.1, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 72, 18, 28)}{g.box(0, 2, 28, 76, 22, 3)}{g.cyl(-20, 22, 0, 4, 14)}{g.cyl(0, 22, 0, 4, 14)}{g.cyl(20, 22, 0, 4, 14)}</g> },
-  pinball: { u: 0.1, v: 0.55, face: 'x', art: (g) => <g>{g.box(-2, 0, 0, 24, 28, 24)}{g.box(-10, 0, 24, 4, 28, 20, DARK)}{g.cyl(4, -4, 24, 2.2, 1, { top: INK })}{g.cyl(4, 5, 24, 2.2, 1, { top: INK })}</g> },
-  toolchest: { u: 0.1, v: 0.25, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 18, 36, 28)}{g.box(9.4, 0, 6, 1, 14, 1.6, { top: INK, l: INK, r: INK })}{g.box(9.4, 0, 14, 1, 14, 1.6, { top: INK, l: INK, r: INK })}{g.box(9.4, 0, 22, 1, 14, 1.6, { top: INK, l: INK, r: INK })}</g> },
-  armorstand: { u: 0.5, v: 0.55, face: 'y', art: (g) => <g>{g.cyl(0, 0, 0, 18, 2, DARK)}{g.box(-5, 0, 2, 8, 9, 16)}{g.box(5, 0, 2, 8, 9, 16)}{g.box(0, 0, 18, 22, 12, 20)}{g.box(-14, 0, 20, 7, 8, 18)}{g.box(14, 0, 20, 7, 8, 18)}{g.box(0, 0, 38, 11, 10, 10)}</g> },
-  craftingtable: { u: 0.6, v: 0.12, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 56, 20, 22)}{g.box(-14, 0, 22, 14, 8, 3, DARK)}{g.box(14, 2, 22, 8, 8, 6)}</g> },
+  chandelier: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, 0, 54, 1.2, 1.2, 10, DARK)}{g.cyl(0, 0, 49, 2, 5, DARK)}{g.cyl(0, 0, 46.5, 3.4, 2.5)}{g.box(0, 0, 46, 24, 1.6, 1.6)}{g.box(0, 0, 46, 1.6, 24, 1.6)}{[[-12, 0], [12, 0], [0, -12], [0, 12]].map(([x, y]) => <g key={`cd${x}${y}`}>{g.cyl(x, y, 44.8, 1.8, 1.4, DARK)}{g.cyl(x, y, 46.2, 1.1, 5, { top: INK })}{g.box(x, y, 51.2, 0.9, 0.9, 1.8, GLOWS)}</g>)}</g> },
+  chinacabinet: { u: 0.1, v: 0.78, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 15, 37, 3, DARK)}{g.box(0, 0, 3, 14, 36, 46)}{g.box(0, 0, 49, 16, 38, 2.2)}{g.flat([[7.3, -15, 26], [7.3, 15, 26], [7.3, 15, 46], [7.3, -15, 46]], GLASS)}{g.flat([[7.3, -15, 6], [7.3, 15, 6], [7.3, 15, 22], [7.3, -15, 22]], 'rgba(2,19,8,0.5)')}{vX(g, 0, 7, 26, 46)}{vX(g, 0, 7, 6, 22)}{hX(g, -15, 15, 7, 36)}{hX(g, -15, 15, 7, 22.5)}{disc(g, 'x', 7.5, -8, 41, 3, 'rgba(125,255,176,0.6)')}{disc(g, 'x', 7.5, 0, 41, 3, 'rgba(125,255,176,0.6)')}{disc(g, 'x', 7.5, 8, 41, 3, 'rgba(125,255,176,0.6)')}{g.box(7.6, -9, 36.6, 2.6, 2.6, 3, GLOWS)}{g.box(7.6, 8, 36.6, 2.6, 2.6, 3, GLOWS)}{g.box(7.7, -2.5, 20, 1, 1.2, 4, GLOWS)}{g.box(7.7, 2.5, 20, 1, 1.2, 4, GLOWS)}</g> },
+  sinkcabinets: { u: 0.5, v: 0.1, face: 'y', art: (g) => <g>{g.box(0, 1, 0, 56, 15, 2, DARK)}{g.box(0, 0, 2, 60, 18, 22)}{vY(g, -10, 9.2, 3, 23)}{vY(g, 10, 9.2, 3, 23)}{g.box(-13, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(-7, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(7, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(13, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(0, -8, 27, 60, 2, 8, DARK)}{soft(g, 0, 1, 24, 62, 20, 3, WORKTOP)}{g.box(-12, 2, 27, 18, 12, 0.6, DARK)}{g.cyl(-12, -4, 27, 1.3, 6)}{g.box(-12, -1, 32.4, 1.4, 6, 1.4)}{g.cyl(10, 3, 27, 2.6, 1.4, { top: INK })}</g> },
+  fridge: { u: 0.1, v: 0.35, face: 'x', art: (g) => <g>{g.box(0, -9, 0, 20, 4, 2, DARK)}{g.box(0, 9, 0, 20, 4, 2, DARK)}{soft(g, 0, 0, 2, 24, 24, 56, APPL)}{hX(g, -11.5, 11.5, 12.2, 36)}{g.box(12.6, -8, 38, 1.4, 1.4, 14, GLOWS)}{g.box(12.6, -8, 10, 1.4, 1.4, 20, GLOWS)}{g.flat([[12.4, 3, 44], [12.4, 9, 44], [12.4, 9, 51], [12.4, 3, 51]], SCREEN)}{g.box(12.5, 7, 30, 0.6, 0.6, 0.6, GLOWS)}</g> },
+  stove: { u: 0.85, v: 0.1, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 28, 24, 26)}{g.box(0, -10, 26, 28, 3, 9, DARK)}{g.box(-6, -8.4, 31, 4, 1, 2, GLOWS)}{[[-6, -4], [6, -4], [-6, 6], [6, 6]].map(([x, y]) => <g key={`bn${x}${y}`}>{g.cyl(x, y, 26, 5.2, 0.8, DARK)}{g.cyl(x, y, 26.8, 3, 0.5, { top: DIM })}</g>)}{g.flat([[-10, 12.1, 4], [10, 12.1, 4], [10, 12.1, 18], [-10, 12.1, 18]], '#02130a')}{g.flat([[-8, 12.2, 6], [8, 12.2, 6], [8, 12.2, 16], [-8, 12.2, 16]], SCREEN)}{g.flat([[-6, 12.3, 12], [-2, 12.3, 12], [-4, 12.3, 15], [-6, 12.3, 15]], GLINT)}{g.box(0, 12.9, 19.4, 20, 1.2, 1.4, GLOWS)}{[-9, -3, 3, 9].map((x) => <g key={`kn${x}`}>{g.box(x, 12.5, 22.4, 2.4, 1.2, 2.4, GLOWS)}</g>)}</g> },
+  bed: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, -34, 0, 46, 3, 32)}{g.box(0, -32, 10, 36, 0.8, 16, DARK)}{g.box(-21, -34, 0, 3, 4, 36, DARK)}{g.box(21, -34, 0, 3, 4, 36, DARK)}{g.box(0, 0, 0, 44, 66, 10)}{soft(g, 0, 3, 10, 40, 58, 6, UPH)}{g.box(0, 10, 16, 40, 42, 1.8, UPH2)}{g.box(0, -11, 16, 40, 5, 3, PILLOW)}{soft(g, -10, -26, 16, 14, 9, 4, PILLOW)}{soft(g, 10, -26, 16, 14, 9, 4, PILLOW)}{g.box(0, 33, 0, 46, 3, 16)}</g> },
+  nightstand: { u: 0.88, v: 0.14, face: 'y', art: (g) => <g>{g.box(-6, -6, 0, 2, 2, 2, DARK)}{g.box(6, -6, 0, 2, 2, 2, DARK)}{g.box(-6, 6, 0, 2, 2, 2, DARK)}{g.box(6, 6, 0, 2, 2, 2, DARK)}{g.box(0, 0, 2, 16, 16, 14)}{hY(g, -7, 7, 8.2, 9)}{g.box(0, 8.6, 5.4, 3, 1, 1.4, GLOWS)}{g.box(0, 8.6, 12, 3, 1, 1.4, GLOWS)}{g.box(-3, 0, 16, 7, 5, 1.6, UPH2)}{g.box(4, 1, 16, 6, 4, 3.4, DARK)}{g.flat([[4, 3.1, 17], [7, 3.1, 17], [7, 3.1, 18.6], [4, 3.1, 18.6]], SCREEN)}</g> },
+  dresser: { u: 0.1, v: 0.75, face: 'x', art: (g) => <g>{g.box(0, -17, 0, 14, 3, 2, DARK)}{g.box(0, 17, 0, 14, 3, 2, DARK)}{g.box(0, 0, 2, 18, 40, 26)}{hX(g, -18, 18, 9.2, 11)}{hX(g, -18, 18, 9.2, 20)}{g.box(9.6, -8, 6, 1, 8, 1.4, GLOWS)}{g.box(9.6, 8, 6, 1, 8, 1.4, GLOWS)}{g.box(9.6, -8, 15, 1, 8, 1.4, GLOWS)}{g.box(9.6, 8, 15, 1, 8, 1.4, GLOWS)}{g.box(9.6, -8, 24, 1, 8, 1.4, GLOWS)}{g.box(9.6, 8, 24, 1, 8, 1.4, GLOWS)}{g.box(-6, 0, 28, 2.2, 28, 14, DARK)}{g.flat([[-4.8, -12, 30], [-4.8, 12, 30], [-4.8, 12, 40], [-4.8, -12, 40]], GLINT)}{g.box(2, -10, 28, 5, 6, 2.6, UPH2)}{g.cyl(3, 10, 28, 1.6, 5, { top: INK })}</g> },
+  lamp: { u: 0.12, v: 0.2, face: 'x', art: (g) => <g>{g.cyl(0, 0, 0, 5.6, 1.2, DARK)}{g.cyl(0, 0, 1.2, 4.4, 1, DARK)}{g.box(0, 0, 2.2, 1.8, 1.8, 28, DARK)}{g.cyl(0, 0, 29.6, 7.2, 1, DARK)}{g.cyl(0, 0, 30.6, 6.4, 10, { top: '#9dffc4', l: DIM, r: '#0c6b30' })}{g.box(0, 0, 40.6, 1, 1, 2.6, DARK)}</g> },
+  toilet: { u: 0.7, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, -7, 5, 14, 6, 12, APPL)}{g.box(0, -7, 17, 15, 7, 1.6, WORKTOP)}{g.cyl(0, -7, 18.6, 1.2, 1.2, { top: INK })}{g.box(0, 1, 0, 9, 10, 6, DARK)}{g.cyl(0, 3, 6, 7.8, 5, UPH)}{g.cyl(0, 3, 11, 8.2, 1.4, { top: DIM })}{g.cyl(0, 3.4, 12.2, 5.4, 0.4, { top: '#02130a' })}</g> },
+  bathsink: { u: 0.25, v: 0.2, face: 'y', art: (g) => <g>{g.cyl(0, -3, 0, 3.6, 18, UPH)}{g.box(0, -9.6, 29, 18, 1, 16, GLASS_SKIN)}{g.box(0, -9, 18, 24, 2, 7, DARK)}{soft(g, 0, 0, 18, 24, 16, 5, APPL)}{g.box(0, 1, 22.6, 16, 10, 0.5, DARK)}{g.cyl(0, -6, 23, 1.2, 5)}{g.box(0, -3, 27, 1.4, 5, 1.4)}{g.cyl(-5, -5, 23, 1, 2, { top: INK })}{g.cyl(5, -5, 23, 1, 2, { top: INK })}</g> },
+  shower: { u: 0.78, v: 0.74, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 26, 26, 2, DARK)}{g.box(0, -12, 2, 26, 2, 46, TILE)}{g.box(-12, 0, 2, 2, 26, 46, TILE)}{g.cyl(3, 2, 2, 2, 0.5, DARK)}{g.box(-8, -10, 2, 1.4, 1.4, 40, DARK)}{g.box(-8, -7, 40, 1.4, 7, 1.4, DARK)}{g.cyl(-8, -3, 38.6, 3.6, 1.4, { top: INK })}{g.box(-3, -10.6, 22, 3, 1.2, 3, GLOWS)}{g.box(12, 0, 2, 1.2, 26, 46, GLASS_SKIN)}{g.box(0, 12, 2, 26, 1.2, 46, GLASS_SKIN)}</g> },
+  washer: { u: 0.22, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 24, 24, 30, APPL)}{g.box(0, -8, 30, 24, 8, 4, DARK)}{[-7, 0, 7].map((x) => <g key={`wk${x}`}>{g.cyl(x, -8, 34, 1.7, 1.2, { top: INK })}</g>)}{disc(g, 'y', 12.1, 0, 15, 10.4, '#0b5a2a')}{disc(g, 'y', 12.2, 0, 15, 9, '#02130a')}{disc(g, 'y', 12.3, 0, 15, 7.4, SCREEN)}{disc(g, 'y', 12.4, -2.6, 18, 2, GLINT, 8)}{g.box(9.6, 12.3, 16, 1.2, 1, 6, GLOWS)}{g.cyl(8, 3, 30, 2.4, 6, { top: INK })}</g> },
+  dryer: { u: 0.62, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 24, 24, 30, APPL)}{g.box(0, -8, 30, 24, 8, 4, DARK)}{g.cyl(-5, -8, 34, 1.7, 1.2, { top: INK })}{g.cyl(5, -8, 34, 1.7, 1.2, { top: INK })}{disc(g, 'y', 12.1, 0, 15, 10.4, '#0b5a2a')}{disc(g, 'y', 12.2, 0, 15, 9, '#02130a')}{disc(g, 'y', 12.3, 0, 15, 7.4, 'rgba(61,255,138,0.16)')}{g.flat([[-5, 12.4, 11], [-1, 12.4, 10], [2, 12.4, 13], [-2, 12.4, 15]], 'rgba(61,255,138,0.38)')}{g.flat([[1, 12.4, 17], [5, 12.4, 16], [6, 12.4, 19], [2, 12.4, 20]], 'rgba(61,255,138,0.3)')}{g.box(9.6, 12.3, 16, 1.2, 1, 6, GLOWS)}</g> },
+  ironingboard: { u: 0.78, v: 0.7, face: 'y', art: (g) => <g>{g.box(-8, -4, 0, 1.6, 1.6, 22, DARK)}{g.box(8, 4, 0, 1.6, 1.6, 22, DARK)}{g.box(-8, 4, 0, 1.6, 1.6, 22, DARK)}{g.box(8, -4, 0, 1.6, 1.6, 22, DARK)}{g.box(0, 0, 10, 16, 1.2, 1.2, DARK)}{g.box(0, 0, 10, 1.2, 8, 1.2, DARK)}{soft(g, 0, 0, 22, 34, 12, 2.6, UPH2)}{g.box(-9, 0, 24.6, 8, 5, 2.6, DARK)}{g.box(-9, 0, 27.2, 5, 1.4, 1.6, GLOWS)}{g.box(6, 1, 24.6, 9, 6, 1.2, PILLOW)}</g> },
+  seating: { u: 0.5, v: 0.62, face: 'y', art: (g) => <g>{[-32, 0, 32].map((cx) => <g key={cx}>{g.box(cx, 0, 0, 20, 14, 3, DARK)}{soft(g, cx, -7, 3, 20, 4, 24, UPH)}{soft(g, cx, -7, 24, 16, 4, 6, UPH2)}{soft(g, cx, 1, 3, 20, 14, 7, UPH2)}</g>)}{[-43, -21, 21, 43].map((x) => <g key={`ar${x}`}>{g.box(x, 0, 3, 2.4, 14, 11, DARK)}</g>)}{g.cyl(-21, 3, 14, 1.4, 0.8, { top: INK })}{g.cyl(21, 3, 14, 1.4, 0.8, { top: INK })}</g> },
+  screen: { u: 0.5, v: 0.06, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 100, 6, 4, DARK)}{g.box(0, 0, 4, 100, 4, 50, DARK)}{g.flat([[-44, 2.1, 7], [44, 2.1, 7], [44, 2.1, 52], [-44, 2.1, 52]], SCREEN)}{g.flat([[-36, 2.2, 36], [-18, 2.2, 36], [-30, 2.2, 49], [-36, 2.2, 49]], GLINT)}{soft(g, -47, 2.5, 4, 6, 6, 50, UPH)}{soft(g, 47, 2.5, 4, 6, 6, 50, UPH)}{g.box(0, 2.5, 54, 100, 6, 4, UPH)}</g> },
+  speakers: { u: 0.1, v: 0.3, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 17, 17, 2, DARK)}{soft(g, 0, 0, 2, 16, 16, 38, DARK)}{disc(g, 'x', 8.2, 0, 32, 3.2, '#0b5a2a')}{disc(g, 'x', 8.3, 0, 32, 2, INK, 10)}{disc(g, 'x', 8.2, 0, 16, 7, '#0b5a2a')}{disc(g, 'x', 8.3, 0, 16, 5.6, '#02130a')}{disc(g, 'x', 8.4, 0, 16, 2.2, DIM, 10)}{g.box(8.3, 0, 4, 0.8, 5, 1, GLOWS)}</g> },
+  pooltable: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(-29, -13, 0, 5, 5, 14, DARK)}{g.box(29, -13, 0, 5, 5, 14, DARK)}{g.box(-29, 13, 0, 5, 5, 14, DARK)}{g.box(29, 13, 0, 5, 5, 14, DARK)}{g.box(0, 0, 14, 68, 36, 6)}{g.box(0, 0, 20, 62, 30, 0.6, { top: '#0e8a40', l: DIM, r: DIM })}{g.box(0, -16.5, 20, 64, 3, 2.4, DARK)}{g.box(0, 16.5, 20, 64, 3, 2.4, DARK)}{g.box(-32.5, 0, 20, 3, 30, 2.4, DARK)}{g.box(32.5, 0, 20, 3, 30, 2.4, DARK)}{[[-30, -14], [30, -14], [-30, 14], [30, 14], [0, -15], [0, 15]].map(([x, y]) => <g key={`pk${x}${y}`}>{g.cyl(x, y, 20.6, 2.6, 0.9, { top: '#010a05' })}</g>)}{[[10, 0], [13, -1.8], [13, 1.8], [16, -3.6], [16, 0], [16, 3.6]].map(([x, y], i) => <g key={`bl${i}`}>{g.cyl(x, y, 20.6, 1.5, 2.2, { top: i % 2 ? INK : '#9dffc4' })}</g>)}{g.cyl(-14, 2, 20.6, 1.5, 2.2, { top: '#e8fff0' })}</g> },
+  bar: { u: 0.5, v: 0.1, face: 'y', art: (g) => <g>{g.box(0, -9, 0, 72, 2, 38, DARK)}{g.box(0, 0, 0, 72, 18, 28)}{vY(g, -24, 9.2, 2, 26)}{vY(g, -8, 9.2, 2, 26)}{vY(g, 8, 9.2, 2, 26)}{vY(g, 24, 9.2, 2, 26)}{g.box(0, 10, 3, 70, 1.2, 1.2, DARK)}{soft(g, 0, 2, 28, 76, 22, 3, WORKTOP)}{[-24, -17, -10, 14, 20].map((x) => <g key={`bt${x}`}>{g.cyl(x, -6, 31, 1.3, 6, { top: INK })}</g>)}{g.cyl(4, 4, 31, 1.6, 2.6, { top: '#9dffc4' })}{[-20, 0, 20].map((x) => <g key={`st${x}`}>{g.cyl(x, 22, 0, 3.6, 1, DARK)}{g.cyl(x, 22, 1, 1, 10.6, DARK)}{g.cyl(x, 22, 10.4, 4.6, 2.4, { top: '#2fc86e', l: '#16a050', r: '#0d7a3c' })}</g>)}</g> },
+  pinball: { u: 0.1, v: 0.55, face: 'x', art: (g) => <g>{g.box(-9, -11, 0, 2.4, 2.4, 8, DARK)}{g.box(-9, 11, 0, 2.4, 2.4, 8, DARK)}{g.box(9, -11, 0, 2.4, 2.4, 6, DARK)}{g.box(9, 11, 0, 2.4, 2.4, 6, DARK)}{g.box(0, 0, 6, 24, 28, 7)}{g.flat([[-11, -13, 19], [11, -13, 15], [11, 13, 15], [-11, 13, 19]], SCREEN)}{g.cyl(-2, -6, 17, 2.2, 1, { top: INK })}{g.cyl(-3, 5, 17.5, 2.2, 1, { top: INK })}{g.cyl(2, -1, 16.4, 2, 1, { top: INK })}{g.box(7, -5, 15.6, 3.4, 1.2, 1.2, DARK)}{g.box(7, 5, 15.6, 3.4, 1.2, 1.2, DARK)}{g.box(-10, 0, 13, 4, 28, 22, DARK)}{g.flat([[-7.9, -12, 24], [-7.9, 12, 24], [-7.9, 12, 33], [-7.9, -12, 33]], 'rgba(61,255,138,0.4)')}{g.flat([[-7.8, -10, 26], [-7.8, -2, 26], [-7.8, -2, 30], [-7.8, -10, 30]], GLINT)}{g.box(-9, 0, 35, 3, 28, 2, DARK)}</g> },
+  toolchest: { u: 0.1, v: 0.25, face: 'x', art: (g) => <g>{g.cyl(-5, -15, 0, 2, 2.4, DARK)}{g.cyl(-5, 15, 0, 2, 2.4, DARK)}{g.cyl(5, -15, 0, 2, 2.4, DARK)}{g.cyl(5, 15, 0, 2, 2.4, DARK)}{g.box(0, 0, 2.4, 18, 36, 24, APPL)}{g.box(0, 0, 26.4, 19, 37, 2.2)}{hX(g, -17, 17, 9.2, 10)}{hX(g, -17, 17, 9.2, 17)}{hX(g, -17, 17, 9.2, 22)}{g.box(9.6, 0, 6, 1, 14, 1.4, GLOWS)}{g.box(9.6, 0, 13.4, 1, 14, 1.4, GLOWS)}{g.box(9.6, 0, 19.2, 1, 14, 1.4, GLOWS)}{g.box(9.6, 14, 23.6, 1, 2, 1.6, GLOWS)}{g.box(0, -10, 28.6, 3, 12, 1.4, DARK)}{g.cyl(2, 8, 28.6, 1.6, 1.4, { top: INK })}</g> },
+  armorstand: { u: 0.5, v: 0.55, face: 'y', art: (g) => <g>{g.cyl(0, 0, 0, 18, 2, DARK)}{g.box(0, -6, 2, 3, 3, 34, DARK)}{g.box(-5, 0, 2, 7, 8, 13, UPH)}{g.box(5, 0, 2, 7, 8, 13, UPH)}{soft(g, -5, 1, 15, 8, 9, 5, APPL)}{soft(g, 5, 1, 15, 8, 9, 5, APPL)}{g.box(0, -2, 18, 20, 5, 16, DARK)}{soft(g, 0, 0, 18, 22, 12, 20, APPL)}{g.box(0, 6.2, 30, 10, 0.8, 4, GLOWS)}{g.box(-14, 0, 20, 7, 8, 18, UPH)}{g.box(14, 0, 20, 7, 8, 18, UPH)}{soft(g, -14, 0, 35, 9, 10, 4, APPL)}{soft(g, 14, 0, 35, 9, 10, 4, APPL)}{soft(g, 0, 0, 38, 11, 10, 11, APPL)}{g.box(0, 5.3, 44, 8, 0.8, 2.2, GLOWS)}</g> },
+  craftingtable: { u: 0.6, v: 0.12, face: 'y', art: (g) => <g>{g.box(-25, -8, 0, 4, 4, 20, DARK)}{g.box(25, -8, 0, 4, 4, 20, DARK)}{g.box(-25, 8, 0, 4, 4, 20, DARK)}{g.box(25, 8, 0, 4, 4, 20, DARK)}{g.box(0, 0, 6, 50, 14, 1.6, DARK)}{g.box(-16, 1, 7.6, 10, 8, 4, UPH)}{g.box(4, 0, 7.6, 8, 6, 3, DARK)}{g.box(0, -9, 21, 52, 2, 16, DARK)}{g.box(-18, -7.6, 23, 1, 1, 12, GLOWS)}{g.box(-10, -7.6, 26, 1, 1, 9, GLOWS)}{g.box(-2, -7.6, 22, 1, 1, 13, GLOWS)}{g.box(8, -7.6, 25, 1, 1, 10, GLOWS)}{soft(g, 0, 1, 20, 56, 20, 3, WORKTOP)}{g.cyl(-14, 3, 23, 4.6, 2, { top: INK })}{g.cyl(-14, 3, 25, 1.6, 0.4, { top: '#02130a' })}{g.box(14, 3, 23, 9, 7, 5, DARK)}{g.box(20, 3, 25, 5, 1.4, 1.6, GLOWS)}{g.box(2, 5, 23, 10, 2, 1.4, GLOWS)}</g> },
+  // ---- the hallway pieces (one to a hallway) ----
+  fishtank: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 22, 12, 9, DARK)}{g.box(0, 0, 9, 22, 12, 15, GLASS_SKIN)}{g.box(0, 0, 9, 20, 10, 8, { top: 'rgba(61,255,138,0.2)', l: 'rgba(61,255,138,0.2)', r: 'rgba(61,255,138,0.2)' })}{leaf(-5, 2, 17, 2.4, 1.2, -20, INK)}{leaf(4, 0, 19, 2.4, 1.2, 15, INK)}{sprig(-8, -3, 9, 9)}{sprig(7, -2, 9, 7)}{g.box(0, 0, 24, 22, 12, 1.6, DARK)}</g> },
+  weaponrack: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, -3, 0, 24, 3, 30, DARK)}{g.box(0, 0, 21, 22, 1.8, 1.8)}{g.box(-1, 0, 22.8, 18, 1.6, 2.4, DARK)}{g.box(-9, 0, 20, 6, 1.8, 3.4)}{g.box(0, 0, 11, 22, 1.8, 1.8)}{g.box(1, 0, 12.8, 16, 1.6, 2.4, DARK)}{g.box(9, 0, 10, 6, 1.8, 3.4)}{g.box(-9, 0, 2, 3.4, 2.4, 5, DARK)}{g.box(9, 0, 2, 3.4, 2.4, 5, DARK)}</g> },
+  statue: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 16, 16, 11)}{g.box(0, 0, 11, 14, 14, 2, DARK)}{g.box(0, 0, 13, 7, 5, 14)}{g.cyl(0, 0, 27, 3.6, 5)}{g.box(5.5, 0, 22, 3, 3, 9)}{g.box(-5, 0, 14, 2.4, 3, 11)}{g.box(-1.6, 0, 13, 3, 3, 3)}{g.box(1.6, 0, 13, 3, 3, 3)}</g> },
+  plant: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.cyl(0, 0, 0, 7, 9, DARK)}{g.cyl(0, 0, 9, 6, 1.2, { top: '#0a3a1c', l: '#06280f', r: '#041c0b' })}{g.box(0, 0, 10, 2, 2, 14, DARK)}{leaf(0, 0, 27, 9, 7, 0, DIM)}{leaf(-6, 1, 23, 6, 4.4, -25, INK)}{leaf(6, 1, 24, 6, 4.4, 25, INK)}{leaf(0, 0, 33, 6, 4.6, 0, INK)}{leaf(-3, 0, 20, 5, 3.6, -40, DIM)}{leaf(4, 0, 19, 5, 3.6, 40, DIM)}</g> },
+  // ---- the garden: three crops, some in raised planters, some in the ground ----
+  corn: { u: 0.27, v: 0.3, face: 'y', art: (g) => <g>{[-13, 13].map((cy) => <g key={`cp${cy}`}>{g.box(0, cy, 0, 64, 16, 9, { top: '#0a2a12', l: '#0a3a1c', r: '#06280f' })}{g.box(0, cy, 9, 60, 12, 0.8, { top: '#052008' })}{[-24, -12, 0, 12, 24].map((cx) => cornStalk(cx, cy, 9, cx % 5 === 0 ? 33 : 38))}</g>)}</g> },
+  tatoes: { u: 0.5, v: 0.74, face: 'y', art: (g) => <g>{[-18, 0, 18].map((cy) => <g key={`tr${cy}`}>{g.flat([[-34, cy - 6, 0.4], [34, cy - 6, 0.4], [34, cy + 6, 0.4], [-34, cy + 6, 0.4]], '#0a2a12')}{[-26, -13, 0, 13, 26].map((cx) => tatoPlant(cx, cy))}</g>)}</g> },
+  mutfruit: { u: 0.74, v: 0.3, face: 'y', art: (g) => <g>{[-22, 22].map((cx) => <g key={`mp${cx}`}>{g.cyl(cx, 0, 0, 16, 9, { top: '#0a2a12', l: '#0a3a1c', r: '#06280f' })}{mutfruitBush(cx, 0, 9)}</g>)}</g> },
 };
 
 /** The pieces that can be sat on or lain on, and how far a settler is lifted off the floor on them. */
@@ -566,16 +755,43 @@ export const LIE = new Set(['bed']);
 /** Where a piece stands in the world (its middle, on the floor). */
 /** How big a piece is drawn in this room: a bit smaller in a small room, and 15% smaller than it was. */
 export function pieceScale(room: { type: RoomType; col: number; row: number }): number {
+  if (room.type === 'hallway') return 0.72;
   const box = roomRect(room);
   const fit = Math.min(box.w / (roomDef(room.type).slots * CELL), box.d / CELL);
   return (isSmall(room.type) ? Math.min(0.78, 0.36 + fit * 0.7) : Math.min(1, 0.38 + fit * 0.66)) * 0.85;
 }
 
 const stretch = (k: number): number => Math.max(0, Math.min(1, 0.5 + (k - 0.5) * 1.22));
-export function pieceAt(room: VaultRoom, id: string): { x: number; y: number } | null {
+/** How far each piece reaches along the wall it stands against, from its middle (in its own units). */
+const HALF: Record<string, number> = {
+  coatrack: 6, shoebench: 17, decon: 13, couch: 27, tv: 18, lamp: 7, chinacabinet: 18, sinkcabinets: 30, fridge: 12, stove: 14, nightstand: 8, dresser: 20, toilet: 8, bathsink: 12,
+  washer: 12, dryer: 12, screen: 50, speakers: 8, bar: 38, pinball: 14, toolchest: 18, craftingtable: 28,
+};
+/** The doorways of a room (see doorsOf): heights (y) along the left back wall and positions (x) along the right one. */
+export interface Doors { doorsL: number[]; doorsR: number[] }
+
+/** Slides a piece along its wall until it is clear of every doorway (the nearest free spot); if there is none it stays where it is. */
+function clearOfDoors(t: number, lo: number, hi: number, doors: number[], half: number): number {
+  const need = half + 18;
+  const blocked = (x: number) => doors.some((c) => Math.abs(x - c) < need);
+  if (!blocked(t)) return t;
+  const tries = doors.flatMap((c) => [c - need - 1, c + need + 1]).filter((x) => x >= lo && x <= hi && !blocked(x));
+  if (tries.length === 0) return t;
+  return tries.reduce((best, x) => (Math.abs(x - t) < Math.abs(best - t) ? x : best));
+}
+
+/** Where a piece stands: against its wall, but not in front of a doorway (the layout changes when a room is built next to this one and a doorway appears). */
+export function pieceAt(room: VaultRoom, id: string, doors?: Doors): { x: number; y: number } | null {
   const p = FURNITURE[id];
+  if (!p) return null;
   // the pieces stand against the walls, closer in than the open floor spots people walk to
-  return p ? floorPoint(room, stretch(p.u), stretch(p.v), 8) : null;
+  const pt = floorPoint(room, stretch(p.u), stretch(p.v), 8);
+  if (!doors) return pt;
+  const rect = roomRect(room);
+  const half = (HALF[id] ?? 14) * pieceScale(room);
+  if (p.face === 'x' && p.u <= 0.15 && doors.doorsL.length) pt.y = clearOfDoors(pt.y, rect.y + half + 4, rect.y + rect.d - half - 4, doors.doorsL, half);
+  if (p.face === 'y' && p.v <= 0.22 && doors.doorsR.length) pt.x = clearOfDoors(pt.x, rect.x + half + 4, rect.x + rect.w - half - 4, doors.doorsR, half);
+  return pt;
 }
 
 /** Where a settler sits on a piece (in the piece's own units, from its middle) and which way they face on the screen (1 looks lower right, -1 lower left). */
@@ -588,9 +804,9 @@ export const SEATS: Record<string, { dx: number; dy: number; face: 1 | -1 }[]> =
 };
 
 /** A piece of furniture, in place in its room (the small rooms hold the same things a little smaller). */
-export function PlacedPiece({ room, id, fresh }: { room: VaultRoom; id: string; fresh?: boolean }): ReactElement | null {
+export function PlacedPiece({ room, id, fresh, doors }: { room: VaultRoom; id: string; fresh?: boolean; doors?: Doors }): ReactElement | null {
   const p = FURNITURE[id];
-  const at = pieceAt(room, id);
+  const at = pieceAt(room, id, doors);
   if (!p || !at) return null;
   const [X, Y] = P(at.x, at.y, 0);
   const scale = pieceScale(room);
