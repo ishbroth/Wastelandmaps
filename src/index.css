@@ -915,3 +915,8 @@ html[data-look='parchment'] .rm-board-row.mine { background: rgba(120, 80, 20, 0
 .rm-faceid { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
 
 .rm-rubble-note { color: var(--ink); font-size: 15px; letter-spacing: 1px; }
+
+/* choosing a callsign */
+.rm-board-choose { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 8px 0; }
+.rm-board-choose select, .rm-board-choose input { background: var(--panel); color: var(--ink); border: 1px solid var(--ink); font: inherit; font-size: 15px; padding: 6px; min-width: 0; border-radius: 3px; }
+.rm-board-choose .rm-row-buttons { grid-column: 1 / -1; }

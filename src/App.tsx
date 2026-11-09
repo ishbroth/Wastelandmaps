@@ -298,10 +298,11 @@ export default function App() {
   const trip = useRef<Trip | null>(null);
   const homeId = account.home?.placeId ? personalId(account.home.placeId) : null;
   const shownVisited = useMemo(() => {
-    const all = new Set(visited);
+    const foundIds = new Set(found.map((f) => f.id));
+    const all = new Set([...visited].filter((id) => !id.startsWith('me:') || foundIds.has(id)));
     if (homeId) all.add(homeId);
     return all;
-  }, [visited, homeId]);
+  }, [visited, homeId, found]);
   const visitedRef = useRef(visited);
   /** The places they have found in metros other than the one on the map (loaded for the Data tab, so each row can say what is there). */
   const [foundLocs, setFoundLocs] = useState<Map<string, Location>>(new Map());
@@ -406,20 +407,28 @@ export default function App() {
   }, []);
 
   /** Marks places as discovered (filled in on the map) and remembers them in this browser, per city. */
+  /** The addresses of their own being discovered right now (so one visit is not counted twice while the answer is on its way). */
+  const discovering = useRef(new Set<string>());
   const markFound = useCallback((all: Location[], onFoot?: LatLng) => {
     // an address they travelled to goes on their own map (when signed in) and nowhere else
     for (const mine of all.filter((p) => p.personal)) {
       const who = accountRef.current?.session;
       const kept = accountRef.current?.personal.some((q) => personalId(q.placeId) === mine.id);
-      if (kept) continue;
+      // the home is theirs from the start; any other saved place (one whose snapshot was unlocked) still has to be reached once
+      if (mine.personal?.home || (kept && foundRef.current.some((f) => f.id === mine.id)) || discovering.current.has(mine.id)) continue;
       if (!who) {
         setToast('SIGN IN TO KEEP THIS PLACE ON YOUR PERSONAL MAP');
       } else {
-        void savePersonalPlace(who.user.id, { placeId: mine.id.slice(3), name: mine.name, address: mine.personal?.address ?? '', lat: mine.position.lat, lng: mine.position.lng, kind: mine.personal?.kind ?? 'house' })
+        discovering.current.add(mine.id);
+        void (kept ? Promise.resolve() : savePersonalPlace(who.user.id, { placeId: mine.id.slice(3), name: mine.name, address: mine.personal?.address ?? '', lat: mine.position.lat, lng: mine.position.lng, kind: mine.personal?.kind ?? 'house' }))
           .then(() => accountRef.current?.refresh())
           .then(() => setToast(`DISCOVERED: ${mine.name}`))
           .then(async () => {
             await recordFound([mine]);
+            const seen = new Set(visitedRef.current);
+            seen.add(mine.id);
+            visitedRef.current = seen;
+            setVisited(seen);
             // an address from a city atlas they bought is worth exactly 1 XP (the server checks they own that atlas); one they typed in and unlocked, 10: both only now that they have been there
             if (onFoot) {
               const result = await reportDiscovery(mine.id, mine.position, onFoot, mine.personal?.atlas ? 1 : 10);
@@ -1179,8 +1188,8 @@ export default function App() {
           setHereId(null);
         }
         void onNavFixRef.current(here);
-        const reach = Math.max(120, Math.min(pos.accuracy, 250));
-        const near = locationsRef.current.filter((l) => !visitedRef.current.has(l.id) && distanceMeters(here, l.position) <= reach);
+        const reach = Math.max(245, Math.min(pos.accuracy, 400)); // about 800 ft, or the phone's own accuracy when that is worse
+        const near = locationsRef.current.filter((l) => (l.personal ? !foundRef.current.some((f) => f.id === l.id) : !visitedRef.current.has(l.id)) && distanceMeters(here, l.position) <= reach);
         // Vault Tech Headquarters is found by being anywhere in Antarctica (the server checks the position the same way)
         if (inAntarctica(here.lat, here.lng) && !visitedRef.current.has(VAULT_ZERO_ID) && !foundRef.current.some((f) => f.id === VAULT_ZERO_ID)) near.push(VAULT_ZERO);
         markFound(near, here);

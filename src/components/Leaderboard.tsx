@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { joinLeaderboard, leaveLeaderboard, loadLeaderboard, myStanding, type Account, type BoardRow } from '../lib/account';
+import { joinLeaderboard, leaveLeaderboard, setCallsign, loadLeaderboard, myStanding, type Account, type BoardRow } from '../lib/account';
 
 const WINDOW = 10;
 
@@ -27,6 +27,25 @@ export default function Leaderboard({ account }: { account: Account }) {
     setBusy(true);
     await joinLeaderboard(reroll);
     await load();
+    setBusy(false);
+  };
+  // choosing the callsign: free typing, checked by the server's moderator (letters, numbers, spaces; no cuss words in any language, no contact details)
+  const [choosing, setChoosing] = useState<string | null>(null);
+  const [chooseNote, setChooseNote] = useState('');
+  const REASONS: Record<string, string> = {
+    bad_length: 'A CALLSIGN IS 3 TO 20 CHARACTERS',
+    bad_characters: 'LETTERS (A TO Z), NUMBERS AND SPACES ONLY',
+    personal: 'NO LINKS, EMAIL ADDRESSES OR LONG NUMBERS (NOT YOUR VAULT NUMBER)',
+    reserved: 'THAT NAME IS RESERVED',
+    not_allowed: 'THAT NAME IS NOT ALLOWED: PICK ANOTHER',
+    taken: 'SOMEONE ALREADY HAS THAT ONE',
+  };
+  const saveChoice = async () => {
+    if (choosing === null) return;
+    setBusy(true);
+    const result = await setCallsign(choosing);
+    if (result.ok) { setChoosing(null); setChooseNote(''); await load(); }
+    else setChooseNote(REASONS[result.error] ?? 'THAT DID NOT GO THROUGH: TRY AGAIN');
     setBusy(false);
   };
   const leave = async () => {
@@ -73,10 +92,23 @@ export default function Leaderboard({ account }: { account: Account }) {
           <p className="rm-fine">You are <b>{me.callsign}</b>: #{me.rank}, level {me.level}, {me.places} places.</p>
           <div className="rm-row-buttons">
             <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void join(true)}>NEW CALLSIGN</button>
+            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { setChooseNote(''); setChoosing(me.callsign); }}>CHOOSE</button>
             <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void leave()}>LEAVE</button>
           </div>
         </div>
       )}
+      {me && choosing !== null && (
+        <div className="rm-board-choose">
+          <input value={choosing} maxLength={20} autoFocus autoCapitalize="words" autoComplete="off" spellCheck={false} placeholder="Type a callsign" aria-label="Your callsign"
+            onChange={(e) => setChoosing(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void saveChoice(); }} />
+          <div className="rm-row-buttons">
+            <button type="button" className="rm-btn" disabled={busy || choosing.trim().length < 3} onClick={() => void saveChoice()}>TAKE IT</button>
+            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { setChoosing(null); setChooseNote(''); }}>CANCEL</button>
+          </div>
+          <p className="rm-fine">3 to 20 letters, numbers and spaces. Names are checked, and rude ones in any language are refused.</p>
+        </div>
+      )}
+      {chooseNote && <p className="rm-account-note">{chooseNote}</p>}
       {!failed && rows !== null && shown.length === 0 && <p className="rm-empty">Nobody has joined yet. Be the first.</p>}
       {shown.length > 0 && (
         <ul className="rm-list rm-board-list" ref={listRef} style={listHeight ? { height: listHeight } : undefined} aria-label="Leaderboard">
@@ -91,7 +123,7 @@ export default function Leaderboard({ account }: { account: Account }) {
         </ul>
       )}
       {me && !meInList && <p className="rm-fine">Your place, #{me.rank}, is below the top {shown.length}.</p>}
-      <p className="rm-fine">Ranked by level, then by places discovered: the places you found, plus the ones you unlocked a snapshot of.</p>
+      <p className="rm-fine">Ranked by level, then by places discovered: the places you have actually been to.</p>
     </div>
   );
 }

@@ -332,6 +332,16 @@ export async function joinLeaderboard(reroll = false): Promise<string | null> {
   return error || typeof data !== 'string' ? null : data;
 }
 
+/** Takes a callsign the person typed. The server's moderator may refuse it: the answer says why ('' when it was taken). */
+export async function setCallsign(name: string): Promise<{ ok: true; callsign: string } | { ok: false; error: string }> {
+  const { data, error } = await db().functions.invoke('leaderboard-name', { body: { name } });
+  if (!error && data?.ok) return { ok: true, callsign: String(data.callsign) };
+  let reason = 'server';
+  const response = (error as { context?: Response } | null)?.context;
+  if (response) { try { reason = ((await response.json()) as { error?: string }).error ?? 'server'; } catch { /* no body */ } }
+  return { ok: false, error: reason };
+}
+
 export async function leaveLeaderboard(): Promise<boolean> {
   const { error } = await db().rpc('leaderboard_leave');
   return !error;

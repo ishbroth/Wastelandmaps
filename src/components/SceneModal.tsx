@@ -115,6 +115,8 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   }, [vacationPlace, spot.id]);
   const vacationReveal = vacationPlace && vacationUrl?.id === spot.id ? { before: vacationUrl.url, after: vacationUrl.url, name: spot.name, file: `${spot.name.replace(/[^A-Za-z0-9]+/g, '-')}-vault-wastelandmaps.png`, pristine: true, credit: null } : null;
   const locked = canPay && !paidReady && !vacationPlace;
+  // unlocked before: opening it again only fetches the picture, so there is no sealed notice, just the cog and the message
+  const ownedAlready = !!rendered?.owned || homeOwned || account.unlocked.has(spot.id);
 
   // what the reveal plays between: the real photo, and the finished picture
   const reveal = vacationReveal ?? (paidReady?.rubble && personal ? { before: paidReady.url, after: paidReady.url, name: spot.name, file: fileName, pristine: true, credit: null } : render
@@ -191,16 +193,16 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
           )}
           {tab === 'snapshot' && locked && (
             <div className="rm-locked">
-              <b>SNAPSHOT SEALED</b>
-              {home
-                ? <p>Blow up your own home. The Street View picture of your address is turned into the ruin it would be: rubble, with your vault door in the ground and your number on it. Made just for you, yours to download and share. It costs <Caps n={caps(cost)} />.</p>
+              {!ownedAlready && <b>SNAPSHOT SEALED</b>}
+              {ownedAlready && paid.state.kind !== 'error' ? null : home
+                ? <p>Blow up your own home. The Street View picture of your address is turned into the ruin it would be: rubble, with your vault door in the ground and your number on it. Made just for you, yours to download and share.</p>
                 : personal
                 ? (streetState === 'no'
-                  ? <p>No Street View picture of this place can be found, so no pre-war footage exists. Unlock it anyway and you get the aftermath alone: a crater or a heap of burnt rubble, nothing recognizable. 300 of the <Caps n={caps(cost)} /> come back, so it costs <Caps n={caps(cost) - 300} />.</p>
-                  : <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share. It costs <Caps n={caps(cost)} />. (If the property is blurred out on Street View there is nothing to rebuild from: you get the aftermath alone, and 300 caps come back.)</p>)
+                  ? <p>No Street View picture of this place can be found, so no pre-war footage exists. Unlock it anyway and you get the aftermath alone: a crater or a heap of burnt rubble, nothing recognizable. 300 caps come back.</p>
+                  : <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share.</p>)
                 : <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>}
               {paid.state.kind === 'error' && (paid.state.resetsAt ? <ProjectorDown resetsAt={paid.state.resetsAt} /> : <p className="rm-account-note">{paid.state.message}</p>)}
-              {paid.state.kind === 'working' ? (
+              {paid.state.kind === 'working' || (ownedAlready && paid.state.kind !== 'error') ? (
                 <button type="button" className="rm-btn rm-developing" disabled><CogSpinner /> RETRIEVING FILM… 20 SECONDS</button>
               ) : (
                 <button type="button" className="rm-btn" onClick={() => (!account.session ? onAccount() : (account.credits ?? 0) < cost ? setBuying(true) : void paid.run())}>{home ? 'BLOW UP MY HOME' : 'UNLOCK'} FOR <Caps n={account.session ? `${caps(cost)}/${caps(account.credits ?? 0).toLocaleString('en-US')}` : caps(cost)} /></button>
