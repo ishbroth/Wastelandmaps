@@ -81,11 +81,11 @@ const parchmentStyles: google.maps.MapTypeStyle[] = [
 export const LOOKS: Record<LookId, Look> = {
   pipboy: {
     id: 'pipboy', label: 'Pip-Boy', mapStyles: pipboyStyles, background: '#021308',
-    ink: '#3dff8a', inkDim: '#13a550', zoneFill: 'rgba(120,255,40,0.14)', zoneStroke: '#a6ff3d', vault: '#d8ff6a', floodFill: '#000a04', floodLand: '#052d12', floodEdge: 0.84, floodOpacity: 0.84, floodStroke: '#0f7a35',
+    ink: '#3dff8a', inkDim: '#13a550', zoneFill: 'rgba(120,255,40,0.14)', zoneStroke: '#a6ff3d', vault: '#d8ff6a', floodFill: '#000a04', floodLand: '#052d12', floodEdge: 0.62, floodOpacity: 0.84, floodStroke: '#0f7a35',
   },
   parchment: {
     id: 'parchment', label: 'Parchment', mapStyles: parchmentStyles, background: '#dfcb99',
-    ink: '#3b2a14', inkDim: '#7a5a2a', zoneFill: 'rgba(160,60,30,0.18)', zoneStroke: '#a3401f', vault: '#1f5f8a', floodFill: '#a5b49b', floodLand: '#dccb9a', floodEdge: 0.55, floodOpacity: 0.86, floodStroke: '#7d8f74',
+    ink: '#3b2a14', inkDim: '#7a5a2a', zoneFill: 'rgba(160,60,30,0.18)', zoneStroke: '#a3401f', vault: '#1f5f8a', floodFill: '#a5b49b', floodLand: '#dccb9a', floodEdge: 0.4, floodOpacity: 0.86, floodStroke: '#7d8f74',
   },
 };
 

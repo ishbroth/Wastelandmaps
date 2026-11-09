@@ -28,21 +28,83 @@ const pts = (list: V3[]): string => list.map(([x, y, z]) => P(x, y, z).map((n) =
 
 export interface Rect { x: number; y: number; w: number; d: number }
 export const cellRect = (col: number, row: number): Rect => ({ x: col * CELL, y: row * CELL, w: CELL, d: CELL });
-/** The floor of a room: a standard room fills its cell, a wide one two cells along x, and a small one sits in the middle of its cell. */
-export const roomRect = (r: { type: RoomType; col: number; row: number }): Rect => {
+// ---- the shapes of the rooms ----
+// Each kind of room has a few shapes and sizes; which one a room gets is picked from where it is built (so it is always the same for that room). A room is
+// always centered in its cell, so the doorways and halls to its neighbors line up whatever its shape. The odd bits (a notch cut from the front corner, a bay
+// along the front edge) are on the sides that are cut away, so only the floor changes there.
+
+interface Variant {
+  /** Width and depth as a part of the room's cell (width: of all of its cells). */
+  w: number;
+  d: number;
+  /** A notch cut out of the front corner, as a part of the room's width and depth (an L-shaped room). */
+  notch?: [number, number];
+  /** A bay along the front edge: from and to (parts of the width) and how far it sticks out. */
+  bump?: [number, number, number];
+}
+const VARIANTS: Partial<Record<RoomType, Variant[]>> = {
+  living: [{ w: 1, d: 1, notch: [0.3, 0.32] }, { w: 0.92, d: 0.96, notch: [0.34, 0.3] }, { w: 1, d: 0.84 }],
+  dining: [{ w: 1, d: 0.7 }, { w: 0.72, d: 1 }, { w: 0.92, d: 0.68 }],
+  kitchen: [{ w: 0.92, d: 0.88, bump: [0.3, 0.7, 10] }, { w: 1, d: 0.8 }, { w: 0.86, d: 0.96, notch: [0.28, 0.28] }],
+  bedroom: [{ w: 0.86, d: 0.86 }, { w: 1, d: 0.8, bump: [0.35, 0.65, 9] }, { w: 0.8, d: 1 }],
+  bathroom: [{ w: 0.58, d: 0.7 }, { w: 0.7, d: 0.58 }, { w: 0.62, d: 0.62 }],
+  laundry: [{ w: 0.6, d: 0.66 }, { w: 0.68, d: 0.58 }, { w: 0.6, d: 0.6 }],
+  entertainment: [{ w: 0.98, d: 0.9 }, { w: 0.92, d: 1, bump: [0.35, 0.65, 10] }, { w: 0.9, d: 0.8 }],
+  game: [{ w: 0.96, d: 0.84, notch: [0.2, 0.3] }, { w: 0.9, d: 0.95 }, { w: 1, d: 0.78 }],
+  workshop: [{ w: 0.94, d: 1, notch: [0.16, 0.3] }, { w: 0.98, d: 0.86, bump: [0.55, 0.85, 9] }, { w: 0.9, d: 0.9 }],
+};
+const hashOf = (s: string): number => {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0;
+  h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13;
+  return h >>> 0;
+};
+type Pt = [number, number];
+export interface Shape { rect: Rect; poly: Pt[]; notch: Rect | null }
+/** The footprint of a room: its rect, the outline of its floor, and the notch if it has one. */
+export function shapeOf(r: { type: RoomType; col: number; row: number }): Shape {
   const def = roomDef(r.type);
+  const list = VARIANTS[r.type];
   const cx = r.col * CELL;
   const cy = r.row * CELL;
-  if (def.small) return { x: cx + (CELL - SMALL) / 2, y: cy + (CELL - SMALL) / 2, w: SMALL, d: SMALL };
-  return { x: cx, y: cy, w: def.slots * CELL, d: CELL };
-};
+  if (!list) return { rect: { x: cx + (CELL - SMALL) / 2, y: cy + (CELL - SMALL) / 2, w: SMALL, d: SMALL }, poly: [], notch: null };
+  const v = list[hashOf(`${r.type}:${r.col}:${r.row}`) % list.length];
+  const w = def.slots * CELL * v.w;
+  const d = CELL * v.d;
+  const x = cx + (def.slots * CELL - w) / 2;
+  const y = cy + (CELL - d) / 2;
+  const rect = { x, y, w, d };
+  const x1 = x + w;
+  const y1 = y + d;
+  let poly: Pt[] = [[x, y], [x1, y], [x1, y1], [x, y1]];
+  let notch: Rect | null = null;
+  if (v.notch) {
+    const nx = w * v.notch[0];
+    const ny = d * v.notch[1];
+    notch = { x: x1 - nx, y: y1 - ny, w: nx, d: ny };
+    poly = [[x, y], [x1, y], [x1, y1 - ny], [x1 - nx, y1 - ny], [x1 - nx, y1], [x, y1]];
+  } else if (v.bump) {
+    const xa = x + w * v.bump[0];
+    const xb = x + w * v.bump[1];
+    poly = [[x, y], [x1, y], [x1, y1], [xb, y1], [xb, y1 + v.bump[2]], [xa, y1 + v.bump[2]], [xa, y1], [x, y1]];
+  }
+  return { rect, poly, notch };
+}
+
+/** The floor of a room: a standard room fills most of its cell, a wide one two cells along x, and a small one sits in the middle of its cell. */
+export const roomRect = (r: { type: RoomType; col: number; row: number }): Rect => shapeOf(r).rect;
 export const isSmall = (type: RoomType): boolean => roomDef(type).small === true;
 
-/** A spot on a room's floor: u across (0 to 1 along x, from the left back wall) and v deep (0 to 1 along y, from the right back wall). */
+/** A spot on a room's floor: u across (0 to 1 along x, from the left back wall) and v deep (0 to 1 along y, from the right back wall). A spot that falls in a notch is moved out of it. */
 export const floorPoint = (r: { type: RoomType; col: number; row: number }, u: number, v: number): { x: number; y: number } => {
-  const a = roomRect(r);
+  const { rect: a, notch } = shapeOf(r);
   const m = 12;
-  return { x: a.x + m + u * (a.w - 2 * m), y: a.y + m + v * (a.d - 2 * m) };
+  let x = a.x + m + u * (a.w - 2 * m);
+  let y = a.y + m + v * (a.d - 2 * m);
+  if (notch && x > notch.x - 8 && y > notch.y - 8) {
+    if (x - (notch.x - 8) < y - (notch.y - 8)) x = notch.x - 8; else y = notch.y - 8;
+  }
+  return { x, y };
 };
 
 /** The screen box that holds a rect with its walls (for fitting the camera and zooming onto a room). */
@@ -87,24 +149,106 @@ const GLASS = 'rgba(61,255,138,0.10)';
 const Poly = ({ p, fill, sw = 1.2, stroke = INK }: { p: V3[]; fill: string; sw?: number; stroke?: string }): ReactElement => <polygon points={pts(p)} fill={fill} stroke={stroke} strokeWidth={sw} strokeLinejoin="round" />;
 const Seg = ({ a, b, c = DIM, sw = 0.8, o = 0.6 }: { a: V3; b: V3; c?: string; sw?: number; o?: number }): ReactElement => { const [x1, y1] = P(...a); const [x2, y2] = P(...b); return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={c} strokeWidth={sw} opacity={o} />; };
 
+const STEEL = '#0b5a2a';
+const PANEL = '#06301a';
+
+/** Things stuck on a wall, drawn flat on its plane: local x runs along the wall, local y is minus the height. */
+function WallThing({ along, wall, t, kind }: { along: 'y' | 'x'; wall: number; t: number; kind: 'window' | 'thumbs' | 'cog' | 'atom' | 'calm' | 'junction' }): ReactElement {
+  const [X, Y] = along === 'y' ? P(wall, t, 0) : P(t, wall, 0);
+  const ax = along === 'y' ? -KX : KX;
+  let art: ReactElement;
+  if (kind === 'window') {
+    art = (
+      <g>
+        <rect x={-14} y={-45} width={28} height={21} rx={2.5} fill={STEEL} stroke={INK} strokeWidth={0.9} />
+        <rect x={-11.5} y={-42.5} width={23} height={16} rx={1} fill="rgba(150,255,190,0.30)" stroke={DIM} strokeWidth={0.6} />
+        <path d="M-11.5 -29 L-6 -34 L-1 -30 L5 -36 L11.5 -30 V-26.5 H-11.5Z" fill="rgba(61,255,138,0.5)" stroke="none" />
+        <circle cx={6.5} cy={-39} r={2.4} fill={INK} stroke="none" opacity={0.9} />
+        <path d="M0 -42.5V-26.5M-11.5 -34.5H11.5" stroke={INK} strokeWidth={0.7} />
+      </g>
+    );
+  } else if (kind === 'junction') {
+    art = (
+      <g>
+        <rect x={-5} y={-36} width={10} height={13} rx={1.5} fill={STEEL} stroke={INK} strokeWidth={0.9} />
+        <path d="M0.8 -34 L-2 -29.5 L1.4 -29.5 L-1 -25" fill="none" stroke={INK} strokeWidth={1} />
+        <path d="M0 -36V-45" stroke={INK} strokeWidth={1.6} />
+      </g>
+    );
+  } else {
+    art = (
+      <g>
+        <rect x={-7.5} y={-43} width={15} height={20} rx={1} fill={PANEL} stroke={INK} strokeWidth={0.8} />
+        {kind === 'thumbs' && (
+          <g fill="none" stroke={INK} strokeWidth={1}>
+            <circle cx={0} cy={-37} r={3.2} fill={INK} stroke="none" />
+            <path d="M0 -33.6V-28M-4.2 -32.4 0 -31.4 4.2 -32.4M5.4 -31.2V-35.6M0 -28 -2.8 -24.4M0 -28 2.8 -24.4" />
+            <circle cx={-1.1} cy={-37.4} r={0.5} fill={PANEL} stroke="none" /><circle cx={1.1} cy={-37.4} r={0.5} fill={PANEL} stroke="none" />
+          </g>
+        )}
+        {kind === 'cog' && (
+          <g fill="none" stroke={INK}>
+            <circle cx={0} cy={-35} r={5.2} strokeWidth={2.4} strokeDasharray="1.7 1.3" />
+            <circle cx={0} cy={-35} r={3.4} strokeWidth={0.8} /><circle cx={0} cy={-35} r={1.1} fill={INK} stroke="none" />
+            <path d="M-5 -26.5H5M-3.4 -24.5H3.4" strokeWidth={1} />
+          </g>
+        )}
+        {kind === 'atom' && (
+          <g fill="none" stroke={INK} strokeWidth={0.8}>
+            <ellipse cx={0} cy={-34} rx={6} ry={2.3} /><ellipse cx={0} cy={-34} rx={6} ry={2.3} transform="rotate(60 0 -34)" /><ellipse cx={0} cy={-34} rx={6} ry={2.3} transform="rotate(120 0 -34)" />
+            <circle cx={0} cy={-34} r={1.4} fill={INK} stroke="none" />
+            <path d="M-4.4 -26H4.4" strokeWidth={1} />
+          </g>
+        )}
+        {kind === 'calm' && (
+          <g fill="none" stroke={INK} strokeWidth={1.2}>
+            <path d="M-4.6 -39H4.6M-4.6 -36H4.6M-3 -33H3" />
+            <path d="M0 -29.6V-26.4" strokeWidth={1.6} /><circle cx={0} cy={-24.9} r={0.4} fill={INK} stroke="none" />
+          </g>
+        )}
+      </g>
+    );
+  }
+  return <g transform={`matrix(${ax} ${KY} 0 1 ${X} ${Y})`} strokeLinecap="round" strokeLinejoin="round">{art}</g>;
+}
+
+const THINGS: ('window' | 'thumbs' | 'cog' | 'atom' | 'calm' | 'junction')[] = ['window', 'thumbs', 'cog', 'atom', 'calm', 'junction'];
+
 /**
- * A room: its floor, the inside of its two back walls, the thick tops of those walls, and the edge of the floor slab at the front. \`doorsL\` are the heights (y)
- * of the doorways in the left back wall, \`doorsR\` the positions (x) of those in the right back wall.
+ * A room: its floor (the shape of this room), the inside of its two back walls, the thick tops of those walls, and the edge of the floor slab at the front. `doorsL`
+ * are the heights (y) of the doorways in the left back wall, `doorsR` the positions (x) of those in the right back wall. The walls are vault walls: molded steel with
+ * a baseboard and rivets, a rounded corner post, piping and conduit, a fake window or two, and the odd poster.
  */
-export function RoomShell({ rect, name, type, doorsL, doorsR }: { rect: Rect; name: string; type: RoomType; doorsL: number[]; doorsR: number[] }): ReactElement {
+export function RoomShell({ rect, name, type, col, row, doorsL, doorsR }: { rect: Rect; name: string; type: RoomType; col: number; row: number; doorsL: number[]; doorsR: number[] }): ReactElement {
   const { x, y, w, d } = rect;
   const x1 = x + w;
   const y1 = y + d;
   const H = WALL_H;
   const T = WALL_T;
   const st = STYLE[type];
+  const shape = shapeOf({ type, col, row });
+  const poly: Pt[] = shape.poly.length ? shape.poly : [[x, y], [x1, y], [x1, y1], [x, y1]];
+  const clip = `vf${Math.round(x)}_${Math.round(y)}`;
   const floor: ReactNode[] = [];
-  if (st.floor === 'planks') for (let yy = y + 14; yy < y1 - 2; yy += 14) floor.push(<Seg key={`fp${yy}`} a={[x, yy, 0]} b={[x1, yy, 0]} />);
+  const bx1 = x1 + 12;
+  const by1 = y1 + 12;
+  if (st.floor === 'planks') for (let yy = y + 14; yy < by1; yy += 14) floor.push(<Seg key={`fp${yy}`} a={[x, yy, 0]} b={[bx1, yy, 0]} />);
   if (st.floor === 'tiles') {
-    for (let yy = y + 16; yy < y1 - 2; yy += 16) floor.push(<Seg key={`ft${yy}`} a={[x, yy, 0]} b={[x1, yy, 0]} o={0.45} />);
-    for (let xx = x + 16; xx < x1 - 2; xx += 16) floor.push(<Seg key={`fu${xx}`} a={[xx, y, 0]} b={[xx, y1, 0]} o={0.45} />);
+    for (let yy = y + 16; yy < by1; yy += 16) floor.push(<Seg key={`ft${yy}`} a={[x, yy, 0]} b={[bx1, yy, 0]} o={0.45} />);
+    for (let xx = x + 16; xx < bx1; xx += 16) floor.push(<Seg key={`fu${xx}`} a={[xx, y, 0]} b={[xx, by1, 0]} o={0.45} />);
   }
-  if (st.floor === 'dots') for (let yy = y + 12; yy < y1 - 4; yy += 16) for (let xx = x + 12 + ((yy / 16) % 2) * 8; xx < x1 - 4; xx += 20) { const [X, Y] = P(xx, yy, 0); floor.push(<circle key={`fd${xx}-${yy}`} cx={X} cy={Y} r="1.2" fill={DIM} opacity="0.6" />); }
+  if (st.floor === 'dots') for (let yy = y + 12; yy < by1; yy += 16) for (let xx = x + 12 + ((yy / 16) % 2) * 8; xx < bx1; xx += 20) { const [X, Y] = P(xx, yy, 0); floor.push(<circle key={`fd${xx}-${yy}`} cx={X} cy={Y} r="1.2" fill={DIM} opacity="0.6" />); }
+  // a floor of steel plates: a seam border just inside the edge, and bolts in the corners
+  const seam = 5;
+  for (const [a, b] of [[[x + seam, y + seam], [x1 - seam, y + seam]], [[x + seam, y + seam], [x + seam, y1 - seam]]] as [Pt, Pt][]) floor.push(<Seg key={`sm${a[0]}${b[0]}${a[1]}${b[1]}`} a={[a[0], a[1], 0]} b={[b[0], b[1], 0]} o={0.5} sw={1.2} />);
+  // the vault's cog on the entryway floor
+  if (type === 'entry') {
+    const cg = (rr: number, n: number) => Array.from({ length: n }, (_, i) => `${x + w / 2 + Math.cos((i / n) * Math.PI * 2) * rr},${y + d / 2 + Math.sin((i / n) * Math.PI * 2) * rr}`);
+    const teeth: string[] = [];
+    for (let i = 0; i < 24; i++) { const a0 = (i / 24) * Math.PI * 2; const r = i % 2 ? 24 : 29; teeth.push(`${x + w / 2 + Math.cos(a0) * r},${y + d / 2 + Math.sin(a0) * r}`); }
+    const world = (list: string[]) => list.map((s) => { const [px, py] = s.split(',').map(Number); return P(px, py, 0).join(','); }).join(' ');
+    floor.push(<polygon key="cog" points={world(teeth)} fill="none" stroke={DIM} strokeWidth="1.2" opacity="0.7" />, <polygon key="cog2" points={world(cg(17, 20))} fill="none" stroke={DIM} strokeWidth="1" opacity="0.6" />);
+  }
   const wallL: ReactNode[] = [];
   const wallR: ReactNode[] = [];
   const lines = (along: 'y' | 'x', from: number, to: number, out: ReactNode[], key: string) => {
@@ -121,6 +265,24 @@ export function RoomShell({ rect, name, type, doorsL, doorsR }: { rect: Rect; na
       }
     }
     if (st.wall === 'dots') for (let z = 12; z < H - 4; z += 14) for (let t = from + 10; t < to - 4; t += 16) { const [X, Y] = P(...at(t, z)); out.push(<circle key={`${key}d${z}-${t}`} cx={X} cy={Y} r="1.3" fill={DIM} opacity="0.6" />); }
+    // molded steel: a dark baseboard with rivets, a bevel under the cap, and a pipe along the top
+    out.push(<Poly key={`${key}bb`} p={[at(from, 0), at(to, 0), at(to, 5), at(from, 5)]} fill="#021a0c" sw={0.8} />);
+    for (let t = from + 9; t < to - 4; t += 18) { const [X, Y] = P(...at(t, 2.6)); out.push(<circle key={`${key}rv${t}`} cx={X} cy={Y} r="0.9" fill={INK} opacity="0.7" />); }
+    out.push(<Seg key={`${key}bv`} a={at(from, H - 4)} b={at(to, H - 4)} c={INK} o={0.5} sw={1} />);
+    out.push(<Poly key={`${key}pp`} p={[at(from + 1, H - 12), at(to - 1, H - 12), at(to - 1, H - 8), at(from + 1, H - 8)]} fill={STEEL} sw={0.8} />);
+    out.push(<Seg key={`${key}ph`} a={at(from + 1, H - 10.8)} b={at(to - 1, H - 10.8)} c={INK} o={0.55} sw={0.7} />);
+    for (let t = from + 14; t < to - 6; t += 30) out.push(<Poly key={`${key}pb${t}`} p={[at(t, H - 13), at(t + 2.4, H - 13), at(t + 2.4, H - 7), at(t, H - 7)]} fill={DIM} sw={0.6} />);
+    // the things on the wall, away from the doorways
+    const doors = along === 'y' ? doorsL : doorsR;
+    const spots = [0.24, 0.5, 0.76].map((f) => from + f * (to - from)).filter((t) => doors.every((c) => Math.abs(c - t) > 24));
+    const seed = hashOf(`${type}:${col}:${row}:${key}`);
+    const want = Math.min(spots.length, key === 'L' ? 2 : 2);
+    for (let i = 0; i < want; i++) {
+      const spot = spots[(i + (seed % spots.length)) % spots.length];
+      const kind = THINGS[(seed >>> (3 + i * 4)) % THINGS.length];
+      if (out.some((o) => (o as ReactElement | null)?.key === `${key}w${spot}`)) continue;
+      out.push(<WallThing key={`${key}w${spot}`} along={along} wall={along === 'y' ? x : y} t={spot} kind={kind} />);
+    }
   };
   lines('y', y, y1, wallL, 'L');
   lines('x', x, x1, wallR, 'R');
@@ -128,16 +290,26 @@ export function RoomShell({ rect, name, type, doorsL, doorsR }: { rect: Rect; na
     const lo = c - 15;
     const hi = c + 15;
     const quad: V3[] = alongY ? [[x, lo, 0], [x, hi, 0], [x, hi, 42], [x, lo, 42]] : [[lo, y, 0], [hi, y, 0], [hi, y, 42], [lo, y, 42]];
-    return <Poly key={`dr${alongY}${c}`} p={quad} fill={DOOR} sw={1.6} />;
+    const frame: V3[] = alongY ? [[x, lo - 2, 0], [x, hi + 2, 0], [x, hi + 2, 45], [x, lo - 2, 45]] : [[lo - 2, y, 0], [hi + 2, y, 0], [hi + 2, y, 45], [lo - 2, y, 45]];
+    return <g key={`dr${alongY}${c}`}><Poly p={frame} fill={STEEL} sw={1} /><Poly p={quad} fill={DOOR} sw={1.6} /></g>;
   };
   const [lx, ly] = P(x - T, y - T, H + 13);
+  // the slab edges at the front: every edge of the floor that faces the viewer (+x or +y), farthest first
+  const edges: { a: Pt; b: Pt; nx: number; ny: number }[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const nx = Math.sign(b[1] - a[1]);
+    const ny = -Math.sign(b[0] - a[0]);
+    if (nx > 0 || ny > 0) edges.push({ a, b, nx, ny });
+  }
+  edges.sort((p, q) => p.a[0] + p.a[1] + p.b[0] + p.b[1] - (q.a[0] + q.a[1] + q.b[0] + q.b[1]));
   return (
     <g>
-      {/* the slab the room stands on, at its two front edges */}
-      <Poly p={[[x1, y, 0], [x1, y1, 0], [x1, y1, -9], [x1, y, -9]]} fill={SLAB} />
-      <Poly p={[[x, y1, 0], [x1, y1, 0], [x1, y1, -9], [x, y1, -9]]} fill="#073a1b" />
-      <Poly p={[[x, y, 0], [x1, y, 0], [x1, y1, 0], [x, y1, 0]]} fill={FLOOR} />
-      {floor}
+      <defs><clipPath id={clip}><polygon points={poly.map(([px, py]) => P(px, py, 0).join(',')).join(' ')} /></clipPath></defs>
+      {edges.map((e, i) => <Poly key={`sl${i}`} p={[[e.a[0], e.a[1], 0], [e.b[0], e.b[1], 0], [e.b[0], e.b[1], -9], [e.a[0], e.a[1], -9]]} fill={e.nx > 0 ? SLAB : '#073a1b'} />)}
+      <polygon points={poly.map(([px, py]) => P(px, py, 0).join(',')).join(' ')} fill={FLOOR} stroke={INK} strokeWidth="1.2" strokeLinejoin="round" />
+      <g clipPath={`url(#${clip})`}>{floor}</g>
       {/* the inside of the left back wall, and of the right one */}
       <Poly p={[[x, y, 0], [x, y1, 0], [x, y1, H], [x, y, H]]} fill={FACE_L} />
       {wallL}
@@ -145,10 +317,12 @@ export function RoomShell({ rect, name, type, doorsL, doorsR }: { rect: Rect; na
       {wallR}
       {doorsL.map((c) => door(true, c))}
       {doorsR.map((c) => door(false, c))}
-      {/* the thick tops of the walls */}
-      <Poly p={[[x, y, H], [x, y1, H], [x - T, y1, H], [x - T, y, H]]} fill={CAP} sw={1.6} />
-      <Poly p={[[x, y, H], [x1, y, H], [x1, y - T, H], [x, y - T, H]]} fill={CAP} sw={1.6} />
-      <Poly p={[[x, y, H], [x - T, y, H], [x - T, y - T, H], [x, y - T, H]]} fill={CAP} sw={1.6} />
+      {/* the thick tops of the walls, rounded off, and the molded post in the corner */}
+      <Poly p={[[x, y, H], [x, y1, H], [x - T, y1, H], [x - T, y, H]]} fill={CAP} sw={2} />
+      <Poly p={[[x, y, H], [x1, y, H], [x1, y - T, H], [x, y - T, H]]} fill={CAP} sw={2} />
+      <Poly p={[[x, y, H], [x - T, y, H], [x - T, y - T, H], [x, y - T, H]]} fill={CAP} sw={2} />
+      <line x1={P(x, y, 1)[0]} y1={P(x, y, 1)[1]} x2={P(x, y, H)[0]} y2={P(x, y, H)[1]} stroke={INK} strokeWidth="4.6" strokeLinecap="round" opacity="0.35" />
+      <line x1={P(x, y, 3)[0]} y1={P(x, y, 3)[1]} x2={P(x, y, H - 2)[0]} y2={P(x, y, H - 2)[1]} stroke={CAP} strokeWidth="2.6" strokeLinecap="round" />
       <text x={lx} y={ly} fontSize="14" textAnchor="middle" fill={INK} stroke={BG} strokeWidth="3" paintOrder="stroke" fontFamily="'VT323', monospace" letterSpacing="1">{name}</text>
     </g>
   );
@@ -208,7 +382,7 @@ export function VaultDoor({ rect, onTap }: { rect: Rect; onTap: () => void }): R
   }
   cog += 'Z';
   const ring = (r: number) => Array.from({ length: 24 }, (_, i) => pt(r, (i / 24) * Math.PI * 2)).join(' ');
-  const [lx, ly] = P(xm, yw, zc - R - 7);
+  const [sx, sy] = P(xm, yw, zc + R + 14);
   return (
     <g role="button" aria-label="Leave the vault" style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onTap(); }}>
       <polygon points={[[xm - 30, yw, zc - 30], [xm + 30, yw, zc - 30], [xm + 30, yw, zc + 30], [xm - 30, yw, zc + 30]].map(([a, b, c]) => P(a, b, c).join(',')).join(' ')} fill="rgba(61,255,138,0.001)" stroke="none" />
@@ -217,7 +391,10 @@ export function VaultDoor({ rect, onTap }: { rect: Rect; onTap: () => void }): R
         <polygon points={ring(R - 9)} stroke={INK} strokeWidth="1.2" />
         <polygon points={ring(5)} stroke={INK} strokeWidth="1.2" />
       </g>
-      <text x={lx} y={ly} fontSize="12" textAnchor="middle" fill={INK} stroke="none" opacity="0.8" fontFamily="'VT323', monospace" letterSpacing="1.5">LEAVE</text>
+      <g>
+        <rect x={sx - 19} y={sy - 14} width="38" height="15" rx="3" fill="rgba(2,26,12,0.85)" stroke={INK} strokeWidth="1" />
+        <text x={sx} y={sy - 3} fontSize="14" fill={INK} stroke="none" textAnchor="middle" fontFamily="'VT323', monospace" letterSpacing="1.5">EXIT</text>
+      </g>
     </g>
   );
 }
@@ -398,7 +575,9 @@ export function PlacedPiece({ room, id, fresh }: { room: VaultRoom; id: string; 
   const at = pieceAt(room, id);
   if (!p || !at) return null;
   const [X, Y] = P(at.x, at.y, 0);
-  const scale = isSmall(room.type) ? 0.78 : 1;
+  const box = roomRect(room);
+  const fit = Math.min(box.w / (roomDef(room.type).slots * CELL), box.d / CELL);
+  const scale = isSmall(room.type) ? Math.min(0.78, 0.36 + fit * 0.7) : Math.min(1, 0.38 + fit * 0.66);
   keyCount = 0;
   return <g className={fresh ? 'rm-vh-fresh' : undefined} transform={`translate(${X} ${Y}) scale(${scale})`}>{p.art(makeG(false))}</g>;
 }

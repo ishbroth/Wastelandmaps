@@ -206,6 +206,38 @@ function shortRoad(name: string): string {
   return n || name;
 }
 
+/** Street-name abbreviations, said in full. After a name ("Main St", "Cherry Dr") they are road types; at the start of a name ("St Marys", "Dr Martin Luther King") they are titles. */
+const ROAD_TYPES: Record<string, string> = {
+  dr: 'Drive', st: 'Street', ave: 'Avenue', av: 'Avenue', blvd: 'Boulevard', rd: 'Road', ln: 'Lane', ct: 'Court', pl: 'Place', pkwy: 'Parkway', pky: 'Parkway', hwy: 'Highway',
+  cir: 'Circle', ter: 'Terrace', terr: 'Terrace', trl: 'Trail', expy: 'Expressway', expwy: 'Expressway', fwy: 'Freeway', sq: 'Square', aly: 'Alley', hts: 'Heights',
+  xing: 'Crossing', byp: 'Bypass', cres: 'Crescent', cswy: 'Causeway', brg: 'Bridge', pt: 'Point', pk: 'Park', trce: 'Trace', hwys: 'Highways', mnr: 'Manor', jct: 'Junction',
+  jr: 'Junior', sr: 'Senior', mem: 'Memorial', pkwys: 'Parkways', plz: 'Plaza', ctr: 'Center'
+};
+const TITLES: Record<string, string> = { st: 'Saint', dr: 'Doctor', mt: 'Mount', ft: 'Fort', ste: 'Sainte', rte: 'Route', hwy: 'Highway', pres: 'President', gen: 'General', gov: 'Governor', col: 'Colonel', sgt: 'Sergeant', capt: 'Captain' };
+const COMPASS: Record<string, string> = { N: 'North', S: 'South', E: 'East', W: 'West', NE: 'Northeast', NW: 'Northwest', SE: 'Southeast', SW: 'Southwest' };
+const NOT_A_NAME = new Set(['onto', 'on', 'at', 'via', 'to', 'the', 'left', 'right', 'into', 'toward', 'towards', 'exit', 'for', 'and', 'then', 'take', 'turn', 'merge', 'continue', 'head', 'slight', 'sharp', 'keep', 'in', 'from', 'of', 'a']);
+/** "I-5" is said "Interstate 5", "SR-163" "State Route 163", "US-101" "U S 101", "CA-94" "California 94". */
+const HIGHWAYS: [RegExp, string][] = [[/\bI-(\d+)/g, 'Interstate $1'], [/\bSR-?(\d+)/g, 'State Route $1'], [/\bCA-(\d+)/g, 'California $1'], [/\bUS-(\d+)/g, 'U.S. $1'], [/\bCR-?(\d+)/g, 'County Road $1'], [/\bFM-?(\d+)/g, 'Farm Road $1']];
+function expandRoadWords(text: string): string {
+  let t = text;
+  for (const [re, to] of HIGHWAYS) t = t.replace(re, to);
+  const words = t.split(' ');
+  return words.map((w, i) => {
+    const m = /^([^A-Za-z]*)([A-Za-z]+)(\.?)([,;:]?)$/.exec(w);
+    if (!m) return w;
+    const [, lead, core, , tail] = m;
+    const key = core.toLowerCase();
+    const prev = i > 0 ? words[i - 1].replace(/[^A-Za-z0-9'’-]/g, '').toLowerCase() : '';
+    const afterName = prev !== '' && !NOT_A_NAME.has(prev);
+    const next = words[i + 1];
+    if (COMPASS[core] && (core.length > 1 || !/^[a-z]/.test(core))) return `${lead}${COMPASS[core]}${tail}`;
+    if (core.length > 1 && core === core.toUpperCase() && !ROAD_TYPES[key] && !TITLES[key]) return w;
+    if (afterName && ROAD_TYPES[key]) return `${lead}${ROAD_TYPES[key]}${tail}`;
+    if (!afterName && TITLES[key] && next && /^[A-Za-z]/.test(next)) return `${lead}${TITLES[key]}${tail}`;
+    return w;
+  }).join(' ');
+}
+
 /**
  * What the voice says for an instruction: the same, but without the road's long name and without the extras. "Turn left onto U.S. 94 Martin Luther King Jr Parkway
  * Southwest toward Downtown" is spoken "Turn left onto U.S. 94". The banner on the screen keeps the whole text.
@@ -215,5 +247,5 @@ export function spokenInstruction(text: string): string {
   // "toward ...", "Pass by ...", "Continue for 2 miles", "Destination will be ..." keep only what is needed to act
   t = t.replace(/\s+toward\s+.*$/i, '').replace(/\.\s+(?:Pass by|Continue for|Then).*$/i, '');
   t = t.replace(/\b(onto|on|at|via|to stay on|to merge onto|onto the)\s+([^,]+?)(?=$|,)/i, (_m, word: string, road: string) => `${word} ${shortRoad(road)}`);
-  return t.replace(/[.,]+$/, '').trim() || text;
+  return expandRoadWords(t.replace(/[.,]+$/, '').trim()) || text;
 }

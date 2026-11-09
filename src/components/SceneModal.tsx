@@ -100,7 +100,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   // standing under one of the radiation clouds: the render has the fallout haze and acid rain
   const irradiated = isIrradiated(spot.position, zones);
   const supplied = manualBefore(spot.id);
-  const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || !!supplied || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned)));
+  const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || !!supplied || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned || (streetState === 'no' && !spot.personal?.home))));
   const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated }, !!rendered?.owned || homeOwned);
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
@@ -117,7 +117,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   const locked = canPay && !paidReady && !vacationPlace;
 
   // what the reveal plays between: the real photo, and the finished picture
-  const reveal = vacationReveal ?? (render
+  const reveal = vacationReveal ?? (paidReady?.rubble && personal ? { before: paidReady.url, after: paidReady.url, name: spot.name, file: fileName, pristine: true, credit: null } : render
     ? { before: render.before, after: render.url, name: render.name, file: `${render.name.replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`, pristine: !!render.pristine, credit: render.pristine ? null : { photo: render.photo, author: render.author, license: render.license, page: render.page } }
     : paidReady && personal ? (beforeStreet?.id === spot.id ? { before: beforeStreet.url ?? '', after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : null)
     : paidReady && (photo || supplied) ? { before: photo?.imageUrl ?? supplied ?? '', after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : null);
@@ -195,7 +195,9 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
               {home
                 ? <p>Blow up your own home. The Street View picture of your address is turned into the ruin it would be: rubble, with your vault door in the ground and your number on it. Made just for you, yours to download and share. It costs <Caps n={caps(cost)} />.</p>
                 : personal
-                ? <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share. It costs <Caps n={caps(cost)} />.</p>
+                ? (streetState === 'no'
+                  ? <p>No Street View picture of this place can be found, so no pre-war footage exists. Unlock it anyway and you get the aftermath alone: a crater or a heap of burnt rubble, nothing recognizable. 300 of the <Caps n={caps(cost)} /> come back, so it costs <Caps n={caps(cost) - 300} />.</p>
+                  : <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share. It costs <Caps n={caps(cost)} />. (If the property is blurred out on Street View there is nothing to rebuild from: you get the aftermath alone, and 300 caps come back.)</p>)
                 : <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>}
               {paid.state.kind === 'error' && (paid.state.resetsAt ? <ProjectorDown resetsAt={paid.state.resetsAt} /> : <p className="rm-account-note">{paid.state.message}</p>)}
               {paid.state.kind === 'working' ? (
@@ -208,7 +210,10 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
           <div className="rm-modal-crt" aria-hidden="true" />
         </div>
 
-        {tab === 'snapshot' && reveal && personal && (
+        {tab === 'snapshot' && paidReady?.rubble && (
+          <p className="rm-modal-credit rm-rubble-note">Sorry, no pre-war footage of this location can be found, only the aftermath.{paidReady.refunded && paid.state.kind === 'ready' && paid.state.fresh ? ` ${paidReady.refunded * 100} caps refunded.` : ''}</p>
+        )}
+        {tab === 'snapshot' && reveal && personal && !paidReady?.rubble && (
           <p className="rm-modal-credit">{home ? 'Made from Google Street View imagery. The original is shown straight from Google and is not kept by us; only this render is kept, and only you can open it.' : 'Made from Google Street View imagery. The original is shown straight from Google and is not kept by us. This render is part of the public atlas: everyone who unlocks this address sees the same picture, and it has a page of its own on the site.'}</p>
         )}
         {tab === 'snapshot' && reveal?.pristine && <p className="rm-modal-credit">Made for WastelandMaps. Nothing has ever touched this door.</p>}

@@ -14,9 +14,11 @@
 // Deploy: supabase functions deploy unlock-streetview
 
 import { callerId, corsHeaders, reply, serviceClient, dailyRenderCap, nextRenderReset } from '../_shared/common.ts';
-import { streetPrompt } from '../_shared/streetPrompt.ts';
+import { rubblePrompt, streetPrompt } from '../_shared/streetPrompt.ts';
 
 const COST = 4;
+/** A place that cannot be shown as it was (blurred out, or no street picture): only the rubble is rendered, so only this much is kept and the rest is paid back. */
+const RUBBLE_COST = 1;
 const STALE_AFTER_MS = 150_000;
 const KINDS = ['house', 'park', 'office', 'church', 'medical', 'gov'];
 
@@ -59,6 +61,60 @@ async function streetPicture(lat: number, lng: number): Promise<{ bytes: Uint8Ar
   })}`);
   if (!res.ok) return null;
   return { bytes: new Uint8Array(await res.arrayBuffer()), mime: res.headers.get('content-type') ?? 'image/jpeg' };
+}
+
+/** A top-down picture of the place, for the landscape when there is no street picture. */
+async function satellitePicture(lat: number, lng: number): Promise<{ bytes: Uint8Array; mime: string } | null> {
+  const key = Deno.env.get('STREETVIEW_API_KEY');
+  if (!key) return null;
+  try {
+    const res = await fetch(`https://maps.googleapis.com/maps/api/staticmap?${new URLSearchParams({ center: `${lat},${lng}`, zoom: '19', size: '640x640', maptype: 'satellite', key })}`);
+    if (!res.ok) return null;
+    const mime = res.headers.get('content-type') ?? '';
+    if (!mime.startsWith('image/')) return null;
+    return { bytes: new Uint8Array(await res.arrayBuffer()), mime };
+  } catch { return null; }
+}
+
+/** Is the property in the middle of this street picture hidden behind Google's privacy blur? (If the check cannot be made, it is not.) */
+async function looksBlurred(picture: { bytes: Uint8Array; mime: string }): Promise<boolean> {
+  const key = Deno.env.get('GEMINI_API_KEY');
+  if (!key) return false;
+  const model = Deno.env.get('GEMINI_TEXT_MODEL') ?? 'gemini-2.5-flash';
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: 'This is a Google Street View picture looking at one address. Is the main house or building in the middle of the picture hidden behind a privacy blur (a smeared, pixelated or mosaic patch where the property is), as opposed to being merely far away, small, or partly behind trees? Answer with exactly one word: BLURRED or CLEAR.' }, { inline_data: { mime_type: picture.mime, data: toBase64(picture.bytes) } }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 8 },
+      }),
+    });
+    if (!res.ok) return false;
+    const body = await res.json();
+    const text = String(body.candidates?.[0]?.content?.parts?.[0]?.text ?? '').toUpperCase();
+    return text.includes('BLURRED');
+  } catch { return false; }
+}
+
+/** The aftermath alone: a crater or a heap of burnt rubble on the landscape of the picture (a street picture, or an aerial one, or none at all). */
+async function generateRubble(picture: { bytes: Uint8Array; mime: string } | null, aerial: boolean, name: string, seed: string, flooded = false, irradiated = false): Promise<Uint8Array> {
+  const key = Deno.env.get('GEMINI_API_KEY');
+  if (!key) throw new Error('image generation is not set up');
+  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
+  const parts: unknown[] = [{ text: rubblePrompt(name, seed, aerial, flooded, irradiated) }];
+  if (picture) parts.push({ inline_data: { mime_type: picture.mime, data: toBase64(picture.bytes) } });
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }),
+  });
+  if (!res.ok) throw new Error(`image model said ${res.status}`);
+  const body = await res.json();
+  const part = (body.candidates?.[0]?.content?.parts ?? []).find((p: any) => p.inlineData?.data || p.inline_data?.data);
+  const b64: string | undefined = part?.inlineData?.data ?? part?.inline_data?.data;
+  if (!b64) throw new Error('the image model returned no image');
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
 async function generate(picture: { bytes: Uint8Array; mime: string }, kind: string, name: string, vaultNumber?: string, flooded = false, irradiated = false): Promise<Uint8Array> {
@@ -165,7 +221,7 @@ Deno.serve(async (req) => {
   }
   const ready = existing?.status === 'ready' && !!existing.storage_path;
 
-  if (body.action === 'check') return reply(req, { exists: ready, owned: ready && owned });
+  if (body.action === 'check') return reply(req, { exists: ready, owned: ready && owned, rubble: ready && existing?.rubble === true });
 
   const signed = async (path: string) => {
     const s = await db.storage.from('renders').createSignedUrl(path, 3600);
@@ -176,17 +232,18 @@ Deno.serve(async (req) => {
   if (ready) {
     let charged = false;
     if (!owned) {
-      const { data: spent, error } = await db.rpc('unlock_personal', { p_user: user, p_place: placeId, p_cost: COST });
+      const price = existing!.rubble === true ? RUBBLE_COST : COST;
+      const { data: spent, error } = await db.rpc('unlock_personal', { p_user: user, p_place: placeId, p_cost: price });
       if (error) return reply(req, { error: 'server' }, 500);
       if (spent === 'no_credits') return reply(req, { error: 'no_credits' }, 402);
       charged = spent === 'spent';
     }
     const url = await signed(existing!.storage_path as string);
     if (!url) {
-      if (charged) await db.rpc('refund_personal', { p_user: user, p_place: placeId, p_cost: COST });
+      if (charged) await db.rpc('refund_personal', { p_user: user, p_place: placeId, p_cost: existing!.rubble === true ? RUBBLE_COST : COST });
       return reply(req, { error: 'server' }, 500);
     }
-    return reply(req, { status: 'ready', url, charged });
+    return reply(req, { status: 'ready', url, charged, ...(existing!.rubble === true ? { rubble: true } : {}) });
   }
 
   if (existing?.status === 'generating' && Date.now() - new Date(existing.started_at as string).getTime() < STALE_AFTER_MS) return reply(req, { status: 'working' });
@@ -223,21 +280,23 @@ Deno.serve(async (req) => {
 
     // 2. only now Street View
     const picture = await streetPicture(details.lat, details.lng);
-    if (!picture) {
-      await db.from('address_renders').delete().eq('place_id', googleId);
-      await giveBack();
-      return reply(req, { error: 'no_streetview' }, 404);
-    }
-    const png = await generate(picture, kind, details.name, undefined, body.flooded === true, body.irradiated === true);
+    // no street picture at all, or the property is blurred out: no pre-war footage, only the aftermath (a crater or a heap of burnt rubble on the landscape)
+    const blurred = !!picture && await looksBlurred(picture);
+    const rubble = !picture || blurred;
+    const png = rubble
+      ? await generateRubble(picture ?? await satellitePicture(details.lat, details.lng), !picture, details.name, googleId.slice(-8), body.flooded === true, body.irradiated === true)
+      : await generate(picture as { bytes: Uint8Array; mime: string }, kind, details.name, undefined, body.flooded === true, body.irradiated === true);
     const path = `address/${googleId}.png`;
     const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
     if (up.error) throw new Error('could not store the image');
     // a shared address render is part of the public atlas: a copy goes where its page can show it
     await db.storage.from('public-renders').upload(path, png, { contentType: 'image/png', upsert: true }).catch(() => null);
-    await db.from('address_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString() }).eq('place_id', googleId);
+    await db.from('address_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString(), rubble }).eq('place_id', googleId);
     const url = await signed(path);
     if (!url) throw new Error('no link');
-    return reply(req, { status: 'ready', url, charged: spent === 'spent' });
+    // the rubble is a lesser picture: three of the four credits (300 caps) go back, one stays for the making
+    if (rubble && spent === 'spent') await db.rpc('part_refund_personal', { p_user: user, p_place: placeId, p_refund: COST - RUBBLE_COST });
+    return reply(req, { status: 'ready', url, charged: spent === 'spent', ...(rubble ? { rubble: true, refunded: COST - RUBBLE_COST } : {}) });
   } catch (e) {
     await db.from('address_renders').update({ status: 'failed' }).eq('place_id', googleId);
     await giveBack();

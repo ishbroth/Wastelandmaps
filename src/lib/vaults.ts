@@ -1,5 +1,5 @@
-// Vaults in a metro. Richer countries: one for every 250,000 people up to 3 million, then one for every 500,000 (12 million: 30). Elsewhere: two for every
-// million up to 5 million, then one for every million. At least one. The games' own vaults count toward the total and are never removed. Each is a local place, not a famous one,
+// Vaults in a metro. Richer countries: one for every 250,000 people up to 3 million (12), elsewhere two for every million up to 5 million (10); past that each
+// million brings fewer and fewer, and no metro has more than 60. At least one. The games' own vaults count toward the total and are never removed. Each is a local place, not a famous one,
 // that stops having a new wasteland name and becomes the entrance to a numbered vault ("Entrance to Vault 042. Formerly ..."). The games' own vaults
 // (see loreVaults.ts) are put in first, where they stand.
 
@@ -15,11 +15,17 @@ const RICH = new Set([
   'MT', 'MD', 'MC', 'ME', 'NL', 'MK', 'NO', 'PL', 'PT', 'RO', 'RU', 'SM', 'RS', 'SK', 'SI', 'ES', 'SE', 'CH', 'UA', 'GB', 'VA', 'AU', 'CN', 'HK', 'MO', 'JP', 'KR', 'NZ', 'AR', 'UY', 'BR',
 ]);
 
+export const MAX_VAULTS = 60;
+
+/** Up to a medium-sized metro every million people brings the full share; past that each million brings less and less, so the biggest metros level off just under 60. */
 export const vaultCount = (country: string, population: number): number => {
-  const n = RICH.has(country)
-    ? population <= 3_000_000 ? population / 250_000 : 12 + (population - 3_000_000) / 500_000
-    : population <= 5_000_000 ? population / 500_000 : 10 + (population - 5_000_000) / 1_000_000;
-  return Math.max(1, Math.floor(n));
+  const rich = RICH.has(country);
+  const knee = rich ? 3_000_000 : 5_000_000; // where the full share stops: 12 vaults, or 10
+  const base = rich ? 12 : 10;
+  const n = population <= knee
+    ? population / (rich ? 250_000 : 500_000)
+    : base + (MAX_VAULTS - base) * (1 - Math.exp(-(population - knee) / (rich ? 20_000_000 : 25_000_000)));
+  return Math.min(MAX_VAULTS, Math.max(1, Math.floor(n)));
 };
 
 interface Metro { id: string; lat: number; lng: number; radiusKm: number; pop: number; country: string }
@@ -68,7 +74,7 @@ export function assignVaults(metro: Metro, places: Location[]): Location[] {
 
   // the rest: local, not-famous places, spread across the metro
   const want = Math.max(0, vaultCount(metro.country, metro.pop) - lore);
-  const candidates = out.filter((p) => !p.vault && p.category !== 'transit' && p.id.startsWith('wd:') && !p.famous && !FREE_RENDERS[p.id.slice(3)] && !isFamous(p.category, p.fame ?? 0) && !/\b(exercise|operation|festival|exhibition|games|tournament|championship|expedition)\b/i.test(p.oldName));
+  const candidates = out.filter((p) => !p.vault && p.category !== 'transit' && p.id.startsWith('wd:') && !p.famous && !p.lore && !FREE_RENDERS[p.id.slice(3)] && !isFamous(p.category, p.fame ?? 0) && !/\b(exercise|operation|festival|exhibition|games|tournament|championship|expedition)\b/i.test(p.oldName));
   const chosen: Location[] = [];
   while (chosen.length < want && candidates.length > chosen.length) {
     // the candidate farthest from the vaults already chosen (the first is picked at random)

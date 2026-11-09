@@ -10,7 +10,7 @@ import {
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt, type Pose } from './vaultArt';
-import { CELL, ExitSign, FURNITURE, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, pieceAt, roomRect, screenBox, type Rect } from './vaultIso';
+import { CELL, FURNITURE, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, pieceAt, roomRect, screenBox, type Rect } from './vaultIso';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -364,7 +364,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
         el: (
           <g className={`rm-vh-room${fresh && fresh.room === idx && !fresh.item ? ' rm-vh-fresh' : ''}`} role="button" aria-label={def.name}>
             {halls}
-            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} doorsL={doorsL} doorsR={doorsR} />
+            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} doorsL={doorsL} doorsR={doorsR} />
           </g>
         ),
       });
@@ -423,11 +423,13 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
   const fitWindow = (): number[] | null => {
     if (!size || !vault) return null;
     const rects: Rect[] = vault.rooms.filter((r) => r.level === level).map(roomRect);
-    for (const [c, r] of openCells) rects.push(cellRect(c, r));
+    if (rects.length === 0) for (const [c, r] of openCells) rects.push(cellRect(c, r));
     if (rects.length === 0) rects.push(cellRect(ENTRY_AT.col, ENTRY_AT.row));
-    const b = screenBox(rects);
-    const pad = 26;
-    const sc = Math.min(size.w / (b.w + 2 * pad), size.h / (b.h + 2 * pad), 1.7);
+    // the window is the rooms plus about half a cell around them: the next places to build show half of themselves
+    const half = CELL * 0.5;
+    const b = screenBox(rects.map((r) => ({ x: r.x - half, y: r.y - half, w: r.w + 2 * half, d: r.d + 2 * half })));
+    const pad = 4;
+    const sc = Math.min(size.w / (b.w + 2 * pad), size.h / (b.h + 2 * pad), 2.6);
     const w = size.w / sc;
     const h = size.h / sc;
     return [b.x + b.w / 2 - w / 2, b.y + b.h / 2 - h / 2, w, h];
@@ -500,7 +502,6 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                 const things = here ? [...(pieces.get(here.idx) ?? []), ...settlers.filter((t) => t.owner === here.idx)].sort((x, y) => x.depth - y.depth) : [];
                 return <g key={l.key} onClick={here ? (e) => scene.tapRoom(e, here.idx) : undefined}>{l.el}{things.map((t) => t.el)}</g>;
               })}
-              {scene.entry && <ExitSign rect={roomRect(scene.entry)} />}
               {scene.entry && <VaultDoor rect={roomRect(scene.entry)} onTap={onExit} />}
             </svg>
           );

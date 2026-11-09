@@ -11,7 +11,7 @@ type BaseIconId =
   | 'book' | 'beaker' | 'houses' | 'skyscraper' | 'statue' | 'ringart' | 'flag' | 'column' | 'railcross' | 'tram' | 'mosque' | 'cathedral' | 'temple' | 'badge' | 'firebadge' | 'fork' | 'cart' | 'theatre' | 'leafytree' | 'fountain'
   | 'factory' | 'apartment' | 'trailer'
   | 'radiotower' | 'lighthouse' | 'gasmask' | 'tractor' | 'cannon' | 'bus' | 'tent' | 'observatory' | 'lifebuoy' | 'ruins' | 'ship' | 'pinetree'
-  | 'officeslab' | 'twintowers' | 'artdeco' | 'glasstower' | 'plaza' | 'officepark' | 'curvedtower' | 'campus' | 'mall' | 'mountain' | 'palm' | 'windmill' | 'camera' | 'fish' | 'cactus' | 'star' | 'lamp' | 'pump' | 'wrench' | 'car' | 'basket' | 'bag' | 'gradcap' | 'pill' | 'ambulance' | 'helmet' | 'mug' | 'bell' | 'ball' | 'trophy' | 'key' | 'vault0' | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
+  | 'officeslab' | 'twintowers' | 'artdeco' | 'glasstower' | 'plaza' | 'officepark' | 'curvedtower' | 'campus' | 'mall' | 'skeletonkey' | 'medkit' | 'medbottle' | 'caduceus' | 'bandage' | 'heartbeat' | 'capsules' | 'crossheart' | 'tooth' | 'lifestar' | 'syringe' | 'arenaflags' | 'standsflags' | 'bowlflags' | 'pitch' | 'track' | 'mountain' | 'palm' | 'windmill' | 'camera' | 'fish' | 'cactus' | 'star' | 'lamp' | 'pump' | 'wrench' | 'car' | 'basket' | 'bag' | 'gradcap' | 'pill' | 'ambulance' | 'helmet' | 'mug' | 'bell' | 'ball' | 'trophy' | 'key' | 'vault0' | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
 
 /** The world-famous buildings and monuments, drawn as themselves (famousIcons.ts). */
 export type FamousIconId =
@@ -164,7 +164,26 @@ const ICONS: Record<BaseIconId, string> = {
   bell: svg(f('M12 3a6 6 0 0 0-6 6v4.5L4 17h16l-2-3.5V9a6 6 0 0 0-6-6Z') + f('M10 19.5a2 2 0 0 0 4 0Z')),
   ball: svg(f('M12 2.5a9.5 9.5 0 1 0 .01 0Z') + d('M2.5 12h19M12 2.5c3.5 3 3.5 16 0 19M12 2.5c-3.5 3-3.5 16 0 19')),
   trophy: svg(f('M7 3.5h10v6a5 5 0 0 1-10 0Z') + s('M7 5.5H4.5v1.5a3 3 0 0 0 3 3M17 5.5h2.5v1.5a3 3 0 0 1-3 3') + f('M10.5 14.5h3V18h-3Z') + f('M7.5 18h9v3h-9Z')),
-  key: svg('<g transform="rotate(45 12 12)">' + f('M12 1.2a4.2 4.2 0 1 0 .01 0Z') + d('M12 3.6a1.8 1.8 0 1 0 .01 0Z') + f('M10.2 9.2h3.6v1.6h-3.6Z') + f('M11.2 10.8h1.6V22.5h-1.6Z') + f('M12.8 15.2h3.4v1.8h-3.4ZM12.8 18.6h2.4v1.8h-2.4Z') + '</g>'),
+  // the hotel keys: a classic key (round bow with a hole, a ridge down the shaft, two teeth) and a plain skeleton key (a ring, a long shaft, a square bit)
+  key: svg(f('M6.4 6.9a5.1 5.1 0 1 0 .01 0Z') + d(cut(5.4, 12, 1.9)) + f('M10.6 10.4h12v3.2h-1.4v3h-2.4v-3h-1.6v3h-2.4v-3h-4.2Z') + d('M11.6 11.9h6')),
+  skeletonkey: svg(f('M6 7.4a4.6 4.6 0 1 0 .01 0Z') + d(cut(6, 12, 2.3)) + f('M10.4 11h8.4V7.4h2.8V13h-11.2Z')),
+  // medical
+  medkit: svg(f('M3 8.5h18v11.5H3Z') + s('M8.5 8.5V6.2a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v2.3') + d('M12 11.4v5.8M9.1 14.3h5.8')),
+  medbottle: svg(f('M8.6 2.8h6.8v2.6H8.6Z') + f('M7 5.4h10v14.1a1.6 1.6 0 0 1-1.6 1.6H8.6A1.6 1.6 0 0 1 7 19.5Z') + d('M12 10v6M9 13h6')),
+  caduceus: svg(f('M12 1.6a1.6 1.6 0 1 0 .01 0Z') + s('M12 4v17.6') + f('M11.2 5.8C8.4 4.2 5.4 4.6 2 7.4c3-.1 4.8.6 6.4 2.2 1.1-.7 2.1-1.8 2.8-3.8Z') + f('M12.8 5.8c2.8-1.6 5.8-1.2 9.2 1.6-3-.1-4.8.6-6.4 2.2-1.1-.7-2.1-1.8-2.8-3.8Z') + s('M12 9.4c-4 1-4 4 0 5s4 4 0 5.4M12 9.4c4 1 4 4 0 5s-4 4 0 5.4')),
+  bandage: svg('<g transform="rotate(-45 12 12)">' + f('M2.4 8.4h19.2a3.6 3.6 0 0 1 0 7.2H2.4a3.6 3.6 0 0 1 0-7.2Z') + d('M9.2 8.4v7.2M14.8 8.4v7.2') + '</g><g transform="rotate(45 12 12)">' + f('M2.4 8.4h19.2a3.6 3.6 0 0 1 0 7.2H2.4a3.6 3.6 0 0 1 0-7.2Z') + d('M9.2 8.4v7.2M14.8 8.4v7.2M11 10.6h.01M13 10.6h.01M11 13.4h.01M13 13.4h.01') + '</g>'),
+  heartbeat: svg(f('M12 21S3.4 15.6 3.4 9.8A4.8 4.8 0 0 1 12 7.2a4.8 4.8 0 0 1 8.6 2.6C20.6 15.6 12 21 12 21Z') + d('M2.6 12.4h4.6l1.8-3.2 3 6.4 2-3.2h7.4')),
+  capsules: svg(f('M2.8 15.2 8.4 9.6a3.5 3.5 0 0 1 5 5l-5.6 5.6a3.5 3.5 0 0 1-5-5Z') + d('M5.6 12.4l5 5') + f('M12.6 7.2l3-3a3.3 3.3 0 0 1 4.7 4.7l-3 3a3.3 3.3 0 0 1-4.7-4.7Z') + d('M14 6.4l4.3 4.3')),
+  crossheart: svg(f('M9.4 2.8h5.2v6.6h6.6v5.2h-6.6v6.6H9.4v-6.6H2.8V9.4h6.6Z') + d('M12 15.2s-3.2-2-3.2-4a1.8 1.8 0 0 1 3.2-1.1 1.8 1.8 0 0 1 3.2 1.1c0 2-3.2 4-3.2 4Z')),
+  tooth: svg(f('M7.4 3.4c1.6-.6 3 .2 4.6.2s3-.8 4.6-.2c2 .8 2.9 3.3 2.2 6.3-.5 2.2-1.2 4-1.5 6.6-.2 1.7-.7 4.6-2 4.6s-1.4-3.2-2.2-5c-.3-.7-.7-1-1.1-1s-.8.3-1.1 1c-.8 1.8-.9 5-2.2 5s-1.8-2.9-2-4.6c-.3-2.6-1-4.4-1.5-6.6-.7-3 .2-5.5 2.2-6.3Z') + d('M9.8 7c1 .6 2.2.6 3.4-.2')),
+  lifestar: svg('<g><path class="f" d="M10.4 2.2h3.2v19.6h-3.2Z"/><path class="f" d="M10.4 2.2h3.2v19.6h-3.2Z" transform="rotate(60 12 12)"/><path class="f" d="M10.4 2.2h3.2v19.6h-3.2Z" transform="rotate(120 12 12)"/></g>' + d('M12 8.2v7.6')),
+  syringe: svg('<g transform="rotate(-45 12 12)">' + f('M5.6 9.4h11.4v5.2H5.6Z') + d('M8.8 9.4v2.4M11.4 9.4v3.2M14 9.4v2.4') + f('M4.4 8.6h1.6v6.8H4.4Z') + s('M17 12h3.6M4.4 12H1.4') + f('M20.4 8.8H22v6.4h-1.6Z') + '</g>'),
+  // stadiums and fields: grandstands with flags, a bowl with flags, a stand with floodlights, a pitch and a running track from above
+  arenaflags: svg(f('M2 20.5v-6C4.4 12.6 8 11.8 12 11.8s7.6.8 10 2.7v6Z') + d('M2 16.6c3-1.4 7-1.9 10-1.9s7 .5 10 1.9') + s('M5 11.6V4.6M9 11.3V3.6M15 11.3V3.6M19 11.6V4.6') + f('M5 4.6l3 1.2-3 1.2ZM9 3.6l3 1.2-3 1.2ZM15 3.6l3 1.2-3 1.2ZM19 4.6l3 1.2-3 1.2Z')),
+  standsflags: svg(f('M3 21V9.4h18V21Z') + d('M6.4 9.4V21M10 9.4V21M14 9.4V21M17.6 9.4V21M3 13.4h18') + s('M4.6 9.4V3.6M12 9.4V2.6M19.4 9.4V3.6') + f('M4.6 3.6l3 1.2-3 1.2ZM12 2.6l3 1.2-3 1.2ZM19.4 3.6l3 1.2-3 1.2Z')),
+  bowlflags: svg(f('M12 8.4c5.6 0 10 2 10 4.7v3.2c0 2.8-4.4 4.9-10 4.9S2 19.1 2 16.3v-3.2c0-2.7 4.4-4.7 10-4.7Z') + d('M12 11c3.9 0 7 1 7 2.4s-3.1 2.4-7 2.4-7-1-7-2.4 3.1-2.4 7-2.4Z') + s('M5 9.6V4.4M12 8.4V2.4M19 9.6V4.4') + f('M5 4.4l3 1.2-3 1.2ZM12 2.4l3 1.2-3 1.2ZM19 4.4l3 1.2-3 1.2Z')),
+  pitch: svg(f('M2.4 5.4h19.2v13.2H2.4Z') + d('M12 5.4v13.2') + d(cut(12, 12, 2.8)) + d('M2.4 8.8h3.6v6.4H2.4ZM21.6 8.8H18v6.4h3.6Z')),
+  track: svg(f('M7.4 5.2h9.2a6.8 6.8 0 0 1 0 13.6H7.4a6.8 6.8 0 0 1 0-13.6Z') + d('M12 5.2v13.6') + d(cut(12, 12, 2.6)) + d('M7 9.2h2.4v5.6H7ZM17 9.2h-2.4v5.6H17Z')),
   // Vault 0 in Antarctica: not a cog but the door itself, a round blast door set in a snowy hillside, with a snowflake above
   vault0: svg(f('M1.5 21.5C2.5 13 7 9.6 12 9.6s9.5 3.4 10.5 11.9Z') + d('M12 11.6a4.9 4.9 0 1 0 .01 0Z') + d('M12 13.6a2.9 2.9 0 1 0 .01 0Z') + d('M12 12.6v4.8M9.6 15h4.8') + s('M12 1.8v5.4M9.7 3.1l4.6 2.8M14.3 3.1 9.7 5.9') + s('M1.5 21.5h21')),
   homevault: svg(`<path class="f" fill-rule="evenodd" d="${COG}${cut(12, 12, 5.8)}"/>` + f('M8.7 13.2 12 10l3.3 3.2v3.4H8.7Z') + d('M7.9 13.3 12 9.2l4.1 4.1') + d('M11.1 16.6v-2.2h1.8v2.2')),
@@ -233,12 +252,13 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   // what the name says it is
   if (test(/gas station|petrol|filling station|\bfuel\b|\bshell\b|\bchevron\b|\bexxon|\bmobil\b|\b76\b|\barco\b|truck stop|travel cent(?:er|re)/, n)) return mix(n, ['pump', 'pump', 'car']);
   if (test(/\bauto (?:repair|body|parts|care|shop|mall)|\bgarage\b|mechanic|\btires?\b|\btyres?\b|car wash|\bmotors?\b|dealership|body shop/, n)) return mix(n, ['wrench', 'car']);
-  if (test(/pharmacy|drug ?store|walgreens|\bcvs\b|rite aid|apothec|chemist/, n)) return mix(n, ['pill', 'cross']);
-  if (test(/ambulance|paramedic|emergency room|urgent care/, n)) return 'ambulance';
+  if (test(/pharmacy|drug ?store|walgreens|\bcvs\b|rite aid|apothec|chemist/, n)) return mix(n, ['pill', 'capsules', 'medbottle', 'cross']);
+  if (test(/ambulance|paramedic|emergency room|urgent care/, n)) return mix(n, ['ambulance', 'lifestar', 'medkit']);
+  if (test(/dental|dentist|orthodont|teeth/, n)) return 'tooth';
   if (test(/college|universit|academy|institute|school of|high school|\bcampus\b/, n) && category === 'school') return mix(n, ['gradcap', 'school', 'book']);
-  if (test(/\bhotel\b|\bmotel\b|\binn\b|\bresort\b|\blodge\b|\bsuites\b|\bhostel\b/, n)) return mix(n, ['bed', 'key', 'bed']);
+  if (test(/\bhotel\b|\bmotel\b|\binn\b|\bresort\b|\blodge\b|\bsuites\b|\bhostel\b/, n)) return mix(n, ['bed', 'key', 'skeletonkey', 'bed']);
   if (test(/\bbar\b|\bbrew|\bpub\b|saloon|tavern|taproom|cocktail|\blounge\b|\bwine/, n)) return mix(n, ['mug', 'fork']);
-  if (test(/\bgym\b|fitness|\bymca\b|sports (?:complex|center|centre)|recreation|athletic|\bgolf\b/, n)) return mix(n, ['ball', 'trophy']);
+  if (test(/\bgym\b|fitness|\bymca\b|sports (?:complex|center|centre)|recreation|athletic|\bgolf\b/, n)) return mix(n, ['ball', 'trophy', 'pitch', 'track', 'standsflags']);
   if (test(/hall of fame|champion|trophy/, n)) return 'trophy';
   if (test(/national guard|armory|armoury|\barmy\b|\bnavy\b|\bnaval\b|marine corps|air force|coast guard|military/, n)) return mix(n, ['helmet', 'shield', 'cannon']);
   if (test(/\bmarket\b|grocery|supermarket|\bfoods?\b|\bmart\b|walmart|\btarget\b|costco|safeway|ralphs|\bvons\b/, n)) return mix(n, ['basket', 'cart', 'bag']);
@@ -248,7 +268,7 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (test(/\bbridge\b|\bpont\b|br[uü]cke|\bponte\b|puente|viaduct/, n)) return 'bridge';
   if (test(/\btunnel\b|\bstation\b|\bgare\b|bahnhof|estaci[oó]n|stazione|\bmetro\b|subway|underground|\btram\b/, n) && category === 'transit') return transitIcon(n);
   if (test(/\b(?:port|harbou?r|ferry|pier|dock|wharf|marina)\b/, n) && category === 'transit') return mix(n, ['anchor', 'lifebuoy', 'ship']);
-  if (test(/hospital|h[oô]pital|krankenhaus|ospedale|clinic|medical cent|infirmary|sanatorium/, n)) return 'hospital';
+  if (test(/hospital|h[oô]pital|krankenhaus|ospedale|clinic|medical cent|infirmary|sanatorium/, n)) return /clinic|medical cent|infirmary/.test(n) ? mix(n, ['medkit', 'crossheart', 'heartbeat', 'caduceus', 'bandage', 'syringe', 'hospital']) : mix(n, ['hospital', 'hospital', 'crossheart', 'caduceus', 'heartbeat', 'lifestar', 'medkit']);
   if (test(/museum|mus[eé]e|museo|gallery|galerie|aquarium|planetarium/, n)) return 'museum';
   if (test(/library|biblioth[eè]que|biblioteca|bibliothek|archive/, n)) return 'book';
   if (test(/observatory|planetarium|telescope|astronom/, n)) return 'observatory';
@@ -259,7 +279,7 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (test(/\blab\b|laborator|research (?:center|centre|institute)|science (?:center|centre)/, n)) return 'beaker';
   if (test(/castle|ch[aâ]teau|palace|palais|fortress|citadel|schloss|castello|alc[aá]zar|\bfort\b|barracks/, n)) return /\bfort\b|barracks|fortress|citadel/.test(n) ? mix(n, ['castle', 'cannon']) : 'castle';
   if (test(/capitol|parliament|city hall|town hall|courthouse|court house|state house|senate|congress|assembly|rathaus|ayuntamiento|h[oô]tel de ville|\bcourt of\b/, n)) return 'capitol';
-  if (test(/stadium|stade|stadion|estadio|arena|ballpark|coliseum|colosseum|speedway|racecourse|velodrome/, n)) return 'stadium';
+  if (test(/stadium|stade|stadion|estadio|arena|ballpark|coliseum|colosseum|speedway|racecourse|velodrome/, n)) return mix(n, ['stadium', 'bowlflags', 'arenaflags', 'standsflags', 'stadium']);
   if (test(/cathedral|cath[eé]drale|church|chapel|basilica|abbey|mosque|synagogue|temple|kirche|chiesa|iglesia|[eé]glise|minster|monastery|meeting house|shrine|pagoda|mission/, n)) return churchIcon(n);
   if (test(/lighthouse|light station|beacon/, n)) return 'lighthouse';
   if (test(/(?:tv|radio|television|telecom|transmitter|antenna)|\bmast\b/, n)) return 'radiotower';
@@ -291,12 +311,12 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (category === 'market') return mix(n, ['smallbuilding', 'cart', 'basket', 'bag']);
   if (category === 'fuel') return mix(n, ['smallbuilding', 'pump', 'wrench', 'car']);
   if (category === 'transit') return mix(n, ['subway', 'bus', 'subway', 'tram', 'car']);
-  if (category === 'medical') return mix(n, ['hospital', 'cross', 'pill', 'hospital', 'ambulance']);
+  if (category === 'medical') return mix(n, ['hospital', 'cross', 'pill', 'hospital', 'ambulance', 'medkit', 'caduceus', 'bandage', 'heartbeat', 'capsules', 'crossheart', 'tooth', 'lifestar', 'syringe', 'medbottle']);
   if (category === 'school') return mix(n, ['school', 'gradcap', 'book', 'school']);
   if (category === 'guard') return mix(n, ['shield', 'badge', 'helmet', 'shield']);
   if (category === 'chapel') return mix(n, ['church', 'bell', 'church', 'cross']);
-  if (category === 'arena') return mix(n, ['stadium', 'ball', 'trophy', 'stadium']);
-  if (category === 'lodging') return mix(n, ['bed', 'key', 'bed', 'houses']);
+  if (category === 'arena') return mix(n, ['stadium', 'ball', 'trophy', 'bowlflags', 'arenaflags', 'standsflags', 'pitch', 'track']);
+  if (category === 'lodging') return mix(n, ['bed', 'key', 'skeletonkey', 'bed', 'houses']);
   if (category === 'other') return mix(n, ['monument', 'column', 'flag', 'statue', 'ringart', 'skyscraper', 'ruins', 'radiotower', 'star', 'camera', 'lamp', 'bell']);
   return CATEGORY_ICON[category];
 }

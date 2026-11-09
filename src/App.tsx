@@ -158,6 +158,8 @@ export default function App() {
       const loc = personalLocation({ placeId: a.placeId, name: a.name, address: a.address, lat: a.lat, lng: a.lng, kind: a.kind }, true);
       return { ...loc, personal: { ...(loc.personal as NonNullable<Location['personal']>), atlas: true } };
     }), [atlas, account.personal]);
+  const personalLocsRef = useRef(personalLocs);
+  personalLocsRef.current = personalLocs;
   const allLocations = useMemo(() => [...locations, ...personalLocs, ...atlasLocs], [locations, personalLocs, atlasLocs]);
   // what the map draws and what can be opened: the loaded city's places plus the permanent landmarks of the rest of the world
   const mapLocations = useMemo(() => {
@@ -298,11 +300,38 @@ export default function App() {
   const shownVisited = useMemo(() => {
     const all = new Set(visited);
     if (homeId) all.add(homeId);
-    // an address whose snapshot they paid for counts as discovered
-    for (const q of account.personal) if (account.unlocked.has(personalId(q.placeId))) all.add(personalId(q.placeId));
     return all;
-  }, [visited, homeId, account.personal, account.unlocked]);
+  }, [visited, homeId]);
   const visitedRef = useRef(visited);
+  /** The places they have found in metros other than the one on the map (loaded for the Data tab, so each row can say what is there). */
+  const [foundLocs, setFoundLocs] = useState<Map<string, Location>>(new Map());
+  useEffect(() => {
+    if (tab !== 'data' || found.length === 0) return;
+    let off = false;
+    const wanted = new Set(found.map((f) => f.id));
+    const metroIds = new Set(found.map((f) => f.metroId).filter((m): m is string => !!m));
+    void loadIndex().then(async (index) => {
+      const next = new Map<string, Location>();
+      for (const id of metroIds) {
+        const entry = index.find((m) => m.id === id);
+        if (!entry) continue;
+        for (const l of await loadMetro(entry)) if (wanted.has(l.id)) next.set(l.id, l);
+        if (off) return;
+      }
+      if (!off) setFoundLocs(next);
+    });
+    return () => { off = true; };
+  }, [tab, found]);
+  const locationOf = useCallback((id: string): Location | undefined => mapLocations.find((l) => l.id === id) ?? foundLocs.get(id), [mapLocations, foundLocs]);
+  // an address typed in whose snapshot has been paid for becomes one of their own places at once (on the map with its icon, and in the Data tab's waiting list until they have been there)
+  const savedUnlocked = useRef(new Set<string>());
+  useEffect(() => {
+    const who = account.session;
+    if (!who || !target) return;
+    if (!account.unlocked.has(personalId(target.placeId)) || account.personal.some((q) => q.placeId === target.placeId) || savedUnlocked.current.has(target.placeId)) return;
+    savedUnlocked.current.add(target.placeId);
+    void savePersonalPlace(who.user.id, target).then(() => account.refresh());
+  }, [account, target]);
   const toastTimer = useRef<number | undefined>(undefined);
 
   const soundRef = useRef(false);
@@ -891,20 +920,21 @@ export default function App() {
   // ---- from the Data tab: go to a found place, or open its snapshot ----
   useEffect(() => {
     const p = pendingOpen.current;
-    if (!p || busy || !locations.some((l) => l.id === p.id)) return;
+    if (!p || busy || !(locations.some((l) => l.id === p.id) || (p.id.startsWith('me:') && personalLocs.some((l) => l.id === p.id)))) return;
     pendingOpen.current = null;
     setSelectedId(p.id);
     if (p.scene) { setSceneStart('snapshot'); setSceneId(p.id); }
-  }, [locations, busy]);
+  }, [locations, busy, personalLocs]);
   const openFound = useCallback(async (place: FoundPlace, scene: boolean) => {
     // on a phone the map is above the tabs: bring it into view
     document.querySelector('.rm-screen')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    if (locationsRef.current.some((l) => l.id === place.id)) {
+    if (locationsRef.current.some((l) => l.id === place.id) || (place.id.startsWith('me:') && personalLocsRef.current.some((l) => l.id === place.id))) {
       setSelectedId(place.id);
       if (scene) { setSceneStart('snapshot'); setSceneId(place.id); }
       return;
     }
     pendingOpen.current = { id: place.id, scene };
+    setSelectedId(null); // the card of the place they were looking at goes now, not after the map has moved
     await show(() => geocodeLatLng({ lat: place.lat, lng: place.lng }), place.city ?? place.name);
   }, [show]);
 
@@ -1316,7 +1346,7 @@ export default function App() {
           {moving && <div className="rm-moving" role="status"><CogSpinner big /><span>MOVING VAULT FURNITURE…</span></div>}
           {vacationAsk && vacationOffer && <VacationAsk choice={vacationAsk} offer={vacationOffer} account={account} onClose={() => setVacationAsk(null)} onDone={() => setVacationAsk(null)} />}
           {vaultOpen !== null && <VaultHome key={vaultOpen.key ?? 'home'} title={vaultOpen.title} vaultKey={vaultOpen.key} account={account} onExit={() => setVaultOpen(null)} vacation={vaultOpen.key ? undefined : vacationOffer} />}
-          {accountOpen && !account.session && <AccountModal auto={accountAuto} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
+          {accountOpen && !account.session && <AccountModal auto={accountAuto} onSound={sound} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
           <FaceIdOffer />
           {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped) || homeOpen) && (
             <HomePrompt
@@ -1352,7 +1382,7 @@ export default function App() {
                 onSelect={(id) => { if (navRef.current) return; setSelectedId(id); sound('select'); }}
               />
             )}
-            {tab === 'data' && <AccountPanel vacation={vacationOffer} onVacation={setVacationAsk} account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
+            {tab === 'data' && <AccountPanel locationOf={locationOf} vacation={vacationOffer} onVacation={setVacationAsk} account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
             {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} account={account} />}
           </section>
         </aside>

@@ -279,6 +279,10 @@ export async function buyPack(pack: string = 'caps400'): Promise<string | null> 
 
 export interface Unlocked {
   url: string;
+  /** No pre-war footage could be used (the property is blurred out, or there is no street picture): the picture is only the aftermath. */
+  rubble?: boolean;
+  /** How many credits went back for it, when it was just made. */
+  refunded?: number;
   credit: { photo: string; author: string; license: string; page: string };
 }
 export type UnlockResult =
@@ -299,7 +303,7 @@ export async function unlockRender(placeId: string, name: string, extra?: { kind
     }
     return { kind: 'error', reason: reason as 'server', resetsAt };
   }
-  if (data?.status === 'ready') return { kind: 'ready', render: { url: data.url as string, credit: (data.credit as Unlocked['credit'] | undefined) ?? { photo: 'Street View', author: 'Google', license: '', page: 'https://www.google.com/streetview/' } } };
+  if (data?.status === 'ready') return { kind: 'ready', render: { url: data.url as string, ...(data.rubble === true ? { rubble: true, refunded: Number(data.refunded) || undefined } : {}), credit: (data.credit as Unlocked['credit'] | undefined) ?? { photo: 'Street View', author: 'Google', license: '', page: 'https://www.google.com/streetview/' } } };
   if (data?.status === 'working') return { kind: 'working' };
   return { kind: 'error', reason: 'server' };
 }

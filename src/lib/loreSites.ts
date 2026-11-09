@@ -200,7 +200,6 @@ export const LORE_TOWNS: LoreTown[] = [
     anchor: { lat: 32.7157, lng: -117.1611 },
     sites: [
       s('dg-glow', 'The Glow', 'monument', 14000, -3000, 'The irradiated crater where the West Tek facility took a direct hit. Dayglow can see it from its borders.'),
-      s('dg-west-tek', 'West Tek', 'cluster', 9000, 6000, 'An abandoned technology center the ghouls of Necropolis wanted to scavenge.'),
       s('dg-new-adytum', 'New Adytum', 'house', -3000, -6000, 'A settlement whose scavenging companies partnered with the ghouls of Dayglow.'),
     ],
   },

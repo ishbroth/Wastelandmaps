@@ -53,11 +53,11 @@ function floodLayerAlphas(strength: number, layers: number, edge = 0.16): number
   if (layers <= 1) return [strength];
   // Where it is deepest the streets are very faint but still there (about 8% shows through). The edge starts dark enough (see floodEdge in looks.ts) that the
   // outer layer's tint can cancel the land exactly: any lighter and the tint would have to go below black, and the water comes out lighter than the sea.
-  const deepest = Math.min(0.92, strength + 0.1);
+  const deepest = Math.min(0.96, strength + 0.12);
   const out: number[] = [];
   let before = 0;
   for (let k = 0; k < layers; k++) {
-    const total = edge + (deepest - edge) * Math.pow(k / (layers - 1), 0.5); // how dark (the streets fade out quickly in from the shore, then hold at nearly gone) it should be after this layer
+    const total = edge + (deepest - edge) * Math.pow(k / (layers - 1), 1.15); // how dark it should be after this layer: a long, even fade from the shore in to the middle fifth, where only a thin faint line of road is left
     out.push(Math.min(0.99, Math.max(0.02, 1 - (1 - total) / (1 - before))));
     before = total;
   }
@@ -416,11 +416,11 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     // looks drowned. Zoomed in, each patch is a stack of nested outlines, so the water is thin at the shore and deepest in the middle, and the main
     // streets running into it fade out gradually instead of stopping at an edge.
     const onScreen = near.filter((p) => (p[2] * Math.max(1, p[3])) / ((156543.03 * Math.cos((p[0] * Math.PI) / 180)) / 2 ** zoomNow) >= 1.2);
-    const baseLayers = zoomNow >= 15 ? 18 : zoomNow >= 12 ? 10 : zoomNow >= 10 ? 4 : 1;
+    const baseLayers = zoomNow >= 15 ? 28 : zoomNow >= 12 ? 18 : zoomNow >= 10 ? 5 : 1;
     const layers = Math.max(1, Math.min(baseLayers, Math.floor(600 / Math.max(1, onScreen.length))));
     const wanted = new Map<string, { patch: FloodPatch; layer: number }>();
     for (const p of onScreen) {
-      for (let k = 0; k < layers; k++) wanted.set(`${p[5]}:${layers}:${k}`, { patch: [p[0], p[1], p[2] * (layers === 1 ? 1 : 1 - (k / layers) * 0.85), p[3], p[4], p[5]], layer: k });
+      for (let k = 0; k < layers; k++) wanted.set(`${p[5]}:${layers}:${k}`, { patch: [p[0], p[1], p[2] * (layers === 1 ? 1 : 1 - (k / layers) * 0.8), p[3], p[4], p[5]], layer: k });
     }
     shapes.forEach((shape, key) => {
       if (wanted.has(key)) return;

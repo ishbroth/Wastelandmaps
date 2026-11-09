@@ -7,9 +7,8 @@ import { enemiesLine, lootSummary, raidFor } from '../lib/raid/raid';
 import LockIcon from './LockIcon';
 import VacationCog from './VacationCog';
 import type { VacationChoice, VacationOffer } from './VaultHome';
-import { personalId } from '../lib/personal';
+import { personalId, personalLocation } from '../lib/personal';
 import { purchasesAvailable } from '../lib/native';
-import { faceIdName, forgetFaceId, savedFaceIds } from '../lib/faceid';
 import Leaderboard from './Leaderboard';
 import Caps, { CapIcon } from './Caps';
 import { STIMPAK_TRADES, TIME_TRADES, affordableQty } from '../../supabase/functions/_shared/stimpak';
@@ -128,9 +127,9 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
             <button type="button" className={`rm-row ${l.id === selectedId ? 'rm-row-selected' : ''}`} onClick={() => onSelect(l.id)}>
               <span className={`rm-row-icon${visited.has(l.id) ? ' rm-icon-filled' : ''}`} dangerouslySetInnerHTML={{ __html: iconHtmlFor(l.id, placeIcon(l.icon)) }} />
               <span className="rm-row-text">
-                <b>{l.name}{visited.has(l.id) ? ' ✓' : ''}{cleared.has(l.id) ? ' [CLEARED]' : ''}</b>
+                <b>{l.name}{visited.has(l.id) ? ' ✓' : ''}</b>
                 <i>{subtitle(l)}</i>
-                <small>{enemiesLine(l)}{l.rads > 60 ? ` · ${l.rads} RADS` : ''} · loot: {lootSummary(raidFor(l))}</small>
+                <small>{cleared.has(l.id) ? '[CLEARED]' : <>{enemiesLine(l)}{l.rads > 60 ? ` · ${l.rads} RADS` : ''} · loot: {lootSummary(raidFor(l))}</>}</small>
                 {waitingLine(account.waiting.get(l.id)) && <small className="rm-waiting">WAITING FOR YOU: {waitingLine(account.waiting.get(l.id))}</small>}
               </span>
               <span className="rm-row-dist">{miles(d)}</span>
@@ -146,21 +145,31 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
   );
 }
 
-/** A camera with a mushroom cloud in it: this place's snapshot is unlocked. */
-function SnapshotIcon() {
-  // a photograph: a frame with a sun and hills
-  return (
-    <svg viewBox="0 0 40 34" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="4" y="4" width="32" height="26" rx="2.5" />
-      <circle cx="13" cy="12" r="3" fill="currentColor" />
-      <path d="M4 26 14 17l7 7 5-4 10 8" />
-    </svg>
-  );
+/** A list that shows this many rows at a time and scrolls through the rest (the window keeps the height of its first rows). */
+function useRowWindow(count: number, max: number) {
+  const ref = useRef<HTMLUListElement | null>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const ul = ref.current;
+    if (!ul) return;
+    const measure = () => {
+      const items = Array.from(ul.children).slice(0, max) as HTMLElement[];
+      if (count <= max || items.length < max) { setHeight(null); return; }
+      const h = Math.ceil(items[max - 1].getBoundingClientRect().bottom - items[0].getBoundingClientRect().top);
+      setHeight((prev) => (prev !== null && Math.abs(prev - h) < 2 ? prev : h));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(ul);
+    return () => ro.disconnect();
+  }, [count, max]);
+  return { ref, style: height ? { height } : undefined };
 }
 
-
 /** The Data tab: credits, and every place found, newest first; a place opens on the map, and an unlocked snapshot opens ready to play. */
-export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, onAccount, onGoTo, onSnapshot, vacation, onVacation }: {
+export function AccountPanel({ account, found, iconOf, locationOf, metroRows, onChangeHome, onAccount, onGoTo, vacation, onVacation }: {
+  /** The place itself (what is there: enemies and loot), when it is known. */
+  locationOf: (id: string) => Location | undefined;
   vacation?: VacationOffer;
   onVacation?: (choice: VacationChoice) => void;
   account: Account;
@@ -172,7 +181,7 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
   iconOf: (id: string) => string;
   onAccount: () => void;
   onGoTo: (place: FoundPlace) => void;
-  onSnapshot: (place: FoundPlace) => void;
+  onSnapshot?: (place: FoundPlace) => void;
 }) {
   /** How the discovered places are ordered: by distance from home, or the newest first. */
   const [sort, setSort] = useState<'dist' | 'time'>('dist');
@@ -195,6 +204,15 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
     rows.sort(sort === 'dist' ? (x, y) => x.d - y.d : (x, y) => (x.p.foundAt < y.p.foundAt ? 1 : x.p.foundAt > y.p.foundAt ? -1 : 0));
     return rows;
   }, [recent, sort, homeAt?.lat, homeAt?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the addresses whose snapshot was paid for but that have not been visited yet, nearest to home first
+  const foundIds = new Set(found.map((f) => f.id));
+  const waitingPlaces = account.personal
+    .filter((q) => { const id = personalId(q.placeId); return id !== homeId && !foundIds.has(id) && snapshotUnlocked(account, id); })
+    .map((q) => ({ q, loc: personalLocation(q, true), d: homeAt ? distanceMeters(homeAt, { lat: q.lat, lng: q.lng }) : 0 }))
+    .sort((x, y) => x.d - y.d);
+  const foundWindow = useRowWindow(places.length, 6);
+  const waitingWindow = useRowWindow(waitingPlaces.length, 6);
 
   if (!account.session) {
     return (
@@ -220,17 +238,10 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
         <span>{account.email}</span>
         <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void signOut()}>SIGN OUT</button>
       </div>
-      <ForgetFaceId />
       <div className="rm-acct-credits">
         <div><b className="rm-caps-big"><CapIcon />{account.credits === null ? '…' : caps(account.credits).toLocaleString('en-US')}</b> <span>CAPS</span></div>
       </div>
       <Packs onBought={() => void account.refresh()} />
-
-      <h3>HOME</h3>
-      <div className="rm-acct-credits">
-        <div><span>{account.home?.address ? `${account.home.vaultNumber !== undefined ? `VAULT ${String(account.home.vaultNumber).padStart(4, '0')} · ` : ''}${account.home.address}` : 'Not set'}</span></div>
-        <button type="button" className="rm-btn rm-btn-ghost" onClick={onChangeHome}>{account.home?.address ? 'CHANGE' : 'SET HOME'}</button>
-      </div>
 
       <h3>LOOT</h3>
       <div className="rm-loot">
@@ -297,6 +308,12 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
         })}
       </ul>
 
+      <h3>HOME</h3>
+      <div className="rm-acct-credits">
+        <div><span>{account.home?.address ? `${account.home.vaultNumber !== undefined ? `VAULT ${String(account.home.vaultNumber).padStart(4, '0')} · ` : ''}${account.home.address}` : 'Not set'}</span></div>
+        <button type="button" className="rm-btn rm-btn-ghost" onClick={onChangeHome}>{account.home?.address ? 'CHANGE' : 'SET HOME'}</button>
+      </div>
+
       {ask && (() => {
         const failed = (reason?: string) => (reason === 'full' ? 'YOU CAN HOLD AT MOST 99.' : reason === 'loot' ? 'NOT ENOUGH LOOT.' : 'THAT DID NOT GO THROUGH. NOTHING WAS SPENT.');
         if (ask.kind === 'gun') {
@@ -323,40 +340,74 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
         );
       })()}
 
-      <h3>DISCOVERED PLACES ({recent.length})</h3>
+      <h3>DISCOVERED LOCATIONS ({recent.length})</h3>
       {recent.length === 0 && <p className="rm-empty">Nothing found yet. Fast travel to a place, or turn on AUTO-DISCOVER and go for a walk.</p>}
       {recent.length > 1 && (
-        <div className="rm-sort-toggle" role="group" aria-label="Order of the discovered places">
+        <div className="rm-sort-toggle" role="group" aria-label="Order of the discovered locations">
           <button type="button" className={sort === 'dist' ? 'on' : ''} aria-pressed={sort === 'dist'} onClick={() => setSort('dist')}>DIST</button>
           <button type="button" className={sort === 'time' ? 'on' : ''} aria-pressed={sort === 'time'} onClick={() => setSort('time')}>TIME</button>
         </div>
       )}
-      <ul className="rm-list rm-found-list">
+      <ul className="rm-list rm-found-list" ref={foundWindow.ref} style={foundWindow.style}>
         {places.map(({ p, d }) => {
           const unlocked = snapshotUnlocked(account, p.id);
           const cleared = account.cleared.has(p.id);
+          const loc = locationOf(p.id);
+          const waiting = waitingLine(account.waiting.get(p.id));
           const choice = vacation?.ready ? vacation.choices.find((c) => c.placeId === p.id) : undefined;
           return (
             <li key={p.id} className="rm-row-li">
               <button type="button" className="rm-row" onClick={() => onGoTo(p)}>
                 <span className="rm-row-icon rm-icon-filled" dangerouslySetInnerHTML={{ __html: iconOf(p.id) }} />
                 <span className="rm-row-text">
-                  <b>{p.name}{cleared ? ' [CLEARED]' : ''}</b>
+                  <b>{p.name}</b>
                   {p.city && <i>{[p.city, p.state].filter(Boolean).join(', ')}</i>}
-                  <small><LockIcon open={unlocked} /> SNAPSHOT {unlocked ? 'UNLOCKED' : 'LOCKED'}</small>
+                  {cleared
+                    ? <small>[CLEARED]</small>
+                    : (
+                      <>
+                        {loc && <small>{enemiesLine(loc)}{loc.rads > 60 ? ` · ${loc.rads} RADS` : ''} · loot: {lootSummary(raidFor(loc))}</small>}
+                        <small><LockIcon open={unlocked} /> SNAPSHOT {unlocked ? 'UNLOCKED' : 'LOCKED'}</small>
+                      </>
+                    )}
+                  {waiting && <small className="rm-waiting">WAITING FOR YOU: {waiting}</small>}
                 </span>
                 {homeAt && <span className="rm-row-dist">{miles(d)}</span>}
               </button>
-              {unlocked && (
-                <button type="button" className="rm-found-snap" onClick={() => onSnapshot(p)} title="Open the snapshot" aria-label={`Open the snapshot of ${p.name}`}>
-                  <SnapshotIcon />
-                </button>
-              )}
               {choice && onVacation && <VacationCog name={p.name} onClick={() => onVacation(choice)} />}
             </li>
           );
         })}
       </ul>
+
+      {waitingPlaces.length > 0 && (
+        <>
+          <h3>WAITING ({waitingPlaces.length})</h3>
+          <p className="rm-fine">Snapshots you have unlocked of places you have not been to yet, nearest to home first.</p>
+          <ul className="rm-list rm-found-list" ref={waitingWindow.ref} style={waitingWindow.style}>
+            {waitingPlaces.map(({ q, loc, d }) => {
+              const cleared = account.cleared.has(loc.id);
+              const waiting = waitingLine(account.waiting.get(loc.id));
+              const place: FoundPlace = { id: loc.id, name: q.name, oldName: null, metroId: null, city: null, state: null, country: null, lat: q.lat, lng: q.lng, foundAt: '', worth: 0 };
+              return (
+                <li key={loc.id} className="rm-row-li">
+                  <button type="button" className="rm-row" onClick={() => onGoTo(place)}>
+                    <span className="rm-row-icon" dangerouslySetInnerHTML={{ __html: iconHtmlFor(loc.id, placeIcon(loc.icon)) }} />
+                    <span className="rm-row-text">
+                      <b>{q.name}</b>
+                      <i>{q.address}</i>
+                      {cleared
+                        ? <small>{waiting ? <span className="rm-waiting">WAITING FOR YOU: {waiting}</span> : '[CLEARED]'}</small>
+                        : <small>{enemiesLine(loc)} · loot: {lootSummary(raidFor(loc))}</small>}
+                    </span>
+                    {homeAt && <span className="rm-row-dist">{miles(d)}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
       <LegalLinks />
       <DeleteLine />
     </div>
@@ -460,20 +511,6 @@ function DeleteLine() {
 function LegalLinks() {
   return (
     <p className="rm-fine rm-privacy-line"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a> · <a href="https://wastelandmaps.com/support.html" target="_blank" rel="noopener noreferrer">Support</a> · <a href={`${import.meta.env.BASE_URL}age-rating.html`} target="_blank" rel="noreferrer">Age suitability</a></p>
-  );
-}
-
-/** In the app: a line to forget the sign-ins saved behind Face ID on this phone (shown only if there are any). */
-function ForgetFaceId() {
-  const [count, setCount] = useState(savedFaceIds().length);
-  const [name, setName] = useState<string | null>(null);
-  useEffect(() => { void faceIdName().then(setName); }, []);
-  if (!name || count === 0) return null;
-  return (
-    <p className="rm-fine">
-      {name === 'FACE ID' ? 'Face ID' : name === 'TOUCH ID' ? 'Touch ID' : 'Biometric'} sign-in is on for this phone.{' '}
-      <button type="button" className="rm-link" onClick={() => void forgetFaceId().then(() => setCount(0))}>Forget it</button>
-    </p>
   );
 }
 
