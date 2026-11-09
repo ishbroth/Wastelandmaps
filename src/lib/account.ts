@@ -78,6 +78,8 @@ export interface Account {
   arsenal: Arsenal;
   /** Their vacation vaults (up to four): places turned into extra vaults. */
   vacations: Vacation[];
+  /** How many rooms the home vault has (ten unlock vacation vaults). */
+  homeRooms: number;
   /** Places they have already looted: each can be looted once, and shows [Cleared] on the map. */
   cleared: Set<string>;
   refresh: () => Promise<void>;
@@ -95,6 +97,7 @@ export function useAccount(): Account {
   const [stimpaks, setStimpaks] = useState(0);
   const [legendaryTime, setLegendaryTime] = useState(0);
   const [vacations, setVacations] = useState<Vacation[]>([]);
+  const [homeRooms, setHomeRooms] = useState(0);
   const [arsenal, setArsenal] = useState<Arsenal>(STARTING_ARSENAL);
   const [cleared, setCleared] = useState<Set<string>>(new Set());
   const [personal, setPersonal] = useState<PersonalPlace[]>([]);
@@ -116,6 +119,7 @@ export function useAccount(): Account {
       setStimpaks(0);
       setLegendaryTime(0);
       setVacations([]);
+      setHomeRooms(0);
       setArsenal(STARTING_ARSENAL);
       setCleared(new Set());
       setPersonal([]);
@@ -135,7 +139,9 @@ export function useAccount(): Account {
       db().from('player_stimpaks').select('qty').eq('user_id', s.user.id).maybeSingle(),
       db().from('player_time').select('qty').eq('user_id', s.user.id).maybeSingle(),
       db().from('vacation_vault').select('place_id,name,icon,lat,lng').eq('user_id', s.user.id).eq('status', 'ready'),
-    ]).then(([l, w, st, tm, vc]) => {
+      db().from('home_vault').select('state').eq('user_id', s.user.id).eq('vault_key', 'home').maybeSingle(),
+    ]).then(([l, w, st, tm, vc, hv]) => {
+      setHomeRooms(((hv.data?.state as { rooms?: unknown[] } | undefined)?.rooms ?? []).length);
       setVacations(((vc.data ?? []) as { place_id: string; name: string; icon: string; lat: number; lng: number }[]).map((r) => ({ placeId: r.place_id, name: r.name, icon: r.icon, lat: r.lat, lng: r.lng })));
       setStimpaks((st.data?.qty as number | undefined) ?? 0);
       setLegendaryTime((tm.data?.qty as number | undefined) ?? 0);
@@ -213,7 +219,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, legendaryTime, vacations, waiting, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, clearedPaid, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, legendaryTime, vacations, homeRooms, waiting, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, clearedPaid, refresh, loaded };
 }
 
 /** Emails a sign-in link. */
@@ -560,8 +566,8 @@ export async function vaultCall(body: ({ action: 'visit' } | { action: 'build'; 
 export type VacationAnswer = { ok: true; url: string } | { ok: false; error: string; resetsAt?: string };
 
 /** Turns a discovered place into a vacation vault: its picture is made again with a vault door in it, and 8 pieces of loot are taken once it exists. */
-export async function vacationUnlock(placeId: string, icon: string): Promise<VacationAnswer> {
-  const { data, error } = await db().functions.invoke('vacation-vault', { body: { action: 'unlock', placeId, icon } });
+export async function vacationUnlock(placeId: string, icon: string, replace?: string): Promise<VacationAnswer> {
+  const { data, error } = await db().functions.invoke('vacation-vault', { body: { action: 'unlock', placeId, icon, replace } });
   if (error || !data) {
     // a refusal comes back as an error with a body: read what it said
     try { const body = await (error as { context?: Response } | null)?.context?.json?.(); if (body?.error) return { ok: false, error: String(body.error), resetsAt: body.resetsAt }; } catch { /* no body */ }

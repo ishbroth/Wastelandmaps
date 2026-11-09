@@ -3,7 +3,10 @@ import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } 
 import { freeRenderFor } from '../lib/renders';
 import { LOOT_CAP } from '../lib/raid/loot';
 import { waitingLine } from '../lib/waitingLoot';
-import { enemiesLine, homePlan, lootSummary, planEnemies, planFor, raidFor } from '../lib/raid/raid';
+import { enemiesLine, lootSummary, raidFor } from '../lib/raid/raid';
+import LockIcon from './LockIcon';
+import VacationCog from './VacationCog';
+import type { VacationChoice, VacationOffer } from './VaultHome';
 import { personalId } from '../lib/personal';
 import { purchasesAvailable } from '../lib/native';
 import { faceIdName, forgetFaceId, savedFaceIds } from '../lib/faceid';
@@ -23,9 +26,22 @@ import { buildShareUrl } from '../lib/share';
 import type { LookId } from '../lib/looks';
 import type { Region } from '../lib/google';
 
+/** Is this place's snapshot unlocked? The same test the snapshot button uses: a free landmark, a place unlocked with a credit, or your home (unlocked under its vault key). */
+function snapshotUnlocked(account: Account, id: string): boolean {
+  if (account.unlocked.has(id) || freeRenderFor(id)) return true;
+  if (id.startsWith('me:')) {
+    const place = id.slice(3);
+    for (const key of account.unlocked) if (key.startsWith(`vault:${place}:`)) return true;
+  }
+  return false;
+}
+
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
-export function LocationsPanel({ metro, account, region, locations: everywhere, hidden, onToggleCategory, selectedId, visited, cleared, onSelect }: {
+export function LocationsPanel({ metro, account, region, locations: everywhere, hidden, onToggleCategory, selectedId, visited, cleared, onSelect, vacation, onVacation }: {
+  /** Vacation vaults: a cog beside [CLEARED] on a cleared place outside the home metro. */
+  vacation?: VacationOffer;
+  onVacation?: (choice: VacationChoice) => void;
   /** The metro under the map: the list is its places only, and changes as the map moves to another metro (its address atlas sits above the list). */
   metro?: { id?: string; name?: string; lat?: number; lng?: number; radiusKm?: number } | null;
   account: Account;
@@ -108,7 +124,7 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
       {account.session && metro?.id && <AtlasBox account={account} metro={{ id: metro.id, name: metro.name ?? metro.id }} />}
       <ul className="rm-list" ref={listRef} style={listHeight ? { height: listHeight } : undefined}>
         {rows.map(({ l, d }) => (
-          <li key={l.id} ref={l.id === selectedId ? selectedRow : null}>
+          <li key={l.id} ref={l.id === selectedId ? selectedRow : null} className="rm-row-li">
             <button type="button" className={`rm-row ${l.id === selectedId ? 'rm-row-selected' : ''}`} onClick={() => onSelect(l.id)}>
               <span className={`rm-row-icon${visited.has(l.id) ? ' rm-icon-filled' : ''}`} dangerouslySetInnerHTML={{ __html: iconHtmlFor(l.id, placeIcon(l.icon)) }} />
               <span className="rm-row-text">
@@ -119,6 +135,9 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
               </span>
               <span className="rm-row-dist">{miles(d)}</span>
             </button>
+            {onVacation && vacation?.ready && cleared.has(l.id) && vacation.choices.find((c) => c.placeId === l.id) && (
+              <VacationCog name={l.name} onClick={() => onVacation(vacation.choices.find((c) => c.placeId === l.id) as VacationChoice)} />
+            )}
           </li>
         ))}
         {rows.length === 0 && <li className="rm-empty">Nothing here. Turn a category back on.</li>}
@@ -143,7 +162,9 @@ function SnapshotIcon() {
 
 
 /** The Data tab: credits, and every place found, newest first; a place opens on the map, and an unlocked snapshot opens ready to play. */
-export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, onAccount, onGoTo, onSnapshot }: {
+export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, onAccount, onGoTo, onSnapshot, vacation, onVacation }: {
+  vacation?: VacationOffer;
+  onVacation?: (choice: VacationChoice) => void;
   account: Account;
   onChangeHome: () => void;
   found: FoundPlace[];
@@ -155,7 +176,8 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
   onGoTo: (place: FoundPlace) => void;
   onSnapshot: (place: FoundPlace) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  /** How the discovered places are ordered: by distance from home, or the newest first. */
+  const [sort, setSort] = useState<'dist' | 'time'>('dist');
   /** The "spend this loot?" question that is open, if any. */
   const [ask, setAsk] = useState<{ kind: 'stimpak' | 'time'; id: string } | { kind: 'gun'; id: WeaponClass } | null>(null);
   // every place found, in the order found, starting with home
@@ -169,7 +191,12 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
     };
     return [mine, ...oldest.filter((p) => p.id !== homeId)];
   }, [found, homeId, account.home]);
-  const shown = expanded ? recent : recent.slice(0, 5);
+  const homeAt = account.home?.lat !== undefined && account.home?.lng !== undefined ? { lat: account.home.lat, lng: account.home.lng } : null;
+  const places = useMemo(() => {
+    const rows = recent.map((p) => ({ p, d: homeAt ? distanceMeters(homeAt, { lat: p.lat, lng: p.lng }) : 0 }));
+    rows.sort(sort === 'dist' ? (x, y) => x.d - y.d : (x, y) => (x.p.foundAt < y.p.foundAt ? 1 : x.p.foundAt > y.p.foundAt ? -1 : 0));
+    return rows;
+  }, [recent, sort, homeAt?.lat, homeAt?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!account.session) {
     return (
@@ -298,34 +325,40 @@ export function AccountPanel({ account, found, iconOf, metroRows, onChangeHome, 
         );
       })()}
 
-      <h3>PLACES YOU HAVE FOUND ({recent.length})</h3>
+      <h3>DISCOVERED PLACES ({recent.length})</h3>
       {recent.length === 0 && <p className="rm-empty">Nothing found yet. Fast travel to a place, or turn on AUTO-DISCOVER and go for a walk.</p>}
-      <ul className={`rm-found-places rm-found-recent${expanded ? ' rm-found-window' : ''}`}>
-        {shown.map((p) => {
-          const unlocked = account.unlocked.has(p.id) || !!freeRenderFor(p.id);
-          const plan = p.id === homeId ? homePlan() : planFor(p.id, p.worth ?? 10);
+      {recent.length > 1 && (
+        <div className="rm-sort-toggle" role="group" aria-label="Order of the discovered places">
+          <button type="button" className={sort === 'dist' ? 'on' : ''} aria-pressed={sort === 'dist'} onClick={() => setSort('dist')}>DIST</button>
+          <button type="button" className={sort === 'time' ? 'on' : ''} aria-pressed={sort === 'time'} onClick={() => setSort('time')}>TIME</button>
+        </div>
+      )}
+      <ul className="rm-list rm-found-list">
+        {places.map(({ p, d }) => {
+          const unlocked = snapshotUnlocked(account, p.id);
           const cleared = account.cleared.has(p.id);
+          const choice = vacation?.ready ? vacation.choices.find((c) => c.placeId === p.id) : undefined;
           return (
-            <li key={p.id} className="rm-found-place">
-              <span className="rm-found-icon rm-icon-filled" dangerouslySetInnerHTML={{ __html: iconOf(p.id) }} />
-              <button type="button" className="rm-found-go" onClick={() => onGoTo(p)}>
-                <b>{p.name}</b>
-                <i>{unlocked ? '\u{1F513}' : '\u{1F512}'} snapshot · {cleared ? '[CLEARED]' : `${planEnemies(plan)} · ${lootSummary(plan)}`}</i>
+            <li key={p.id} className="rm-row-li">
+              <button type="button" className="rm-row" onClick={() => onGoTo(p)}>
+                <span className="rm-row-icon rm-icon-filled" dangerouslySetInnerHTML={{ __html: iconOf(p.id) }} />
+                <span className="rm-row-text">
+                  <b>{p.name}{cleared ? ' [CLEARED]' : ''}</b>
+                  {p.city && <i>{[p.city, p.state].filter(Boolean).join(', ')}</i>}
+                  <small><LockIcon open={unlocked} /> SNAPSHOT {unlocked ? 'UNLOCKED' : 'LOCKED'}</small>
+                </span>
+                {homeAt && <span className="rm-row-dist">{miles(d)}</span>}
               </button>
               {unlocked && (
                 <button type="button" className="rm-found-snap" onClick={() => onSnapshot(p)} title="Open the snapshot" aria-label={`Open the snapshot of ${p.name}`}>
                   <SnapshotIcon />
                 </button>
               )}
+              {choice && onVacation && <VacationCog name={p.name} onClick={() => onVacation(choice)} />}
             </li>
           );
         })}
       </ul>
-      {recent.length > 5 && (
-        <button type="button" className="rm-btn rm-btn-ghost rm-found-more" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
-          {expanded ? 'SHOW FEWER' : `SHOW ALL ${recent.length}`}
-        </button>
-      )}
       <LegalLinks />
       <DeleteLine />
     </div>

@@ -18,7 +18,8 @@ import BlowApart from './BlowApart';
 import RaidScreen from './RaidScreen';
 import ProjectorDown from './ProjectorDown';
 import { buzz } from '../lib/haptics';
-import VaultHome, { type VacationOffer } from './VaultHome';
+import VaultHome, { type VacationChoice, type VacationOffer } from './VaultHome';
+import VacationCog from './VacationCog';
 import { spawnsForSpot } from '../lib/raid/spawnData';
 import { lootSummary, planEnemies, type RaidPlan } from '../lib/raid/raid';
 import { lootName } from '../lib/raid/loot';
@@ -30,9 +31,11 @@ type Tab = 'scene' | 'snapshot';
  * blown apart to reveal it destroyed, game-style. Seven famous landmarks have a snapshot everyone can see. For any other place with a free
  * photo it is locked until someone spends a credit; the real photo stays hidden until then.
  */
-export default function SceneModal({ vacation, zones = [], startOn = 'scene', startRaid = false, spot, regionName, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
+export default function SceneModal({ vacation, onVacation, zones = [], startOn = 'scene', startRaid = false, spot, regionName, visited, account, plan, raid, sound, metroId, onAccount, onClose }: {
   /** What the home vault needs to offer vacation vaults. */
   vacation?: VacationOffer;
+  /** The cog beside CLEARED was pressed: ask about making this place a vacation vault. */
+  onVacation?: (choice: VacationChoice) => void;
   /** The metro the map is showing: an address rendered here belongs to its atlas. */
   metroId?: string | null;
   /** The radiation clouds on the map. */
@@ -173,6 +176,9 @@ export default function SceneModal({ vacation, zones = [], startOn = 'scene', st
           >
             {!render && searching ? 'SNAPSHOT…' : snapshotAvailable ? <>SNAPSHOT <LockIcon open={!locked} /></> : 'NO SNAPSHOT'}
           </button>
+          {onVacation && vacation?.ready && vacation.choices.find((c) => c.placeId === spot.id) && (
+            <VacationCog name={spot.name} onClick={() => onVacation(vacation.choices.find((c) => c.placeId === spot.id) as VacationChoice)} />
+          )}
           {reveal && raid && (
             <button type="button" className="rm-tab-loot" disabled={account.cleared.has(spot.id) && !home} onClick={() => (home && account.cleared.has(spot.id) ? setEntering(true) : setRaiding(true))} title={home && account.cleared.has(spot.id) ? 'Go into your home vault' : account.cleared.has(spot.id) ? 'Already cleared' : 'Clear out what lives there (the loot is yours once you have discovered the place)'}>{home && account.cleared.has(spot.id) ? 'ENTER' : account.cleared.has(spot.id) ? 'CLEARED' : 'CLEAR'}</button>
           )}

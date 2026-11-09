@@ -5,22 +5,22 @@
 
 export type LootBag = Partial<Record<string, number>>;
 
-/** One level of the floorplan: five rooms across and three deep. */
-export const COLS = 5;
-export const ROWS = 3;
+/** One level of the floorplan: eleven cells by eleven, room enough to grow in any direction from the entryway in the middle (15 rooms is the most there can be). */
+export const COLS = 11;
+export const ROWS = 11;
 /** Levels down: the one you start on and four more. */
 export const LEVELS = 5;
 /** The most room slots a vault can hold, on whatever levels (a wide room takes two). */
 export const MAX_SLOTS = 15;
-/** A level needs this many rooms before the next one can be dug under it. */
-export const ROOMS_TO_DIG = 3;
+/** A level needs this many rooms before the next one can be dug under it: the entryway counts for the first level, so you can dig down at once once the decontamination shower is in. */
+export const ROOMS_TO_DIG = 1;
 /** Rooms it takes before a vacation vault can be bought, and how many of them a person can have. */
 export const ROOMS_FOR_VACATION = 10;
 export const MAX_VACATIONS = 4;
 /** Where the entryway stands on the first level. */
-export const ENTRY_AT = { col: 2, row: 2 };
+export const ENTRY_AT = { col: 5, row: 5 };
 
-export type RoomType = 'entry' | 'living' | 'kitchen' | 'bedroom' | 'dining' | 'bathroom' | 'entertainment' | 'workshop' | 'game';
+export type RoomType = 'entry' | 'living' | 'kitchen' | 'bedroom' | 'dining' | 'bathroom' | 'laundry' | 'entertainment' | 'workshop' | 'game';
 
 export interface FurnitureDef { id: string; name: string }
 export interface RoomDef {
@@ -33,7 +33,7 @@ export interface RoomDef {
   furniture: FurnitureDef[];
   /** False for the entryway: every vault has it from the start and it cannot be built. */
   buildable?: boolean;
-  /** A small room (the entryway, the bathroom): drawn smaller than the standard room that fills a cell. It still takes one slot. */
+  /** A small room (the entryway, the bathroom, the laundry room): drawn smaller than the standard room that fills a cell. It still takes one slot. */
   small?: boolean;
 }
 
@@ -43,6 +43,7 @@ export const ROOM_DEFS: RoomDef[] = [
   { id: 'dining', name: 'Dining Room', slots: 1, max: 3, furniture: [{ id: 'table', name: 'Dining Table' }, { id: 'chairs', name: 'Dining Chairs' }, { id: 'chandelier', name: 'Candle Chandelier' }, { id: 'chinacabinet', name: 'China Cabinet' }] },
   { id: 'kitchen', name: 'Kitchen', slots: 1, max: 3, furniture: [{ id: 'sinkcabinets', name: 'Cabinets & Sink' }, { id: 'fridge', name: 'Refrigerator' }, { id: 'stove', name: 'Stove' }] },
   { id: 'bedroom', name: 'Bedroom', slots: 1, max: 6, furniture: [{ id: 'bed', name: 'Bed' }, { id: 'nightstand', name: 'Nightstands' }, { id: 'dresser', name: 'Dresser' }, { id: 'lamp', name: 'Lamp' }] },
+  { id: 'laundry', name: 'Laundry Room', slots: 1, max: 2, small: true, furniture: [{ id: 'washer', name: 'Washer' }, { id: 'dryer', name: 'Dryer' }, { id: 'ironingboard', name: 'Ironing Board' }] },
   { id: 'bathroom', name: 'Bathroom', slots: 1, max: 3, small: true, furniture: [{ id: 'toilet', name: 'Toilet' }, { id: 'bathsink', name: 'Sink' }, { id: 'shower', name: 'Shower' }] },
   { id: 'entertainment', name: 'Entertainment Room', slots: 2, max: 1, furniture: [{ id: 'seating', name: 'Theatre Seating' }, { id: 'screen', name: 'Screen' }, { id: 'speakers', name: 'Speakers' }] },
   { id: 'game', name: 'Game Room', slots: 2, max: 1, furniture: [{ id: 'pooltable', name: 'Pool Table' }, { id: 'bar', name: 'Bar' }, { id: 'pinball', name: 'Pinball Machine' }] },
@@ -84,7 +85,7 @@ export interface VaultHome {
   legacy?: boolean;
 }
 
-export const newVault = (now: number, seed = 0): VaultHome => ({ seed, layout: 2, rooms: [{ type: 'entry', level: 0, ...ENTRY_AT, furniture: [] }], settlers: [], from: 50, sessionAt: now, seenAt: now, boost: 0, boostAt: now });
+export const newVault = (now: number, seed = 0): VaultHome => ({ seed, layout: 3, rooms: [{ type: 'entry', level: 0, ...ENTRY_AT, furniture: [] }], settlers: [], from: 50, sessionAt: now, seenAt: now, boost: 0, boostAt: now });
 
 // ---- the grid ----
 
@@ -106,7 +107,8 @@ export const hasDecon = (v: VaultHome): boolean => v.legacy === true || v.rooms.
 export function whyNotDig(v: VaultHome, level: number): string | null {
   if (level + 1 >= LEVELS) return 'There is nothing below the fifth level';
   if (roomsOn(v, level + 1).length > 0) return null;
-  if (!v.legacy && roomsOn(v, level).length < ROOMS_TO_DIG) return `Build at least ${ROOMS_TO_DIG} rooms on this level before digging down`;
+  if (!hasDecon(v)) return DECON_REASON;
+  if (!v.legacy && roomsOn(v, level).length < ROOMS_TO_DIG) return ROOMS_TO_DIG === 1 ? 'Build a room on this level before digging down' : `Build at least ${ROOMS_TO_DIG} rooms on this level before digging down`;
   if (roomsOn(v, level).length === 0) return 'There is nothing to dig under';
   return null;
 }
@@ -148,12 +150,17 @@ export function normalize(v: VaultHome): VaultHome {
   // a vault that was only ever the first living room (and the entryway added beside it): nothing was built, so it starts again as the entryway alone
   const untouched = (rooms: { type: string; furniture: string[] }[]) => rooms.length > 0 && rooms.length <= 2 && rooms.every((r) => (r.type === 'living' || r.type === 'entry') && r.furniture.length === 0) && rooms.some((r) => r.type === 'living');
   if (v.settlers.length === 0 && untouched(v.rooms)) return { ...newVault(v.seenAt || Date.now(), v.seed ?? 0), from: v.from, sessionAt: v.sessionAt, seenAt: v.seenAt, boost: v.boost, boostAt: v.boostAt };
-  if (v.layout === 2) return v;
-  const rooms: VaultRoom[] = v.rooms.map((r) => ({ type: r.type, furniture: r.furniture, level: (r as unknown as { row: number }).row, col: r.col + 1, row: 1 }));
-  const ahead: [number, number][] = [[0, 1], [4, 1], [1, 0], [1, 2], [2, 0], [2, 2], [3, 0], [3, 2]];
-  const spot = ahead.find(([c, r]) => !rooms.some((x) => x.level === 0 && x.row === r && c >= x.col && c < x.col + roomDef(x.type).slots)) ?? [0, 1];
-  rooms.unshift({ type: 'entry', level: 0, col: spot[0], row: spot[1], furniture: [] });
-  return { ...v, layout: 2, legacy: true, rooms };
+  let w: VaultHome = v;
+  if (w.layout !== 2 && w.layout !== 3) {
+    const rooms: VaultRoom[] = w.rooms.map((r) => ({ type: r.type, furniture: r.furniture, level: (r as unknown as { row: number }).row, col: r.col + 1, row: 1 }));
+    const ahead: [number, number][] = [[0, 1], [4, 1], [1, 0], [1, 2], [2, 0], [2, 2], [3, 0], [3, 2]];
+    const spot = ahead.find(([c, r]) => !rooms.some((x) => x.level === 0 && x.row === r && c >= x.col && c < x.col + roomDef(x.type).slots)) ?? [0, 1];
+    rooms.unshift({ type: 'entry', level: 0, col: spot[0], row: spot[1], furniture: [] });
+    w = { ...w, layout: 2, legacy: true, rooms };
+  }
+  // the first floorplan was five by three: it moves into the middle of the bigger one
+  if (w.layout === 2) w = { ...w, layout: 3, rooms: w.rooms.map((r) => ({ ...r, col: r.col + 3, row: r.row + 3 })) };
+  return w;
 }
 
 /** The price of the nth room slot (the second is 4, the third 6, the fourth 8, and so on). */

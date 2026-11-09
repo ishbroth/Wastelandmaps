@@ -7,7 +7,7 @@
 //
 // POST { action: 'check' }                          ->  { vacations: [{ placeId, name, icon, lat, lng }], rooms }    (the person's own, free)
 // POST { action: 'url', placeId }                   ->  { url }                                                       (a link to the picture of one of theirs)
-// POST { action: 'unlock', placeId, icon }          ->  { status: 'ready', url } | { error }
+// POST { action: 'unlock', placeId, icon, replace? } ->  { status: 'ready', url } | { error }   (replace: the place of one of their four that this one takes over, with its vault)
 // Secrets: GEMINI_API_KEY, STREETVIEW_API_KEY.  Optional: GEMINI_MODEL, DAILY_RENDER_CAP.
 // Deploy: supabase functions deploy vacation-vault
 
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return reply(req, { error: 'POST only' }, 405);
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
-  const b = (await req.json().catch(() => ({}))) as { action?: string; placeId?: string; icon?: string };
+  const b = (await req.json().catch(() => ({}))) as { action?: string; placeId?: string; icon?: string; replace?: string };
   const db = serviceClient();
   const signed = async (path: string) => {
     const s = await db.storage.from('renders').createSignedUrl(path, 3600);
@@ -149,6 +149,15 @@ Deno.serve(async (req) => {
   if (!found) return reply(req, { error: 'not_found_by_you' }, 403);
   if (home.lat !== null && home.lng !== null && km({ lat: home.lat, lng: home.lng }, { lat: found.lat, lng: found.lng }) < FAR_KM) return reply(req, { error: 'too_close' }, 403);
 
+  // a place they have cleared (looted), not only discovered
+  const { data: won } = await db.from('raid_runs').select('id').eq('user_id', user).eq('place_id', placeId).eq('won', true).limit(1);
+  if (!won || won.length === 0) return reply(req, { error: 'not_cleared' }, 403);
+  // replacing one of their four: it has to be one of theirs
+  const replace = typeof b.replace === 'string' && b.replace ? b.replace : null;
+  if (replace) {
+    const { data: old } = await db.from('vacation_vault').select('place_id').eq('user_id', user).eq('place_id', replace).eq('status', 'ready').maybeSingle();
+    if (!old) return reply(req, { error: 'not_yours' }, 403);
+  }
   const recipe = vacationRecipe(homeVault, placeId);
   // the loot is checked now (and taken at the end, once the picture exists)
   const { data: loot } = await db.from('player_loot').select('loot,qty').eq('user_id', user);
@@ -156,7 +165,7 @@ Deno.serve(async (req) => {
   for (const r of (loot ?? []) as { loot: string; qty: number }[]) have[r.loot] = r.qty;
   if (Object.entries(recipe).some(([k, n]) => (have[k] ?? 0) < (n ?? 0))) return reply(req, { error: 'loot' }, 402);
 
-  const { data: claim, error: claimError } = await db.rpc('vacation_claim', { p_user: user, p_place: placeId, p_name: String(found.name).slice(0, 80), p_icon: icon, p_lat: found.lat, p_lng: found.lng });
+  const { data: claim, error: claimError } = await db.rpc('vacation_claim', { p_user: user, p_place: placeId, p_name: String(found.name).slice(0, 80), p_icon: icon, p_lat: found.lat, p_lng: found.lng, p_replace: replace });
   if (claimError) return reply(req, { error: 'server' }, 500);
   if (claim === 'full') return reply(req, { error: 'full', max: MAX_VACATIONS }, 409);
   if (claim === 'have') {
@@ -181,6 +190,8 @@ Deno.serve(async (req) => {
     const { data: done, error: finishError } = await db.rpc('vacation_finish', { p_user: user, p_place: placeId, p_cost: recipe, p_path: path });
     if (finishError) throw new Error('could not finish');
     if (done === 'loot') return reply(req, { error: 'loot' }, 402);
+    // the old place's vault (its rooms and furniture) moves to this one
+    if (replace) await db.rpc('vacation_move', { p_user: user, p_old: replace, p_new: placeId });
     const url = await signed(path);
     return url ? reply(req, { status: 'ready', url, charged: true, recipe }) : reply(req, { error: 'server' }, 500);
   } catch (e) {

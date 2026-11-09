@@ -5,12 +5,12 @@ import ConfirmSpend from './ConfirmSpend';
 import { describeBag, lootName, type LootId } from '../lib/raid/loot';
 type Bag = Partial<Record<string, number>>;
 import {
-  COLS, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
+  COLS, ENTRY_AT, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
   whyNotBuild, whyNotDig, DECON_REASON, MAX_VACATIONS, vacationRecipe,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt, type Pose } from './vaultArt';
-import { CW, DIM, ExitSign, FURNITURE, GAP, HallAcross, HallDown, INK, LEAN, LIE, LIFT, LM, PlacedPiece, RH, RoomShell, SIT, TM, VIEW_H, VIEW_W, WALL, WH, cellX, cellY, floorPoint, hallX, hallY, roomBox } from './vaultPlan';
+import { CELL, ExitSign, FURNITURE, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, RoomShell, SIT, cellRect, doorsOf, floorPoint, pieceAt, roomRect, screenBox, type Rect } from './vaultIso';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -26,7 +26,15 @@ const SETTLER_SCALE = 0.95;
 /** A discovered place far from home that could be turned into a vacation vault. */
 export interface VacationChoice { placeId: string; name: string; icon: string; km: number }
 /** What the home vault needs to offer vacation vaults: the places that qualify, how many are already made, and the way to make one (answers with a message if it did not work). */
-export interface VacationOffer { choices: VacationChoice[]; count: number; unlock: (placeId: string, icon: string) => Promise<string | null> }
+export interface VacationOffer {
+  choices: VacationChoice[];
+  count: number;
+  /** Ten rooms are built, so vacation vaults can be made. */
+  ready: boolean;
+  /** The vacation vaults they have now (one of them can be replaced by a new place when all four are used). */
+  mine: { placeId: string; name: string }[];
+  unlock: (placeId: string, icon: string, replace?: string) => Promise<string | null>;
+}
 
 type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType } | { kind: 'room'; idx: number; item?: string } | { kind: 'vacation'; pick?: VacationChoice } | null;
 
@@ -35,9 +43,9 @@ type Panel = { kind: 'build'; level: number; col: number; row: number; type?: Ro
 interface Sim { id: number; kind: SettlerKind; level: number; x: number; y: number; path: { x: number; y: number }[]; face: 1 | -1; phase: number; pose: Pose; until: number; lift: number; use: string }
 
 const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
-const cellOf = (x: number, y: number): [number, number] => [Math.max(0, Math.min(COLS - 1, Math.floor((x - LM) / (CW + GAP)))), Math.max(0, Math.min(ROWS - 1, Math.floor((y - TM) / (RH + GAP))))];
+const cellOf = (x: number, y: number): [number, number] => [Math.max(0, Math.min(COLS - 1, Math.floor(x / CELL))), Math.max(0, Math.min(ROWS - 1, Math.floor(y / CELL)))];
 
-/** The points to walk through to get from one cell to another on a level: through the doorways between joined rooms. */
+/** The points to walk through to get from one cell to another on a level (world positions): through the doorways between joined rooms. */
 function route(v: VaultHome, level: number, from: [number, number], to: [number, number], end: { x: number; y: number }): Sim['path'] {
   const key = (c: number, r: number) => `${c},${r}`;
   const prev = new Map<string, [number, number] | null>([[key(...from), null]]);
@@ -47,7 +55,7 @@ function route(v: VaultHome, level: number, from: [number, number], to: [number,
     if (c === to[0] && r === to[1]) break;
     for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
       const n: [number, number] = [c + dc, r + dr];
-      if (!roomAt(v, level, ...([n[0], n[1]] as [number, number])) || prev.has(key(...n))) continue;
+      if (!roomAt(v, level, n[0], n[1]) || prev.has(key(...n))) continue;
       prev.set(key(...n), [c, r]);
       queue.push(n);
     }
@@ -59,30 +67,21 @@ function route(v: VaultHome, level: number, from: [number, number], to: [number,
   for (let i = 1; i < cells.length; i++) {
     const [c, r] = cells[i];
     const [pc, pr] = cells[i - 1];
+    const ra = roomAt(v, level, pc, pr);
+    const rb = roomAt(v, level, c, r);
+    if (!ra || !rb || ra === rb) continue; // inside one wide room there is no door
+    const A = roomRect(ra);
+    const B = roomRect(rb);
     if (r === pr) {
-      // sideways, from one room to the next: out of the one's wall and into the other's, at the height of the hall between them
-      const ra = roomAt(v, level, pc, r);
-      const rb = roomAt(v, level, c, r);
-      if (ra && rb && ra !== rb) {
-        const A = roomBox(ra);
-        const B = roomBox(rb);
-        const dir = c > pc ? 1 : -1;
-        const y = hallY(A, B);
-        const margin = WALL + LEAN + 5;
-        path.push({ x: dir > 0 ? A.x + A.w - margin : A.x + margin, y }, { x: dir > 0 ? B.x + margin : B.x + B.w - margin, y });
-      }
+      // along x, through the doorway in the right room's left wall
+      const dir = c > pc ? 1 : -1;
+      const y = (Math.max(A.y, B.y) + Math.min(A.y + A.d, B.y + B.d)) / 2;
+      path.push({ x: dir > 0 ? A.x + A.w - 9 : A.x + 9, y }, { x: dir > 0 ? B.x + 9 : B.x + B.w - 9, y });
     } else {
-      // up or down: through the hall between the room above and the one below
-      const upper = Math.min(r, pr);
-      const ra = roomAt(v, level, c, upper);
-      const rb = roomAt(v, level, c, upper + 1);
-      if (ra && rb) {
-        const A = roomBox(ra);
-        const B = roomBox(rb);
-        const x = hallX(A, B, cellX(c), cellX(c) + CW);
-        if (r > pr) path.push({ x, y: A.y + A.h - 10 }, { x, y: B.y + WH + 10 });
-        else path.push({ x, y: B.y + WH + 10 }, { x, y: A.y + A.h - 10 });
-      }
+      // along y, through the doorway in the front room's right wall
+      const dir = r > pr ? 1 : -1;
+      const x = (Math.max(A.x, B.x, c * CELL) + Math.min(A.x + A.w, B.x + B.w, (c + 1) * CELL)) / 2;
+      path.push({ x, y: dir > 0 ? A.y + A.d - 9 : A.y + 9 }, { x, y: dir > 0 ? B.y + 9 : B.y + B.d - 9 });
     }
   }
   path.push(end);
@@ -97,7 +96,8 @@ function plan(s: Sim, v: VaultHome) {
   let spot = floorPoint(room, 0.1 + Math.random() * 0.8, 0.25 + Math.random() * 0.7);
   if (use && FURNITURE[use]) {
     const p = FURNITURE[use];
-    spot = floorPoint(room, p.fx + (use === 'chairs' ? pick([-0.18, 0.18]) : 0), Math.min(1, p.fd + 0.04));
+    // beside the piece, on the side that faces the room
+    spot = floorPoint(room, Math.min(1, p.u + (p.face === 'x' ? 0.16 : 0) + (use === 'chairs' ? pick([-0.18, 0.18]) : 0)), Math.min(1, p.v + (p.face === 'y' ? 0.16 : 0)));
   }
   s.path = route(v, s.level, cellOf(s.x, s.y), cellOf(spot.x, spot.y), spot);
   s.lift = 0;
@@ -155,13 +155,14 @@ function useSettlers(vault: VaultHome | null) {
           const dx = wp.x - s.x;
           const dy = wp.y - s.y;
           const dist = Math.hypot(dx, dy);
-          const speed = s.kind === 'dog' ? 38 : s.kind === 'cat' ? 33 : 28;
+          const speed = s.kind === 'dog' ? 44 : s.kind === 'cat' ? 38 : 32;
           if (dist <= speed * dt) {
             s.x = wp.x; s.y = wp.y; s.path.shift();
             if (!s.path.length) arrive(s, now);
           } else {
             s.x += (dx / dist) * speed * dt; s.y += (dy / dist) * speed * dt;
-            if (Math.abs(dx) > 0.5) s.face = dx > 0 ? 1 : -1;
+            const across = dx - dy; // along the screen
+            if (Math.abs(across) > 0.5) s.face = across > 0 ? 1 : -1;
             s.phase = (s.phase + dt * 2.2) % 1;
             s.pose = 'walk';
           }
@@ -272,19 +273,11 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
   const vbRef = useRef<number[] | null>(null);
   const animating = useRef(false);
   const prevFocus = useRef<number | null>(null);
-  // Held upright, a little over three rooms across fit and the rest are a sideways scroll away; held on its side the whole level fits.
-  const scale = size ? Math.min(size.h / VIEW_H, size.w / (Math.min(COLS, 3.3) * CW)) : 1;
+  // The camera: the picture is an svg whose window (its viewBox) is fitted to the floorplan, so a vault of one room is close up and a bigger one farther back.
   const setWindow = (w: number[]) => {
     vbRef.current = w;
     svgRef.current?.setAttribute('viewBox', w.map((n) => Math.round(n * 100) / 100).join(' '));
   };
-  /** The part of the level the screen is showing while it is scrolled to where it is (centered up and down when the level is shorter than the screen). */
-  const restingWindow = (): number[] => {
-    const el = viewRef.current;
-    const h = (size?.h ?? 1) / scale;
-    return [(el?.scrollLeft ?? 0) / scale, (el?.scrollTop ?? 0) / scale - Math.max(0, h - VIEW_H) / 2, (size?.w ?? 1) / scale, h];
-  };
-  const onScroll = () => { if (focusRef.current === null && !animating.current && size) setWindow(restingWindow()); };
 
   // checking in: now, and every half minute while it is open
   useEffect(() => {
@@ -325,89 +318,89 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     goLevel(level + 1);
   };
 
-  // the part of the picture that only changes when the vault does
+  // the cells where a room could be built: next to a room of this level, or (on a level with no rooms yet) under a room of the level above
+  const openCells = useMemo<[number, number][]>(() => {
+    if (!vault) return [];
+    const out: [number, number][] = [];
+    const here = roomsOn(vault, level);
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        if (roomAt(vault, level, col, row)) continue;
+        const ok = here.length === 0 ? level > 0 && !!roomAt(vault, level - 1, col, row) : [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => roomAt(vault, level, col + dc, row + dr));
+        if (ok) out.push([col, row]);
+      }
+    }
+    return out;
+  }, [vault, level]);
+
+  // the part of the picture that only changes when the vault does: the rooms and the places for more, back to front, each room with the halls that join it to the ones behind it
   const scene = useMemo(() => {
     if (!vault) return null;
     const here = roomsOn(vault, level);
-    // where a room could be built: next to a room of this level, or (on a level with no rooms yet) under a room of the level above
-    const open = (col: number, row: number) => {
-      if (col < 0 || col >= COLS || row < 0 || row >= ROWS || roomAt(vault, level, col, row)) return false;
-      if (here.length === 0) return level > 0 && !!roomAt(vault, level - 1, col, row);
-      return [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => roomAt(vault, level, col + dc, row + dr));
-    };
+    const at = (c: number, r: number) => roomAt(vault, level, c, r);
     const tapRoom = (e: React.MouseEvent, idx: number) => {
       if (focusRef.current !== null) return; // while a room is blown up, a tap anywhere (this room too) shrinks it back
       e.stopPropagation();
       setFocus(idx);
       setPanel({ kind: 'room', idx });
     };
-    const ghosts: React.ReactElement[] = [];
-    const rooms: React.ReactElement[] = [];
-    const doors: React.ReactElement[] = [];
-    const cells: React.ReactElement[] = [];
-    // the level above, faintly, so you can see what you are digging under
-    if (level > 0) {
-      vault.rooms.forEach((r, i) => {
-        if (r.level !== level - 1) return;
-        const b = roomBox(r);
-        ghosts.push(<rect key={`g${i}`} x={b.x} y={b.y} width={b.w} height={b.h} rx="7" strokeDasharray="3 6" stroke={DIM} strokeWidth="1" opacity="0.45" />);
-      });
-    }
+    type Layer = { key: string; depth: number; room?: { idx: number; room: VaultRoom }; el: React.ReactElement };
+    const layers: Layer[] = [];
     vault.rooms.forEach((room, idx) => {
       if (room.level !== level) return;
       const def = roomDef(room.type);
-      const b = roomBox(room);
       const slots = slotsOf(room);
-      // the hall to the room on the right and to each room below
-      const right = roomAt(vault, level, room.col + slots, room.row);
-      if (right) doors.push(<HallAcross key={`dr${idx}`} left={b} right={roomBox(right)} />);
+      const me = roomRect(room);
+      const { doorsL, doorsR } = doorsOf(room, at);
+      const halls: React.ReactElement[] = [];
+      const left = at(room.col - 1, room.row);
+      if (left) halls.push(<HallX key="hx" left={roomRect(left)} right={me} />);
       for (let c = room.col; c < room.col + slots; c++) {
-        const below = roomAt(vault, level, c, room.row + 1);
-        if (below) doors.push(<HallDown key={`dd${idx}-${c}`} above={b} below={roomBox(below)} x={hallX(b, roomBox(below), cellX(c), cellX(c) + CW)} />);
+        const back = at(c, room.row - 1);
+        if (back) halls.push(<HallY key={`hy${c}`} back={roomRect(back)} front={me} />);
       }
-      rooms.push(
-        <g key={`r${idx}`} className={`rm-vh-room${fresh && fresh.room === idx && !fresh.item ? ' rm-vh-fresh' : ''}`} onClick={(e) => tapRoom(e, idx)} role="button" aria-label={def.name}>
-          <RoomShell x={b.x} y={b.y} w={b.w} h={b.h} name={def.name.toUpperCase()} type={room.type} />
-        </g>,
-      );
+      layers.push({
+        key: `r${idx}`, depth: room.col + slots - 1 + room.row, room: { idx, room },
+        el: (
+          <g className={`rm-vh-room${fresh && fresh.room === idx && !fresh.item ? ' rm-vh-fresh' : ''}`} role="button" aria-label={def.name}>
+            {halls}
+            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} doorsL={doorsL} doorsR={doorsR} />
+          </g>
+        ),
+      });
     });
-    // furniture and the settlers are drawn together, back to front, so a settler stands behind the couch in front of them and in front of the one behind
-    for (let row = 0; row < ROWS; row++) {
-      for (let col = 0; col < COLS; col++) {
-        if (!open(col, row)) continue;
-        const x = cellX(col);
-        const y = cellY(row);
-        cells.push(
-          <g key={`c${col}-${row}`} className="rm-vh-open" onClick={(e) => {
+    for (const [col, row] of openCells) {
+      layers.push({
+        key: `c${col}-${row}`, depth: col + row,
+        el: (
+          <g className="rm-vh-open" role="button" aria-label="Clear and build a room here" onClick={(e) => {
             if (focusRef.current !== null) return;
             e.stopPropagation();
             if (!hasDecon(vault)) { say(DECON_REASON); return; }
             setPanel({ kind: 'build', level, col, row });
-          }} role="button" aria-label="Clear and build a room here">
-            <g opacity="0.3"><RoomShell x={x} y={y} w={CW} name="" type="living" /></g>
-            <rect x={x} y={y} width={CW} height={RH} rx="7" strokeDasharray="6 5" fill="rgba(61,255,138,0.03)" />
-            <text x={x + CW / 2} y={y + RH / 2 - 2} fontSize="38" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="middle">+</text>
-            <text x={x + CW / 2} y={y + RH / 2 + 22} fontSize="20" fill={INK} stroke="none" fontFamily="'VT323', monospace" textAnchor="middle" letterSpacing="1.5">{here.length === 0 ? 'DIG DOWN' : 'CLEAR & BUILD'}</text>
-          </g>,
-        );
-      }
+          }}>
+            <RoomOutline rect={cellRect(col, row)} label={here.length === 0 ? 'DIG DOWN' : 'CLEAR & BUILD'} />
+          </g>
+        ),
+      });
     }
+    layers.sort((a, b) => a.depth - b.depth);
+    // the level above, faintly, so you can see what you are digging under
+    const ghosts = level > 0 ? vault.rooms.filter((r) => r.level === level - 1).map((r, i) => <RoomOutline key={`g${i}`} rect={roomRect(r)} label="" plain />) : [];
     const entry = vault.rooms.find((r) => r.type === 'entry' && r.level === level);
-    return { ghosts, rooms, doors, cells, entry };
-  }, [vault, fresh, level, say]);
+    return { layers, ghosts, entry, tapRoom };
+  }, [vault, fresh, level, say, openCells]);
 
-  // furniture, in the order it is to be painted (farthest back first); settlers are mixed in by their feet
+  // the furniture of each room, with where it stands (so it can be painted among the settlers, back to front)
   const pieces = useMemo(() => {
-    if (!vault) return [];
-    const out: { key: string; fd: number; y: number; el: React.ReactElement }[] = [];
+    const out = new Map<number, { key: string; depth: number; el: React.ReactElement }[]>();
+    if (!vault) return out;
     vault.rooms.forEach((room, idx) => {
       if (room.level !== level) return;
-      room.furniture.forEach((id) => {
-        const p = FURNITURE[id];
-        if (!p) return;
-        const at = floorPoint(room, p.fx, p.fd);
-        out.push({ key: `f${idx}-${id}`, fd: p.fd, y: at.y, el: <PlacedPiece key={`f${idx}-${id}`} room={room} id={id} fresh={!!fresh && fresh.room === idx && fresh.item === id} /> });
-      });
+      out.set(idx, room.furniture.flatMap((id) => {
+        const at = pieceAt(room, id);
+        return at ? [{ key: `f${idx}-${id}`, depth: at.x + at.y, el: <PlacedPiece key={`f${idx}-${id}`} room={room} id={id} fresh={!!fresh && fresh.room === idx && fresh.item === id} /> }] : [];
+      }));
     });
     return out;
   }, [vault, level, fresh]);
@@ -418,7 +411,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     if (!size || !vault || focus === null) return null;
     const room = vault.rooms[focus];
     if (!room) return null;
-    const b = roomBox(room);
+    const b = screenBox([roomRect(room)]);
     const usable = docked ? Math.max(120, size.h - window.innerHeight * 0.46) : size.h;
     const pad = 14;
     const sc = Math.min(size.w / (b.w + 2 * pad), usable / (b.h + 2 * pad), 4);
@@ -426,34 +419,37 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     const h = size.h / sc;
     return [b.x + b.w / 2 - w / 2, b.y + b.h / 2 - usable / 2 / sc, w, h];
   };
+  /** The window that shows the whole floorplan, with the places for more rooms: close up on one room, farther back as the vault grows. */
+  const fitWindow = (): number[] | null => {
+    if (!size || !vault) return null;
+    const rects: Rect[] = vault.rooms.filter((r) => r.level === level).map(roomRect);
+    for (const [c, r] of openCells) rects.push(cellRect(c, r));
+    if (rects.length === 0) rects.push(cellRect(ENTRY_AT.col, ENTRY_AT.row));
+    const b = screenBox(rects);
+    const pad = 26;
+    const sc = Math.min(size.w / (b.w + 2 * pad), size.h / (b.h + 2 * pad), 1.7);
+    const w = size.w / sc;
+    const h = size.h / sc;
+    return [b.x + b.w / 2 - w / 2, b.y + b.h / 2 - h / 2, w, h];
+  };
   const ready = !!vault && !!size;
-  // a new level (and the first picture) starts with the entryway, or the first room, in the middle of the screen when the level is wider than it
-  const centered = useRef('');
-  useLayoutEffect(() => {
-    if (!ready || !size || !vault) return;
-    const el = viewRef.current;
-    const tag = `${level}`;
-    if (el && centered.current !== tag && focus === null) {
-      centered.current = tag;
-      const lead = vault.rooms.find((r) => r.level === level && r.type === 'entry') ?? vault.rooms.find((r) => r.level === level);
-      const mid = lead ? roomBox(lead).x + roomBox(lead).w / 2 : VIEW_W / 2;
-      el.scrollLeft = Math.max(0, Math.min(VIEW_W * scale - size.w, mid * scale - size.w / 2));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, level, size?.w]);
+  const roomCount = vault ? vault.rooms.filter((r) => r.level === level).length : 0;
+  const prevLevel = useRef(-1);
   useLayoutEffect(() => {
     if (!ready || !size) return;
-    const to = roomWindow() ?? restingWindow();
+    const to = roomWindow() ?? fitWindow();
+    if (!to) return;
     const from = vbRef.current;
-    const wasFocused = prevFocus.current !== null;
+    const newLevel = prevLevel.current !== level;
+    prevLevel.current = level;
     prevFocus.current = focus;
-    // the first picture, a new level and a turn of the phone just appear; moving onto a room, or back off it, slides
-    if (!from || (focus === null && !wasFocused)) { setWindow(to); return; }
+    // the first picture, a new level and a turn of the phone just appear; moving onto a room, off it, or back as the vault grows, slides
+    if (!from || newLevel) { setWindow(to); return; }
     animating.current = true;
     const t0 = performance.now();
     let raf = 0;
     const step = (t: number) => {
-      const k = Math.min(1, (t - t0) / 480);
+      const k = Math.min(1, (t - t0) / 520);
       const e = 1 - Math.pow(1 - k, 3);
       setWindow(from.map((v, i) => v + (to[i] - v) * e));
       if (k < 1) raf = requestAnimationFrame(step);
@@ -462,7 +458,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     raf = requestAnimationFrame(step);
     return () => { cancelAnimationFrame(raf); animating.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, focus, docked, level, size?.w, size?.h]);
+  }, [ready, focus, docked, level, roomCount, openCells.length, size?.w, size?.h]);
 
   const room: VaultRoom | undefined = panel?.kind === 'room' ? vault?.rooms[panel.idx] : undefined;
   const ownLoot = account.loot;
@@ -488,25 +484,28 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
       {error && <p className="rm-vh-error" onClick={() => setError(null)}>{error}</p>}
       {flash && <p className="rm-vh-flash" role="status">{flash}</p>}
       <div className="rm-vh-viewwrap">
-      <div className={`rm-vh-view${focus !== null ? ' focused' : ''}`} ref={viewRef} onScroll={onScroll}>
+      <div className={`rm-vh-view${focus !== null ? ' focused' : ''}`} ref={viewRef}>
         {!vault && !error && <p className="rm-vh-wait">ENTERING THE VAULT…</p>}
-        {vault && size && scene && (
-          <div className="rm-vh-spacer" style={{ width: VIEW_W * scale, height: VIEW_H * scale }}>
-            <svg ref={svgRef} className="rm-vh-svg" style={{ width: size.w, height: size.h }} fill="none" stroke={INK} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" onClick={() => { if (focus !== null && !panel) setFocus(null); }}>
+        {vault && size && scene && (() => {
+          // each settler is painted with the room it is in (or, in a hall, with the front-most one), back to front among that room's furniture
+          const rooms = scene.layers.filter((l) => l.room);
+          const frontIdx = rooms.length ? (rooms[rooms.length - 1].room as { idx: number }).idx : -1;
+          const ownerOf = (x: number, y: number): number => rooms.find((l) => { const r = roomRect((l.room as { room: VaultRoom }).room); return x >= r.x - 5 && x <= r.x + r.w + 5 && y >= r.y - 5 && y <= r.y + r.d + 5; })?.room?.idx ?? frontIdx;
+          const settlers = sims.filter((s) => s.level === level).map((s) => ({ owner: ownerOf(s.x, s.y), key: `s${s.id}`, depth: s.x + s.y + 0.5, el: (() => { const [X, Y] = P(s.x, s.y, 0); return <g key={`s${s.id}`} transform={`translate(${X} ${Y - s.lift * SETTLER_SCALE}) scale(${s.face * SETTLER_SCALE} ${SETTLER_SCALE})`}><SettlerArt kind={s.kind} pose={s.pose} phase={s.phase} /></g>; })() }));
+          return (
+            <svg ref={svgRef} className="rm-vh-svg" style={{ width: size.w, height: size.h }} fill="none" stroke={INK} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" onClick={() => { if (focus !== null && !panel) setFocus(null); }}>
               {scene.ghosts}
-              {scene.cells}
-              {scene.rooms}
-              {scene.doors}
-              {scene.entry && <ExitSign x={roomBox(scene.entry).x + roomBox(scene.entry).w / 2 - 19} y={roomBox(scene.entry).y - 17} />}
-              {[
-                ...pieces,
-                ...sims.filter((s) => s.level === level).map((s) => ({ key: `s${s.id}`, fd: 2, y: s.y + 0.01, el: <g key={`s${s.id}`} transform={`translate(${s.x} ${s.y - s.lift * SETTLER_SCALE}) scale(${s.face * SETTLER_SCALE} ${SETTLER_SCALE})`}><SettlerArt kind={s.kind} pose={s.pose} phase={s.phase} /></g> })),
-              ].sort((a, b) => a.y - b.y).map((p) => p.el)}
+              {scene.layers.map((l) => {
+                const here = l.room;
+                const things = here ? [...(pieces.get(here.idx) ?? []), ...settlers.filter((t) => t.owner === here.idx)].sort((x, y) => x.depth - y.depth) : [];
+                return <g key={l.key} onClick={here ? (e) => scene.tapRoom(e, here.idx) : undefined}>{l.el}{things.map((t) => t.el)}</g>;
+              })}
+              {scene.entry && <ExitSign rect={roomRect(scene.entry)} />}
             </svg>
-          </div>
-        )}
+          );
+        })()}
       </div>
-        {vault && (vault.legacy || deepestLevel(vault) > 0 || roomsOn(vault, level).length >= ROOMS_TO_DIG) && (
+        {vault && (vault.legacy || deepestLevel(vault) > 0 || (hasDecon(vault) && roomsOn(vault, level).length >= ROOMS_TO_DIG)) && (
           <div className="rm-vh-levels" role="group" aria-label="Levels">
             <button type="button" className="rm-vh-lv" disabled={level <= 0} onClick={() => goLevel(level - 1)} aria-label="Up one level">▲</button>
             <span>LEVEL {level + 1}<i>OF {LEVELS}</i></span>

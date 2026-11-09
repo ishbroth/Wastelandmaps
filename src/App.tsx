@@ -40,7 +40,9 @@ import { buzz } from './lib/haptics';
 import { START_MINUTES, type TravelRun } from './lib/travel';
 import NavBanner from './components/NavBanner';
 import { setVoiceEnabled, speak, spokenDistance, stopSpeaking, voiceEnabled } from './lib/voice';
-import type { VacationOffer } from './components/VaultHome';
+import type { VacationChoice, VacationOffer } from './components/VaultHome';
+import VacationAsk from './components/VacationAsk';
+import CogSpinner from './components/CogSpinner';
 import { carEnd, carUpdate, onCarEndRequested, type CarPayload } from './lib/carplay';
 import { waitingLine } from './lib/waitingLoot';
 import { ferryUrl, isFerryByName, loadFerryIds, ROAD_STOPS_SHORT_M } from './lib/ferry';
@@ -172,6 +174,8 @@ export default function App() {
     }
     return out;
   }, [allLocations, account.vacations]);
+  /** The place whose vacation-vault question is open (tapped on the map, in the list of places, or on the Data tab). */
+  const [vacationAsk, setVacationAsk] = useState<VacationChoice | null>(null);
   const vacationIds = useMemo(() => new Set(account.vacations.map((v) => v.placeId)), [account.vacations]);
   /** Vacation vaults: the places they have discovered more than 80 km from home (outside the home metro area), and the way to turn one into a vault. */
   const vacationOffer = useMemo<VacationOffer | undefined>(() => {
@@ -182,7 +186,7 @@ export default function App() {
     const choices: VacationOffer['choices'] = [];
     const seen = new Set<string>();
     const add = (placeId: string, name: string, lat: number, lng: number, icon: string) => {
-      if (have.has(placeId) || seen.has(placeId)) return;
+      if (have.has(placeId) || seen.has(placeId) || !account.cleared.has(placeId)) return;
       const km = distanceMeters(home, { lat, lng }) / 1000;
       if (km < 80) return;
       seen.add(placeId);
@@ -195,11 +199,13 @@ export default function App() {
     return {
       choices,
       count: account.vacations.length,
-      unlock: async (placeId, icon) => {
-        const r = await vacationUnlock(placeId, icon);
+      ready: account.homeRooms >= 10,
+      mine: account.vacations.map((v) => ({ placeId: v.placeId, name: v.name })),
+      unlock: async (placeId, icon, replace) => {
+        const r = await vacationUnlock(placeId, icon, replace);
         if (r.ok) { await account.refresh(); return null; }
         const says: Record<string, string> = {
-          loot: 'NOT ENOUGH LOOT', full: 'YOU ALREADY HAVE ALL FOUR VACATION VAULTS', too_close: 'THAT PLACE IS INSIDE YOUR HOME METRO AREA', too_few_rooms: 'BUILD TEN ROOMS FIRST',
+          loot: 'NOT ENOUGH LOOT', not_cleared: 'CLEAR THAT PLACE FIRST', not_yours: 'THAT VACATION VAULT IS NOT YOURS TO REPLACE', full: 'YOU ALREADY HAVE ALL FOUR VACATION VAULTS', too_close: 'THAT PLACE IS INSIDE YOUR HOME METRO AREA', too_few_rooms: 'BUILD TEN ROOMS FIRST',
           no_picture: 'NO PICTURE OF THAT PLACE COULD BE FOUND: PICK ANOTHER. NOTHING WAS TAKEN', failed: 'THE PICTURE COULD NOT BE MADE. NOTHING WAS TAKEN: TRY AGAIN',
           working: 'IT IS BEING MADE: TRY AGAIN IN A MINUTE', busy: 'THE VAULT PROJECTOR IS DOWN FOR NOW. NOTHING WAS TAKEN',
         };
@@ -738,9 +744,17 @@ export default function App() {
     setSelectedId(personalId(place.placeId));
   }, [show, search]);
   /** Home chosen (here or typed): remembered, shown as a place of their own named Home, and the map goes there. */
+  const [moving, setMoving] = useState(false);
   const chooseHome = useCallback(async (place: PickedPlace, vaultNumber: number): Promise<string | null> => {
     const who = accountRef.current?.session;
     if (!who) return 'Sign in first.';
+    // changing an existing home: the vault (all its rooms and furniture) goes with them, which takes a moment
+    const before = accountRef.current?.home?.placeId;
+    if (before && before !== place.placeId) {
+      setMoving(true);
+      await new Promise((r) => window.setTimeout(r, 2000));
+      setMoving(false);
+    }
     const saved = await saveHome(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, skipped: false, vaultNumber });
     if (saved === 'taken') return `Vault ${String(vaultNumber).padStart(4, '0')} already belongs to another survivor. Pick a different number.`;
     if (saved === 'error') return 'That could not be saved. Try again in a moment.';
@@ -1290,7 +1304,7 @@ export default function App() {
             />
           )}
           {sceneSpot && wasteland && (
-            <SceneModal vacation={vacationOffer}
+            <SceneModal vacation={vacationOffer} onVacation={setVacationAsk}
               zones={wasteland?.zones}
               startOn={sceneStart}
               startRaid={sceneRaid}
@@ -1299,6 +1313,8 @@ export default function App() {
               account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && !place.vault && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || place.personal) ? (place.personal?.home ? homePlan() : raidFor(place)) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => { setSceneId(null); setSceneRaid(false); }} onNeedDiscover={() => say('YOU MUST DISCOVER THIS LOCATION FIRST', true)}
             />
           )}
+          {moving && <div className="rm-moving" role="status"><CogSpinner big /><span>MOVING VAULT FURNITURE…</span></div>}
+          {vacationAsk && vacationOffer && <VacationAsk choice={vacationAsk} offer={vacationOffer} account={account} onClose={() => setVacationAsk(null)} onDone={() => setVacationAsk(null)} />}
           {vaultOpen !== null && <VaultHome key={vaultOpen.key ?? 'home'} title={vaultOpen.title} vaultKey={vaultOpen.key} account={account} onExit={() => setVaultOpen(null)} vacation={vaultOpen.key ? undefined : vacationOffer} />}
           {accountOpen && !account.session && <AccountModal auto={accountAuto} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
           <FaceIdOffer />
@@ -1330,12 +1346,13 @@ export default function App() {
           <section className="rm-panel" role="tabpanel">
             {tab === 'locations' && (
               <LocationsPanel
+                vacation={vacationOffer} onVacation={setVacationAsk}
                 metro={metroInfo} account={account}
                 region={region} locations={locations} hidden={hidden} onToggleCategory={toggleCategory} selectedId={selectedId} visited={shownVisited} cleared={account.cleared}
                 onSelect={(id) => { if (navRef.current) return; setSelectedId(id); sound('select'); }}
               />
             )}
-            {tab === 'data' && <AccountPanel account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
+            {tab === 'data' && <AccountPanel vacation={vacationOffer} onVacation={setVacationAsk} account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
             {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} account={account} />}
           </section>
         </aside>
