@@ -908,3 +908,6 @@ html[data-look='parchment'] .rm-board-row.mine { background: rgba(120, 80, 20, 0
 .rm-card-actions { flex-wrap: nowrap; }
 .rm-card-actions .rm-btn { flex: 1 1 auto; min-width: 0; padding-left: 8px; padding-right: 8px; white-space: nowrap; font-size: 17px; letter-spacing: 1px; }
 .rm-card-icon-bare { border: none; border-radius: 0; padding: 0; }
+
+/* the example cities keep their whole names; only the one at the edge of the row (by the arrow) is ever clipped */
+.rm-try-city { flex: 0 0 auto; overflow: visible; text-overflow: clip; padding: 2px 10px; }
