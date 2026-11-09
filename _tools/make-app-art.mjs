@@ -10,6 +10,29 @@ const DIM = '#1f9a52';
 const DARK = '#000a04';
 const n = (v) => Math.round(v * 10) / 10;
 
+// The picture behind the cogwheel: a destroyed road seen from the walker's own eyes (made once by _tools/gen-icon-road.mjs, kept in resources/icon-road.png).
+// Set ICON_BACKGROUND=plain to go back to the plain dark background the icon had before (also the git tag icon-cog-only-v1).
+const useRoad = process.env.ICON_BACKGROUND !== 'plain' && fs.existsSync('resources/icon-road.png');
+let road1024 = null;
+let roadSmall = null;
+if (useRoad) {
+  // in the picture the horizon sits a little above the middle (44% of the way down); the top is cropped away so it lands 70% of the way up (30% down)
+  const meta = await sharp('resources/icon-road.png').metadata();
+  const horizon = Number(process.env.ROAD_HORIZON ?? 0.44) * meta.height;
+  const top = Math.max(0, Math.round((horizon - 0.3 * meta.height) / 0.7));
+  const side = meta.height - top;
+  const square = sharp('resources/icon-road.png').extract({ left: Math.round((meta.width - side) / 2), top, width: side, height: side });
+  road1024 = await square.clone().resize(1024, 1024).jpeg({ quality: 88 }).toBuffer();
+  roadSmall = await square.clone().resize(96, 96).jpeg({ quality: 72 }).toBuffer();
+}
+const BACKGROUND = useRoad
+  ? '<image href="data:image/jpeg;base64,' + (road1024 ? road1024.toString('base64') : '') + '" width="1024" height="1024"/><rect width="1024" height="1024" fill="#000a04" opacity="0.22"/>'
+  : '<rect width="1024" height="1024" fill="url(#sky)"/>';
+/** The website's tab icon: the same background, small, in a rounded square with the green rim. */
+const FLAT_BACKGROUND = useRoad
+  ? '<clipPath id="rr"><rect width="1024" height="1024" rx="190"/></clipPath><image clip-path="url(#rr)" href="data:image/jpeg;base64,' + (roadSmall ? roadSmall.toString('base64') : '') + '" width="1024" height="1024"/><rect width="1024" height="1024" rx="190" fill="#000a04" opacity="0.22"/><rect x="26" y="26" width="972" height="972" rx="166" fill="none" stroke="#1f9a52" stroke-width="14"/>'
+  : '<rect width="1024" height="1024" rx="190" fill="#04170c"/><rect x="26" y="26" width="972" height="972" rx="166" fill="none" stroke="#1f9a52" stroke-width="14"/>';
+
 /** The outline of a cog (a vault door): a ring of teeth. */
 function cog(cx, cy, teeth, outer, root) {
   const step = (Math.PI * 2) / teeth;
@@ -114,7 +137,7 @@ function iconArt(withBackground) {
   return '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">'
     + '<defs><filter id="g" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
     + '<radialGradient id="sky" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#06301a"/><stop offset="1" stop-color="' + DARK + '"/></radialGradient></defs>'
-    + (withBackground ? '<rect width="1024" height="1024" fill="url(#sky)"/>' : '')
+    + (withBackground ? BACKGROUND : '')
     + '<g filter="url(#g)">'
     + '<path d="' + gear + '" fill="' + GREEN + '" stroke="' + GREEN + '" stroke-width="10" stroke-linejoin="round"/>'
     + '<circle cx="' + cx + '" cy="' + cy + '" r="' + windowR + '" fill="#04170c"/>'
@@ -130,7 +153,8 @@ await png(iconArt(true), 1024).toFile('resources/icon-only.png');
 // the adaptive Android icon: the picture inside the central safe zone on a transparent layer, over a plain dark layer
 const small = await png(iconArt(false), 676).toBuffer();
 await sharp({ create: { width: 1024, height: 1024, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([{ input: small, gravity: 'center' }]).png().toFile('resources/icon-foreground.png');
-await sharp({ create: { width: 1024, height: 1024, channels: 4, background: DARK } }).png().toFile('resources/icon-background.png');
+if (useRoad) await sharp(road1024).png().toFile('resources/icon-background.png');
+else await sharp({ create: { width: 1024, height: 1024, channels: 4, background: DARK } }).png().toFile('resources/icon-background.png');
 // the splash: an old television's stand-by test card in Pip-Boy green (rings, a sunburst, a crosshair, corner targets, gratings, and PLEASE STAND BY across the middle)
 function standBySvg() {
   const W = 2732, c = W / 2;
@@ -199,7 +223,7 @@ await sharp('resources/splash.png').toFile('resources/splash-dark.png');
 console.log('resources written');
 
 // the website's icons, the same picture: the browser tab, the home-screen shortcut and the web manifest
-const flat = iconArt(true).replace(' filter="url(#g)"', '').replace('<g filter="url(#g)">', '<g>').replace('<rect width="1024" height="1024" fill="url(#sky)"/>', '<rect width="1024" height="1024" rx="190" fill="#04170c"/><rect x="26" y="26" width="972" height="972" rx="166" fill="none" stroke="#1f9a52" stroke-width="14"/>');
+const flat = iconArt(true).replace(' filter="url(#g)"', '').replace('<g filter="url(#g)">', '<g>').replace(BACKGROUND, FLAT_BACKGROUND);
 fs.writeFileSync('public/favicon.svg', flat);
 await png(iconArt(true), 180).toFile('public/apple-touch-icon.png');
 await png(iconArt(true), 192).toFile('public/icon-192.png');

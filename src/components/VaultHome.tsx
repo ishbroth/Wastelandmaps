@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { vaultCall, type Account } from '../lib/account';
 import ConfirmSpend from './ConfirmSpend';
-import { describeBag, lootName, type LootId } from '../lib/raid/loot';
+import { canAfford, describeBag, lootName, type LootId } from '../lib/raid/loot';
 type Bag = Partial<Record<string, number>>;
 import {
   COLS, ENTRY_AT, isDoorCell, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
@@ -10,7 +10,7 @@ import {
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt, type Pose } from './vaultArt';
-import { CELL, FURNITURE, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, pieceAt, roomRect, screenBox, type Rect } from './vaultIso';
+import { CELL, FURNITURE, SEATS, pieceScale, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, pieceAt, roomRect, screenBox, type Rect } from './vaultIso';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -40,7 +40,7 @@ type Panel = { kind: 'build'; level: number; col: number; row: number; type?: Ro
 
 // ---- the settlers' wandering ----
 
-interface Sim { id: number; kind: SettlerKind; level: number; x: number; y: number; path: { x: number; y: number }[]; face: 1 | -1; phase: number; pose: Pose; until: number; lift: number; use: string }
+interface Sim { id: number; kind: SettlerKind; level: number; x: number; y: number; path: { x: number; y: number }[]; face: 1 | -1; phase: number; pose: Pose; until: number; lift: number; seatFace?: 1 | -1; use: string }
 
 const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
 const cellOf = (x: number, y: number): [number, number] => [Math.max(0, Math.min(COLS - 1, Math.floor(x / CELL))), Math.max(0, Math.min(ROWS - 1, Math.floor(y / CELL)))];
@@ -99,6 +99,12 @@ function plan(s: Sim, v: VaultHome) {
     // beside the piece, on the side that faces the room
     spot = floorPoint(room, Math.min(1, p.u + (p.face === 'x' ? 0.16 : 0) + (use === 'chairs' ? pick([-0.18, 0.18]) : 0)), Math.min(1, p.v + (p.face === 'y' ? 0.16 : 0)));
   }
+  s.seatFace = undefined;
+  if (use && SEATS[use]) {
+    const seat = pick(SEATS[use]);
+    const at = pieceAt(room, use);
+    if (at) { const k = pieceScale(room); spot = { x: at.x + seat.dx * k, y: at.y + seat.dy * k }; s.seatFace = seat.face; }
+  }
   s.path = route(v, s.level, cellOf(s.x, s.y), cellOf(spot.x, spot.y), spot);
   s.lift = 0;
   s.use = use;
@@ -111,6 +117,7 @@ function arrive(s: Sim, now: number) {
   if (use && (SIT.has(use) || LIE.has(use))) {
     s.pose = LIE.has(use) || (pet && use !== 'bar') ? 'lie' : 'sit';
     s.lift = LIFT[use] ?? 0;
+    if (s.seatFace) s.face = s.seatFace; // sitting, they look out from the back of the seat
     s.until = now + 5000 + Math.random() * 6000;
   } else {
     s.pose = 'stand';
@@ -207,7 +214,7 @@ function RecipeCard({ title, what, recipe, have, busy, onPay, onBack, verb }: { 
       {short.length > 0 && <p className="rm-vh-warn">YOU ARE SHORT {short.map((x) => `${x.need} ${lootName(x.id as LootId).toUpperCase()}`).join(', ')}. LOOT SOME MORE PLACES.</p>}
       <div className="rm-vh-row">
         <button type="button" className="rm-btn rm-btn-ghost" onClick={onBack}>BACK</button>
-        <button type="button" className="rm-btn" disabled={busy || short.length > 0} onClick={() => setAsking(true)}>{busy ? 'WORKING…' : verb}</button>
+        <button type="button" className="rm-btn rm-vh-can" disabled={busy || short.length > 0} onClick={() => setAsking(true)}>{busy ? 'WORKING…' : verb}</button>
       </div>
       {asking && (
         <ConfirmSpend
@@ -564,7 +571,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                     const mix = describeBag(buildRecipe(vault, d.id) as never).toUpperCase();
                     return (
                       <li key={d.id}>
-                        <button type="button" disabled={!!why} onClick={() => setPanel({ ...panel, type: d.id })}>
+                        <button type="button" className={!why && canAfford(ownLoot as never, buildRecipe(vault, d.id) as never) ? 'can' : undefined} disabled={!!why} onClick={() => setPanel({ ...panel, type: d.id })}>
                           <span>{d.name.toUpperCase()}{d.slots === 2 ? ' (2 SLOTS)' : ''}</span>
                           <i>{why ? why.toUpperCase() : mix}</i>
                         </button>
@@ -592,7 +599,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                     const placed = room.furniture.includes(f.id);
                     return (
                       <li key={f.id}>
-                        <button type="button" disabled={placed} onClick={() => setPanel({ ...panel, item: f.id })}>
+                        <button type="button" className={!placed && canAfford(ownLoot as never, furnishRecipe(vault, panel.idx, f.id) as never) ? 'can' : undefined} disabled={placed} onClick={() => setPanel({ ...panel, item: f.id })}>
                           <span>{f.name.toUpperCase()}</span><i>{placed ? 'PLACED' : describeBag(furnishRecipe(vault, panel.idx, f.id) as never).toUpperCase()}</i>
                         </button>
                       </li>

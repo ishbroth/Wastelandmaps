@@ -96,9 +96,8 @@ export const roomRect = (r: { type: RoomType; col: number; row: number }): Rect 
 export const isSmall = (type: RoomType): boolean => roomDef(type).small === true;
 
 /** A spot on a room's floor: u across (0 to 1 along x, from the left back wall) and v deep (0 to 1 along y, from the right back wall). A spot that falls in a notch is moved out of it. */
-export const floorPoint = (r: { type: RoomType; col: number; row: number }, u: number, v: number): { x: number; y: number } => {
+export const floorPoint = (r: { type: RoomType; col: number; row: number }, u: number, v: number, m = 12): { x: number; y: number } => {
   const { rect: a, notch } = shapeOf(r);
-  const m = 12;
   let x = a.x + m + u * (a.w - 2 * m);
   let y = a.y + m + v * (a.d - 2 * m);
   if (notch && x > notch.x - 8 && y > notch.y - 8) {
@@ -519,19 +518,20 @@ interface Piece { u: number; v: number; face: 'x' | 'y'; art: (g: G) => ReactNod
 const DARK: Skin = { top: '#0a3a1c', l: '#06280f', r: '#041c0b' };
 const GLASS_SKIN: Skin = { top: GLASS, l: GLASS, r: GLASS };
 const SCREEN = 'rgba(61,255,138,0.28)';
-const chair = (g: G, cx: number, cy: number) => <g key={`ch${cx}-${cy}`}>{g.box(cx, cy - 6, 8, 12, 2.5, 15)}{g.box(cx, cy, 6, 12, 12, 3)}{g.box(cx - 5, cy + 4, 0, 2, 2, 6, DARK)}{g.box(cx + 5, cy + 4, 0, 2, 2, 6, DARK)}</g>;
+/** A chair at (cx, cy); `dir` is the way it faces along y (1: toward +y, with its back on the -y side; -1: the other way round). */
+const chair = (g: G, cx: number, cy: number, dir = 1) => <g key={`ch${cx}-${cy}`}>{g.box(cx - 5, cy - 4, 0, 2, 2, 6, DARK)}{g.box(cx + 5, cy - 4, 0, 2, 2, 6, DARK)}{dir > 0 && g.box(cx, cy - 6, 6, 12, 2.5, 17)}{g.box(cx, cy, 6, 12, 12, 3)}{dir < 0 && g.box(cx, cy + 6, 6, 12, 2.5, 17)}{g.box(cx - 5, cy + 4, 0, 2, 2, 6, DARK)}{g.box(cx + 5, cy + 4, 0, 2, 2, 6, DARK)}</g>;
 
 /** Where each piece of furniture stands in its room (u across, v deep), which wall it faces from, and what it is made of. */
 export const FURNITURE: Record<string, Piece> = {
   coatrack: { u: 0.1, v: 0.22, face: 'x', art: (g) => <g>{g.cyl(0, 0, 0, 5, 2, DARK)}{g.box(0, 0, 2, 2.4, 2.4, 40)}{g.box(4, 0, 34, 7, 1.8, 1.8)}{g.box(-4, 0, 30, 7, 1.8, 1.8)}{g.box(5, 0, 12, 7, 6, 20, { top: DIM })}</g> },
   shoebench: { u: 0.1, v: 0.62, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 12, 34, 12)}{g.box(0, -9, 12, 8, 6, 3, DARK)}{g.box(0, 2, 12, 8, 6, 3, DARK)}{g.box(0, 12, 12, 7, 5, 3, DARK)}</g> },
   decon: { u: 0.72, v: 0.14, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 26, 26, 2, DARK)}{g.box(0, 0, 2, 26, 26, 46, GLASS_SKIN)}{g.box(0, -7, 46, 10, 10, 3)}{g.box(0, -7, 28, 1.4, 1.4, 18, DARK)}{g.box(-5, -2, 8, 1, 1, 14, { top: INK, l: INK, r: INK })}{g.box(5, -2, 8, 1, 1, 14, { top: INK, l: INK, r: INK })}</g> },
-  couch: { u: 0.5, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, -9, 10, 52, 6, 18)}{g.box(0, 0, 0, 52, 22, 10)}{g.box(-23, 0, 10, 6, 20, 8)}{g.box(23, 0, 10, 6, 20, 8)}</g> },
+  couch: { u: 0.5, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, -10, 0, 54, 6, 28)}{g.box(0, 1, 0, 54, 18, 10)}{g.box(0, 2, 10, 40, 14, 3, { top: DIM })}{g.box(-24, 1, 10, 6, 18, 9)}{g.box(24, 1, 10, 6, 18, 9)}</g> },
   tv: { u: 0.1, v: 0.5, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 12, 36, 10, DARK)}{g.box(-1, 0, 10, 4, 32, 22, DARK)}{g.flat([[1.4, -14, 12], [1.4, 14, 12], [1.4, 14, 30], [1.4, -14, 30]], SCREEN)}</g> },
-  armchair: { u: 0.78, v: 0.62, face: 'y', art: (g) => <g>{g.box(0, -8, 10, 24, 5, 16)}{g.box(0, 0, 0, 24, 22, 10)}{g.box(-9, 0, 10, 5, 20, 7)}{g.box(9, 0, 10, 5, 20, 7)}</g> },
+  armchair: { u: 0.78, v: 0.62, face: 'y', art: (g) => <g>{g.box(0, -9, 0, 26, 5, 26)}{g.box(0, 1, 0, 26, 18, 10)}{g.box(0, 2, 10, 16, 14, 3, { top: DIM })}{g.box(-10, 1, 10, 5, 18, 8)}{g.box(10, 1, 10, 5, 18, 8)}</g> },
   coffeetable: { u: 0.5, v: 0.62, face: 'y', art: (g) => <g>{g.box(-12, -6, 0, 2, 2, 8, DARK)}{g.box(12, -6, 0, 2, 2, 8, DARK)}{g.box(-12, 6, 0, 2, 2, 8, DARK)}{g.box(12, 6, 0, 2, 2, 8, DARK)}{g.box(0, 0, 8, 30, 18, 3)}</g> },
   table: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(-24, -12, 0, 3, 3, 16, DARK)}{g.box(24, -12, 0, 3, 3, 16, DARK)}{g.box(-24, 12, 0, 3, 3, 16, DARK)}{g.box(24, 12, 0, 3, 3, 16, DARK)}{g.box(0, 0, 16, 56, 32, 3)}</g> },
-  chairs: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{chair(g, -14, -26)}{chair(g, 14, -26)}{chair(g, -14, 26)}{chair(g, 14, 26)}</g> },
+  chairs: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{chair(g, -14, -26, 1)}{chair(g, 14, -26, 1)}{chair(g, -14, 26, -1)}{chair(g, 14, 26, -1)}</g> },
   chandelier: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, 0, 50, 1.4, 1.4, 12, DARK)}{g.cyl(0, 0, 42, 11, 8)}{g.box(-9, 0, 50, 1.4, 1.4, 4, { top: INK, l: INK, r: INK })}{g.box(9, 0, 50, 1.4, 1.4, 4, { top: INK, l: INK, r: INK })}</g> },
   chinacabinet: { u: 0.1, v: 0.78, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 14, 36, 50)}{g.flat([[7.4, -15, 8], [7.4, 15, 8], [7.4, 15, 46], [7.4, -15, 46]], GLASS)}{g.flat([[7.4, -15, 26], [7.4, 15, 26], [7.4, 15, 27], [7.4, -15, 27]], INK)}</g> },
   sinkcabinets: { u: 0.5, v: 0.1, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 60, 18, 24)}{g.box(-12, 0, 24, 18, 12, 2, DARK)}{g.box(-12, -4, 26, 2, 2, 10, DARK)}</g> },
@@ -564,10 +564,28 @@ export const SIT = new Set(['couch', 'armchair', 'chairs', 'seating', 'bar']);
 export const LIE = new Set(['bed']);
 
 /** Where a piece stands in the world (its middle, on the floor). */
+/** How big a piece is drawn in this room: a bit smaller in a small room, and 15% smaller than it was. */
+export function pieceScale(room: { type: RoomType; col: number; row: number }): number {
+  const box = roomRect(room);
+  const fit = Math.min(box.w / (roomDef(room.type).slots * CELL), box.d / CELL);
+  return (isSmall(room.type) ? Math.min(0.78, 0.36 + fit * 0.7) : Math.min(1, 0.38 + fit * 0.66)) * 0.85;
+}
+
+const stretch = (k: number): number => Math.max(0, Math.min(1, 0.5 + (k - 0.5) * 1.22));
 export function pieceAt(room: VaultRoom, id: string): { x: number; y: number } | null {
   const p = FURNITURE[id];
-  return p ? floorPoint(room, p.u, p.v) : null;
+  // the pieces stand against the walls, closer in than the open floor spots people walk to
+  return p ? floorPoint(room, stretch(p.u), stretch(p.v), 8) : null;
 }
+
+/** Where a settler sits on a piece (in the piece's own units, from its middle) and which way they face on the screen (1 looks lower right, -1 lower left). */
+export const SEATS: Record<string, { dx: number; dy: number; face: 1 | -1 }[]> = {
+  couch: [{ dx: -13, dy: 3, face: -1 }, { dx: 13, dy: 3, face: -1 }],
+  armchair: [{ dx: 0, dy: 3, face: -1 }],
+  chairs: [{ dx: -14, dy: -26, face: -1 }, { dx: 14, dy: -26, face: -1 }, { dx: -14, dy: 26, face: 1 }, { dx: 14, dy: 26, face: 1 }],
+  seating: [{ dx: -32, dy: 4, face: -1 }, { dx: 0, dy: 4, face: -1 }, { dx: 32, dy: 4, face: -1 }],
+  bar: [{ dx: -20, dy: 22, face: 1 }, { dx: 0, dy: 22, face: 1 }, { dx: 20, dy: 22, face: 1 }],
+};
 
 /** A piece of furniture, in place in its room (the small rooms hold the same things a little smaller). */
 export function PlacedPiece({ room, id, fresh }: { room: VaultRoom; id: string; fresh?: boolean }): ReactElement | null {
@@ -575,9 +593,7 @@ export function PlacedPiece({ room, id, fresh }: { room: VaultRoom; id: string; 
   const at = pieceAt(room, id);
   if (!p || !at) return null;
   const [X, Y] = P(at.x, at.y, 0);
-  const box = roomRect(room);
-  const fit = Math.min(box.w / (roomDef(room.type).slots * CELL), box.d / CELL);
-  const scale = isSmall(room.type) ? Math.min(0.78, 0.36 + fit * 0.7) : Math.min(1, 0.38 + fit * 0.66);
+  const scale = pieceScale(room);
   keyCount = 0;
   return <g className={fresh ? 'rm-vh-fresh' : undefined} transform={`translate(${X} ${Y}) scale(${scale})`}>{p.art(makeG(false))}</g>;
 }

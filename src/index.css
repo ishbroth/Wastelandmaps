@@ -920,3 +920,12 @@ html[data-look='parchment'] .rm-board-row.mine { background: rgba(120, 80, 20, 0
 .rm-board-choose { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 8px 0; }
 .rm-board-choose select, .rm-board-choose input { background: var(--panel); color: var(--ink); border: 1px solid var(--ink); font: inherit; font-size: 15px; padding: 6px; min-width: 0; border-radius: 3px; }
 .rm-board-choose .rm-row-buttons { grid-column: 1 / -1; }
+
+/* the Data tab's trades and crafting: lit up in the bright green when you have what it takes (dimmer as it is when you do not) */
+.rm-arsenal-buy:not(:disabled) { color: var(--ink); border-color: var(--ink); text-shadow: 0 0 6px var(--glow); }
+html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
+
+/* in the vault: what you have the loot for is lit up in the brighter green (what you cannot afford stays as it was) */
+.rm-vh-types button.can { color: #9dffc4; border-color: #3dff8a; text-shadow: 0 0 6px rgba(61, 255, 138, 0.7); }
+.rm-vh-types button.can i { color: #7dffb0; }
+.rm-vh .rm-btn.rm-vh-can:not(:disabled) { color: #9dffc4; text-shadow: 0 0 6px rgba(61, 255, 138, 0.7); }
