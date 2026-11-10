@@ -6,7 +6,7 @@ export const LOOT_TYPES = [
   { id: 'springs', name: 'Springs' },
   { id: 'adhesive', name: 'Adhesive' },
   { id: 'screws', name: 'Screws' },
-  { id: 'fiberoptics', name: 'Fiber Optics' },
+  { id: 'concrete', name: 'Concrete' },
   { id: 'glass', name: 'Glass' },
   { id: 'circuitry', name: 'Circuitry' },
   { id: 'oil', name: 'Oil' },

@@ -15,7 +15,7 @@
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
 import { VAULT_ZERO_BOSSES, VAULT_ZERO_ID, VAULT_ZERO_LOOT, VAULT_ZERO_RAID_XP, VAULT_ZERO_RAID_XP_ID, rollVaultZeroLoot } from '../_shared/vaultZero.ts';
 
-const LOOT = ['steel', 'wood', 'springs', 'adhesive', 'screws', 'fiberoptics', 'glass', 'circuitry', 'oil', 'gears', 'plastic'];
+const LOOT = ['steel', 'wood', 'springs', 'adhesive', 'screws', 'concrete', 'glass', 'circuitry', 'oil', 'gears', 'plastic'];
 const WORTHS = [10, 15, 20, 30, 50, 75];
 /** The landmarks with a permanent snapshot: free for everyone, so no unlock is needed to raid them. */
 const FREE = new Set([

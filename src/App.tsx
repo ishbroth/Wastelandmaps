@@ -1290,7 +1290,7 @@ export default function App() {
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={mapLocations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { if (navRef.current) return; setSelectedId(id); if (id) sound('tick'); }} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
+              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} waiting={account.waiting} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { if (navRef.current) return; setSelectedId(id); if (id) sound('tick'); }} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />

@@ -12,7 +12,7 @@ export const STIMPAK_TRADES: Trade[] = [
 
 /** Three ways to buy Legendary Time (slows the enemies for four seconds). */
 export const TIME_TRADES: Trade[] = [
-  { id: 'circuit', cost: { circuitry: 2, fiberoptics: 2, plastic: 2 } },
+  { id: 'circuit', cost: { circuitry: 2, concrete: 2, plastic: 2 } },
   { id: 'gears', cost: { gears: 3, oil: 3, screws: 2 } },
   { id: 'springs', cost: { springs: 3, gears: 2, glass: 2 } },
 ];

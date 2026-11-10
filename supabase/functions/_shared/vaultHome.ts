@@ -11,9 +11,9 @@ export const ROWS = 11;
 /** Levels down: the one you start on and four more. */
 export const LEVELS = 5;
 /** The most room slots a vault can hold, on whatever levels (a wide room takes two). Hallways and stairwells do not count. */
-export const MAX_SLOTS = 20;
+export const MAX_SLOTS = 25;
 /** The most hallways on one level. */
-export const MAX_HALLWAYS_PER_LEVEL = 4;
+export const MAX_HALLWAYS_PER_LEVEL = 6;
 /** What the dearest room costs, in pieces of loot (the cheapest costs 4). */
 export const MAX_ROOM_PRICE = 40;
 /** A level needs this many rooms before the next one can be dug under it: the entryway counts for the first level, so you can dig down at once once the decontamination shower is in. */
@@ -45,15 +45,15 @@ export const ROOM_DEFS: RoomDef[] = [
   { id: 'entry', name: 'Entryway', slots: 1, max: 1, buildable: false, small: true, furniture: [{ id: 'coatrack', name: 'Coat Rack' }, { id: 'shoebench', name: 'Shoe Bench' }, { id: 'decon', name: 'Decontamination Shower' }] },
   // the way down: digging to a new level makes this stairwell there (under the room you dug from, which gets a hole in its floor with stairs going down); it is not built from the list and does not count toward the slots
   { id: 'stairs', name: 'Stairwell', slots: 1, max: LEVELS - 1, buildable: false, small: true, furniture: [] },
-  // a narrow passage, long and thin: it joins to rooms and to other hallways (straight, or turning a corner); four to a level, no slot, no happiness; one piece in it
+  // a narrow passage, long and thin: it joins to rooms and to other hallways (straight, or turning a corner); six to a level, no slot, no happiness; one piece in it
   { id: 'hallway', name: 'Hallway', slots: 1, max: MAX_HALLWAYS_PER_LEVEL * LEVELS, small: true, furniture: [{ id: 'fishtank', name: 'Fish Tank' }, { id: 'weaponrack', name: 'Weapon Rack' }, { id: 'statue', name: 'Art Statue' }, { id: 'plant', name: 'Indoor Tree' }] },
   { id: 'garden', name: 'Garden', slots: 2, max: 2, furniture: [{ id: 'corn', name: 'Corn' }, { id: 'tatoes', name: 'Tato Plants' }, { id: 'mutfruit', name: 'Mutfruit Plants' }] },
   // a little bigger than the living room, dining room and bedrooms, but still one slot
   { id: 'study', name: 'Study', slots: 1, max: 2, furniture: [{ id: 'bookshelf', name: 'Bookshelf' }, { id: 'desk', name: 'Desk' }, { id: 'instrument', name: 'Instrument' }, { id: 'easel', name: 'Art Easel' }] },
-  { id: 'living', name: 'Living Room', slots: 1, max: 3, furniture: [{ id: 'couch', name: 'Couch' }, { id: 'tv', name: 'TV' }, { id: 'armchair', name: 'Chair' }, { id: 'coffeetable', name: 'Coffee Table' }] },
+  { id: 'living', name: 'Living Room', slots: 1, max: 4, furniture: [{ id: 'couch', name: 'Couch' }, { id: 'tv', name: 'TV' }, { id: 'armchair', name: 'Chair' }, { id: 'coffeetable', name: 'Coffee Table' }] },
   { id: 'dining', name: 'Dining Room', slots: 1, max: 3, furniture: [{ id: 'table', name: 'Dining Table' }, { id: 'chairs', name: 'Dining Chairs' }, { id: 'chandelier', name: 'Candle Chandelier' }, { id: 'chinacabinet', name: 'China Cabinet' }] },
   { id: 'kitchen', name: 'Kitchen', slots: 1, max: 3, furniture: [{ id: 'sinkcabinets', name: 'Cabinets & Sink' }, { id: 'fridge', name: 'Refrigerator' }, { id: 'stove', name: 'Stove' }] },
-  { id: 'bedroom', name: 'Bedroom', slots: 1, max: 6, furniture: [{ id: 'bed', name: 'Bed' }, { id: 'nightstand', name: 'Nightstands' }, { id: 'dresser', name: 'Dresser' }, { id: 'lamp', name: 'Lamp' }] },
+  { id: 'bedroom', name: 'Bedroom', slots: 1, max: 7, furniture: [{ id: 'bed', name: 'Bed' }, { id: 'nightstand', name: 'Nightstands' }, { id: 'dresser', name: 'Dresser' }, { id: 'lamp', name: 'Lamp' }] },
   { id: 'laundry', name: 'Laundry Room', slots: 1, max: 2, small: true, furniture: [{ id: 'washer', name: 'Washer' }, { id: 'dryer', name: 'Dryer' }, { id: 'ironingboard', name: 'Ironing Board' }] },
   { id: 'bathroom', name: 'Bathroom', slots: 1, max: 4, small: true, furniture: [{ id: 'toilet', name: 'Toilet' }, { id: 'bathsink', name: 'Sink' }, { id: 'shower', name: 'Shower' }] },
   { id: 'entertainment', name: 'Entertainment Room', slots: 2, max: 1, furniture: [{ id: 'seating', name: 'Theatre Seating' }, { id: 'screen', name: 'Screen' }, { id: 'speakers', name: 'Speakers' }] },
@@ -163,7 +163,7 @@ export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: nu
   if (def.buildable === false) return 'There is only one entryway';
   if (!hasDecon(v)) return DECON_REASON;
   if (level < 0 || level >= LEVELS || row < 0 || row >= ROWS || col < 0 || col + def.slots > COLS) return 'There is no room for it there';
-  if (type !== 'hallway' && slotsUsed(v) + def.slots > MAX_SLOTS) return `A vault holds at most ${MAX_SLOTS} rooms (hallways and stairwells do not count)`;
+  if (type !== 'hallway' && slotsUsed(v) + def.slots > MAX_SLOTS) return 'Room limit reached';
   if (type === 'hallway' && hallwaysOn(v, level) >= MAX_HALLWAYS_PER_LEVEL) return `A level holds at most ${MAX_HALLWAYS_PER_LEVEL} hallways`;
   if (type !== 'hallway' && v.rooms.filter((r) => r.type === type).length >= def.max) return `A vault holds at most ${def.max} ${def.name}${def.max > 1 ? 's' : ''}`;
   for (let c = col; c < col + def.slots; c++) if (roomAt(v, level, c, row)) return 'That space is taken';
@@ -234,7 +234,7 @@ export const roomComplete = (r: VaultRoom): boolean => r.furniture.length >= (r.
 
 // ---- what things cost, as a mix of loot ----
 
-const KINDS = ['steel', 'wood', 'springs', 'adhesive', 'screws', 'fiberoptics', 'glass', 'circuitry', 'oil', 'gears', 'plastic'];
+const KINDS = ['steel', 'wood', 'springs', 'adhesive', 'screws', 'concrete', 'glass', 'circuitry', 'oil', 'gears', 'plastic'];
 
 /** A small repeatable random stream from a seed and a name (the same on the phone and on the server). */
 function stream(seed: number, key: string): () => number {
@@ -251,7 +251,7 @@ function stream(seed: number, key: string): () => number {
 
 /**
  * The mix of loot that adds up to this many pieces: two to five kinds, at least one of each, the rest dealt out at random ("2 wood, 1 plastic"; "1 steel,
- * 1 fiber optics, 1 screws"). The same seed and name always give the same mix. The cheap ones lean on steel and wood, which the very first raid pays.
+ * 1 concrete, 1 screws"). The same seed and name always give the same mix. The cheap ones lean on steel and wood, which the very first raid pays.
  */
 export function recipeFor(seed: number, key: string, pieces: number): LootBag {
   const next = stream(seed, key);
@@ -286,8 +286,10 @@ export const furnishRecipe = (v: VaultHome, roomIndex: number, item: string): Lo
 
 // ---- settlers ----
 
-/** A settler arrives with the third slot, and another with every three slots after it. */
-export const settlersEarned = (v: VaultHome): number => Math.floor(slotsUsed(v) / 3);
+/** The room slots that count toward settlers: everything but the entryway (and the passages). */
+export const settlerSlots = (v: VaultHome): number => v.rooms.reduce((n, r) => n + (isPassage(r) || r.type === 'entry' ? 0 : slotsOf(r)), 0);
+/** The first settler arrives with the third slot (not counting the entryway), and another with every four slots after it. */
+export const settlersEarned = (v: VaultHome): number => { const n = settlerSlots(v); return n < 3 ? 0 : 1 + Math.floor((n - 3) / 4); };
 export const settlersWaiting = (v: VaultHome): number => settlersEarned(v) - v.settlers.length;
 
 // ---- happiness ----

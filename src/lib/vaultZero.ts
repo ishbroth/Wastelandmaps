@@ -15,5 +15,5 @@ export const VAULT_ZERO: Location = {
   famous: true,
   threat: 'Super Mutants',
   rads: 0,
-  loot: 'Circuitry, fiber optics and gears',
+  loot: 'Circuitry, concrete and gears',
 };

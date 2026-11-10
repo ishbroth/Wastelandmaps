@@ -4,6 +4,7 @@ import CogSpinner from './CogSpinner';
 import LockIcon from './LockIcon';
 import BuyCaps from './BuyCaps';
 import { accountsEnabled, caps, checkAddress, vacationPicture, type Account } from '../lib/account';
+import { waitingLine } from '../lib/waitingLoot';
 import { freeRenderFor } from '../lib/renders';
 import { usePaidRender } from '../lib/usePaidRender';
 import { findSnapshot, type Snapshot } from '../lib/snapshot';
@@ -50,6 +51,9 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   const [tab, setTab] = useState<Tab>(startOn === 'snapshot' ? 'snapshot' : 'scene');
   const [raiding, setRaiding] = useState(false);
   const [entering, setEntering] = useState(false);
+  /** The loot waiting at this cleared place (for the CLEARED button), and whether it is being shown. */
+  const [showWaiting, setShowWaiting] = useState(false);
+  const waitingText = waitingLine(account.waiting.get(spot.id));
   const [buying, setBuying] = useState(false);
   // the photo search answers for one place at a time; until it answers for this one, we are still searching (the vault is made up: no photo)
   const [found, setFound] = useState<{ id: string; snapshot: Snapshot | null } | null>(null);
@@ -182,9 +186,11 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
             <VacationCog name={spot.name} onClick={() => onVacation(vacation.choices.find((c) => c.placeId === spot.id) as VacationChoice)} />
           )}
           {reveal && raid && (
-            <button type="button" className="rm-tab-loot" disabled={account.cleared.has(spot.id) && !home} onClick={() => (home && account.cleared.has(spot.id) ? setEntering(true) : setRaiding(true))} title={home && account.cleared.has(spot.id) ? 'Go into your home vault' : account.cleared.has(spot.id) ? 'Already cleared' : 'Clear out what lives there (the loot is yours once you have discovered the place)'}>{home && account.cleared.has(spot.id) ? 'ENTER' : account.cleared.has(spot.id) ? 'CLEARED' : 'CLEAR'}</button>
+            <button type="button" className={`rm-tab-loot${!home && account.cleared.has(spot.id) && waitingText ? ' waiting' : ''}`} disabled={account.cleared.has(spot.id) && !home && !waitingText} onClick={() => (home && account.cleared.has(spot.id) ? setEntering(true) : account.cleared.has(spot.id) ? setShowWaiting((x) => !x) : setRaiding(true))} title={home && account.cleared.has(spot.id) ? 'Go into your home vault' : account.cleared.has(spot.id) ? (waitingText ? 'Cleared: see the loot waiting for you' : 'Already cleared') : 'Clear out what lives there (the loot is yours once you have discovered the place)'}>{home && account.cleared.has(spot.id) ? 'ENTER' : account.cleared.has(spot.id) ? 'CLEARED' : 'CLEAR'}</button>
           )}
         </div>
+
+        {showWaiting && waitingText && <p className="rm-waiting rm-waiting-panel">LOOT WAITING FOR YOU: {waitingText}. DISCOVER THIS PLACE IN PERSON TO PICK IT UP.</p>}
 
         {/* the scene tab is the story, the enemies and the loot: the picture belongs to the snapshot tab */}
         <div className={`rm-modal-view${tab === 'scene' ? ' rm-modal-view-hidden' : ''}`}>

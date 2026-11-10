@@ -3,7 +3,7 @@
 
 create table public.player_loot (
   user_id uuid not null references auth.users (id) on delete cascade,
-  loot text not null check (loot in ('steel', 'wood', 'springs', 'adhesive', 'screws', 'fiberoptics', 'glass', 'circuitry', 'oil', 'gears', 'plastic')),
+  loot text not null check (loot in ('steel', 'wood', 'springs', 'adhesive', 'screws', 'concrete', 'glass', 'circuitry', 'oil', 'gears', 'plastic')),
   qty integer not null default 0 check (qty >= 0),
   primary key (user_id, loot)
 );

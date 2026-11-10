@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { isNative, saveBlob } from '../lib/native';
 import { vaultCall, type Account } from '../lib/account';
 import ConfirmSpend from './ConfirmSpend';
 import { canAfford, describeBag, lootName, type LootId } from '../lib/raid/loot';
 type Bag = Partial<Record<string, number>>;
 import {
-  COLS, ENTRY_AT, MAX_HALLWAYS_PER_LEVEL, hallwaysOn, isDoorCell, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
+  COLS, ENTRY_AT, isPassage, MAX_HALLWAYS_PER_LEVEL, hallwaysOn, isDoorCell, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
   whyNotBuild, whyNotDig, whyNotDemolish, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
@@ -325,8 +326,93 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
 
   const mood = vault ? moodAt({ ...vault, seenAt: now }, now) : null;
   const waiting = vault ? settlersWaiting(vault) : 0;
+  // the menu of rooms to build shows six at a time and scrolls inside a window of that size
+  const [buildList, setBuildList] = useState<HTMLUListElement | null>(null);
+  const [buildHeight, setBuildHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!buildList) { setBuildHeight(null); return; }
+    const measure = () => {
+      const items = Array.from(buildList.children).slice(0, 6) as HTMLElement[];
+      if (buildList.children.length <= 6 || items.length < 6) { setBuildHeight(null); return; }
+      const h = Math.ceil(items[5].getBoundingClientRect().bottom - items[0].getBoundingClientRect().top);
+      setBuildHeight((prev) => (prev !== null && Math.abs(prev - h) < 2 ? prev : h));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(buildList);
+    return () => ro.disconnect();
+  }, [buildList]);
+  const levelsShown = !!vault && (vault.legacy || deepestLevel(vault) > 0 || (hasDecon(vault) && roomsOn(vault, level).length >= ROOMS_TO_DIG));
   /** A new settler whose name is being chosen. */
   const [naming, setNaming] = useState<{ kind: SettlerKind; name: string } | null>(null);
+
+  /** Shares a picture of this level of the vault as it is: the phone's share sheet in the app, the share sheet or a download in a browser. */
+  const shareVault = useCallback(async () => {
+    const svg = svgRef.current;
+    if (!svg || !vault) return;
+    try {
+      const rects: Rect[] = vault.rooms.filter((r) => r.level === level).map(roomRect);
+      if (rects.length === 0) { say('THERE IS NOTHING TO SHOW ON THIS LEVEL YET'); return; }
+      const b = screenBox(rects);
+      const pad = 18;
+      const box = [b.x - pad, b.y - pad, b.w + 2 * pad, b.h + 2 * pad];
+      const W = 1600;
+      const imgW = W - 120;
+      const imgH = Math.round((imgW * box[3]) / box[2]);
+      const clone = svg.cloneNode(true) as SVGSVGElement;
+      clone.querySelectorAll('.rm-vh-open, .rm-vh-ghosts').forEach((n) => n.remove());
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      clone.setAttribute('viewBox', box.map((n) => Math.round(n * 100) / 100).join(' '));
+      clone.setAttribute('width', String(imgW));
+      clone.setAttribute('height', String(imgH));
+      clone.removeAttribute('style');
+      const xml = new XMLSerializer().serializeToString(clone);
+      const img = new Image();
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+      await img.decode();
+      const head = 150;
+      const foot = 100;
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = head + imgH + foot;
+      const c = canvas.getContext('2d');
+      if (!c) return;
+      c.fillStyle = '#021a0c';
+      c.fillRect(0, 0, canvas.width, canvas.height);
+      c.strokeStyle = '#13a550';
+      c.lineWidth = 3;
+      c.strokeRect(14, 14, canvas.width - 28, canvas.height - 28);
+      c.shadowColor = '#3dff8a';
+      c.shadowBlur = 10;
+      c.drawImage(img, 60, head, imgW, imgH);
+      c.shadowBlur = 6;
+      c.fillStyle = '#3dff8a';
+      c.font = "72px 'VT323', monospace";
+      c.textBaseline = 'alphabetic';
+      c.fillText(title.toUpperCase(), 60, 96);
+      c.font = "40px 'VT323', monospace";
+      c.fillStyle = '#13a550';
+      c.fillText(`LEVEL ${level + 1} OF ${LEVELS}  ·  ${vault.rooms.filter((r) => !isPassage(r)).length} ROOMS  ·  ${vault.settlers.length} SETTLERS`, 60, 134);
+      c.textAlign = 'right';
+      c.fillStyle = '#3dff8a';
+      c.fillText('WASTELANDMAPS.COM', W - 60, head + imgH + 66);
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((x) => resolve(x), 'image/png'));
+      if (!blob) return;
+      const filename = `${title.replace(/[^A-Za-z0-9]+/g, '-')}-level-${level + 1}-wastelandmaps.png`;
+      const file = new File([blob], filename, { type: 'image/png' });
+      if (!isNative() && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: `${title} on WastelandMaps`, text: `My ${title} on WastelandMaps. wastelandmaps.com` });
+          return;
+        } catch (e) {
+          if ((e as Error)?.name === 'AbortError') return;
+        }
+      }
+      await saveBlob(blob, filename, `${title} on WastelandMaps`);
+    } catch (e) {
+      if ((e as Error)?.name !== 'AbortError') say('COULD NOT MAKE THE PICTURE');
+    }
+  }, [vault, level, title, say]);
 
   /** Moves to another level (back to the whole-level view). */
   const goLevel = useCallback((to: number) => { setFocus(null); setPanel(null); setLevel(to); }, []);
@@ -557,7 +643,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
               onPointerUp={() => { const d = drag.current; drag.current = null; if (d?.moved) { dragged.current = true; window.setTimeout(() => { dragged.current = false; }, 60); } }}
               onPointerCancel={() => { drag.current = null; }}
               onClick={() => { if (dragged.current) return; if (focus !== null) { if (panel) setPanel(null); else setFocus(null); } }}>
-              {scene.ghosts}
+              <g className="rm-vh-ghosts">{scene.ghosts}</g>
               {scene.layers.map((l) => {
                 const here = l.room;
                 const things = here ? [...(pieces.get(here.idx) ?? []), ...settlers.filter((t) => t.owner === here.idx)].sort((x, y) => x.depth - y.depth) : [];
@@ -568,6 +654,11 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
           );
         })()}
       </div>
+        {vault && vault.rooms.length > 0 && (
+          <button type="button" className={`rm-vh-share${levelsShown ? '' : ' alone'}`} onClick={() => void shareVault()} aria-label="Share a picture of your vault" title="Share your vault">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+        )}
         {vault && (vault.legacy || deepestLevel(vault) > 0 || (hasDecon(vault) && roomsOn(vault, level).length >= ROOMS_TO_DIG)) && (
           <div className="rm-vh-levels" role="group" aria-label="Levels">
             <button type="button" className="rm-vh-lv" disabled={level <= 0} onClick={() => goLevel(level - 1)} aria-label="Up one level">▲</button>
@@ -663,7 +754,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             {panel.kind === 'build' && !panel.type && (
               <div className="rm-vh-sheet-body">
                 <h3>{roomsOn(vault, panel.level).length === 0 ? 'DIG DOWN' : 'CLEAR & BUILD'}</h3>
-                <ul className="rm-vh-types">
+                <ul className="rm-vh-types rm-vh-types-window" ref={setBuildList} style={buildHeight ? { height: buildHeight } : undefined}>
                   {ROOM_DEFS.filter((d) => d.buildable !== false).map((d) => {
                     const why = whyNotBuild(vault, d.id, panel.level, panel.col, panel.row);
                     const mix = describeBag(buildRecipe(vault, d.id) as never).toUpperCase();

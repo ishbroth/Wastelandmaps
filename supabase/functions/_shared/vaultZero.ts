@@ -14,7 +14,7 @@ export const VAULT_ZERO_WAVES = [1, 2, 3, 4, 5, 6, 7, 8];
 export const VAULT_ZERO_BOSSES = VAULT_ZERO_WAVES.reduce((a, b) => a + b, 0);
 
 /** The three kinds of loot it holds (the pieces are shared out among them). */
-export const VAULT_ZERO_LOOT = ['circuitry', 'fiberoptics', 'gears'];
+export const VAULT_ZERO_LOOT = ['circuitry', 'concrete', 'gears'];
 export const VAULT_ZERO_PIECES = 20;
 export const VAULT_ZERO_RAID_XP = 100;
 export const VAULT_ZERO_FOUND_XP = 1000;

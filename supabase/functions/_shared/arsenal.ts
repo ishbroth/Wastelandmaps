@@ -59,8 +59,8 @@ export const WEAPON_CLASSES: Record<WeaponClass, { label: string; /** Where it s
     tiers: [
       { id: 'model70', name: 'Winchester Model 70', real: 'Winchester Model 70, .30-06 bolt-action hunting rifle', tier: 1, damage: 70, rate: 0.9, recipe: { wood: 2, steel: 1, glass: 1 } },
       { id: 'rem700', name: 'Remington 700', real: 'Remington 700, .308 bolt-action sniper rifle', tier: 2, damage: 110, rate: 0.8, recipe: { wood: 2, steel: 2, glass: 2, screws: 1 } },
-      { id: 'svd', name: 'Dragunov SVD', real: 'Dragunov SVD, 7.62x54mmR semi-automatic sniper rifle', tier: 3, damage: 150, rate: 1.4, recipe: { steel: 3, glass: 3, fiberoptics: 1, screws: 2, wood: 1 } },
-      { id: 'm82', name: 'Barrett M82', real: 'Barrett M82, .50 BMG anti-materiel rifle', tier: 4, damage: 300, rate: 0.7, pierce: true, recipe: { steel: 4, glass: 3, fiberoptics: 3, circuitry: 2, screws: 2, oil: 1 } },
+      { id: 'svd', name: 'Dragunov SVD', real: 'Dragunov SVD, 7.62x54mmR semi-automatic sniper rifle', tier: 3, damage: 150, rate: 1.4, recipe: { steel: 3, glass: 3, concrete: 1, screws: 2, wood: 1 } },
+      { id: 'm82', name: 'Barrett M82', real: 'Barrett M82, .50 BMG anti-materiel rifle', tier: 4, damage: 300, rate: 0.7, pierce: true, recipe: { steel: 4, glass: 3, concrete: 3, circuitry: 2, screws: 2, oil: 1 } },
     ],
   },
   explosive: {
@@ -69,8 +69,8 @@ export const WEAPON_CLASSES: Record<WeaponClass, { label: string; /** Where it s
     tiers: [
       { id: 'flamethrower', name: 'M2 Flamethrower', real: 'M2 flamethrower, napalm backpack flamethrower', tier: 1, damage: 7, rate: 12, auto: true, splash: 0.07, ammo: 600, recipe: { oil: 2, steel: 1, adhesive: 1 } },
       { id: 'm79', name: 'M79 Grenade Launcher', real: 'M79 "Blooper", 40mm single-shot grenade launcher', tier: 2, damage: 120, rate: 0.7, splash: 0.09, ammo: 20, recipe: { steel: 3, springs: 1, oil: 1, adhesive: 1, screws: 1 } },
-      { id: 'missile', name: 'M72 Missile Launcher', real: 'M72 LAW, 66mm shoulder-fired rocket launcher', tier: 3, damage: 260, rate: 0.5, splash: 0.13, ammo: 14, recipe: { steel: 3, circuitry: 2, fiberoptics: 1, oil: 2, gears: 1, adhesive: 1 } },
-      { id: 'fatman', name: 'Fat Man', real: 'Davy Crockett recoilless launcher firing the Fat Man mini-nuke', tier: 4, damage: 800, rate: 0.25, splash: 0.26, ammo: 6, recipe: { steel: 4, circuitry: 3, fiberoptics: 2, gears: 2, oil: 2, plastic: 1, glass: 1 } },
+      { id: 'missile', name: 'M72 Missile Launcher', real: 'M72 LAW, 66mm shoulder-fired rocket launcher', tier: 3, damage: 260, rate: 0.5, splash: 0.13, ammo: 14, recipe: { steel: 3, circuitry: 2, concrete: 1, oil: 2, gears: 1, adhesive: 1 } },
+      { id: 'fatman', name: 'Fat Man', real: 'Davy Crockett recoilless launcher firing the Fat Man mini-nuke', tier: 4, damage: 800, rate: 0.25, splash: 0.26, ammo: 6, recipe: { steel: 4, circuitry: 3, concrete: 2, gears: 2, oil: 2, plastic: 1, glass: 1 } },
     ],
   },
 };

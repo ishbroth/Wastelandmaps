@@ -9,6 +9,7 @@ import { stylesAt, type Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
 import { loadFlood, patchOutline, type FloodPatch } from '../lib/flood';
+import { waitingLine } from '../lib/waitingLoot';
 import { VAULT_ZERO_ID } from '../lib/vaultZero';
 import { cloudOutline } from '../lib/zones';
 import { levelsAt, type RegionLabel } from '../lib/regions';
@@ -77,6 +78,8 @@ interface Props {
   visited: Set<string>;
   /** Places already looted: their label says [Cleared]. */
   cleared: Set<string>;
+  /** The loot waiting at looted places that have not been discovered yet (shown on their tag next to [Cleared]). */
+  waiting?: Map<string, Partial<Record<string, number>>>;
   /** Where you are standing. */
   player: LatLng | null;
   /** A trip to animate, or null. */
@@ -162,12 +165,12 @@ function pinElement(kind: string, iconHtml: string, label: string, sub: string, 
 }
 
 /** A looted place shows [Cleared] under its name (the line it normally has is kept to put back). */
-function markCleared(el: HTMLElement, cleared: boolean) {
+function markCleared(el: HTMLElement, cleared: boolean, waiting = '') {
   const line = el.querySelector('.rm-pin-label i') as HTMLElement | null;
   if (!line) return;
   if (el.dataset.sub === undefined) el.dataset.sub = line.textContent ?? '';
   el.classList.toggle('rm-pin-cleared', cleared);
-  line.textContent = cleared ? '[Cleared]' : el.dataset.sub;
+  line.textContent = cleared ? (waiting ? `[Cleared] ${waiting}` : '[Cleared]') : el.dataset.sub;
 }
 
 function playerElement(): HTMLElement {
@@ -202,7 +205,7 @@ function morphLabel(el: HTMLElement, from: string, to: string) {
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
-export default function MapView({ onLocate, locateDisabled, look, region, wasteland, locations, hiddenCategories, selectedId, visited, cleared, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, startView }: Props) {
+export default function MapView({ onLocate, locateDisabled, look, region, wasteland, locations, hiddenCategories, selectedId, visited, cleared, waiting, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, startView }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const locateRef = useRef(onLocate);
   const meButton = useRef<HTMLButtonElement | null>(null);
@@ -228,6 +231,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
   const onViewportRef = useRef(onViewport);
   const visitedRef = useRef(visited);
   const clearedRef = useRef(cleared);
+  const waitingRef = useRef(waiting);
   const lastDrag = useRef(0);
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -235,7 +239,8 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     onViewportRef.current = onViewport;
     visitedRef.current = visited;
     clearedRef.current = cleared;
-  }, [onSelect, onArrive, onViewport, visited, cleared]);
+    waitingRef.current = waiting;
+  }, [onSelect, onArrive, onViewport, visited, cleared, waiting]);
 
   // the map itself, once
   useEffect(() => {
@@ -379,7 +384,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       const free = freeRenderFor(loc.id); // the always-free landmarks: drawn as themselves, and a little larger
       const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free ? 'rm-pin-landmark' : loc.famous ? 'rm-pin-famous' : '', loc.personal?.home ? 'rm-pin-landmark' : loc.personal ? 'rm-pin-personal' : '', loc.personal && !loc.personal.saved ? 'rm-pin-target' : ''].filter(Boolean).join(' '));
       el.classList.toggle('rm-pin-visited', visitedRef.current.has(loc.id));
-      markCleared(el, clearedRef.current.has(loc.id));
+      markCleared(el, clearedRef.current.has(loc.id), waitingLine(waitingRef.current?.get(loc.id)).toLowerCase());
       const brandNew = !everShown.current.has(loc.id);
       everShown.current.add(loc.id);
       if (!firstBatch && brandNew) {
@@ -509,7 +514,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     const byId = new Map(locations.map((l) => [l.id, l]));
     pins.current.forEach((p, id) => {
       p.el.classList.toggle('rm-pin-visited', visited.has(id));
-      markCleared(p.el, cleared.has(id));
+      markCleared(p.el, cleared.has(id), waitingLine(waiting?.get(id)).toLowerCase());
       const mine = byId.get(id);
       if (mine?.personal) {
         // their own places: the destination turns into a kept pin once reached, and a renamed place shows its new name

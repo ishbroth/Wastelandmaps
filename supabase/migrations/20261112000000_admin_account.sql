@@ -31,5 +31,5 @@ create trigger admin_keep_loot before insert or update on public.player_loot for
 insert into public.credits (user_id, balance) select user_id, 9999 from public.admin_accounts
 on conflict (user_id) do update set balance = 9999, updated_at = now();
 insert into public.player_loot (user_id, loot, qty)
-select a.user_id, l, 99 from public.admin_accounts a, unnest(array['steel', 'wood', 'springs', 'adhesive', 'screws', 'fiberoptics', 'glass', 'circuitry', 'oil', 'gears', 'plastic']) as l
+select a.user_id, l, 99 from public.admin_accounts a, unnest(array['steel', 'wood', 'springs', 'adhesive', 'screws', 'concrete', 'glass', 'circuitry', 'oil', 'gears', 'plastic']) as l
 on conflict (user_id, loot) do update set qty = 99;
