@@ -821,7 +821,32 @@ export const FURNITURE: Record<string, Piece> = {
   easel: { u: 0.8, v: 0.42, face: 'y', art: (g) => <g>{g.box(-11, 7, 0, 2, 2, 42, DARK)}{g.box(11, 7, 0, 2, 2, 42, DARK)}{g.box(0, -8, 0, 2, 2, 40, DARK)}{g.box(0, 2, 14, 28, 4, 2.4, DARK)}{g.box(0, 2.4, 16, 26, 1.8, 28, { top: '#bfffd6', l: '#9fe8b8', r: '#7cc99a' })}{g.flat([[-10, 3.4, 19], [10, 3.4, 19], [10, 3.4, 40], [-10, 3.4, 40]], 'rgba(61,255,138,0.22)')}{g.flat([[-10, 3.5, 19], [-3, 3.5, 30], [3, 3.5, 24], [10, 3.5, 33], [10, 3.5, 19]], 'rgba(61,255,138,0.55)')}{g.flat([[4, 3.5, 34], [8, 3.5, 34], [8, 3.5, 38], [4, 3.5, 38]], INK)}{g.cyl(15, 6, 0, 2.6, 5, { top: INK, l: DIM, r: '#0c6b30' })}{g.cyl(-15, 8, 0, 2.2, 4.4, { top: '#bfffd6', l: DIM, r: '#0c6b30' })}</g> },
   // ---- the study's instrument: a wall mount until it is chosen, then a guitar (on the wall), a piano, a harp or a drum set ----
   instrument: { u: 0.1, v: 0.62, face: 'x', art: (g) => <g>{g.box(0, 0, 14, 1.8, 18, 20, DARK)}{g.box(1.4, 0, 22, 1.2, 12, 1.4, { top: INK, l: INK, r: INK })}{g.box(1.4, 0, 30, 1.2, 12, 1.4, { top: INK, l: INK, r: INK })}</g> },
-  piano: { u: 0.1, v: 0.6, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 14, 40, 36)}{g.box(1, 0, 0, 12, 36, 4, DARK)}{g.box(7.6, 0, 18, 6, 38, 2.4, DARK)}{g.flat([[8.4, -17, 20.5], [8.4, 17, 20.5], [13, 17, 20.5], [13, -17, 20.5]], 'rgba(201,255,220,0.85)')}{[-12, -7, -2, 3, 8, 13].map((y) => <g key={`bk${y}`}>{g.box(11, y, 20.5, 2.6, 1.2, 1.6, DARK)}</g>)}{g.box(1, 0, 36, 12, 40, 2)}{g.box(2, 0, 38, 4, 26, 8, DARK)}{g.box(9, -8, 0, 1.6, 1.6, 4, DARK)}{g.box(9, 8, 0, 1.6, 1.6, 4, DARK)}</g> },
+  piano: { u: 0.76, v: 0.5, face: 'y', art: (g) => {
+    // a baby grand: the keyboard along the front, a straight left side, and the curve of the bent side tapering to the tail
+    const wing: [number, number][] = [[-23, 14], [-23, -26], [-6, -26], [3, -22], [11, -15], [18, -6], [22, 3], [23, 14]];
+    const sides: ReactElement[] = [];
+    wing.forEach(([x, y], i) => {
+      const [x2, y2] = wing[(i + 1) % wing.length];
+      const nx = Math.sign(y2 - y);
+      const ny = -Math.sign(x2 - x);
+      if (nx > 0 || ny > 0) sides.push(g.flat([[x, y, 14], [x2, y2, 14], [x2, y2, 26], [x, y, 26]], nx > 0 ? '#0a4a22' : '#063018'));
+    });
+    return (
+      <g>
+        {g.box(-20, 10, 0, 3.4, 3.4, 14, DARK)}{g.box(20, 10, 0, 3.4, 3.4, 14, DARK)}{g.box(-8, -22, 0, 3.4, 3.4, 14, DARK)}
+        {g.box(0, 12, 3, 1.4, 1.4, 11, DARK)}{g.box(0, 12, 1.4, 8, 3, 1.6, DARK)}
+        {g.flat([...wing.map(([x, y]) => [x, y, 14] as [number, number, number])], '#021a0c')}
+        {sides}
+        {g.flat(wing.map(([x, y]) => [x, y, 26] as [number, number, number]), '#117a3c')}
+        {g.flat([[-19, -22, 26.2], [-8, -22, 26.2], [6, -14, 26.2], [16, -4, 26.2], [19, 4, 26.2], [-19, 4, 26.2]], 'rgba(61,255,138,0.2)')}
+        {g.box(0, 15.6, 20, 42, 4.4, 2.4, DARK)}
+        {g.flat([[-19, 13.6, 22.5], [19, 13.6, 22.5], [19, 17.4, 22.5], [-19, 17.4, 22.5]], 'rgba(201,255,220,0.9)')}
+        {[-15, -11, -4, 0, 4, 11, 15].map((x) => <g key={`bk${x}`}>{g.box(x, 14.8, 22.5, 1.6, 2.4, 1.2, DARK)}</g>)}
+        {g.box(0, 9, 26, 15, 1.4, 8, DARK)}
+        {g.box(0, 29, 7, 24, 9, 2.6, { top: '#117a3c', l: '#0a5a28', r: '#06401c' })}{g.box(-10, 27, 0, 2, 2, 7, DARK)}{g.box(10, 27, 0, 2, 2, 7, DARK)}{g.box(-10, 31, 0, 2, 2, 7, DARK)}{g.box(10, 31, 0, 2, 2, 7, DARK)}
+      </g>
+    );
+  } },
   harp: { u: 0.8, v: 0.55, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 22, 12, 4, DARK)}{g.box(-9, 0, 4, 3.2, 3.2, 46)}{g.box(9, 0, 4, 5, 8, 34)}{g.box(0, 0, 47, 24, 5, 3.4)}{[-6, -3, 0, 3, 6].map((x) => <g key={`st${x}`}>{g.flat([[x - 0.3, 0, 12 + x * 0.4], [x + 0.3, 0, 12 + x * 0.4], [x + 0.3, 0, 46], [x - 0.3, 0, 46]], INK)}</g>)}</g> },
   drums: { u: 0.8, v: 0.6, face: 'y', art: (g) => <g>{g.box(0, -6, 0, 20, 16, 16)}{g.box(0, -6, 16, 20, 16, 1.4, { top: INK, l: INK, r: INK })}{g.cyl(-9, -4, 17, 5, 5)}{g.cyl(9, -4, 17, 5, 5)}{g.cyl(-2, 9, 13, 6, 4)}{g.box(-18, -2, 0, 1, 1, 34, DARK)}{g.cyl(-18, -2, 34, 7.5, 0.8, { top: INK, l: DIM, r: DIM })}{g.box(18, 4, 0, 1, 1, 26, DARK)}{g.cyl(18, 4, 26, 5.5, 0.8, { top: INK, l: DIM, r: DIM })}{g.cyl(0, 20, 0, 4, 9, DARK)}</g> },
 };
@@ -844,7 +869,7 @@ const stretch = (k: number): number => Math.max(0, Math.min(1, 0.5 + (k - 0.5) *
 /** How far each piece reaches along the wall it stands against, from its middle (in its own units). */
 const HALF: Record<string, number> = {
   coatrack: 6, shoebench: 17, decon: 13, couch: 27, tv: 18, lamp: 7, chinacabinet: 18, sinkcabinets: 30, fridge: 12, stove: 14, nightstand: 8, dresser: 20, toilet: 8, bathsink: 12,
-  washer: 12, dryer: 12, bookshelf: 19, desk: 27, guitar: 8, instrument: 9, piano: 20, screen: 50, speakers: 8, bar: 38, pinball: 14, toolchest: 18, craftingtable: 28,
+  washer: 12, dryer: 12, bookshelf: 19, desk: 27, guitar: 8, instrument: 9, piano: 26, screen: 50, speakers: 8, bar: 38, pinball: 14, toolchest: 18, craftingtable: 28,
 };
 /** The doorways of a room (see doorsOf): heights (y) along the left back wall and positions (x) along the right one. */
 export interface Doors { doorsL: number[]; doorsR: number[] }
