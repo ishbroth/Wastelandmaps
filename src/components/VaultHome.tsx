@@ -524,9 +524,9 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             return (
               <g key={`s${s.id}`} transform={`translate(${X} ${Y - s.lift * SETTLER_SCALE})`} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setPanel({ kind: 'settler', id: s.id, name }); }}>
                 <g transform={`scale(${s.face * SETTLER_SCALE} ${SETTLER_SCALE})`}><SettlerArt kind={s.kind} pose={s.pose} phase={s.phase} /></g>
-                <rect x={-12} y={-top - 4} width={24} height={top + 4} fill="transparent" stroke="none" />
+                <rect x={-14} y={-top - 12} width={28} height={top + 12} fill="transparent" stroke="none" />
                 {name && (
-                  <g transform={`translate(0 ${-top - 2})`} pointerEvents="none">
+                  <g transform={`translate(0 ${-top - 2})`}>
                     <rect x={-(name.length * 2.1 + 3)} y={-8} width={name.length * 4.2 + 6} height={8.4} rx={2} fill="rgba(2,26,12,0.8)" stroke={INK} strokeWidth={0.5} />
                     <text y={-1.8} fontSize="7" textAnchor="middle" fill={INK} stroke="none" fontFamily="'VT323', monospace" letterSpacing="0.4">{name}</text>
                   </g>
