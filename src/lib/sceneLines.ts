@@ -234,6 +234,25 @@ const FISH = [
   'A rod leans on the dock with a line in the water. The bait is gone. The fish are waiting, as a courtesy.',
 ];
 /** For anything else (and as a spare for everything): places with no clear purpose, told as what they feel like. */
+const DAM = [
+  'The spillway still roars at night with nothing to spill. The wall that held back a whole valley now holds back a very patient silence.',
+  'Somebody left the gates open on the day of the war. The valley below has been a lake, a marsh and a rumor, in that order.',
+  'The turbines hum when nobody is listening. Nobody has been able to find the switch, and nobody has volunteered to look.',
+  'The walkway along the crest has a handrail on one side and a two-hundred-year-old argument on the other.',
+  'The water behind it never came down. It simply stopped believing in the bomb, and settled in to wait.',
+];
+const BRIDGE = [
+  'It still spans the gap, mostly out of stubbornness. The road on the far side gave up first.',
+  'A toll booth stands at the near end. The sign says EXACT CHANGE ONLY, and something in the dark is taking it seriously.',
+  'The cables hum in the wind like a tuning fork the size of a city. Crossing it is a matter of faith and a good pair of boots.',
+  'Half the deck is gone, but the lane markings continue across the gap, perfectly straight, as if the road planned to catch up.',
+];
+const WATERWAY = [
+  'The water runs the color of weak tea and steadier than anything else around. The fish are not worth discussing.',
+  'The banks have gone back to reeds and rust. Something large has been using the old boat ramp, and not for boats.',
+  'It floods when it rains and glows when it does not. Locals have stopped trying to guess which is worse.',
+  'A line of shopping carts, tires and one entire car marks where the water used to be higher. The car has opinions about that.',
+];
 const OTHER = [
   'No sign, no door, no clue. It has the look of a place that mattered a great deal to exactly one person.',
   'It was a thing, once, with a purpose. The purpose has gone out for a walk and left no note.',
@@ -254,7 +273,7 @@ const FAMILIES: Record<string, string[]> = {
   park: PARK, fountain: FOUNTAIN, cactus: CACTUS, gov: GOV, badge: BADGE, fire: FIRE, column: COLUMN,
   museum: MUSEUM, statue: STATUE, monument: MONUMENT, art: ART, ruins: RUINS, castle: CASTLE,
   factory: FACTORY, lab: LAB, farm: FARM, hazmat: HAZMAT, clock: CLOCK, lighthouse: LIGHTHOUSE, radio: RADIO,
-  observatory: OBSERVATORY, windmill: WINDMILL, hotel: HOTEL, theatre: THEATRE, scenic: SCENIC, fish: FISH, other: OTHER,
+  observatory: OBSERVATORY, windmill: WINDMILL, hotel: HOTEL, theatre: THEATRE, scenic: SCENIC, fish: FISH, dam: DAM, bridge: BRIDGE, waterway: WATERWAY, other: OTHER,
 };
 
 /** Which pool each map icon draws from. */
@@ -273,7 +292,70 @@ const FAMILY_OF: Record<string, string> = {
   capitol: 'gov', shield: 'gov', flag: 'gov', badge: 'badge', firebadge: 'fire', helmet: 'badge', column: 'column', arch: 'column',
   museum: 'museum', statue: 'statue', monument: 'monument', ringart: 'art', star: 'art', ruins: 'ruins', castle: 'castle', cannon: 'castle',
   factory: 'factory', beaker: 'lab', tractor: 'farm', gasmask: 'hazmat', clocktower: 'clock', lighthouse: 'lighthouse', radiotower: 'radio', observatory: 'observatory', windmill: 'windmill',
-  bed: 'hotel', key: 'hotel', skeletonkey: 'hotel', theatre: 'theatre', fish: 'fish',
+  bed: 'hotel', key: 'hotel', skeletonkey: 'hotel', theatre: 'theatre', fish: 'fish', hooverdam: 'dam', bridge: 'bridge', sydneybridge: 'bridge',
+};
+
+/**
+ * What the name itself says the place is (a dam, a hospital, a mosque, a power station), in the order that settles overlaps: the specific kinds first, the general ones
+ * (a building, a house) last. The icon of a place the name does not explain is picked at random, so the story never follows it.
+ */
+const NAMED: [string, RegExp][] = [
+  ['dam', /\b(?:dam|levee|spillway|weir|dike|reservoir|represa)\b/],
+  ['bridge', /\b(?:bridge|viaduct|overpass)\b|br[uü]cke/],
+  ['lighthouse', /\b(?:light ?house|lighthouse|beacon|island light|light station|faro)\b|\blight$/],
+  ['hazmat', /\b(?:power (?:plant|station)|powerhouse|nuclear|reactor|refiner(?:y|ies)|desalination|treatment plant|sewage|incinerat|waste|hydro(?:electric)?|thermal power|solar (?:park|farm|power)|wind farm|substation|usina)\b/],
+  ['gov', /\b(?:h[oô]tel de ville|supreme court|high court|magistrates?(?:'s)? court|court of|law courts?|palace of justice|justice complex)\b/],
+  ['hospital', /\b(?:hospital|hospitalier|h[oô]pital|krankenhaus|ospedale|clinic|klinik|infirmary|sanatorium|asylum|hospice|quarantine)\b/],
+  ['dentist', /\b(?:dental|dentist|orthodont)/],
+  ['pharmacy', /\b(?:pharmacy|apothec|chemist|drug ?store)\b/],
+  ['fire', /\b(?:fire (?:station|department|house|brigade)|firehouse|feuerwehr|bomberos|pompiers?)\b/],
+  ['badge', /\b(?:police|precinct|sheriff|gendarmerie|polizei|polic[ií]a|jail|prison|correctional|penitentiary|comisar[ií]a)\b/],
+  ['holy', /\b(?:mosque|masjid|synagogue|temple|pagoda|shrine|gurdwara|monastery|vank|mission|tekke|dargah)\b/],
+  ['church', /\b(?:church|chapel|cathedral|basilica|abbey|minster|kirche|chiesa|iglesia|[eé]glise|kirk|parish|oratory|convent)\b/],
+  ['cemetery', /\b(?:cemetery|cimeti[eè]re|friedhof|graveyard|necropolis|cementerio|cimitero|burial|tombs?|mausoleum|catacombs?|memorial park)\b/],
+  ['library', /\b(?:library|biblioth[eè]que|biblioteca|bibliothek|archives?)\b/],
+  ['museum', /\b(?:museum|mus[eé]e|museo|gallery|galerie|aquarium|exhibition|planetarium)\b/],
+  ['observatory', /\b(?:observatory|astronom|telescope)/],
+  ['lab', /\b(?:laborator(?:y|ies)|lab|research (?:centre|center|institute)|science (?:centre|center))\b/],
+  ['school', /\b(?:school|college|universit(?:y|é|ät)|academy|institute|kindergarten|escola|escuela|[eé]cole|schule|campus)\b/],
+  ['hospital', /\b(?:medical|health ?(?:care|centre|center|campus|point)|mental health|oncology)\b/],
+  ['theatre', /\b(?:theat(?:re|er)|opera|concert hall|auditorium|cinema|playhouse|amphitheat(?:re|er)|philharmon|music hall)\b/],
+  ['stadium', /\b(?:stadium|stade|stadion|estadio|arena|ballpark|coliseum|colosseum|speedway|racecourse|velodrome|athletic|golf|rugby|cricket|tennis|sports|gymnasium|fitness|swimming|hippodrome|rowing|yacht club)\b/],
+  ['hotel', /\b(?:hotel|motel|inn|resort|lodge|hostel|suites|guest ?house|b&b|ecolodge)\b/],
+  ['airport', /\b(?:airport|airfield|aerodrome|airbase|air base|heliport|flughafen|a[eé]roport|aeropuerto|airstrip)\b/],
+  ['ship', /\b(?:port|harbou?r|ferry|pier|dock|docks|wharf|marina|jetty|terminal)\b/],
+  ['transit', /\b(?:railway|railroad|rail|station|metro|subway|tram|tramway|tunnel|bus|depot|junction|bahnhof|estaci[oó]n|stazione|gare|interchange)\b/],
+  ['fuel', /\b(?:gas station|petrol|filling station|fuel|truck stop|service station|garage|car wash|auto (?:repair|parts)|motors?)\b/],
+    ['castle', /\b(?:castle|ch[aâ]teau|palace|palais|fortress|fort|citadel|schloss|castello|alc[aá]zar|kasteel|burg|barracks|qasr|kremlin|royal palace)\b/],
+  ['gov', /\b(?:capitol|parliament|city hall|town hall|courthouse|court house|state house|senate|congress|assembly|rathaus|ayuntamiento|ministry|embassy|consulate|government|palacio|forces station|air station|naval station|military|armed forces)\b/],
+  ['factory', /\b(?:factory|foundry|mill|industrial|manufactur|works|brewery|plant|warehouse|refinery)\b/],
+  ['farm', /\b(?:farm|ranch|orchard|vineyard|agricult|barn|dairy|stockyard|livestock|estancia|granja)\b/],
+  ['windmill', /\b(?:windmill)\b/],
+  ['radio', /\b(?:radio|television|tv|telecom|transmitter|antenna|mast)\b/],
+  ['fountain', /\b(?:fountain|fontaine|brunnen)\b/],
+  ['diner', /\b(?:restaurant|diner|grill|bistro|brasserie|steak ?house|pizzeria|trattoria|caf[eé]|cafeteria|eatery|cantina|bakery|deli)\b/],
+  ['bar', /\b(?:bar|pub|saloon|tavern|taproom|cocktail|lounge|winery)\b/],
+  ['mall', /\b(?:mall|shopping|galleria|marketplace|outlet|emporium|bazaar|souq|souk)\b/],
+  ['store', /\b(?:market|supermarket|grocery|store|shop|mart|boutique|trading post|walmart|costco)\b/],
+  ['plaza', /\b(?:plaza|square|piazza|plac)\b/],
+  ['statue', /\b(?:statue|estatua|statua|standbild|sculpture)\b/],
+  ['monument', /\b(?:monument|monumento|memorial|obelisk|column|cenotaph|arch)\b/],
+  ['house', /\b(?:house|mansion|villa|manor|cottage|homestead|birthplace|residence|home|casa)\b/],
+  ['office', /\b(?:tower|towers|skyscraper|headquarters|building|centre|center|complex|exchange|bank|financial|insurance|offices?|business)\b/],
+  ['park', /\b(?:park|garden|gardens|zoo|reserve|forest|wilderness|trail|beach|island|bay|coast|woods|nature|campground|campsite|wetland|botanical)\b/],
+];
+const EDGE = '(?:(?<=[\\p{L}\\p{N}])(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])(?=[\\p{L}\\p{N}]))';
+const NAMED_RE: [string, RegExp][] = NAMED.map(([family, re]) => [family, new RegExp(re.source.split('\\b').join(EDGE), 'u')]);
+const familyFromName = (name: string, category: string): string | null => {
+  const n = name.toLowerCase();
+  if (category === 'other' && /\b(?:river|creek|canal|lake|stream|falls)\b/.test(n) && !NAMED_RE.some(([, re]) => re.test(n))) return 'waterway';
+  for (const [family, re] of NAMED_RE) if (re.test(n)) return family;
+  return null;
+};
+/** When the name says nothing: what the category the place was filed under stands for. */
+const CATEGORY_FAMILY: Record<string, string> = {
+  park: 'park', medical: 'hospital', school: 'school', chapel: 'church', arena: 'stadium', lodging: 'hotel', guard: 'gov',
+  fuel: 'fuel', transit: 'transit', market: 'store', cantina: 'diner', other: 'other',
 };
 
 /** The new lines for a map icon (empty for the famous ones, which have their own stories). */
@@ -289,8 +371,17 @@ const hash = (s: string): number => {
   return h >>> 0;
 };
 
-/** One line for a place: from the pool of its icon (counted twice) and the older plain lines, picked by its id so it is always the same. */
-export function sceneLine(icon: string, key: string, older: string[]): string {
-  const pool = [...sceneLinesFor(icon), ...sceneLinesFor(icon), ...older];
+/** Which pool of lines a place draws from (see sceneLine): what its name says it is, else what its category stands for, else (a personal address) its icon. */
+export function sceneFamily(icon: string, name = '', category = ''): string {
+  const named = familyFromName(name, category);
+  if (named) return named;
+  if (category && CATEGORY_FAMILY[category]) return CATEGORY_FAMILY[category];
+  return FAMILY_OF[icon] ?? 'other';
+}
+
+/** One line for a place: from the pool of its kind (counted twice) and the older plain lines, picked by its id so it is always the same. */
+export function sceneLine(icon: string, key: string, older: string[], name = '', category = ''): string {
+  const own = FAMILIES[sceneFamily(icon, name, category)] ?? OTHER;
+  const pool = [...own, ...own, ...older];
   return pool[hash(`${key}|scene`) % pool.length];
 }

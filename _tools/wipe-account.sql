@@ -2,7 +2,7 @@
 -- leaderboard name and position, EXCEPT what is kept below. Run it once in the Supabase SQL editor. It stops (and changes nothing) if the account is not found.
 --
 -- KEPT: the login (email, vault-number password), the home (address, vault number, and that it is discovered: its discovery and found rows and its personal place),
---       the home's own picture, the caps and the loot on hand (the admin account keeps them full), the admin flag.
+--       the home's own picture and its snapshot unlock, the caps and the loot on hand (the admin account keeps them full), the admin flag.
 -- WIPED: everything else: the home is NOT cleared any more and its vault game starts over.
 do $$
 declare
@@ -21,7 +21,7 @@ begin
   get diagnostics n = row_count; raise notice 'found places removed: %', n;
   delete from personal_places where user_id = u and (home is null or place_id <> home);
   get diagnostics n = row_count; raise notice 'personal places removed: %', n;
-  delete from unlocks where user_id = u;
+  delete from unlocks where user_id = u and place_id not like 'vault:%';   -- the home's own snapshot unlock stays with its picture
   get diagnostics n = row_count; raise notice 'snapshot unlocks removed: %', n;
   delete from metro_unlocks where user_id = u;
   delete from metro_clears where user_id = u;

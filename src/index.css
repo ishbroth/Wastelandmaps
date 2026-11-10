@@ -144,7 +144,7 @@ html[data-look='parchment'] .rm-crt {
 .rm-pin-label { display: none; flex-direction: column; text-align: left; padding: 3px 8px; background: var(--panel); border: 1px solid var(--line); line-height: 1.15; max-width: 240px; }
 .rm-pin-label b { font-family: var(--font-display); font-size: 19px; font-weight: 400; letter-spacing: 1px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }
 .rm-pin-label i { font-style: normal; font-size: 11px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; }
-.rm-zoomed .rm-pin .rm-pin-label, .rm-pin:hover .rm-pin-label, .rm-pin-selected .rm-pin-label, .rm-pin-vault .rm-pin-label, .rm-pin-rad .rm-pin-label { display: flex; }
+.rm-zoomed .rm-pin .rm-pin-label, .rm-pin:hover .rm-pin-label, .rm-pin-selected .rm-pin-label, .rm-pin-vault .rm-pin-label { display: flex; }
 .rm-travelling .rm-pin .rm-pin-label { display: none !important; }
 .rm-pin:hover, .rm-pin-selected { z-index: 99; }
 .rm-pin-selected .rm-pin-icon { width: 42px; height: 42px; filter: drop-shadow(0 0 2px #000) drop-shadow(0 0 10px var(--glow)) drop-shadow(0 0 3px currentColor); }

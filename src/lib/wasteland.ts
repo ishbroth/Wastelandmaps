@@ -379,7 +379,7 @@ export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabit
   const story = backstoryFor(spot.id, spot.oldName);
   return [
     `${spot.name}, ${regionName}.`,
-    story ?? sceneLine(spot.icon, spot.id, openers),
+    story ?? sceneLine(spot.icon, spot.id, openers, spot.oldName ?? spot.name, spot.kind),
     plan ? presentDay(plan) : `${THREAT_LINES[spot.threat]} Worth a look for: ${spot.loot.toLowerCase()}.`,
   ];
 }

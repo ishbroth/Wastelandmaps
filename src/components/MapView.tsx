@@ -104,8 +104,8 @@ const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
 const LABEL_ZOOM = 16;
 /** Below this zoom (zoomed out past a city) the irradiated zones are taken off the map: they only belong to the city you are looking at. */
 const CITY_ZOOM = 9;
-/** The radiation icons and their IRRADIATED tags show from this zoom in (ten levels back from the closest one); the clouds stay longer. */
-const TAG_ZOOM = 11;
+/** The radiation icons and their IRRADIATED tags show from this zoom in (the same level the personal icons drop off at); their IRRADIATED tags show only at the zoom where every other name tag does; the clouds stay longer. */
+const TAG_ZOOM = 12;
 
 /**
  * How far in the map has to be (Google zoom level) before a place gets a marker, so a big metro does not clutter the screen or slow the map:
@@ -352,8 +352,10 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     for (const zone of wasteland.zones) {
       // a soft, uneven cloud: three layers, each a different shape, thickest at the middle
       const seed = zone.seed ?? hashString(`${zone.position.lat.toFixed(4)},${zone.position.lng.toFixed(4)}`);
+      // each cloud is its own size: 30 to 60 percent bigger than it was drawn before
+      const grow = 1.3 + (Math.abs(hashString(`grow:${seed}`)) % 1000) / 1000 * 0.3;
       const clouds = [[1, 0.1], [0.72, 0.12], [0.46, 0.16]].map(([scale, opacity], layer) => new google.maps.Polygon({
-        map, clickable: false, zIndex: 3 + layer, paths: cloudOutline(zone.position, zone.radiusMeters * 1.3 * scale, seed, layer),
+        map, clickable: false, zIndex: 3 + layer, paths: cloudOutline(zone.position, zone.radiusMeters * 1.3 * grow * scale, seed, layer),
         fillColor: look.zoneStroke, fillOpacity: opacity, strokeColor: look.zoneStroke, strokeOpacity: layer === 0 ? 0.28 : 0, strokeWeight: 1,
       }));
       const marker = createHtmlMarker({

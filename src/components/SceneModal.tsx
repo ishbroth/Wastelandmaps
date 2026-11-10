@@ -195,7 +195,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
         {/* the scene tab is the story, the enemies and the loot: the picture belongs to the snapshot tab */}
         <div className={`rm-modal-view${tab === 'scene' ? ' rm-modal-view-hidden' : ''}`}>
           {tab === 'snapshot' && reveal && (
-            <BlowApart sound={sound} pristine={reveal.pristine} key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={personal ? spot.id : undefined} />
+            <BlowApart sound={sound} pristine={reveal.pristine} key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={spot.id} seenUser={account.session?.user.id} />
           )}
           {tab === 'snapshot' && locked && (
             <div className="rm-locked">

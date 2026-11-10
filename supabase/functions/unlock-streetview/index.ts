@@ -155,6 +155,8 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
     return s.error || !s.data ? null : (s.data.signedUrl as string);
   };
   if (ready) {
+    // the picture is theirs already: make sure the unlock is on record too (clearing the home and the app both look for it), without charging anything
+    await db.from('unlocks').upsert({ user_id: user, place_id: unlockKey }, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
     const url = await signed(mine.storage_path as string);
     return url ? reply(req, { status: 'ready', url, charged: false }) : reply(req, { error: 'server' }, 500);
   }

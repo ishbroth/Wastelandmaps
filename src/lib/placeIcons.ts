@@ -266,6 +266,7 @@ export function pickIcon(category: CategoryId, realName: string): IconId {
   if (test(/cemetery|cimeti[eè]re|friedhof|graveyard|necropolis|cementerio|cimitero|burial ground/, n)) return 'cross';
   if (test(/\b(?:airport|airfield|aerodrome|airbase|air base|heliport|flughafen|a[eé]roport|aeropuerto|aeroporto)\b/, n)) return 'plane';
   if (test(/\bbridge\b|\bpont\b|br[uü]cke|\bponte\b|puente|viaduct/, n)) return 'bridge';
+  if (test(/\b(?:dam|levee|spillway|weir|dike|reservoir)\b/, n)) return 'hooverdam';
   if (test(/\btunnel\b|\bstation\b|\bgare\b|bahnhof|estaci[oó]n|stazione|\bmetro\b|subway|underground|\btram\b/, n) && category === 'transit') return transitIcon(n);
   if (test(/\b(?:port|harbou?r|ferry|pier|dock|wharf|marina)\b/, n) && category === 'transit') return mix(n, ['anchor', 'lifebuoy', 'ship']);
   if (test(/hospital|h[oô]pital|krankenhaus|ospedale|clinic|medical cent|infirmary|sanatorium/, n)) return /clinic|medical cent|infirmary/.test(n) ? mix(n, ['medkit', 'crossheart', 'heartbeat', 'caduceus', 'bandage', 'syringe', 'hospital']) : mix(n, ['hospital', 'hospital', 'crossheart', 'caduceus', 'heartbeat', 'lifestar', 'medkit']);

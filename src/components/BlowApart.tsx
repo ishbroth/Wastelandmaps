@@ -300,14 +300,14 @@ function draw(
   ctx.restore();
 }
 
-export default function BlowApart({ sound = false, pristine = false, beforeUrl, afterUrl, name, file, seed, seenId }: { /** Sound effects are on. */ sound?: boolean; /** Nothing is destroyed here (Vault 0): just show the picture, with no bomb and no before/after. */ pristine?: boolean; beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string }) {
+export default function BlowApart({ sound = false, pristine = false, beforeUrl, afterUrl, name, file, seed, seenId, seenUser }: { /** Sound effects are on. */ sound?: boolean; /** Nothing is destroyed here (Vault 0): just show the picture, with no bomb and no before/after. */ pristine?: boolean; beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string; /** Who is watching: the blast is a first time for each person, not for each phone. */ seenUser?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const images = useRef<{ before: HTMLImageElement; after: HTMLImageElement; plan: ReturnType<typeof plan>; sky: Sky; cloud: CanvasRenderingContext2D | null; width: number; height: number } | null>(null);
   const frame = useRef(0);
   const [state, setState] = useState<'loading' | 'playing' | 'done' | 'plain'>('loading');
   const [recording, setRecording] = useState(false);
   const canRecord = typeof MediaRecorder !== 'undefined' && typeof HTMLCanvasElement !== 'undefined' && 'captureStream' in HTMLCanvasElement.prototype;
-  const seenKey = `wastelandmaps:seen:${seenId ?? afterUrl}`;
+  const seenKey = `wastelandmaps:seen:${seenUser ?? 'guest'}:${seenId ?? afterUrl}`;
 
   const finish = useCallback(() => {
     const el = canvas.current;
