@@ -6,11 +6,11 @@ import { canAfford, describeBag, lootName, type LootId } from '../lib/raid/loot'
 type Bag = Partial<Record<string, number>>;
 import {
   COLS, ENTRY_AT, MAX_HALLWAYS_PER_LEVEL, hallwaysOn, isDoorCell, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
-  whyNotBuild, whyNotDig, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
+  whyNotBuild, whyNotDig, whyNotDemolish, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt, type Pose } from './vaultArt';
-import { CELL, FURNITURE, SEATS, pieceScale, setHallLookup, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, pieceAt, roomRect, screenBox, type Rect } from './vaultIso';
+import { CELL, FURNITURE, SEATS, layoutOf, pieceScale, setHallLookup, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, roomRect, screenBox, type Rect } from './vaultIso';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -36,7 +36,7 @@ export interface VacationOffer {
   unlock: (placeId: string, icon: string, replace?: string) => Promise<string | null>;
 }
 
-type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType } | { kind: 'room'; idx: number; item?: string } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | null;
+type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType } | { kind: 'room'; idx: number; item?: string; pick?: boolean } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
 
 // ---- the settlers' wandering ----
 
@@ -102,7 +102,7 @@ function plan(s: Sim, v: VaultHome) {
   s.seatFace = undefined;
   if (use && SEATS[use]) {
     const seat = pick(SEATS[use]);
-    const at = pieceAt(room, use, doorsOf(room, (c, r) => roomAt(v, s.level, c, r)));
+    const at = layoutOf(room, (c, r) => roomAt(v, s.level, c, r), roomAt(v, s.level + 1, room.col, room.row)?.type === 'stairs').get(use);
     if (at) { const k = pieceScale(room); spot = { x: at.x + seat.dx * k, y: at.y + seat.dy * k }; s.seatFace = seat.face; }
   }
   s.path = route(v, s.level, cellOf(s.x, s.y), cellOf(spot.x, spot.y), spot);
@@ -316,11 +316,11 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
 
   const sims = useSettlers(vault);
 
-  const act = useCallback(async (body: Parameters<typeof vaultCall>[0], done?: (v: VaultHome) => void) => {
+  const act = useCallback(async (body: Parameters<typeof vaultCall>[0], done?: (v: VaultHome, refund?: Record<string, number>) => void) => {
     setBusy(true);
     const r = await call(body);
     setBusy(false);
-    if (r.ok) { setVault(r.vault); setError(null); setPanel(null); done?.(r.vault); void account.refresh(); } else setError(REASONS[r.reason] ?? r.reason);
+    if (r.ok) { setVault(r.vault); setError(null); setPanel(null); done?.(r.vault, r.refund); void account.refresh(); } else setError(REASONS[r.reason] ?? r.reason);
   }, [account, call]);
 
   const mood = vault ? moodAt({ ...vault, seenAt: now }, now) : null;
@@ -420,10 +420,10 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     if (!vault) return out;
     vault.rooms.forEach((room, idx) => {
       if (room.level !== level) return;
-      const doors = doorsOf(room, (c, r) => roomAt(vault, level, c, r));
+      const lay = layoutOf(room, (c, r) => roomAt(vault, level, c, r), roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs');
       out.set(idx, room.furniture.flatMap((id) => {
-        const at = pieceAt(room, id, doors);
-        return at ? [{ key: `f${idx}-${id}`, depth: at.x + at.y, el: <PlacedPiece key={`f${idx}-${id}`} room={room} id={id} doors={doors} fresh={!!fresh && fresh.room === idx && fresh.item === id} /> }] : [];
+        const at = lay.get(id);
+        return at ? [{ key: `f${idx}-${id}`, depth: at.x + at.y, el: <PlacedPiece key={`f${idx}-${id}`} room={room} id={id} pos={at} fresh={!!fresh && fresh.room === idx && fresh.item === id} /> }] : [];
       }));
     });
     return out;
@@ -535,8 +535,8 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             );
           })() }));
           return (
-            <svg ref={svgRef} className="rm-vh-svg" style={{ width: size.w, height: size.h, touchAction: focus !== null && !panel ? 'none' : undefined }} fill="none" stroke={INK} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
-              onPointerDown={(e) => { if (focus !== null && !panel && !animating.current) drag.current = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId }; }}
+            <svg ref={svgRef} className="rm-vh-svg" style={{ width: size.w, height: size.h, touchAction: focus !== null ? 'none' : undefined }} fill="none" stroke={INK} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
+              onPointerDown={(e) => { if (focus !== null && !animating.current) drag.current = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId }; }}
               onPointerMove={(e) => {
                 const d = drag.current;
                 const vb = vbRef.current;
@@ -577,6 +577,36 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
       {vault && panel && !waiting && (
         <div className={`rm-vh-sheet${panel.kind === 'room' ? ' dock' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setPanel(null); }}>
           <div className="rm-vh-sheet-card">
+            {panel.kind === 'room' && panel.pick && room && (
+              <div className="rm-vh-sheet-body">
+                <h3>CHOOSE THE INSTRUMENT</h3>
+                <p>WHICH ONE DOES THE STUDY GET? A GUITAR HANGS ON THE WALL.</p>
+                <ul className="rm-vh-types">
+                  {INSTRUMENTS.map((id) => (
+                    <li key={id}>
+                      <button type="button" className="can" disabled={busy} onClick={() => void act({ action: 'instrument', room: panel.idx, choice: id })}>
+                        <span>{INSTRUMENT_NAMES[id].toUpperCase()}</span><i>FREE: ALREADY PAID FOR</i>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel({ kind: 'room', idx: panel.idx })}>LATER</button></div>
+              </div>
+            )}
+            {panel.kind === 'demolish' && vault.rooms[panel.idx] && (() => {
+              const target = vault.rooms[panel.idx];
+              const spent = Object.values(spentOn(vault, panel.idx)).reduce<number>((n, q) => n + (q ?? 0), 0);
+              return (
+                <div className="rm-vh-sheet-body">
+                  <h3>DEMOLISH THE {roomDef(target.type).name.toUpperCase()}?</h3>
+                  <p>THE ROOM{target.furniture.length ? ' AND EVERYTHING IN IT GO' : ' GOES'}, AND IT IS A SHADOWY OUTLINE AGAIN, TO BUILD FROM SCRATCH. HALF THE LOOT IT COST COMES BACK, PICKED AT RANDOM: {Math.floor(spent / 2)} OF {spent} PIECES.</p>
+                  <div className="rm-vh-row">
+                    <button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel({ kind: 'room', idx: panel.idx })}>KEEP IT</button>
+                    <button type="button" className="rm-btn" disabled={busy} onClick={() => void act({ action: 'demolish', room: panel.idx }, (_v, back) => { setFocus(null); const text = back ? describeBag(back as never) : ''; say(text ? 'DEMOLISHED. LOOT BACK: ' + text : 'DEMOLISHED. NOTHING CAME BACK'); })}>DEMOLISH</button>
+                  </div>
+                </div>
+              );
+            })()}
             {panel.kind === 'settler' && (
               <div className="rm-vh-sheet-body">
                 <h3>RENAME</h3>
@@ -653,32 +683,36 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                 onPay={() => act({ action: 'build', type: panel.type as string, level: panel.level, col: panel.col, row: panel.row }, (v) => setFresh({ room: v.rooms.length - 1 }))}
               />
             )}
-            {panel.kind === 'room' && room && !panel.item && (
+            {panel.kind === 'room' && room && !panel.item && !panel.pick && (
               <div className="rm-vh-sheet-body">
                 <button type="button" className="rm-vh-x" onClick={() => setPanel(null)} aria-label="Close">×</button>
                 <h3>{roomDef(room.type).name.toUpperCase()}</h3>
                 <p>{room.type === 'stairs' ? 'THE STAIRS GO BACK UP. THE ROOM ABOVE HAS A HOLE IN ITS FLOOR FOR THEM.' : room.type === 'hallway' ? (room.furniture.length ? 'ONE PIECE IN A HALLWAY, AND IT IS HERE.' : `A HALLWAY HOLDS ONE PIECE: CHOOSE WELL. IT COSTS ${furnishCost(room)} PIECES OF LOOT.`) : roomComplete(room) ? 'FULLY FURNISHED.' : `EACH PIECE COSTS ${furnishCost(room)} PIECES OF LOOT, A DIFFERENT MIX FOR EACH.`}</p>
                 <ul className="rm-vh-types">
                   {furnitureOf(room.type).map((f) => {
-                    const placed = room.furniture.includes(f.id) || (room.type === 'hallway' && room.furniture.length >= 1);
-                    const here = room.furniture.includes(f.id);
+                    const placed = room.furniture.some((x) => slotOf(x) === f.id) || (room.type === 'hallway' && room.furniture.length >= 1);
+                    const here = room.furniture.some((x) => slotOf(x) === f.id);
+                    const waitingPick = f.id === 'instrument' && room.furniture.includes('instrument');
                     return (
                       <li key={f.id}>
-                        <button type="button" className={!placed && canAfford(ownLoot as never, furnishRecipe(vault, panel.idx, f.id) as never) ? 'can' : undefined} disabled={placed} onClick={() => setPanel({ ...panel, item: f.id })}>
-                          <span>{f.name.toUpperCase()}</span><i>{placed ? (here ? 'PLACED' : 'ONE PIECE ONLY') : describeBag(furnishRecipe(vault, panel.idx, f.id) as never).toUpperCase()}</i>
+                        <button type="button" className={waitingPick || (!placed && canAfford(ownLoot as never, furnishRecipe(vault, panel.idx, f.id) as never)) ? 'can' : undefined} disabled={placed && !waitingPick} onClick={() => (waitingPick ? setPanel({ kind: 'room', idx: panel.idx, pick: true }) : setPanel({ ...panel, item: f.id }))}>
+                          <span>{f.name.toUpperCase()}</span><i>{waitingPick ? 'CHOOSE WHICH' : placed ? (here ? (f.id === 'instrument' ? (INSTRUMENT_NAMES[room.furniture.find((x) => slotOf(x) === 'instrument') ?? ''] ?? 'PLACED').toUpperCase() : 'PLACED') : 'ONE PIECE ONLY') : describeBag(furnishRecipe(vault, panel.idx, f.id) as never).toUpperCase()}</i>
                         </button>
                       </li>
                     );
                   })}
                 </ul>
-                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel(null)}>CLOSE</button></div>
+                <div className="rm-vh-row rm-vh-row-split">
+                  {room.type !== 'entry' && <button type="button" className="rm-btn rm-btn-ghost rm-vh-demo" onClick={() => { const why = whyNotDemolish(vault, panel.idx); if (why) say(why); else setPanel({ kind: 'demolish', idx: panel.idx }); }}>DEMOLISH</button>}
+                  <button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel(null)}>CLOSE</button>
+                </div>
               </div>
             )}
             {panel.kind === 'room' && room && panel.item && (
               <RecipeCard
                 verb="PLACE IT" what={(furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()} title={`ADD ${(furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()}`} recipe={furnishRecipe(vault, panel.idx, panel.item)} have={ownLoot} busy={busy}
                 onBack={() => setPanel({ kind: 'room', idx: panel.idx })}
-                onPay={() => act({ action: 'furnish', room: panel.idx, item: panel.item as string }, () => setFresh({ room: panel.idx, item: panel.item }))}
+                onPay={() => act({ action: 'furnish', room: panel.idx, item: panel.item as string }, () => { setFresh({ room: panel.idx, item: panel.item }); if (panel.item === 'instrument') setPanel({ kind: 'room', idx: panel.idx, pick: true }); })}
               />
             )}
           </div>

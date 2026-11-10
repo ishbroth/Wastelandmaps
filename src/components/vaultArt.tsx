@@ -54,7 +54,7 @@ export const furnitureFeet = (roomTop: number, id: string): number => (id === 'c
 export const standY = (row: number): number => floorY(row);
 
 type Wall = 'panels' | 'tiles' | 'bricks' | 'dots';
-const WALLS: Record<RoomType, Wall> = { hallway: 'panels', garden: 'tiles', stairs: 'dots', laundry: 'tiles', entry: 'panels', living: 'panels', dining: 'panels', bedroom: 'panels', kitchen: 'tiles', bathroom: 'tiles', entertainment: 'panels', game: 'bricks', workshop: 'dots' };
+const WALLS: Record<RoomType, Wall> = { study: 'panels', hallway: 'panels', garden: 'tiles', stairs: 'dots', laundry: 'tiles', entry: 'panels', living: 'panels', dining: 'panels', bedroom: 'panels', kitchen: 'tiles', bathroom: 'tiles', entertainment: 'panels', game: 'bricks', workshop: 'dots' };
 
 /** The faint pattern on the back wall, between the ceiling and the floor, kept clear of the rounded corners. */
 function wallPattern(kind: Wall, w: number): string {

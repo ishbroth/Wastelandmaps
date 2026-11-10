@@ -23,7 +23,7 @@ export const MAX_VACATIONS = 4;
 /** Where the entryway stands on the first level. */
 export const ENTRY_AT = { col: 5, row: 5 };
 
-export type RoomType = 'entry' | 'living' | 'kitchen' | 'bedroom' | 'dining' | 'bathroom' | 'laundry' | 'entertainment' | 'workshop' | 'game' | 'stairs' | 'hallway' | 'garden';
+export type RoomType = 'entry' | 'living' | 'kitchen' | 'bedroom' | 'dining' | 'bathroom' | 'laundry' | 'entertainment' | 'workshop' | 'game' | 'stairs' | 'hallway' | 'garden' | 'study';
 
 export interface FurnitureDef { id: string; name: string }
 export interface RoomDef {
@@ -47,12 +47,14 @@ export const ROOM_DEFS: RoomDef[] = [
   // a narrow passage, long and thin: it joins to rooms and to other hallways (straight, or turning a corner); four to a level, no slot, no happiness; one piece in it
   { id: 'hallway', name: 'Hallway', slots: 1, max: MAX_HALLWAYS_PER_LEVEL * LEVELS, small: true, furniture: [{ id: 'fishtank', name: 'Fish Tank' }, { id: 'weaponrack', name: 'Weapon Rack' }, { id: 'statue', name: 'Art Statue' }, { id: 'plant', name: 'Indoor Tree' }] },
   { id: 'garden', name: 'Garden', slots: 2, max: 2, furniture: [{ id: 'corn', name: 'Corn' }, { id: 'tatoes', name: 'Tato Plants' }, { id: 'mutfruit', name: 'Mutfruit Plants' }] },
+  // a little bigger than the living room, dining room and bedrooms, but still one slot
+  { id: 'study', name: 'Study', slots: 1, max: 2, furniture: [{ id: 'bookshelf', name: 'Bookshelf' }, { id: 'desk', name: 'Desk' }, { id: 'instrument', name: 'Instrument' }, { id: 'easel', name: 'Art Easel' }] },
   { id: 'living', name: 'Living Room', slots: 1, max: 3, furniture: [{ id: 'couch', name: 'Couch' }, { id: 'tv', name: 'TV' }, { id: 'armchair', name: 'Chair' }, { id: 'coffeetable', name: 'Coffee Table' }] },
   { id: 'dining', name: 'Dining Room', slots: 1, max: 3, furniture: [{ id: 'table', name: 'Dining Table' }, { id: 'chairs', name: 'Dining Chairs' }, { id: 'chandelier', name: 'Candle Chandelier' }, { id: 'chinacabinet', name: 'China Cabinet' }] },
   { id: 'kitchen', name: 'Kitchen', slots: 1, max: 3, furniture: [{ id: 'sinkcabinets', name: 'Cabinets & Sink' }, { id: 'fridge', name: 'Refrigerator' }, { id: 'stove', name: 'Stove' }] },
   { id: 'bedroom', name: 'Bedroom', slots: 1, max: 6, furniture: [{ id: 'bed', name: 'Bed' }, { id: 'nightstand', name: 'Nightstands' }, { id: 'dresser', name: 'Dresser' }, { id: 'lamp', name: 'Lamp' }] },
   { id: 'laundry', name: 'Laundry Room', slots: 1, max: 2, small: true, furniture: [{ id: 'washer', name: 'Washer' }, { id: 'dryer', name: 'Dryer' }, { id: 'ironingboard', name: 'Ironing Board' }] },
-  { id: 'bathroom', name: 'Bathroom', slots: 1, max: 3, small: true, furniture: [{ id: 'toilet', name: 'Toilet' }, { id: 'bathsink', name: 'Sink' }, { id: 'shower', name: 'Shower' }] },
+  { id: 'bathroom', name: 'Bathroom', slots: 1, max: 4, small: true, furniture: [{ id: 'toilet', name: 'Toilet' }, { id: 'bathsink', name: 'Sink' }, { id: 'shower', name: 'Shower' }] },
   { id: 'entertainment', name: 'Entertainment Room', slots: 2, max: 1, furniture: [{ id: 'seating', name: 'Theatre Seating' }, { id: 'screen', name: 'Screen' }, { id: 'speakers', name: 'Speakers' }] },
   { id: 'game', name: 'Game Room', slots: 2, max: 1, furniture: [{ id: 'pooltable', name: 'Pool Table' }, { id: 'bar', name: 'Bar' }, { id: 'pinball', name: 'Pinball Machine' }] },
   { id: 'workshop', name: 'Workshop', slots: 2, max: 1, furniture: [{ id: 'toolchest', name: 'Tool Chest' }, { id: 'armorstand', name: 'Power Armor Stand' }, { id: 'craftingtable', name: 'Weapon Crafting Table' }] },
@@ -221,6 +223,11 @@ export function furnishCost(r: VaultRoom): number {
 }
 
 export const furnitureOf = (type: RoomType): FurnitureDef[] => roomDef(type).furniture;
+/** The study's instrument is one slot with a choice: until chosen it is "instrument", then one of these. */
+export const INSTRUMENTS = ['guitar', 'piano', 'harp', 'drums'] as const;
+export const INSTRUMENT_NAMES: Record<string, string> = { guitar: 'Guitar', piano: 'Piano', harp: 'Harp', drums: 'Drum Set' };
+/** Which slot of its room a placed piece fills (a guitar, a piano, a harp or a drum set fills the instrument slot). */
+export const slotOf = (item: string): string => (item === 'instrument' || (INSTRUMENTS as readonly string[]).includes(item) ? 'instrument' : item);
 export const roomComplete = (r: VaultRoom): boolean => r.furniture.length >= (r.type === 'hallway' ? 1 : furnitureOf(r.type).length);
 
 // ---- what things cost, as a mix of loot ----
@@ -356,11 +363,86 @@ export function applyBuild(v: VaultHome, type: RoomType, level: number, col: num
   return { ok: true, cost, recipe, vault: { ...s, rooms: [...s.rooms, { type, level, col, row, furniture: [] }], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
 }
 
+// ---- demolishing a room ----
+
+/** The loot a room has cost in all, worked out the way each part was priced: building it (by how many slots there were before it), and every piece placed in it. */
+export function spentOn(v: VaultHome, idx: number): LootBag {
+  const room = v.rooms[idx];
+  const total: LootBag = {};
+  if (!room || room.type === 'entry') return total;
+  const add = (bag: LootBag) => { for (const [k, n] of Object.entries(bag)) total[k] = (total[k] ?? 0) + (n ?? 0); };
+  const before = v.rooms.slice(0, idx);
+  const slotsBefore = before.reduce((n, r) => n + (isPassage(r) ? 0 : slotsOf(r)), 0);
+  const hallsBefore = before.filter((r) => r.type === 'hallway').length;
+  const first = slotsBefore + 1;
+  const pieces = room.type === 'hallway' ? slotPrice(hallsBefore + 2) : roomDef(room.type).slots === 2 ? Math.min(MAX_ROOM_PRICE, slotPrice(first) + slotPrice(first + 1)) : slotPrice(first);
+  add(recipeFor(v.seed ?? 0, `room:${room.type}:${room.type === 'hallway' ? hallsBefore : slotsBefore}`, pieces));
+  room.furniture.forEach((item, k) => add(recipeFor(v.seed ?? 0, `item:${idx}:${room.type}:${slotOf(item)}:${k}`, 3 + k)));
+  return total;
+}
+
+/** Can this room be demolished? Null if yes, or the reason. */
+export function whyNotDemolish(v: VaultHome, idx: number): string | null {
+  const room = v.rooms[idx];
+  if (!room) return 'No such room';
+  if (room.type === 'entry') return 'The entryway cannot be demolished';
+  const covers = (r: VaultRoom, col: number, row: number) => r.row === row && col >= r.col && col < r.col + slotsOf(r);
+  // a stairwell under it holds up a level below
+  if (v.rooms.some((r) => r.type === 'stairs' && r.level === room.level + 1 && Array.from({ length: slotsOf(room) }, (_, k) => room.col + k).some((c) => covers(r, c, room.row)))) return 'There is a stairwell under it: demolish the rooms below first';
+  const others = v.rooms.filter((r, i) => i !== idx && r.level === room.level);
+  if (room.type === 'stairs' && others.length > 0) return 'Demolish the other rooms on that level first';
+  // everything left on the level must still be joined together
+  if (others.length > 1) {
+    const seen = new Set<VaultRoom>([others[0]]);
+    const queue = [others[0]];
+    while (queue.length) {
+      const r = queue.shift() as VaultRoom;
+      for (const o of others) {
+        if (seen.has(o)) continue;
+        const touches = Array.from({ length: slotsOf(r) }, (_, k) => r.col + k).some((c) => covers(o, c - 1, r.row) || covers(o, c + 1, r.row) || covers(o, c, r.row - 1) || covers(o, c, r.row + 1))
+          || Array.from({ length: slotsOf(o) }, (_, k) => o.col + k).some((c) => covers(r, c - 1, o.row) || covers(r, c + 1, o.row) || covers(r, c, o.row - 1) || covers(r, c, o.row + 1));
+        if (touches) { seen.add(o); queue.push(o); }
+      }
+    }
+    if (seen.size < others.length) return 'Other rooms are only reachable through it: demolish those first';
+  }
+  return null;
+}
+
+/** Half of the loot (rounded down) a room cost comes back, each piece's kind picked at random from what was spent. */
+export function refundFor(v: VaultHome, idx: number, rand: () => number = Math.random): LootBag {
+  const spent = spentOn(v, idx);
+  const pieces: string[] = [];
+  for (const [k, n] of Object.entries(spent)) for (let i = 0; i < (n ?? 0); i++) pieces.push(k);
+  for (let i = pieces.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pieces[i], pieces[j]] = [pieces[j], pieces[i]]; }
+  const back: LootBag = {};
+  for (const k of pieces.slice(0, Math.floor(pieces.length / 2))) back[k] = (back[k] ?? 0) + 1;
+  return back;
+}
+
+/** Takes a room down: it goes back to being a place that could be built (with whatever was in it), and half of what it cost comes back. */
+export function applyDemolish(v: VaultHome, idx: number, now: number, rand: () => number = Math.random): Action<{ refund: LootBag }> {
+  const why = whyNotDemolish(v, idx);
+  if (why) return { ok: false, reason: why };
+  const refund = refundFor(v, idx, rand);
+  const s = settle(v, now);
+  return { ok: true, cost: 0, recipe: {}, refund, vault: { ...s, rooms: s.rooms.filter((_, i) => i !== idx) } };
+}
+
+/** Picks the instrument for a study's instrument slot (paid for already): it turns into the guitar, piano, harp or drum set chosen. */
+export function applyInstrument(v: VaultHome, roomIndex: number, choice: string): Action<unknown> {
+  const room = v.rooms[roomIndex];
+  if (!room) return { ok: false, reason: 'No such room' };
+  if (!(INSTRUMENTS as readonly string[]).includes(choice)) return { ok: false, reason: 'Not an instrument' };
+  if (!room.furniture.includes('instrument')) return { ok: false, reason: 'There is no instrument waiting to be chosen' };
+  return { ok: true, cost: 0, recipe: {}, vault: { ...v, rooms: v.rooms.map((r, i) => (i === roomIndex ? { ...r, furniture: r.furniture.map((x) => (x === 'instrument' ? choice : x)) } : r)) } };
+}
+
 export function applyFurnish(v: VaultHome, roomIndex: number, item: string, now: number): Action<unknown> {
   const room = v.rooms[roomIndex];
   if (!room) return { ok: false, reason: 'No such room' };
   if (!furnitureOf(room.type).some((f) => f.id === item)) return { ok: false, reason: 'That does not belong in this room' };
-  if (room.furniture.includes(item)) return { ok: false, reason: 'Already there' };
+  if (room.furniture.some((x) => slotOf(x) === slotOf(item))) return { ok: false, reason: 'Already there' };
   if (room.type === 'hallway' && room.furniture.length >= 1) return { ok: false, reason: 'A hallway holds one piece' };
   const cost = furnishCost(room);
   const recipe = furnishRecipe(v, roomIndex, item);

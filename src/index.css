@@ -934,3 +934,6 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-vh-levels { top: 8px !important; transform: none !important; }
 .rm-vh-name { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
 .rm-vh-name input { flex: 1; min-width: 0; background: transparent; color: #3dff8a; border: 1px solid #3dff8a; font: inherit; font-size: 26px; letter-spacing: 2px; padding: 4px 8px; }
+
+.rm-vh-row-split { justify-content: space-between; }
+.rm-vh-demo { color: #ff9f6a; border-color: #8a5a3a; }

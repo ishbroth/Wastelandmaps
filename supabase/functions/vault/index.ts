@@ -6,11 +6,13 @@
 // POST { action: 'furnish', room, item }                   -> same
 // POST { action: 'settler', kind, name }                   -> same (the settler's name: 1 to 10 letters or numbers)
 // POST { action: 'rename', id, name }                      -> same
+// POST { action: 'instrument', room, choice }                -> same (the study's instrument: guitar, piano, harp or drums)
+// POST { action: 'demolish', room }                        -> same, and { refund } (half of the loot the room cost, picked at random)
 // What a step costs is a fixed mix of loot ("2 wood, 1 plastic"), worked out here from the vault's seed: the player does not choose it, and it is taken from their loot.
 // Deploy: supabase functions deploy vault
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
-import { applyBuild, applyFurnish, applyRename, applySettler, checkIn, newVault, normalize, type LootBag, type VaultHome } from '../_shared/vaultHome.ts';
+import { applyBuild, applyDemolish, applyFurnish, applyInstrument, applyRename, applySettler, checkIn, newVault, normalize, type LootBag, type VaultHome } from '../_shared/vaultHome.ts';
 
 const newSeed = (): number => Math.floor(Math.random() * 2147483646) + 1;
 
@@ -48,6 +50,7 @@ Deno.serve(async (req) => {
 
   let next: VaultHome;
   let spend: LootBag = {};
+  let refund: LootBag | null = null;
   switch (b.action) {
     case 'visit': next = checkIn(vault, now); break;
     case 'build': {
@@ -65,6 +68,16 @@ Deno.serve(async (req) => {
       if (!r.ok) return reply(req, { ok: false, reason: r.reason });
       next = r.vault; break;
     }
+    case 'instrument': {
+      const r = applyInstrument(vault, Number(b.room), String(b.choice));
+      if (!r.ok) return reply(req, { ok: false, reason: r.reason });
+      next = r.vault; break;
+    }
+    case 'demolish': {
+      const r = applyDemolish(checkIn(vault, now), Number(b.room), now);
+      if (!r.ok) return reply(req, { ok: false, reason: r.reason });
+      next = r.vault; refund = r.refund; break;
+    }
     case 'rename': {
       const r = applyRename(vault, Number(b.id), b.name);
       if (!r.ok) return reply(req, { ok: false, reason: r.reason });
@@ -73,9 +86,12 @@ Deno.serve(async (req) => {
     default: return reply(req, { error: 'bad_action' }, 400);
   }
 
-  const { data, error } = await db.rpc('vault_commit', { p_user: user, p_state: next, p_cost: spend, p_version: version, p_key: key });
+  // a demolished room's refund is paid in the same step that saves the vault (the loot is kept to 99 of each)
+  const { data, error } = refund
+    ? await db.rpc('vault_demolish', { p_user: user, p_state: next, p_refund: refund, p_version: version, p_key: key })
+    : await db.rpc('vault_commit', { p_user: user, p_state: next, p_cost: spend, p_version: version, p_key: key });
   if (error) return reply(req, { error: 'server' }, 500);
   const res = data as { ok: boolean; version?: number; reason?: string };
   if (!res.ok) return reply(req, { ok: false, reason: res.reason });
-  return reply(req, { ok: true, vault: next, version: res.version });
+  return reply(req, { ok: true, vault: next, version: res.version, ...(refund ? { refund } : {}) });
 });

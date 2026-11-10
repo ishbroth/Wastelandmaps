@@ -567,10 +567,10 @@ export async function loadClearable(metroId: string): Promise<string[]> {
 
 // ---- the home vault (rules in vaultHome.ts; the server keeps the vault and spends the loot) ----
 
-export type VaultAnswer = { ok: true; vault: VaultHome; version: number } | { ok: false; reason: string };
+export type VaultAnswer = { ok: true; vault: VaultHome; version: number; /** Loot paid back for a demolished room. */ refund?: Record<string, number> } | { ok: false; reason: string };
 
 /** Asks the vault function to do something: 'visit', 'build', 'furnish' or 'settler'. */
-export async function vaultCall(body: ({ action: 'visit' } | { action: 'build'; type: string; level: number; col: number; row: number } | { action: 'furnish'; room: number; item: string } | { action: 'settler'; kind: string; name?: string } | { action: 'rename'; id: number; name: string }) & { vault?: string }): Promise<VaultAnswer> {
+export async function vaultCall(body: ({ action: 'visit' } | { action: 'build'; type: string; level: number; col: number; row: number } | { action: 'furnish'; room: number; item: string } | { action: 'settler'; kind: string; name?: string } | { action: 'rename'; id: number; name: string } | { action: 'demolish'; room: number } | { action: 'instrument'; room: number; choice: string }) & { vault?: string }): Promise<VaultAnswer> {
   const { data, error } = await db().functions.invoke('vault', { body });
   return error || !data ? { ok: false, reason: 'server' } : (data as VaultAnswer);
 }
