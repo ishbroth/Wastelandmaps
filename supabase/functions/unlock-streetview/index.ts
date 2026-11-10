@@ -145,7 +145,8 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
   if (!home || home.place_id !== googleId || home.vault_number === null || home.vault_number === undefined) return reply(req, { error: 'bad_place' }, 400);
   const number = home.vault_number as number;
   const unlockKey = `vault:${googleId}:${number}`;
-  const { data: existing } = await db.from('home_renders').select('*').eq('user_id', user).maybeSingle();
+  // one picture for each home address the person has had (so going back to an old one finds it), never shared: the number on the door is theirs
+  const { data: existing } = await db.from('home_renders').select('*').eq('user_id', user).eq('google_id', googleId).maybeSingle();
   const mine = existing && existing.google_id === googleId && existing.vault_number === number ? existing : null;
   const ready = mine?.status === 'ready' && !!mine.storage_path;
   if (checkOnly) return reply(req, { exists: ready, owned: ready });
@@ -174,25 +175,25 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
     if (counts.reduce((n: number, c: { count: number | null }) => n + (c.count ?? 0), 0) >= cap) { await giveBack(); return reply(req, { error: 'busy', resetsAt: nextRenderReset() }, 503); }
     const row = { user_id: user, google_id: googleId, vault_number: number, status: 'generating', storage_path: null, started_at: new Date().toISOString() };
     const claim = existing
-      ? await db.from('home_renders').update(row).eq('user_id', user).eq('started_at', existing.started_at).select()
+      ? await db.from('home_renders').update(row).eq('user_id', user).eq('google_id', googleId).eq('started_at', existing.started_at).select()
       : await db.from('home_renders').insert(row).select();
     if (claim.error || !claim.data || claim.data.length === 0) { await giveBack(); return reply(req, { status: 'working' }); }
     const picture = await streetPicture(details.lat, details.lng);
     if (!picture) {
-      await db.from('home_renders').delete().eq('user_id', user);
+      await db.from('home_renders').delete().eq('user_id', user).eq('google_id', googleId);
       await giveBack();
       return reply(req, { error: 'no_streetview' }, 404);
     }
     const png = await generate(picture, 'house', details.name, String(number).padStart(4, '0'), flooded, irradiated);
-    const path = `home/${user}.png`;
+    const path = `home/${user}/${googleId}.png`;
     const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
     if (up.error) throw new Error('could not store the image');
-    await db.from('home_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString() }).eq('user_id', user);
+    await db.from('home_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString() }).eq('user_id', user).eq('google_id', googleId);
     const url = await signed(path);
     if (!url) throw new Error('no link');
     return reply(req, { status: 'ready', url, charged: spent === 'spent' });
   } catch (e) {
-    await db.from('home_renders').update({ status: 'failed' }).eq('user_id', user);
+    await db.from('home_renders').update({ status: 'failed' }).eq('user_id', user).eq('google_id', googleId);
     await giveBack();
     console.error('home render failed', googleId, e instanceof Error ? e.message : e);
     return reply(req, { error: 'failed' }, 502);

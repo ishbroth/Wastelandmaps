@@ -457,7 +457,7 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
     const frame: V3[] = alongY ? [[x, lo - 2, 0], [x, hi + 2, 0], [x, hi + 2, 45], [x, lo - 2, 45]] : [[lo - 2, y, 0], [hi + 2, y, 0], [hi + 2, y, 45], [lo - 2, y, 45]];
     return <g key={`dr${alongY}${c}`}><Poly p={frame} fill={STEEL} sw={1} /><Poly p={quad} fill={DOOR} sw={1.6} /></g>;
   };
-  const [lx, ly] = labelFront ? P(x1, y1, -22) : P(x - T, y - T, H + 13);
+  void name; void labelFront;
   // the slab edges at the front: every edge of the floor that faces the viewer (+x or +y), farthest first
   const edges: { a: Pt; b: Pt; nx: number; ny: number }[] = [];
   for (let i = 0; i < poly.length; i++) {
@@ -489,13 +489,23 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
       <Poly p={[[x, y, H], [x - T, y, H], [x - T, y - T, H], [x, y - T, H]]} fill={CAP} sw={2} />
       <line x1={P(x, y, 1)[0]} y1={P(x, y, 1)[1]} x2={P(x, y, H)[0]} y2={P(x, y, H)[1]} stroke={INK} strokeWidth="4.6" strokeLinecap="round" opacity="0.35" />
       <line x1={P(x, y, 3)[0]} y1={P(x, y, 3)[1]} x2={P(x, y, H - 2)[0]} y2={P(x, y, H - 2)[1]} stroke={CAP} strokeWidth="2.6" strokeLinecap="round" />
-      <text x={lx} y={ly} fontSize="14" textAnchor="middle" fill={INK} stroke={BG} strokeWidth="3" paintOrder="stroke" fontFamily="'VT323', monospace" letterSpacing="1">{name}</text>
     </g>
   );
 }
 
 /** A room that could be built here: a faded outline of one, with a plus. */
-export function RoomOutline({ rect, label, plain = false, near }: { rect: Rect; label: string; plain?: boolean; /** The side that touches a built room (the outline is clearest there and fades into the dark away from it). */ near?: 'left' | 'right' | 'back' | 'front' }): ReactElement {
+/** A shovel and a pickaxe, crossed: the sign of a place where a room can be dug out. */
+const DigTools = ({ x, y }: { x: number; y: number }): ReactElement => (
+  <g transform={`translate(${x} ${y}) scale(1.6)`} stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="none" fill="none" opacity="0.9">
+    <path d="M10 -10 L-4 4" /><path d="M7.4 -13 L13 -7.4" />
+    <path d="M-4 4 L-10.5 2.5 Q-14.5 5.5 -13.5 10 L-15 15.5 L-8.5 12.5 Q-3.5 9.5 -4 4 Z" fill={INK} />
+    <path d="M-9 -9 L6 6" />
+    <path d="M-15 -4 Q-9 -15 3.5 -12" strokeWidth="2.3" />
+    <path d="M-15 -4 L-12.4 -7.4 M3.5 -12 L2 -8.6" />
+  </g>
+);
+
+export function RoomOutline({ rect, label: _label, plain = false, near }: { rect: Rect; label: string; plain?: boolean; /** The side that touches a built room (the outline is clearest there and fades into the dark away from it). */ near?: 'left' | 'right' | 'back' | 'front' }): ReactElement {
   const { x, y, w, d } = rect;
   const x1 = x + w;
   const y1 = y + d;
@@ -525,8 +535,7 @@ export function RoomOutline({ rect, label, plain = false, near }: { rect: Rect; 
         <polygon points={pts([[x, y, 0], [x, y1, 0], [x, y1, H], [x, y, H]])} stroke={INK} strokeWidth="1.2" />
         <polygon points={pts([[x, y, 0], [x1, y, 0], [x1, y, H], [x, y, H]])} stroke={INK} strokeWidth="1.2" />
       </g>
-      {!plain && <text x={cx} y={cy - 2} fontSize="34" textAnchor="middle" fill={INK} stroke="none" strokeDasharray="none" opacity="0.55" fontFamily="'VT323', monospace">+</text>}
-      {!plain && <text x={cx} y={cy + 16} fontSize="14" textAnchor="middle" fill={INK} stroke="none" strokeDasharray="none" opacity="0.55" fontFamily="'VT323', monospace" letterSpacing="1.5">{label}</text>}
+      {!plain && <DigTools x={cx} y={cy} />}
     </g>
   );
 }
@@ -775,9 +784,9 @@ export const FURNITURE: Record<string, Piece> = {
   coatrack: { u: 0.1, v: 0.22, face: 'x', art: (g) => <g>{g.cyl(0, 0, 0, 5.5, 1.6, DARK)}{g.cyl(0, 0, 1.6, 3.4, 1.4, DARK)}{g.box(0, 0, 3, 2.2, 2.2, 40)}{g.cyl(0, 0, 43, 2.2, 3, { top: INK })}{g.box(4, 0, 38, 7, 1.6, 1.6)}{g.box(-4, 0, 34, 7, 1.6, 1.6)}{g.box(0, 4, 36, 1.6, 7, 1.6)}{g.box(0, -4, 31, 1.6, 7, 1.6)}{soft(g, 6, 0, 10, 6, 8, 24, UPH)}{g.box(6, 0, 12, 1, 1, 12, GROOVE)}{g.cyl(4, 0, 39.6, 3.6, 1.6, DARK)}</g> },
   shoebench: { u: 0.1, v: 0.62, face: 'x', art: (g) => <g>{g.box(-4, -14, 0, 2, 2, 9, DARK)}{g.box(-4, 14, 0, 2, 2, 9, DARK)}{g.box(4, -14, 0, 2, 2, 9, DARK)}{g.box(4, 14, 0, 2, 2, 9, DARK)}{g.box(0, 0, 3, 11, 32, 1.4, DARK)}{g.box(1.5, -9, 4.4, 6, 4, 2.6, DARK)}{g.box(1.5, -2, 4.4, 6, 4, 2.6, DARK)}{g.box(1.5, 7, 4.4, 6, 4, 2.6, DARK)}{g.box(1.5, 13, 4.4, 5, 3.4, 2.4, DARK)}{g.box(0, 0, 9, 12, 34, 3)}{soft(g, 0, 0, 12, 10, 30, 3, UPH2)}{g.box(0, 6, 15, 7, 5, 3, DARK)}{g.box(0, -4, 15, 7, 5, 3, DARK)}</g> },
   decon: { u: 0.72, v: 0.14, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 26, 26, 2, DARK)}{Array.from({ length: 5 }, (_, i) => <g key={`dz${i}`}>{g.box(-10 + i * 5, 12.4, 0.2, 2.6, 0.8, 1.6, i % 2 ? GLOWS : DARK)}</g>)}{g.box(0, -11, 2, 26, 3, 46, DARK)}{g.box(-8, -9, 8, 1.2, 1.2, 30, GLOWS)}{g.box(0, -9, 8, 1.2, 1.2, 30, GLOWS)}{g.box(8, -9, 8, 1.2, 1.2, 30, GLOWS)}{g.box(0, -6, 46, 24, 11, 3)}{g.cyl(-7, -2, 44, 2, 2, { top: INK })}{g.cyl(7, -2, 44, 2, 2, { top: INK })}{g.cyl(0, -6, 49, 1.8, 1.8, { top: INK })}{g.box(0, 0, 2, 26, 26, 44, GLASS_SKIN)}{g.box(11, 0, 24, 1, 1, 4, GLOWS)}</g> },
-  couch: { u: 0.5, v: 0.2, face: 'y', art: (g) => <g>{g.box(-24, -8, 0, 3, 3, 3, DARK)}{g.box(24, -8, 0, 3, 3, 3, DARK)}{g.box(-24, 8, 0, 3, 3, 3, DARK)}{g.box(24, 8, 0, 3, 3, 3, DARK)}{g.box(0, -10, 3, 54, 6, 25, UPH)}{g.box(0, 1, 3, 54, 18, 7, UPH)}{soft(g, -17, -6, 10, 17, 7, 17, UPH2)}{soft(g, 0, -6, 10, 17, 7, 17, UPH2)}{soft(g, 17, -6, 10, 17, 7, 17, UPH2)}{soft(g, -10, 4, 10, 19, 13, 4, UPH2)}{soft(g, 10, 4, 10, 19, 13, 4, UPH2)}{soft(g, -25, 1, 3, 5.5, 19, 15, UPH)}{soft(g, 25, 1, 3, 5.5, 19, 15, UPH)}{soft(g, -17, 3, 14, 8, 4, 8, PILLOW)}</g> },
+  couch: { u: 0.5, v: 0.2, face: 'y', art: (g) => <g>{g.box(-24, -8, 0, 3, 3, 3, DARK)}{g.box(24, -8, 0, 3, 3, 3, DARK)}{g.box(-24, 8, 0, 3, 3, 3, DARK)}{g.box(24, 8, 0, 3, 3, 3, DARK)}{g.box(0, -10, 3, 54, 6, 25, UPH)}{g.box(0, 1, 3, 54, 18, 7, UPH)}{soft(g, -17, -6, 10, 17, 7, 17, UPH2)}{soft(g, 0, -6, 10, 17, 7, 17, UPH2)}{soft(g, 17, -6, 10, 17, 7, 17, UPH2)}{soft(g, -10, 4, 10, 19, 13, 4, UPH2)}{soft(g, 10, 4, 10, 19, 13, 4, UPH2)}{soft(g, -24.25, -1.5, 3, 5.5, 23, 15, UPH)}{soft(g, 24.25, -1.5, 3, 5.5, 23, 15, UPH)}{soft(g, -17, 3, 14, 8, 4, 8, PILLOW)}</g> },
   tv: { u: 0.1, v: 0.5, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 12, 36, 10, DARK)}{vX(g, 0, 6, 1.4, 9)}{g.box(6.5, -6, 4, 1, 1.6, 3, GLOWS)}{g.box(6.5, 6, 4, 1, 1.6, 3, GLOWS)}{g.box(-1, 0, 10, 3, 10, 2, DARK)}{g.box(-1, 0, 12, 4, 32, 20, DARK)}{g.flat([[1.4, -14, 14], [1.4, 14, 14], [1.4, 14, 30], [1.4, -14, 30]], SCREEN)}{g.flat([[1.5, -12, 25], [1.5, -5, 25], [1.5, -9, 29], [1.5, -12, 29]], GLINT)}{g.box(1.2, 12.5, 12.6, 0.8, 1.4, 0.8, GLOWS)}</g> },
-  armchair: { u: 0.78, v: 0.62, face: 'y', art: (g) => <g>{g.box(-10, -7, 0, 2.5, 2.5, 3, DARK)}{g.box(10, -7, 0, 2.5, 2.5, 3, DARK)}{g.box(-10, 8, 0, 2.5, 2.5, 3, DARK)}{g.box(10, 8, 0, 2.5, 2.5, 3, DARK)}{g.box(0, -9, 3, 26, 5, 23, UPH)}{g.box(0, 1, 3, 26, 18, 7, UPH)}{soft(g, 0, -5, 10, 17, 6, 14, UPH2)}{soft(g, 0, 4, 10, 17, 13, 4, UPH2)}{soft(g, -11, 1, 3, 5, 19, 14, UPH)}{soft(g, 11, 1, 3, 5, 19, 14, UPH)}</g> },
+  armchair: { u: 0.78, v: 0.62, face: 'y', art: (g) => <g>{g.box(-10, -7, 0, 2.5, 2.5, 3, DARK)}{g.box(10, -7, 0, 2.5, 2.5, 3, DARK)}{g.box(-10, 8, 0, 2.5, 2.5, 3, DARK)}{g.box(10, 8, 0, 2.5, 2.5, 3, DARK)}{g.box(0, -9, 3, 26, 5, 23, UPH)}{g.box(0, 1, 3, 26, 18, 7, UPH)}{soft(g, 0, -5, 10, 17, 6, 14, UPH2)}{soft(g, 0, 4, 10, 17, 13, 4, UPH2)}{soft(g, -10.5, -0.75, 3, 5, 21.5, 14, UPH)}{soft(g, 10.5, -0.75, 3, 5, 21.5, 14, UPH)}</g> },
   coffeetable: { u: 0.5, v: 0.62, face: 'y', art: (g) => <g>{g.box(-12, -6, 0, 2, 2, 8, DARK)}{g.box(12, -6, 0, 2, 2, 8, DARK)}{g.box(-12, 6, 0, 2, 2, 8, DARK)}{g.box(12, 6, 0, 2, 2, 8, DARK)}{g.box(0, 0, 2.5, 26, 14, 1.2, DARK)}{soft(g, 0, 0, 8, 30, 18, 3)}{g.box(-7, -2, 11, 9, 6, 1.6, UPH2)}{g.box(-7, -2, 12.6, 8, 5, 1.4, PILLOW)}{g.cyl(8, 3, 11, 1.7, 3, { top: INK })}</g> },
   table: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(-24, -12, 0, 3, 3, 16, DARK)}{g.box(24, -12, 0, 3, 3, 16, DARK)}{g.box(-24, 12, 0, 3, 3, 16, DARK)}{g.box(24, 12, 0, 3, 3, 16, DARK)}{g.box(0, 0, 13, 50, 26, 3, DARK)}{soft(g, 0, 0, 16, 56, 32, 3)}{g.cyl(-14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(-14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(0, 0, 19, 4.2, 1.8, DARK)}{g.cyl(0, 0, 20.8, 2.4, 2, { top: INK })}{g.cyl(-8, 0, 19, 0.9, 6, { top: INK })}{g.cyl(8, 0, 19, 0.9, 6, { top: INK })}</g> },
   chairs: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{chair(g, -14, -26, 1)}{chair(g, 14, -26, 1)}{chair(g, -14, 26, -1)}{chair(g, 14, 26, -1)}</g> },
@@ -818,7 +827,7 @@ export const FURNITURE: Record<string, Piece> = {
   bookshelf: { u: 0.1, v: 0.5, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 12, 38, 52)}{g.box(1.2, 0, 3, 9.6, 34, 1, DARK)}{g.box(1.2, 0, 19, 9.6, 34, 1, DARK)}{g.box(1.2, 0, 35, 9.6, 34, 1, DARK)}{[0, 1, 2].map((row) => [-15, -11, -7, -3.2, 0.8, 5, 9, 13].map((y, i) => <g key={`bk${row}-${i}`}>{g.box(1.6, y, 4 + row * 16, 7.6, 3.2, 10 + ((i + row) % 3) * 1.8, i % 3 === 0 ? { top: INK, l: '#19a050', r: '#117a3c' } : i % 3 === 1 ? { top: DIM, l: '#0a5a28', r: '#06401c' } : DARK)}</g>))}{g.box(0, 0, 52, 12, 38, 1.6)}</g> },
   desk: { u: 0.5, v: 0.08, face: 'y', art: (g) => <g>{[-23, 23].flatMap((cx) => [-8, 8].map((cy) => <g key={`dl${cx}${cy}`}>{g.box(cx, cy, 0, 3, 3, 15, DARK)}</g>))}{g.box(0, 0, 15, 54, 22, 3)}{g.box(18, 0, 3, 14, 19, 12, { top: '#0a3a1c', l: '#0a4a22', r: '#063018' })}{g.box(18.6, 9.8, 8, 8, 1, 1.6, { top: INK, l: INK, r: INK })}{g.box(-10, -4, 18, 18, 2, 12, DARK)}{g.box(-10, -4, 18, 5, 4, 2, DARK)}{g.flat([[-17, -2.9, 19.5], [-3, -2.9, 19.5], [-3, -2.9, 28.5], [-17, -2.9, 28.5]], SCREEN)}{g.box(10, 2, 18, 11, 8, 2.6)}{g.box(10, 2, 20.6, 9, 7, 2.2, DARK)}{g.cyl(-22, 5, 18, 3.4, 1.6, DARK)}{g.box(-22, 5, 19.4, 1.4, 1.4, 11, DARK)}{g.cyl(-22, 5, 30, 4, 4, { top: INK, l: DIM, r: '#0c6b30' })}{chair(g, 0, 24, -1)}</g> },
   guitar: { u: 0.1, v: 0.62, face: 'x', art: (g) => <g>{g.box(0, 0, 8, 2.4, 15, 12, { top: '#19a050', l: '#117a3c', r: '#0a5a28' })}{g.box(0, 0, 19, 2.4, 11, 7, { top: '#19a050', l: '#117a3c', r: '#0a5a28' })}{g.box(0, 0, 25, 1.8, 3.4, 24, DARK)}{g.box(0, 0, 49, 2.4, 5, 6, DARK)}{g.flat([[1.4, -2.6, 12], [1.4, 2.6, 12], [1.4, 3.4, 15], [1.4, 2.6, 18], [1.4, -2.6, 18], [1.4, -3.4, 15]], '#02130a')}{g.box(1, 0, 8.6, 1, 8, 1.4, DARK)}</g> },
-  easel: { u: 0.8, v: 0.42, face: 'y', art: (g) => <g>{g.box(-11, 7, 0, 2, 2, 42, DARK)}{g.box(11, 7, 0, 2, 2, 42, DARK)}{g.box(0, -8, 0, 2, 2, 40, DARK)}{g.box(0, 2, 14, 28, 4, 2.4, DARK)}{g.box(0, 2.4, 16, 26, 1.8, 28, { top: '#bfffd6', l: '#9fe8b8', r: '#7cc99a' })}{g.flat([[-10, 3.4, 19], [10, 3.4, 19], [10, 3.4, 40], [-10, 3.4, 40]], 'rgba(61,255,138,0.22)')}{g.flat([[-10, 3.5, 19], [-3, 3.5, 30], [3, 3.5, 24], [10, 3.5, 33], [10, 3.5, 19]], 'rgba(61,255,138,0.55)')}{g.flat([[4, 3.5, 34], [8, 3.5, 34], [8, 3.5, 38], [4, 3.5, 38]], INK)}{g.cyl(15, 6, 0, 2.6, 5, { top: INK, l: DIM, r: '#0c6b30' })}{g.cyl(-15, 8, 0, 2.2, 4.4, { top: '#bfffd6', l: DIM, r: '#0c6b30' })}</g> },
+  easel: { u: 0.8, v: 0.42, face: 'y', art: (g) => <g>{g.box(-11, 7, 0, 2, 2, 42, DARK)}{g.box(11, 7, 0, 2, 2, 42, DARK)}{g.box(0, -8, 0, 2, 2, 40, DARK)}{g.box(0, 2, 14, 28, 4, 2.4, DARK)}{g.box(0, 2.4, 16, 26, 1.8, 28, { top: '#117a3c', l: '#0e6a32', r: '#084d24' })}{g.flat([[-10, 3.4, 19], [10, 3.4, 19], [10, 3.4, 40], [-10, 3.4, 40]], 'rgba(61,255,138,0.12)')}{g.flat([[-10, 3.5, 19], [-3, 3.5, 30], [3, 3.5, 24], [10, 3.5, 33], [10, 3.5, 19]], 'rgba(61,255,138,0.55)')}{g.flat([[4, 3.5, 34], [8, 3.5, 34], [8, 3.5, 38], [4, 3.5, 38]], INK)}{g.cyl(15, 6, 0, 2.6, 5, { top: INK, l: DIM, r: '#0c6b30' })}{g.cyl(-15, 8, 0, 2.2, 4.4, { top: INK, l: DIM, r: '#0c6b30' })}</g> },
   // ---- the study's instrument: a wall mount until it is chosen, then a guitar (on the wall), a piano, a harp or a drum set ----
   instrument: { u: 0.1, v: 0.62, face: 'x', art: (g) => <g>{g.box(0, 0, 14, 1.8, 18, 20, DARK)}{g.box(1.4, 0, 22, 1.2, 12, 1.4, { top: INK, l: INK, r: INK })}{g.box(1.4, 0, 30, 1.2, 12, 1.4, { top: INK, l: INK, r: INK })}</g> },
   piano: { u: 0.76, v: 0.5, face: 'y', art: (g) => {
@@ -840,7 +849,7 @@ export const FURNITURE: Record<string, Piece> = {
         {g.flat(wing.map(([x, y]) => [x, y, 26] as [number, number, number]), '#117a3c')}
         {g.flat([[-19, -22, 26.2], [-8, -22, 26.2], [6, -14, 26.2], [16, -4, 26.2], [19, 4, 26.2], [-19, 4, 26.2]], 'rgba(61,255,138,0.2)')}
         {g.box(0, 15.6, 20, 42, 4.4, 2.4, DARK)}
-        {g.flat([[-19, 13.6, 22.5], [19, 13.6, 22.5], [19, 17.4, 22.5], [-19, 17.4, 22.5]], 'rgba(201,255,220,0.9)')}
+        {g.flat([[-19, 13.6, 22.5], [19, 13.6, 22.5], [19, 17.4, 22.5], [-19, 17.4, 22.5]], 'rgba(61,255,138,0.75)')}
         {[-15, -11, -4, 0, 4, 11, 15].map((x) => <g key={`bk${x}`}>{g.box(x, 14.8, 22.5, 1.6, 2.4, 1.2, DARK)}</g>)}
         {g.box(0, 9, 26, 15, 1.4, 8, DARK)}
         {g.box(0, 29, 7, 24, 9, 2.6, { top: '#117a3c', l: '#0a5a28', r: '#06401c' })}{g.box(-10, 27, 0, 2, 2, 7, DARK)}{g.box(10, 27, 0, 2, 2, 7, DARK)}{g.box(-10, 31, 0, 2, 2, 7, DARK)}{g.box(10, 31, 0, 2, 2, 7, DARK)}
@@ -859,10 +868,10 @@ export const LIE = new Set(['bed']);
 /** Where a piece stands in the world (its middle, on the floor). */
 /** How big a piece is drawn in this room: a bit smaller in a small room, and 15% smaller than it was. */
 export function pieceScale(room: { type: RoomType; col: number; row: number }): number {
-  if (room.type === 'hallway') return 0.85;
+  if (room.type === 'hallway') return 0.78;
   const box = roomRect(room);
   const fit = Math.min(box.w / (roomDef(room.type).slots * CELL), box.d / CELL);
-  return (isSmall(room.type) ? Math.min(0.78, 0.36 + fit * 0.7) : Math.min(1, 0.38 + fit * 0.66)) * 0.85;
+  return (isSmall(room.type) ? Math.min(0.78, 0.36 + fit * 0.7) : Math.min(1, 0.38 + fit * 0.66)) * 0.78;
 }
 
 const stretch = (k: number): number => Math.max(0, Math.min(1, 0.5 + (k - 0.5) * 1.22));
@@ -927,20 +936,37 @@ function footOf(id: string): Foot {
 const backOf = (id: string, axis: 'x' | 'y'): number => Math.max(1, -(axis === 'x' ? footOf(id).x0 : footOf(id).y0));
 
 const overlaps = (a: Rect, b: Rect, pad = 0): boolean => a.x < b.x + b.w + pad && a.x + a.w + pad > b.x && a.y < b.y + b.d + pad && a.y + a.d + pad > b.y;
-type Spot = { x: number; y: number };
+const overlapArea = (a: Rect, b: Rect): number => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.d, b.y + b.d) - Math.max(a.y, b.y));
+export type Spot = { x: number; y: number; /** Drawn turned a quarter (its back to the other back wall). */ swap?: boolean };
 /** Pieces drawn around another one (so they move with it). */
 const ANCHORED: Record<string, string> = { chairs: 'table', chandelier: 'table' };
 const layoutCache = new Map<string, Map<string, Spot>>();
+/** A neighbor's wall hides this much of the stretch next to it (for the low pieces along a wall). */
+const HIDDEN_BAND = 34;
 
 /**
  * Where each piece of a room stands, worked out around where the doors are: the pieces that belong to a wall slide along it out of the doorway's way (and out of
- * each other's), and the ones for the middle of the room (the table, the bed, the plants, a couch) find a spot that keeps a clear lane from every door to the
- * middle, out of the stretch that a neighbor's wall hides from view, away from the hole of a stairwell. It all runs again when a room is built next door.
+ * each other's), or move to the other wall if theirs has no room; the ones for the middle of the room (the table, the bed, the plants, a couch) find a spot that
+ * keeps a clear lane from every door to the middle, out of the stretch that a neighbor's wall hides from view, away from the hole of a stairwell. It all runs
+ * again when a room is built next door. A hallway's piece stands against its wall.
  */
 export function layoutOf(room: VaultRoom, at: (col: number, row: number) => VaultRoom | undefined, hasHole = false): Map<string, Spot> {
   const rect = roomRect(room);
   const out = new Map<string, Spot>();
-  if (room.type === 'hallway') { for (const id of room.furniture) out.set(id, { x: rect.xc ?? rect.x + rect.w / 2, y: rect.yc ?? rect.y + rect.d / 2 }); return out; }
+  if (room.type === 'hallway') {
+    const sh = hallwayShape({ col: room.col, row: room.row, level: room.level });
+    const cx = rect.xc ?? rect.x + rect.w / 2;
+    const cy = rect.yc ?? rect.y + rect.d / 2;
+    const k = pieceScale(room);
+    const topOpen = sh.nb.b || (sh.nb.f && !sh.nb.l && !sh.nb.r); // the top of the middle square is a wall unless a corridor runs that way
+    const leftOpen = sh.nb.l || (sh.nb.r && !sh.nb.b && !sh.nb.f);
+    for (const id of room.furniture) {
+      if (!topOpen) out.set(id, { x: cx, y: cy - HALL_W / 2 + backOf(id, 'y') * k + 1.2 });
+      else if (!leftOpen) out.set(id, { x: cx - HALL_W / 2 + backOf(id, 'y') * k + 1.2, y: cy, swap: true });
+      else out.set(id, { x: cx, y: cy });
+    }
+    return out;
+  }
   const slots = roomDef(room.type).slots;
   const doors = doorsOf(room, at);
   const rightN = at(room.col + slots, room.row);
@@ -979,52 +1005,74 @@ export function layoutOf(room: VaultRoom, at: (col: number, row: number) => Vaul
   };
   const box = (f: Foot, x: number, y: number): Rect => ({ x: x + f.x0 * k, y: y + f.y0 * k, w: (f.x1 - f.x0) * k, d: (f.y1 - f.y0) * k });
   const placed: Rect[] = [];
-  const free = (r: Rect) => !blocked.some((b) => overlaps(r, b)) && !placed.some((b) => overlaps(r, b, 3));
+  const cost = (r: Rect) => blocked.reduce((n, b) => n + overlapArea(r, b), 0) * 4 + placed.reduce((n, b) => n + (overlaps(r, b, 3) ? 400 + overlapArea(r, b) * 8 : 0), 0);
+  const turned = (f: Foot): Foot => ({ x0: f.y0, x1: f.y1, y0: f.x0, y1: f.x1 });
+  const isLeftWall = (id: string) => FURNITURE[id].face === 'x' && FURNITURE[id].u <= 0.25;
+  const isRightWall = (id: string) => FURNITURE[id].face === 'y' && FURNITURE[id].v <= 0.25;
   const lead = ids.filter((id) => !ANCHORED[id]);
-  const order = [
-    ...lead.filter((id) => FURNITURE[id].face === 'x' && FURNITURE[id].u <= 0.25),
-    ...lead.filter((id) => FURNITURE[id].face === 'y' && FURNITURE[id].v <= 0.25),
-    ...lead.filter((id) => !((FURNITURE[id].face === 'x' && FURNITURE[id].u <= 0.25) || (FURNITURE[id].face === 'y' && FURNITURE[id].v <= 0.25))),
-  ];
+  const order = [...lead.filter(isLeftWall), ...lead.filter(isRightWall), ...lead.filter((id) => !isLeftWall(id) && !isRightWall(id))];
+
+  /** The best spot along a wall for a piece: its cost (0 is a clean fit) and where. */
+  const alongWall = (id: string, wall: 'L' | 'R', swap: boolean, wantAlong: number): { cost: number; spot: Spot } => {
+    const f0 = feet(id);
+    const f = swap ? turned(f0) : f0;
+    let best = { cost: Infinity, dist: Infinity, spot: { x: cx, y: cy } as Spot };
+    if (wall === 'L') {
+      const x = rect.x - f.x0 * k + 1.2;
+      const lo = rect.y - f.y0 * k + 3;
+      const hi = (frontN ? rect.y + rect.d - HIDDEN_BAND : rect.y + rect.d - 3) - f.y1 * k;
+      for (let y = lo; y <= Math.max(lo, hi); y += 2) {
+        const c = cost(box(f, x, y));
+        const dist = Math.abs(y - wantAlong);
+        if (c < best.cost || (c === best.cost && dist < best.dist)) best = { cost: c, dist, spot: { x, y, ...(swap ? { swap: true } : {}) } };
+      }
+    } else {
+      const y = rect.y - f.y0 * k + 1.2;
+      const lo = rect.x - f.x0 * k + 3;
+      const hi = (rightN ? rect.x + rect.w - HIDDEN_BAND : rect.x + rect.w - 3) - f.x1 * k;
+      for (let x = lo; x <= Math.max(lo, hi); x += 2) {
+        const c = cost(box(f, x, y));
+        const dist = Math.abs(x - wantAlong);
+        if (c < best.cost || (c === best.cost && dist < best.dist)) best = { cost: c, dist, spot: { x, y, ...(swap ? { swap: true } : {}) } };
+      }
+    }
+    return { cost: best.cost, spot: best.spot };
+  };
+
   for (const id of order) {
     const p = FURNITURE[id];
     const f = feet(id);
     const want = floorPoint(room, stretch(p.u), stretch(p.v), 8);
-    let spot: Spot | null = null;
-    if (p.face === 'x' && p.u <= 0.25) {
-      // along the left back wall: slide to the nearest free stretch
-      const x = rect.x + backOf(id, 'x') * k + 1.2;
-      const lo = rect.y - f.y0 * k + 3;
-      const hi = rect.y + rect.d - f.y1 * k - 3;
-      const tries: number[] = [];
-      for (let y = lo; y <= hi; y += 2) tries.push(y);
-      tries.sort((a, b) => Math.abs(a - want.y) - Math.abs(b - want.y));
-      const y = tries.find((t) => free(box(f, x, t)));
-      if (y !== undefined) spot = { x, y };
-    } else if (p.face === 'y' && p.v <= 0.25) {
-      const y = rect.y + backOf(id, 'y') * k + 1.2;
-      const lo = rect.x - f.x0 * k + 3;
-      const hi = rect.x + rect.w - f.x1 * k - 3;
-      const tries: number[] = [];
-      for (let x = lo; x <= hi; x += 2) tries.push(x);
-      tries.sort((a, b) => Math.abs(a - want.x) - Math.abs(b - want.x));
-      const x = tries.find((t) => free(box(f, t, y)));
-      if (x !== undefined) spot = { x, y };
+    let final: Spot | null = null;
+    let footUsed: Foot = f;
+    if (isLeftWall(id) || isRightWall(id)) {
+      const own: 'L' | 'R' = isLeftWall(id) ? 'L' : 'R';
+      const mine = alongWall(id, own, false, own === 'L' ? want.y : want.x);
+      let pick = mine;
+      let swapped = false;
+      if (mine.cost > 0) {
+        // no clean fit on its own wall: the other wall, with the piece turned to stand against it
+        const other = alongWall(id, own === 'L' ? 'R' : 'L', true, own === 'L' ? cx : cy);
+        if (other.cost < mine.cost) { pick = other; swapped = true; }
+      }
+      final = pick.spot;
+      footUsed = swapped ? turned(f) : f;
     } else {
       // the middle of the room: the free spot nearest to where it would like to be
       const x0 = rect.x - f.x0 * k + 6;
       const x1 = Math.min(maxX, rect.x + rect.w) - f.x1 * k - 6;
       const y0 = rect.y - f.y0 * k + 6;
       const y1 = Math.min(maxY, rect.y + rect.d) - f.y1 * k - 6;
-      let best = Infinity;
-      for (let x = x0; x <= x1; x += 5) for (let y = y0; y <= y1; y += 5) {
-        const dd = (x - want.x) ** 2 + (y - want.y) ** 2;
-        if (dd < best && free(box(f, x, y))) { best = dd; spot = { x, y }; }
+      let best = { cost: Infinity, dist: Infinity };
+      for (let x = x0; x <= Math.max(x0, x1); x += 5) for (let y = y0; y <= Math.max(y0, y1); y += 5) {
+        const c = cost(box(f, x, y));
+        const dist = (x - want.x) ** 2 + (y - want.y) ** 2;
+        if (c < best.cost || (c === best.cost && dist < best.dist)) { best = { cost: c, dist }; final = { x, y }; }
       }
     }
-    const final = spot ?? want; // a crowded room: where it would like to be
-    out.set(id, final);
-    placed.push(box(f, final.x, final.y));
+    const spot = final ?? want;
+    out.set(id, spot);
+    placed.push(box(footUsed, spot.x, spot.y));
   }
   // what is drawn around another piece goes where that one went
   for (const id of ids) {
@@ -1047,12 +1095,12 @@ export const SEATS: Record<string, { dx: number; dy: number; face: 1 | -1 }[]> =
 };
 
 /** A piece of furniture, in place in its room (the small rooms hold the same things a little smaller). */
-export function PlacedPiece({ room, id, fresh, doors, pos }: { room: VaultRoom; id: string; fresh?: boolean; doors?: Doors; pos?: { x: number; y: number } }): ReactElement | null {
+export function PlacedPiece({ room, id, fresh, doors, pos }: { room: VaultRoom; id: string; fresh?: boolean; doors?: Doors; pos?: { x: number; y: number; swap?: boolean } }): ReactElement | null {
   const p = FURNITURE[id];
   const at = pos ?? pieceAt(room, id, doors);
   if (!p || !at) return null;
   const [X, Y] = P(at.x, at.y, 0);
   const scale = pieceScale(room);
   keyCount = 0;
-  return <g className={fresh ? 'rm-vh-fresh' : undefined} transform={`translate(${X} ${Y}) scale(${scale})`}>{p.art(makeG(false))}</g>;
+  return <g className={fresh ? 'rm-vh-fresh' : undefined} transform={`translate(${X} ${Y}) scale(${scale})`}>{p.art(makeG(!!pos?.swap))}</g>;
 }

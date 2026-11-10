@@ -142,13 +142,16 @@ export const isDoorCell = (v: VaultHome, level: number, col: number, row: number
 /** Can a stairwell be dug at this cell of this level (the first thing on a new level, under a room of the level above that is not a stairwell)? Null if yes, or the reason. */
 export function whyNotStairs(v: VaultHome, level: number, col: number, row: number): string | null {
   if (level < 1 || level >= LEVELS) return 'There is nothing to dig down to there';
-  if (roomsOn(v, level).length > 0) return 'This level is already dug: build onto it';
+  if (roomsOn(v, level).some((r) => r.type === 'stairs')) return 'This level already has its stairwell';
+  if (roomAt(v, level, col, row)) return 'That space is taken';
   const dig = whyNotDig(v, level - 1);
   if (dig) return dig;
   const above = roomAt(v, level - 1, col, row);
   if (!above) return 'It has to be dug under a room of the level above';
   if (above.type === 'stairs') return 'You cannot dig down under a stairwell: pick another room';
   if (above.type === 'hallway') return 'You cannot dig down under a hallway: pick a room';
+  // on a level that already has rooms (dug before stairwells), it goes next to one of them
+  if (roomsOn(v, level).length > 0 && ![[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => roomAt(v, level, col + dc, row + dr))) return 'It has to connect to a room you already have';
   return null;
 }
 
@@ -164,11 +167,9 @@ export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: nu
   if (type !== 'hallway' && v.rooms.filter((r) => r.type === type).length >= def.max) return `A vault holds at most ${def.max} ${def.name}${def.max > 1 ? 's' : ''}`;
   for (let c = col; c < col + def.slots; c++) if (roomAt(v, level, c, row)) return 'That space is taken';
   for (let c = col; c < col + def.slots; c++) if (isDoorCell(v, level, c, row)) return 'That wall is the vault door: it stays clear';
-  if (roomsOn(v, level).length === 0) {
-    // a new level starts with its stairwell, dug under a room of the level above (see whyNotStairs)
-    if (level === 0) return 'There is nothing here to build on';
-    return 'Dig a stairwell down to this level first';
-  }
+  // each new level starts with its stairwell, dug under a room of the level above (see whyNotStairs): nothing else can be built on it until then
+  if (level > 0 && !roomsOn(v, level).some((r) => r.type === 'stairs')) return 'Dig the stairwell down to this level first: it is the first thing to build on each new level';
+  if (roomsOn(v, level).length === 0) return 'There is nothing here to build on';
   // after that, it must touch a room of the same level, not at a corner
   let touches = false;
   for (let c = col; c < col + def.slots; c++) {

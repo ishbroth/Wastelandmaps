@@ -594,7 +594,8 @@ export default function App() {
       foundKey.current = `wastelandmaps:found:v1:${r.address}`;
       let saved: string[] = [];
       try { saved = JSON.parse(localStorage.getItem(foundKey.current) ?? '[]') as string[]; } catch { /* nothing saved */ }
-      setVisited(new Set([...saved, ...foundRef.current.map((f) => f.id)]));
+      // signed in, the account's own list is the truth (what this browser remembered is only for the signed-out)
+      setVisited(new Set([...(accountRef.current?.session ? [] : saved), ...foundRef.current.map((f) => f.id)]));
       setMessage(`YOU EMERGE INTO ${w.regionName.toUpperCase()}`);
       sound('select');
       setFlood([]);

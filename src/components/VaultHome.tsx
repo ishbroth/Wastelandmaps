@@ -103,7 +103,7 @@ function plan(s: Sim, v: VaultHome) {
   if (use && SEATS[use]) {
     const seat = pick(SEATS[use]);
     const at = layoutOf(room, (c, r) => roomAt(v, s.level, c, r), roomAt(v, s.level + 1, room.col, room.row)?.type === 'stairs').get(use);
-    if (at) { const k = pieceScale(room); spot = { x: at.x + seat.dx * k, y: at.y + seat.dy * k }; s.seatFace = seat.face; }
+    if (at) { const k = pieceScale(room); const turned = !!at.swap; spot = { x: at.x + (turned ? seat.dy : seat.dx) * k, y: at.y + (turned ? seat.dx : seat.dy) * k }; s.seatFace = turned ? (seat.face === 1 ? -1 : 1) : seat.face; }
   }
   s.path = route(v, s.level, cellOf(s.x, s.y), cellOf(spot.x, spot.y), spot);
   s.lift = 0;
@@ -346,10 +346,14 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     if (!vault) return [];
     const out: [number, number][] = [];
     const here = roomsOn(vault, level);
+    const needsStairs = level > 0 && !here.some((r) => r.type === 'stairs');
     for (let row = 0; row < ROWS; row++) {
       for (let col = 0; col < COLS; col++) {
         if (roomAt(vault, level, col, row) || isDoorCell(vault, level, col, row)) continue;
-        const ok = here.length === 0 ? level > 0 && !!roomAt(vault, level - 1, col, row) && roomAt(vault, level - 1, col, row)?.type !== 'stairs' : [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => roomAt(vault, level, col + dc, row + dr));
+        const touches = [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => !!roomAt(vault, level, col + dc, row + dr));
+        const above = level > 0 ? roomAt(vault, level - 1, col, row) : undefined;
+        // a level with no stairwell yet shows only the places one can go (under a room, next to what is there); the rest wait
+        const ok = needsStairs ? !!above && above.type !== 'stairs' && above.type !== 'hallway' && (here.length === 0 || touches) : touches;
         if (ok) out.push([col, row]);
       }
     }
@@ -400,7 +404,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             if (focusRef.current !== null) return;
             e.stopPropagation();
             if (!hasDecon(vault)) { say(DECON_REASON); return; }
-            setPanel({ kind: 'build', level, col, row, ...(here.length === 0 ? { type: 'stairs' as RoomType } : {}) });
+            setPanel({ kind: 'build', level, col, row, ...(level > 0 && !here.some((r) => r.type === 'stairs') ? { type: 'stairs' as RoomType } : {}) });
           }}>
             <RoomOutline rect={cellRect(col, row)} label={here.length === 0 ? 'DIG DOWN' : 'CLEAR & BUILD'} near={roomAt(vault, level, col - 1, row) ? 'left' : roomAt(vault, level, col, row - 1) ? 'back' : roomAt(vault, level, col + 1, row) ? 'right' : roomAt(vault, level, col, row + 1) ? 'front' : undefined} />
           </g>

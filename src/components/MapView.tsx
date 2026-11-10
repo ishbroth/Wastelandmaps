@@ -101,6 +101,8 @@ const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
 const LABEL_ZOOM = 16;
 /** Below this zoom (zoomed out past a city) the irradiated zones are taken off the map: they only belong to the city you are looking at. */
 const CITY_ZOOM = 9;
+/** The radiation icons and their IRRADIATED tags show from this zoom in (ten levels back from the closest one); the clouds stay longer. */
+const TAG_ZOOM = 11;
 
 /**
  * How far in the map has to be (Google zoom level) before a place gets a marker, so a big metro does not clutter the screen or slow the map:
@@ -114,7 +116,7 @@ function minZoomFor(loc: Location, selectedId: string | null): number {
   if (loc.vault && !loc.personal?.home && loc.id !== selectedId) return 11;
   if (loc.id === VAULT_ZERO_ID) return 3; // always there at the bottom of the world, from the first zoom steps
   if (loc.personal?.home || freeRenderFor(loc.id) || loc.id === selectedId || (loc.personal && !loc.personal.saved)) return 0;
-  if (loc.personal) return 11;
+  if (loc.personal) return 12; // the small personal address icons: nine zoom levels back from the closest
   if (loc.famous) return 6;
   const pts = pointsFor(loc);
   return pts >= 30 ? 8 : pts >= 20 ? 9 : pts >= 15 ? 10 : 11;
@@ -336,7 +338,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       // a soft, uneven cloud: three layers, each a different shape, thickest at the middle
       const seed = zone.seed ?? hashString(`${zone.position.lat.toFixed(4)},${zone.position.lng.toFixed(4)}`);
       const clouds = [[1, 0.1], [0.72, 0.12], [0.46, 0.16]].map(([scale, opacity], layer) => new google.maps.Polygon({
-        map, clickable: false, zIndex: 3 + layer, paths: cloudOutline(zone.position, zone.radiusMeters * scale, seed, layer),
+        map, clickable: false, zIndex: 3 + layer, paths: cloudOutline(zone.position, zone.radiusMeters * 1.3 * scale, seed, layer),
         fillColor: look.zoneStroke, fillOpacity: opacity, strokeColor: look.zoneStroke, strokeOpacity: layer === 0 ? 0.28 : 0, strokeWeight: 1,
       }));
       const marker = createHtmlMarker({
@@ -450,8 +452,10 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     const map = mapRef.current;
     if (!map) return;
     const target = zoomNow >= CITY_ZOOM ? map : null;
+    // the clouds stay while the city does; their icons and tags fall off ten zoom levels back from the closest
+    const tags = zoomNow >= TAG_ZOOM ? map : null;
     extras.current.forEach((x) => {
-      x.handle?.setMap(target);
+      x.handle?.setMap(x.clouds ? tags : target);
       x.circle?.setMap(target);
       x.clouds?.forEach((c) => c.setMap(target));
     });

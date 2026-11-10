@@ -937,3 +937,5 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 
 .rm-vh-row-split { justify-content: space-between; }
 .rm-vh-demo { color: #ff9f6a; border-color: #8a5a3a; }
+
+.rm-nav-bottom .rm-nav-voice { padding: 6px 12px; display: inline-flex; align-items: center; }
