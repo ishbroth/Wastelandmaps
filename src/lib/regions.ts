@@ -26,13 +26,13 @@ const SUPER: Record<string, { name: string; at: LatLng }> = {
   frontier: { name: 'The Nuclear Frontier', at: { lat: 46, lng: -100 } },
   unfrozen: { name: 'The Unfrozen Lands', at: { lat: 70, lng: -42 } },
   dustlands: { name: 'El Istmo', at: { lat: 19, lng: -92 } },
-  amazon: { name: 'The Amazon Ashes', at: { lat: -4, lng: -60 } },
+  amazon: { name: 'The Kablamazon', at: { lat: -4, lng: -60 } },
   cone: { name: 'Pata-gone-ia', at: { lat: -41, lng: -66 } },
   oldworld: { name: 'The European Commonwealth', at: { lat: 49, lng: 15 } },
   // the label is centred on this point and is about 44 degrees wide on the world map: centred at 60 east, it starts at Moscow (37.6 east)
   cold: { name: 'The New.S.S.R.', at: { lat: 63, lng: 60 } },
-  sands: { name: 'The Sands', at: { lat: 26, lng: 22 } },
-  congo: { name: 'The Cooked Congo', at: { lat: -8, lng: 24 } },
+  sands: { name: 'The Sandpits', at: { lat: 26, lng: 22 } },
+  congo: { name: 'Congo Firelands', at: { lat: -8, lng: 24 } },
   subcontinent: { name: 'The Subcontinent', at: { lat: 22, lng: 79 } },
   east: { name: 'The Eastern Wastes', at: { lat: 38, lng: 102 } },
   under: { name: 'The Outback', at: { lat: -25, lng: 134 } },
@@ -72,7 +72,7 @@ function superOf(iso: string, p: LatLng, continent: string): string {
 
 /** Countries with a name of their own. */
 const COUNTRY_NAMES: Record<string, string> = {
-  US: 'The Commonwealths of America', CA: 'The Great White Wasteland', MX: 'The United Mexican States', BR: 'The Amazon Ashes', AR: 'The Arg', CL: 'The Strip',
+  US: 'The Commonwealths of America', CA: 'The Great White Wasteland', MX: 'The United Mexican States', BR: 'The Kablamazon', AR: 'The Arg', CL: 'The Strip',
   PE: 'Pe-ruined', CO: 'Col-bombia', VE: 'Ground Vene-zero', CU: 'The Big Cigar', EC: 'Ecuadorian Refuge Colony', BS: 'The Bahama Flood Zone', TT: 'The Trinidadian Flood Zone', TW: 'Tai-bombed', KH: 'Cam-blow-dia', LK: 'The Sri Lanka Refuge Colony', UY: 'Burntuguay', DO: 'Dominican Reclamation Zone', HT: 'The Haitian Refuge',
   GB: 'The British Ex-pire', IE: 'The Emerald Embers', FR: 'Zone des Frites', DE: 'Deutschland Dust', ES: 'The Rainy Plains', PT: 'Portu-Gone', IT: 'New Roman Republic', CH: 'The Neutral Crater',
   AT: 'The Alpine Ashes', NL: 'The Drowned Lowlands', BE: 'The Waffle Wastes', PL: 'The Polish Pits', SE: 'The Swedish Cinders', NO: 'Fallout Fjords', FI: 'The Frozen Thousand Lakes',
@@ -80,7 +80,7 @@ const COUNTRY_NAMES: Record<string, string> = {
   CN: 'The Red Wastes', JP: 'Jablam', KR: 'South Krater', KP: 'North Krater', IN: 'The Subcontinent', PK: 'The Indus Cinders', ID: 'The Ring of Fire Islands', TH: 'Bye-Land',
   VN: 'The Delta Dead Zone', PH: 'The Thousand Burning Isles', IR: 'The Persian Dust', SA: 'The Great Oil-Slick', EG: 'The Dusty Dynasty', ZA: 'The Scorched Cape', NG: 'The Niger Nuke Zone',
   KE: 'The Savanna Scorch', ET: 'The Highland Husk', AU: 'The Outback', NZ: 'Z-Land', KZ: 'The Great Steppe Scar', MN: 'The Empty Steppe',
-  CD: 'The Cooked Congo', CG: 'The Cooked Congo Basin', MG: 'The Red Island Ruins', GL: 'The Frozen Ice Waste', IS: 'The Ash Isle',
+  FJ: 'Fiji Flood Zone', NC: 'Caledonia Sinkhole', SG: 'Singapore Scrapyard', CD: 'Congo Firelands', CG: 'Congo Firelands Basin', MG: 'The Red Island Ruins', GL: 'The Frozen Ice Waste', IS: 'The Ash Isle',
 };
 
 // Neighbors share a style, so a run of countries along a coast reads as one stretch of country: "(Condemned)", "Fallout Zone", "Scrap Belt"...

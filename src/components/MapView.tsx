@@ -54,7 +54,7 @@ function floodLayerAlphas(strength: number, layers: number, edge = 0.16): number
   if (layers <= 1) return [strength];
   // Where it is deepest the streets are very faint but still there (about 8% shows through). The edge starts dark enough (see floodEdge in looks.ts) that the
   // outer layer's tint can cancel the land exactly: any lighter and the tint would have to go below black, and the water comes out lighter than the sea.
-  const deepest = Math.min(0.96, strength + 0.12);
+  const deepest = Math.min(0.985, strength + 0.12);
   const out: number[] = [];
   let before = 0;
   for (let k = 0; k < layers; k++) {
@@ -382,7 +382,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     for (const loc of inView) {
       if (pins.current.has(loc.id)) continue;
       const free = freeRenderFor(loc.id); // the always-free landmarks: drawn as themselves, and a little larger
-      const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free ? 'rm-pin-landmark' : loc.famous ? 'rm-pin-famous' : '', loc.personal?.home ? 'rm-pin-landmark' : loc.personal ? 'rm-pin-personal' : '', loc.personal && !loc.personal.saved ? 'rm-pin-target' : ''].filter(Boolean).join(' '));
+      const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free || String(loc.icon).startsWith('vacation:') ? 'rm-pin-landmark' : loc.famous ? 'rm-pin-famous' : '', loc.personal?.home ? 'rm-pin-landmark' : loc.personal ? 'rm-pin-personal' : '', loc.personal && !loc.personal.saved ? 'rm-pin-target' : ''].filter(Boolean).join(' '));
       el.classList.toggle('rm-pin-visited', visitedRef.current.has(loc.id));
       markCleared(el, clearedRef.current.has(loc.id), waitingLine(waitingRef.current?.get(loc.id)).toLowerCase());
       const brandNew = !everShown.current.has(loc.id);

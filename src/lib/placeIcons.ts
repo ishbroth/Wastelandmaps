@@ -68,7 +68,7 @@ function gearPath(cx: number, cy: number, teeth: number, outer: number, root: nu
 /** The Vault-Tec cog as on the map of the games: ten broad teeth on a thick rim, a round window cut out of it, and a hub in the middle. */
 const COG = gearPath(12, 12, 10, 11, 8.9, 0.2, 0.32);
 const cut = (cx: number, cy: number, r: number) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
-const cog = `<path class="f" fill-rule="evenodd" d="${COG}${cut(12, 12, 5.8)}"/>` + f(cut(12, 12, 2.9)) + d(cut(12, 12, 4.3));
+const cog = `<path class="f" fill-rule="evenodd" d="${COG}${cut(12, 12, 5.8)}"/>` + `<path class="f hub" d="${cut(12, 12, 2.9)}"/>` + `<path class="d hub" d="${cut(12, 12, 4.3)}"/>`;
 
 const ICONS: Record<BaseIconId, string> = {
   school: svg(f('M3.6 20.5v-9.4L12 7.6l8.4 3.5v9.4Z') + f('M10.4 7.6V4.6h3.2v3') + s('M12 4.6V2') + d('M10.6 20.5v-4.4h2.8v4.4') + d('M6.2 13.4h2.2M15.6 13.4h2.2')),

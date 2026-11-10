@@ -955,3 +955,6 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 /* the small outlines of places not found yet stay light, so they do not read as filled in */
 .rm-pin-vaultentrance:not(.rm-pin-visited) .rm-pin-icon svg { stroke-width: 1.1; }
 .rm-pin-personal:not(.rm-pin-visited) .rm-pin-icon svg { stroke-width: 1.4; }
+
+/* a vault entrance not found yet is only the outline of the cog: the rings of its hub are left out until it is found */
+.rm-pin-vaultentrance:not(.rm-pin-visited) .rm-pin-icon svg .hub { display: none; }
