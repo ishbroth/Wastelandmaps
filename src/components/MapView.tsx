@@ -290,8 +290,18 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       if (c) onViewportRef.current({ lat: c.lat(), lng: c.lng() }, map.getZoom() ?? 0);
     });
     markClose();
+    // whenever the holder changes size (turning the phone, the side-by-side layout coming and going) the map is told, a few times as the layout settles
+    let settle: number[] = [];
+    const refit = () => {
+      settle.forEach((t) => window.clearTimeout(t));
+      settle = [0, 120, 400, 900].map((ms) => window.setTimeout(() => { if (mapRef.current === map) google.maps.event.trigger(map, 'resize'); }, ms));
+    };
+    const watcher = new ResizeObserver(refit);
+    watcher.observe(holder.current);
     const currentPins = pins.current;
     return () => {
+      watcher.disconnect();
+      settle.forEach((t) => window.clearTimeout(t));
       currentPins.forEach((p) => p.handle.setMap(null));
       currentPins.clear();
       you.current?.handle.setMap(null);

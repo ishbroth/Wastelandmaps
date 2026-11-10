@@ -821,9 +821,11 @@ export default function App() {
       window.clearTimeout(t);
       t = window.setTimeout(() => { window.dispatchEvent(new Event('resize')); if (window.scrollX) window.scrollTo(0, window.scrollY); }, 250);
     };
+    const sideways = window.matchMedia('(orientation: landscape)');
+    sideways.addEventListener?.('change', refit);
     window.addEventListener('orientationchange', refit);
     screen.orientation?.addEventListener?.('change', refit);
-    return () => { window.clearTimeout(t); window.removeEventListener('orientationchange', refit); screen.orientation?.removeEventListener?.('change', refit); };
+    return () => { window.clearTimeout(t); sideways.removeEventListener?.('change', refit); window.removeEventListener('orientationchange', refit); screen.orientation?.removeEventListener?.('change', refit); };
   }, []);
   // navigation takes over the whole phone screen when it is turned sideways: let the map notice its new size
   useEffect(() => {

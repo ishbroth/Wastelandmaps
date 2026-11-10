@@ -8,6 +8,8 @@ fs.mkdirSync('resources', { recursive: true });
 const GREEN = '#3dff8a';
 const DIM = '#1f9a52';
 const DARK = '#000a04';
+/** On the full icon the cogwheel is drawn this much smaller, so the rendered road behind it can be seen all around it (ICON_COG_SCALE=1 for the old size). */
+const COG_SCALE = Number(process.env.ICON_COG_SCALE ?? 0.6);
 const n = (v) => Math.round(v * 10) / 10;
 
 // The picture behind the cogwheel: a destroyed road seen from the walker's own eyes (made once by _tools/gen-icon-road.mjs, kept in resources/icon-road.png).
@@ -26,7 +28,7 @@ if (useRoad) {
   roadSmall = await square.clone().resize(96, 96).jpeg({ quality: 72 }).toBuffer();
 }
 const BACKGROUND = useRoad
-  ? '<image href="data:image/jpeg;base64,' + (road1024 ? road1024.toString('base64') : '') + '" width="1024" height="1024"/><rect width="1024" height="1024" fill="#000a04" opacity="0.22"/>'
+  ? '<image href="data:image/jpeg;base64,' + (road1024 ? road1024.toString('base64') : '') + '" width="1024" height="1024"/><rect width="1024" height="1024" fill="#000a04" opacity="0.06"/>'
   : '<rect width="1024" height="1024" fill="url(#sky)"/>';
 /** The website's tab icon: the same background, small, in a rounded square with the green rim. */
 const FLAT_BACKGROUND = useRoad
@@ -139,11 +141,12 @@ function iconArt(withBackground) {
     + '<radialGradient id="sky" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#06301a"/><stop offset="1" stop-color="' + DARK + '"/></radialGradient></defs>'
     + (withBackground ? BACKGROUND : '')
     + '<g filter="url(#g)">'
+    + (withBackground && useRoad ? '<g transform="translate(512 512) scale(' + COG_SCALE + ') translate(-512 -512)">' : '<g>')
     + '<path d="' + gear + '" fill="' + GREEN + '" stroke="' + GREEN + '" stroke-width="10" stroke-linejoin="round"/>'
     + '<circle cx="' + cx + '" cy="' + cy + '" r="' + windowR + '" fill="#04170c"/>'
     + '<path d="' + outline + '" fill="none" stroke="' + GREEN + '" stroke-width="18" stroke-linejoin="round" stroke-linecap="round"/>'
     + '<path d="' + solid + '" fill="' + GREEN + '" stroke="' + GREEN + '" stroke-width="18" stroke-linejoin="round"/>'
-    + '</g></svg>';
+    + '</g></g></svg>';
 }
 
 const png = (svg, size) => sharp(Buffer.from(svg)).resize(size, size).png();

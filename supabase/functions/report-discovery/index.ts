@@ -9,12 +9,40 @@ import { inAntarctica } from '../_shared/antarctica.ts';
 import { VAULT_ZERO_FOUND_XP, VAULT_ZERO_ID, rollVaultZeroLoot } from '../_shared/vaultZero.ts';
 
 const REACH_METERS = 500;
+/** The fastest a person can really move between two reports of where they are (a fast airliner is about 250 m/s); faster than this is a faked position. */
+const MAX_SPEED_MPS = 320;
+/** The most places one person can discover in an hour and in a day. */
+const MAX_PER_HOUR = 120;
+const MAX_PER_DAY = 800;
 
 function meters(aLat: number, aLng: number, bLat: number, bLng: number): number {
   const r = 6_371_000;
   const rad = (d: number) => (d * Math.PI) / 180;
   const h = Math.sin(rad(bLat - aLat) / 2) ** 2 + Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(rad(bLng - aLng) / 2) ** 2;
   return 2 * r * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Is this report believable? The person cannot have moved faster than a plane since the last report they made, and cannot be discovering places at a rate no one
+ * walking or driving could. Returns the reason it is not, or null (and remembers where they were and when).
+ */
+async function believable(user: string, lat: number, lng: number): Promise<string | null> {
+  const db = serviceClient();
+  const now = Date.now();
+  const { data: last } = await db.from('discovery_checks').select('lat,lng,at').eq('user_id', user).maybeSingle();
+  if (last) {
+    const seconds = Math.max(1, (now - new Date(last.at as string).getTime()) / 1000);
+    const away = meters(last.lat as number, last.lng as number, lat, lng);
+    if (away > 1000 && away / seconds > MAX_SPEED_MPS) return 'too_fast';
+  }
+  const since = (ms: number) => new Date(now - ms).toISOString();
+  const [hour, day] = await Promise.all([
+    db.from('discoveries').select('place_id', { count: 'exact', head: true }).eq('user_id', user).gte('created_at', since(3_600_000)),
+    db.from('discoveries').select('place_id', { count: 'exact', head: true }).eq('user_id', user).gte('created_at', since(86_400_000)),
+  ]);
+  if ((hour.count ?? 0) >= MAX_PER_HOUR || (day.count ?? 0) >= MAX_PER_DAY) return 'too_many';
+  await db.from('discovery_checks').upsert({ user_id: user, lat, lng, at: new Date(now).toISOString() }, { onConflict: 'user_id' });
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -52,6 +80,8 @@ Deno.serve(async (req) => {
   if (b.placeId === VAULT_ZERO_ID) {
     if (typeof b.userLat !== 'number' || typeof b.userLng !== 'number' || !inAntarctica(b.userLat, b.userLng)) return reply(req, { error: 'not_in_antarctica' }, 400);
     const db = serviceClient();
+    const bad = await believable(user, b.userLat, b.userLng);
+    if (bad) return reply(req, { error: bad }, 429);
     const { data, error } = await db.rpc('record_discovery', { p_user: user, p_place: VAULT_ZERO_ID, p_points: VAULT_ZERO_FOUND_XP });
     if (error) return reply(req, { error: 'server' }, 500);
     let loot: unknown = {};
@@ -65,6 +95,8 @@ Deno.serve(async (req) => {
   if (nums.some((n) => typeof n !== 'number' || !Number.isFinite(n))) return reply(req, { error: 'bad_position' }, 400);
   if (meters(b.lat as number, b.lng as number, b.userLat as number, b.userLng as number) > REACH_METERS) return reply(req, { error: 'too_far' }, 400);
 
+  const bad = await believable(user, b.userLat as number, b.userLng as number);
+  if (bad) return reply(req, { error: bad }, 429);
   const points = Math.max(1, Math.min(100, Math.round(Number(b.points) || 10)));
   let { data, error } = await serviceClient().rpc('record_discovery', { p_user: user, p_place: b.placeId, p_points: points });
   // the levels migration has not been run yet: the older two-argument function still counts the place

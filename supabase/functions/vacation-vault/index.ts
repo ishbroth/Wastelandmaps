@@ -147,6 +147,9 @@ Deno.serve(async (req) => {
     if (mine && paid?.length) found = mine;
   }
   if (!found) return reply(req, { error: 'not_found_by_you' }, 403);
+  // and the server must have recorded that they really were there
+  const { data: seen } = await db.from('discoveries').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
+  if (!seen) return reply(req, { error: 'not_found_by_you' }, 403);
   if (home.lat !== null && home.lng !== null && km({ lat: home.lat, lng: home.lng }, { lat: found.lat, lng: found.lng }) < FAR_KM) return reply(req, { error: 'too_close' }, 403);
 
   // a place they have cleared (looted), not only discovered

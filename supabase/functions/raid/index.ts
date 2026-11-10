@@ -51,15 +51,9 @@ function roll(worth: number, types: string[]): Record<string, number> {
 /** Has this person discovered the place (on foot, or by arriving there)? An address they typed in counts only once they have really been there (a found place): unlocking its snapshot is not discovering it. */
 // deno-lint-ignore no-explicit-any
 async function discovered(db: any, user: string, placeId: string): Promise<boolean> {
-  if (placeId.startsWith('me:')) {
-    const { data } = await db.from('found_places').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
-    return !!data;
-  }
-  const [a, b] = await Promise.all([
-    db.from('discoveries').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle(),
-    db.from('found_places').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle(),
-  ]);
-  return !!a.data || !!b.data;
+  // only the server's own record counts (report-discovery checks the place and the position); the found list is written by the app, so it proves nothing
+  const { data } = await db.from('discoveries').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
+  return !!data;
 }
 
 Deno.serve(async (req) => {

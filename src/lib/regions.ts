@@ -23,7 +23,7 @@ interface RegionsFile { countries: CountryData[]; states: StateData[] }
 
 /** The big divisions of the wasteland, bigger than a country: the continents, cut up a little differently. */
 const SUPER: Record<string, { name: string; at: LatLng }> = {
-  frontier: { name: 'The Nuclear Frontier', at: { lat: 46, lng: -100 } },
+  frontier: { name: 'The Nuke Frontier', at: { lat: 46, lng: -100 } },
   unfrozen: { name: 'The Unfrozen Lands', at: { lat: 70, lng: -42 } },
   dustlands: { name: 'El Istmo', at: { lat: 19, lng: -92 } },
   amazon: { name: 'The Kablamazon', at: { lat: -4, lng: -60 } },

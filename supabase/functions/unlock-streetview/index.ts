@@ -160,15 +160,14 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
   }
   if (mine?.status === 'generating' && Date.now() - new Date(mine.started_at as string).getTime() < STALE_AFTER_MS) return reply(req, { status: 'working' });
 
-  let details;
-  try { details = await placeDetails(googleId); } catch { return reply(req, { error: 'server' }, 500); }
-  if (!details) return reply(req, { error: 'unknown_place' }, 404);
-
   const { data: spent, error: spendError } = await db.rpc('unlock_personal', { p_user: user, p_place: unlockKey, p_cost: COST });
   if (spendError) return reply(req, { error: 'server' }, 500);
   if (spent === 'no_credits') return reply(req, { error: 'no_credits' }, 402);
   const giveBack = async () => { if (spent === 'spent') await db.rpc('refund_personal', { p_user: user, p_place: unlockKey, p_cost: COST }); };
   try {
+    let details;
+    try { details = await placeDetails(googleId); } catch { await giveBack(); return reply(req, { error: 'server' }, 500); }
+    if (!details) { await giveBack(); return reply(req, { error: 'unknown_place' }, 404); }
     const cap = dailyRenderCap();
     const since = new Date(); since.setUTCHours(0, 0, 0, 0);
     const counts = await Promise.all(['renders', 'address_renders', 'home_renders', 'vacation_vault'].map((t) => db.from(t).select('*', { count: 'exact', head: true }).gte('started_at', since.toISOString())));
@@ -249,10 +248,11 @@ Deno.serve(async (req) => {
 
   if (existing?.status === 'generating' && Date.now() - new Date(existing.started_at as string).getTime() < STALE_AFTER_MS) return reply(req, { status: 'working' });
 
-  // nobody has made it yet: what the place is comes from Google, not from the browser
-  let details;
-  try { details = await placeDetails(googleId); } catch { return reply(req, { error: 'server' }, 500); }
-  if (!details) return reply(req, { error: 'unknown_place' }, 404);
+  // nobody has made it yet: what the place is comes from Google (asked for once the credits are taken), not from the browser
+  // one person cannot start more than this many new renders an hour
+  const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
+  const { count: recent } = await db.from('address_renders').select('place_id', { count: 'exact', head: true }).eq('created_by', user).gte('started_at', hourAgo);
+  if ((recent ?? 0) >= 30) return reply(req, { error: 'too_many' }, 429);
   const kind = KINDS.includes(String(body.kind)) ? String(body.kind) : 'house';
   const metro = /^[a-z0-9-]{3,80}$/.test(String(body.metroId ?? '')) ? String(body.metroId) : null;
 
@@ -263,6 +263,9 @@ Deno.serve(async (req) => {
   const giveBack = async () => { await db.rpc('refund_personal', { p_user: user, p_place: placeId, p_cost: COST }); };
 
   try {
+    let details;
+    try { details = await placeDetails(googleId); } catch { await giveBack(); return reply(req, { error: 'server' }, 500); }
+    if (!details) { await giveBack(); return reply(req, { error: 'unknown_place' }, 404); }
     // a daily cap on new renders (shared with the landmark ones), so one bad day cannot run up a bill
     const cap = dailyRenderCap();
     const since = new Date(); since.setUTCHours(0, 0, 0, 0);
