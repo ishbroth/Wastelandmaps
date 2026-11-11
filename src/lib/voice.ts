@@ -44,8 +44,8 @@ let nativeChoice: Promise<NativeVoice> | null = null;
  */
 function chooseNativeVoice(): Promise<NativeVoice> {
   nativeChoice ??= (async (): Promise<NativeVoice> => {
-    const butler = { pitch: 0.82, rate: 0.93 };
-    const evil = { pitch: 0.5, rate: 0.82 };
+    const butler = { pitch: 0.82, rate: 0.85 };
+    const evil = { pitch: 0.5, rate: 0.76 };
     try {
       const { voices } = await TextToSpeech.getSupportedVoices();
       const named = voices.map((v, index) => ({ v, index, name: v.name ?? '' }));
@@ -74,7 +74,7 @@ export function speak(text: string): void {
     void chooseNativeVoice().then((c) => TextToSpeech.speak({ text, lang: c.lang, ...(c.index !== undefined ? { voice: c.index } : {}), rate: c.rate, pitch: c.pitch, volume: 1, category: 'playback', queueStrategy: QueueStrategy.Flush }))
       .catch(() => {
         // that voice would not speak: any English one will do
-        void TextToSpeech.speak({ text, lang: 'en-US', rate: 0.9, pitch: 0.5, volume: 1, category: 'playback', queueStrategy: QueueStrategy.Flush }).catch(() => undefined);
+        void TextToSpeech.speak({ text, lang: 'en-US', rate: 0.84, pitch: 0.5, volume: 1, category: 'playback', queueStrategy: QueueStrategy.Flush }).catch(() => undefined);
       });
     return;
   }
@@ -82,7 +82,7 @@ export function speak(text: string): void {
   synth.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.pitch = 0.35;
-  u.rate = 0.88;
+  u.rate = 0.8;
   u.volume = 1;
   const voice = pickVoice();
   if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-GB';
