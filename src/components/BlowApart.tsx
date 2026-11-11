@@ -1,4 +1,4 @@
-import { blastFiles, nextBlast, playBlast, preloadSfx, recordingSink } from '../lib/sfx';
+import { blastFiles, nextBlast, playBlast, preloadSfx, recordingSink, setSfxMuted } from '../lib/sfx';
 import ScrollRow from './ScrollRow';
 import CogSpinner from './CogSpinner';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -305,6 +305,11 @@ export default function BlowApart({ sound = false, pristine = false, beforeUrl, 
   const images = useRef<{ before: HTMLImageElement; after: HTMLImageElement; plan: ReturnType<typeof plan>; sky: Sky; cloud: CanvasRenderingContext2D | null; width: number; height: number } | null>(null);
   const frame = useRef(0);
   const [state, setState] = useState<'loading' | 'playing' | 'done' | 'plain'>('loading');
+  // the speaker button on the picture while it plays: silences the blast (and brings it back) without touching a video being recorded
+  const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
+  useEffect(() => () => setSfxMuted(false), []);
+  const toggleMute = () => { mutedRef.current = !mutedRef.current; setMuted(mutedRef.current); setSfxMuted(mutedRef.current); };
   const [recording, setRecording] = useState(false);
   const canRecord = typeof MediaRecorder !== 'undefined' && typeof HTMLCanvasElement !== 'undefined' && 'captureStream' in HTMLCanvasElement.prototype;
   const seenKey = `wastelandmaps:seen:${seenUser ?? 'guest'}:${seenId ?? afterUrl}`;
@@ -328,6 +333,7 @@ export default function BlowApart({ sound = false, pristine = false, beforeUrl, 
     cancelAnimationFrame(frame.current);
     setState('playing');
     // the blast: one of four recorded ones, taking turns; the sound starts with the picture and its burst lands with the burst of light
+    setSfxMuted(mutedRef.current);
     if (sound || recordInto) playBlast(nextBlast(seed), { speakers: sound, record: recordInto });
     const started = performance.now();
     const step = (now: number) => {
@@ -414,6 +420,11 @@ export default function BlowApart({ sound = false, pristine = false, beforeUrl, 
       {state === 'plain'
         ? <img src={afterUrl} className="rm-modal-canvas rm-modal-render rm-tap-big" alt={pristine ? `${name}: a vault door in the snow` : `${name} in the wasteland`} onClick={() => setBig(true)} />
         : <canvas ref={canvas} className={`rm-modal-canvas rm-modal-render${state === 'done' ? ' rm-tap-big' : ''}`} onClick={() => { if (state === 'done') setBig(true); }} aria-label={`${name}: the photograph is hit by a bomb and torn apart to reveal it in the wasteland`} />}
+      {state === 'playing' && sound && (
+        <button type="button" className={`rm-blast-mute${muted ? ' off' : ''}`} onClick={toggleMute} aria-label={muted ? 'Sound on' : 'Mute'} title={muted ? 'Sound on' : 'Mute'}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z" fill="currentColor" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />{muted ? <path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /> : <path d="M15.5 9.2a4 4 0 0 1 0 5.6M18 6.8a7.4 7.4 0 0 1 0 10.4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}</svg>
+        </button>
+      )}
       {state === 'loading' && <div className="rm-render-loading" role="status"><CogSpinner big label="Loading the picture" /><span>LOADING…</span></div>}
       </div>
       {big && (
