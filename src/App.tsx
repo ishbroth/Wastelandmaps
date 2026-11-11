@@ -1275,7 +1275,7 @@ export default function App() {
     <div className={`rm-app${nav ? ' rm-navigating' : ''}`}>
       <header className="rm-head">
         <div className="rm-title">
-          <img className="rm-title-mark" src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" aria-hidden="true" />
+          <img className="rm-title-mark" src={`${import.meta.env.BASE_URL}header-mark.svg`} alt="" aria-hidden="true" />
           <h1>WASTELAND<span>MAPS</span></h1>
           <p>See where you live after the bombs fell</p>
         </div>
