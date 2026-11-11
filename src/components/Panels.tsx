@@ -471,7 +471,7 @@ function AtlasBox({ account, metro }: { account: Account; metro: { id: string; n
       ) : (
         <>
           <p className="rm-fine">{count === null ? 'Counting…' : count === 0 ? 'No addresses are rendered here yet.' : `${count} address${count === 1 ? '' : 'es'} here have been rendered by other survivors.`} Unlock them all, now and in the future, for <Caps n={caps(METRO_COST)} />.</p>
-          <button type="button" className="rm-btn rm-btn-ghost" disabled={busy || (account.credits ?? 0) < METRO_COST} onClick={() => void unlock()}>
+          <button type="button" className={`rm-btn rm-btn-ghost${(account.credits ?? 0) >= METRO_COST ? ' rm-can' : ''}`} disabled={busy || (account.credits ?? 0) < METRO_COST} onClick={() => void unlock()}>
             UNLOCK THE WHOLE METRO · <Caps n={caps(METRO_COST)} />
           </button>
           {(account.credits ?? 0) < METRO_COST && <p className="rm-fine">You have <Caps n={caps(account.credits ?? 0)} />. Buy a pack to get more.</p>}

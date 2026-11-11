@@ -35,7 +35,7 @@ const SUPER: Record<string, { name: string; at: LatLng }> = {
   congo: { name: 'Congo Firelands', at: { lat: -8, lng: 24 } },
   subcontinent: { name: 'The Subcontinent', at: { lat: 22, lng: 79 } },
   east: { name: 'The Eastern Wastes', at: { lat: 38, lng: 102 } },
-  under: { name: 'The Outback', at: { lat: -25, lng: 134 } },
+  under: { name: 'Downunder', at: { lat: -25, lng: 134 } },
   alaska: { name: 'Greater Alaska', at: { lat: 66, lng: -172 } },
   ring: { name: 'The Ring of Fire', at: { lat: 0, lng: 128 } },
   vault: { name: 'Vault Tech Headquarters', at: { lat: -78, lng: 0 } },
@@ -79,7 +79,7 @@ const COUNTRY_NAMES: Record<string, string> = {
   DK: 'The Danish Dead Zone', GR: 'The Classical Ruins', TR: 'Smoked Turkey', RU: 'The Ironed Curtain', BY: 'The Pale Plains', RO: 'The Carpathian Cinders',
   CN: 'The Red Wastes', JP: 'Jablam', KR: 'South Krater', KP: 'North Krater', IN: 'The Subcontinent', PK: 'The Indus Cinders', ID: 'The Ring of Fire Islands', TH: 'Bye-Land',
   VN: 'The Delta Dead Zone', PH: 'The Thousand Burning Isles', IR: 'The Persian Dust', SA: 'The Great Oil-Slick', EG: 'The Dusty Dynasty', ZA: 'The Scorched Cape', NG: 'The Niger Nuke Zone',
-  KE: 'The Savanna Scorch', ET: 'The Highland Husk', AU: 'The Outback', NZ: 'Z-Land', KZ: 'The Great Steppe Scar', MN: 'The Empty Steppe',
+  KE: 'The Savanna Scorch', ET: 'The Highland Husk', AU: 'Downunder', NZ: 'Z-Land', KZ: 'The Great Steppe Scar', MN: 'The Empty Steppe',
   FJ: 'Fiji Flood Zone', NC: 'Caledonia Sinkhole', SG: 'Singapore Scrapyard', CD: 'Congo Firelands', CG: 'Congo Firelands Basin', MG: 'The Red Island Ruins', GL: 'The Frozen Ice Waste', IS: 'The Ash Isle',
 };
 

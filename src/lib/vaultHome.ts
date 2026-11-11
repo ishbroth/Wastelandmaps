@@ -75,6 +75,10 @@ export interface VaultRoom {
   twin?: boolean;
   /** Which side of a stairwell's cell its open end is on (a stairwell is a dead-end corridor: only that end joins another room). */
   face?: Face;
+  /** A U-shaped stairwell: two cells wide (col and col + 1), one long, two flights side by side with a landing at the far end; the second flight comes out beside the first, on the next level. */
+  shape?: 'u';
+  /** A U stairwell: which of its two cells the open end is in (0 the left one, 1 the right one). */
+  entry?: 0 | 1;
 }
 
 /** A side of a cell: left (the column before), right, back (the row before) and front (the row after). */
@@ -82,7 +86,7 @@ export type Face = 'l' | 'r' | 'b' | 'f';
 const FACE_STEP: Record<Face, [number, number]> = { l: [-1, 0], r: [1, 0], b: [0, -1], f: [0, 1] };
 export const OPPOSITE: Record<Face, Face> = { l: 'r', r: 'l', b: 'f', f: 'b' };
 /** The cell a stairwell's open end leads to, on its own level. */
-export const openCell = (r: VaultRoom): [number, number] | null => (r.type === 'stairs' && r.face ? [r.col + FACE_STEP[r.face][0], r.row + FACE_STEP[r.face][1]] : null);
+export const openCell = (r: VaultRoom): [number, number] | null => (r.type === 'stairs' && r.face ? [r.col + (r.shape === 'u' ? r.entry ?? 0 : 0) + FACE_STEP[r.face][0], r.row + FACE_STEP[r.face][1]] : null);
 
 /** A piece's place on the floor of its room: u across and v deep (0 to 1 of the floor), and whether it is turned a quarter. */
 export interface Put { u: number; v: number; swap?: boolean }
@@ -119,6 +123,12 @@ export interface VaultHome {
   /** A temporary lift from building, in points, and when it was given (ms). */
   boost: number;
   boostAt: number;
+  /** When happiness last went up because something was built or furnished (ms): the arrow on the happiness line points up for a few minutes after. */
+  gainAt?: number;
+  /** When happiness reached its lowest point (ms), kept while it stays there. */
+  floorAt?: number;
+  /** From when the next day of grumbling settlers is counted toward a theft (ms). */
+  stealFrom?: number;
   /** Decides which mix of loot each room and piece of furniture costs in this vault (the server makes it up when the vault is made). */
   seed?: number;
   /** 2 for the floorplan layout. A vault saved before it has no number and is converted when it is opened (see normalize). */
@@ -131,7 +141,7 @@ export const newVault = (now: number, seed = 0): VaultHome => ({ seed, layout: 3
 
 // ---- the grid ----
 
-export const slotsOf = (r: VaultRoom): number => roomDef(r.type).slots;
+export const slotsOf = (r: VaultRoom): number => (r.type === 'stairs' && r.shape === 'u' ? 2 : roomDef(r.type).slots);
 /** Stairwells and hallways are passages: they take no slot, add no happiness and make no settlers. */
 export const isPassage = (r: { type: RoomType }): boolean => r.type === 'stairs' || r.type === 'hallway';
 export const slotsUsed = (v: VaultHome): number => v.rooms.reduce((n, r) => n + (isPassage(r) ? 0 : slotsOf(r)), 0);
@@ -185,13 +195,23 @@ export function stairFace(v: VaultHome, level: number, col: number, row: number)
   return near.length === 1 ? near[0].face : null;
 }
 
-/** Can a stairwell going this way be built at this cell of this level? Null if yes, or the reason. */
-export function whyNotStairs(v: VaultHome, level: number, col: number, row: number, dir: StairDir): string | null {
+export type StairShape = 'straight' | 'u';
+
+/** What every stairwell needs, whatever its shape: a level to go to, and room for another stairwell on both levels. */
+function whyNotLevels(v: VaultHome, level: number, dir: StairDir): string | null {
   const other = dir === 'down' ? level + 1 : level - 1;
   if (other >= LEVELS) return 'There is nothing below the fifth level';
   if (other < 0) return 'There is nothing above the first level';
   if (roomsOn(v, level).filter((r) => r.type === 'stairs').length >= STAIRS_PER_LEVEL) return `A level holds at most ${STAIRS_PER_LEVEL} stairwells`;
   if (roomsOn(v, other).filter((r) => r.type === 'stairs').length >= STAIRS_PER_LEVEL) return `The level ${dir === 'down' ? 'below' : 'above'} already has ${STAIRS_PER_LEVEL} stairwells`;
+  return null;
+}
+
+/** Can a straight stairwell going this way be built at this cell of this level? Null if yes, or the reason. */
+export function whyNotStairs(v: VaultHome, level: number, col: number, row: number, dir: StairDir): string | null {
+  const other = dir === 'down' ? level + 1 : level - 1;
+  const limits = whyNotLevels(v, level, dir);
+  if (limits) return limits;
   // a stairwell is a dead-end corridor: it joins the one room it is built onto, and nothing else can touch it
   const near = around(v, level, col, row);
   if (near.length === 0) return 'A stairwell has to be built onto a room or a hallway';
@@ -206,6 +226,61 @@ export function whyNotStairs(v: VaultHome, level: number, col: number, row: numb
   const beside = around(v, other, col, row).filter((n) => n.face !== open);
   if (beside.length > 0) return `There is something in the way beside it on the level ${dir === 'down' ? 'below' : 'above'}`;
   return null;
+}
+
+// A U-shaped stairwell is two cells wide and one long: you walk in at its open end (a cell on the front or back of the room it is built onto), climb the first flight to a
+// landing at the far end, turn, and the second flight brings you back the way you came, out beside where you went in on the next level. So on the other level the
+// twin sits in the same two cells, opening the same way, but through the other cell.
+
+type UPlan = { col: number; entry: 0 | 1; face: Face };
+
+/** Where a U stairwell could go with its left cell at lc and its open end in cell lc + entry: the plan, or the reason it cannot. */
+function uStairFits(v: VaultHome, level: number, lc: number, row: number, entry: 0 | 1, dir: StairDir): UPlan | string {
+  const limits = whyNotLevels(v, level, dir);
+  if (limits) return limits;
+  const other = dir === 'down' ? level + 1 : level - 1;
+  const way = dir === 'down' ? 'below' : 'above';
+  if (lc < 0 || lc + 2 > COLS || row < 0 || row >= ROWS) return 'There is no room for a U stairwell there: it is two cells wide';
+  for (const c of [lc, lc + 1]) {
+    if (roomAt(v, level, c, row)) return 'A U stairwell is two cells wide: the space beside it is taken';
+    if (isDoorCell(v, level, c, row)) return 'That wall is the vault door: it stays clear';
+    if (roomAt(v, other, c, row)) return `There is already a room ${dir === 'down' ? 'under' : 'over'} it`;
+    if (isDoorCell(v, other, c, row)) return 'That is the wall with the vault door on the level above: it stays clear';
+  }
+  // the cells touching its footprint: the two ends, and the two cells in front of and behind it
+  const ring = (lvl: number) => ([[lc - 1, row], [lc + 2, row], [lc, row - 1], [lc + 1, row - 1], [lc, row + 1], [lc + 1, row + 1]] as [number, number][]).flatMap(([c, r]) => { const room = roomAt(v, lvl, c, r); return room ? [{ c, r, room }] : []; });
+  const hit = ring(level);
+  if (hit.length === 0) return 'A stairwell has to be built onto a room or a hallway';
+  if (hit.length > 1) return 'A stairwell is a dead end: it can only touch the one room it is built onto';
+  const [h] = hit;
+  if (h.c !== lc + entry || h.r === row) return 'A U stairwell has to be built onto the front or the back of a room';
+  if (h.room.type === 'stairs') return 'A stairwell cannot be built onto another stairwell';
+  const face: Face = h.r < row ? 'b' : 'f';
+  if (roomsOn(v, other).length === 0 && settlerSlots(v) >= MAX_SLOTS) return 'Every room slot is used: you cannot go down to a new level';
+  // the other end opens the same way through the other cell: nothing may touch it anywhere else
+  const comes = [lc + 1 - entry, row + FACE_STEP[face][1]];
+  if (ring(other).some((n) => !(n.c === comes[0] && n.r === comes[1]))) return `There is something in the way beside it on the level ${way}`;
+  return { col: lc, entry, face };
+}
+
+/** The plan for a U stairwell whose open end is in this cell: its second cell goes on the right if that works, otherwise on the left. */
+export function uStairPlan(v: VaultHome, level: number, col: number, row: number, dir: StairDir): UPlan | string {
+  const right = uStairFits(v, level, col, row, 0, dir);
+  if (typeof right !== 'string') return right;
+  const left = uStairFits(v, level, col - 1, row, 1, dir);
+  if (typeof left !== 'string') return left;
+  // both failed: say why the more promising one did (the left one only when the right is plainly out of the question)
+  return /two cells wide/.test(right) ? left : right;
+}
+
+/** Can a stairwell of this shape (none chosen yet: either) going this way be built at this cell? Null if yes, or the reason. */
+export function whyNotStairShape(v: VaultHome, level: number, col: number, row: number, dir: StairDir, shape?: StairShape): string | null {
+  const straight = shape === 'u' ? null : whyNotStairs(v, level, col, row, dir);
+  if (shape !== 'u' && !straight) return null;
+  if (shape === 'straight') return straight;
+  const u = uStairPlan(v, level, col, row, dir);
+  if (typeof u !== 'string') return null;
+  return shape === 'u' ? u : straight;
 }
 
 // ---- keeping everything joined ----
@@ -239,15 +314,15 @@ export function reachable(v: VaultHome, skip: VaultRoom[] = []): Set<VaultRoom> 
 }
 
 /** Can a room of this type be built with its left cell here? Returns null if yes, or the reason. */
-export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, dir?: StairDir): string | null {
+export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, dir?: StairDir, shape?: StairShape): string | null {
   const def = roomDef(type);
   if (def.buildable === false) return 'There is only one entryway';
   if (!hasDecon(v)) return DECON_REASON;
   if (level < 0 || level >= LEVELS || row < 0 || row >= ROWS || col < 0 || col + def.slots > COLS) return 'There is no room for it there';
   if (type === 'stairs') {
     // no way chosen yet (the list of rooms): it can be built if it can go either way
-    const down = dir === 'up' ? null : whyNotStairs(v, level, col, row, 'down');
-    const up = dir === 'down' ? null : whyNotStairs(v, level, col, row, 'up');
+    const down = dir === 'up' ? null : whyNotStairShape(v, level, col, row, 'down', shape);
+    const up = dir === 'down' ? null : whyNotStairShape(v, level, col, row, 'up', shape);
     if (dir === 'down' && down) return down;
     if (dir === 'up' && up) return up;
     if (dir === undefined && down && up) return level + 1 < LEVELS ? down : up;
@@ -405,7 +480,7 @@ export const bonusPoints = (v: VaultHome): number => slotsUsed(v) + furnitureCou
 export const baselineOf = (v: VaultHome): number => 50 + bonusPoints(v);
 export const floorOf = (v: VaultHome): number => 15 + bonusPoints(v);
 
-export interface Mood { value: number; shown: number; baseline: number; floor: number; word: string }
+export interface Mood { value: number; shown: number; baseline: number; floor: number; word: string; /** Which way it is going: up (climbing during a visit, or lifted by building a moment ago), down (settlers crowded in too few rooms), or neither. */ trend: 'up' | 'down' | null }
 
 export const FACES: { min: number; word: string }[] = [
   { min: 90, word: 'ECSTATIC' },
@@ -417,26 +492,80 @@ export const FACES: { min: number; word: string }[] = [
   { min: -1, word: 'ANGRY' },
 ];
 
-/** How happy the vault is at a moment: climbing toward the baseline during a visit, then slipping a point every four hours down to the floor. */
-export function moodAt(v: VaultHome, now: number): Mood {
+/** More settlers than the rooms provide for (rooms were demolished after they came): this many are crowded in. */
+export const excessSettlers = (v: VaultHome): number => Math.max(0, v.settlers.length - settlersEarned(v));
+/** With crowded settlers, happiness drops a point this often (instead of one every four hours) and a visit no longer lifts it. */
+export const CROWDED_DECAY_MS = 10 * 60_000;
+/** Crowded settlers leave after happiness has sat at its lowest this long; unhappy settlers with enough rooms steal one piece of loot this often. */
+export const LEAVE_AFTER_MS = 24 * 3_600_000;
+export const THEFT_EVERY_MS = 24 * 3_600_000;
+/** At most this many pieces are taken in one go, however long the vault was left. */
+export const MAX_THEFTS_AT_ONCE = 5;
+/** The arrow points up for this long after something raised happiness. */
+export const GAIN_SHOWN_MS = 5 * 60_000;
+
+/** Where happiness is without the temporary lift: where it began, how it has moved, and when the slide down began. */
+function drift(v: VaultHome, now: number) {
   const base = baselineOf(v);
   const floor = floorOf(v);
-  const end = Math.min(now, v.seenAt);
-  const progress = Math.max(0, Math.min(1, (end - v.sessionAt) / VISIT_MS));
-  let value = v.from < base ? v.from + (base - v.from) * progress : v.from;
-  value -= Math.floor(Math.max(0, now - end) / DECAY_MS);
-  value = Math.max(value, floor);
+  const crowded = excessSettlers(v) > 0;
+  const rate = crowded ? CROWDED_DECAY_MS : DECAY_MS;
+  const seen = Math.min(now, v.seenAt);
+  // crowded settlers are unhappy whether or not anyone is looking: the slide runs from the start of the visit; otherwise it runs from when the vault was last seen
+  const end = crowded ? Math.min(now, v.sessionAt) : seen;
+  const progress = Math.max(0, Math.min(1, (seen - v.sessionAt) / VISIT_MS));
+  const start = !crowded && v.from < base ? v.from + (base - v.from) * progress : v.from;
+  const value = Math.max(start - Math.floor(Math.max(0, now - end) / rate), floor);
+  return { base, floor, crowded, rate, end, start, value, progress };
+}
+
+/** How happy the vault is at a moment: climbing toward the baseline during a visit, then slipping a point every four hours down to the floor (every ten minutes if settlers are crowded). */
+export function moodAt(v: VaultHome, now: number): Mood {
+  const d = drift(v, now);
   const lift = Math.max(0, v.boost - Math.floor(Math.max(0, now - v.boostAt) / BOOST_FADE_MS));
-  const shown = Math.max(0, Math.min(100, Math.round(value + lift)));
+  const shown = Math.max(0, Math.min(100, Math.round(d.value + lift)));
   const f = FACES.find((x) => shown >= x.min) ?? FACES[FACES.length - 1];
-  return { value, shown, baseline: base, floor, word: f.word };
+  const climbing = !d.crowded && v.from < d.base && d.progress < 1;
+  const gained = v.gainAt !== undefined && now - v.gainAt >= 0 && now - v.gainAt < GAIN_SHOWN_MS;
+  const trend = climbing || gained ? 'up' : d.crowded && d.value > d.floor ? 'down' : null;
+  return { value: d.value, shown, baseline: d.base, floor: d.floor, word: f.word, trend };
+}
+
+/** When happiness got to its lowest point and has stayed (ms), or null if it is above it. */
+export function atFloorSince(v: VaultHome, now: number): number | null {
+  const d = drift(v, now);
+  if (d.value > d.floor) return null;
+  if (v.floorAt !== undefined && d.start <= d.floor) return v.floorAt;
+  return d.end + Math.max(0, d.start - d.floor) * d.rate;
 }
 
 /** Records that the vault is being looked at: a new visit starts if it has been a while, otherwise the current one goes on. */
 export function checkIn(v: VaultHome, now: number): VaultHome {
   if (now - v.seenAt <= VISIT_GAP_MS) return { ...v, seenAt: now };
   const m = moodAt(v, now);
-  return { ...v, from: m.value, sessionAt: now, seenAt: now };
+  return { ...v, from: m.value, sessionAt: now, seenAt: now, floorAt: atFloorSince(v, now) ?? undefined };
+}
+
+export interface Neglect { vault: VaultHome; /** Settlers who have left. */ left: Settler[]; /** How many pieces of loot have been taken. */ thefts: number }
+/**
+ * What has happened while happiness sat at its lowest. Crowded settlers (more than the rooms give) leave once it has been there a day, the latest to come first, as many as
+ * are too many. Settlers who have enough rooms but are miserable stay and take one random piece of loot for every day of it; the server picks the piece.
+ */
+export function neglectAt(v: VaultHome, now: number): Neglect {
+  const none: Neglect = { vault: v, left: [], thefts: 0 };
+  const since = atFloorSince(v, now);
+  if (since === null || v.settlers.length === 0) return none;
+  const excess = excessSettlers(v);
+  if (excess > 0) {
+    if (now - since < LEAVE_AFTER_MS) return none;
+    const keep = v.settlers.length - excess;
+    return { vault: { ...v, settlers: v.settlers.slice(0, keep), stealFrom: now }, left: v.settlers.slice(keep), thefts: 0 };
+  }
+  const from = Math.max(since, v.stealFrom ?? 0);
+  const days = Math.floor((now - from) / THEFT_EVERY_MS);
+  if (days < 1) return none;
+  const thefts = Math.min(days, MAX_THEFTS_AT_ONCE);
+  return { vault: { ...v, stealFrom: days > thefts ? now : from + days * THEFT_EVERY_MS }, left: [], thefts };
 }
 
 /** However many things are built at once, the temporary lift never goes above this. */
@@ -449,25 +578,32 @@ export const boostFor = (pieces: number): number => Math.max(5, Math.min(20, Mat
 function settle(v: VaultHome, now: number): VaultHome {
   const m = moodAt(v, now);
   const lift = Math.max(0, v.boost - Math.floor(Math.max(0, now - v.boostAt) / BOOST_FADE_MS));
-  return { ...v, from: m.value, sessionAt: now, seenAt: now, boost: lift, boostAt: now };
+  return { ...v, from: m.value, sessionAt: now, seenAt: now, boost: lift, boostAt: now, floorAt: atFloorSince(v, now) ?? undefined };
 }
 
 // ---- the things you can do (each returns the new vault, or the reason it cannot be done) ----
 
 export type Action<T> = { ok: true; vault: VaultHome; cost: number; /** The exact mix of loot it costs. */ recipe: LootBag } & T | { ok: false; reason: string };
 
-export function applyBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, now: number, dir: StairDir = 'down'): Action<unknown> {
+export function applyBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, now: number, dir: StairDir = 'down', shape: StairShape = 'straight'): Action<unknown> {
   if (!ROOM_DEFS.some((d) => d.id === type)) return { ok: false, reason: 'No such room' };
   if (dir !== 'up' && dir !== 'down') return { ok: false, reason: 'Up or down?' };
-  const why = whyNotBuild(v, type, level, col, row, type === 'stairs' ? dir : undefined);
+  if (shape !== 'straight' && shape !== 'u') return { ok: false, reason: 'Straight or U?' };
+  const why = whyNotBuild(v, type, level, col, row, type === 'stairs' ? dir : undefined, type === 'stairs' ? shape : undefined);
   if (why) return { ok: false, reason: why };
   const cost = buildCost(v, type);
   const recipe = buildRecipe(v, type);
   const s = settle(v, now);
   // a stairwell has its twin on the level it goes to, where you arrive
+  const u = type === 'stairs' && shape === 'u' ? uStairPlan(v, level, col, row, dir) : null;
+  if (typeof u === 'string') return { ok: false, reason: u };
+  if (u) {
+    const twin: VaultRoom = { type, level: dir === 'down' ? level + 1 : level - 1, col: u.col, row, furniture: [], twin: true, face: u.face, shape: 'u', entry: u.entry === 0 ? 1 : 0 };
+    return { ok: true, cost, recipe, vault: { ...s, rooms: [...s.rooms, { type, level, col: u.col, row, furniture: [], face: u.face, shape: 'u', entry: u.entry }, twin], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)), gainAt: now } };
+  }
   const face = type === 'stairs' ? stairFace(v, level, col, row) : null;
   const made: VaultRoom[] = type === 'stairs' && face ? [{ type, level, col, row, furniture: [], face }, { type, level: dir === 'down' ? level + 1 : level - 1, col, row, furniture: [], twin: true, face: OPPOSITE[face] }] : [{ type, level, col, row, furniture: [] }];
-  return { ok: true, cost, recipe, vault: { ...s, rooms: [...s.rooms, ...made], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
+  return { ok: true, cost, recipe, vault: { ...s, rooms: [...s.rooms, ...made], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)), gainAt: now } };
 }
 
 // ---- demolishing a room ----
@@ -550,7 +686,7 @@ export function applyFurnish(v: VaultHome, roomIndex: number, item: string, now:
   const s = settle(v, now);
   const put = at === undefined ? null : cleanPut(at);
   if (at !== undefined && !put) return { ok: false, reason: 'That is not a place on the floor' };
-  return { ok: true, cost, recipe, vault: { ...s, rooms: s.rooms.map((r, i) => (i === roomIndex ? { ...r, furniture: [...r.furniture, item], ...(put ? { put: { ...(r.put ?? {}), [item]: put } } : {}) } : r)), boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
+  return { ok: true, cost, recipe, vault: { ...s, rooms: s.rooms.map((r, i) => (i === roomIndex ? { ...r, furniture: [...r.furniture, item], ...(put ? { put: { ...(r.put ?? {}), [item]: put } } : {}) } : r)), boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)), gainAt: now } };
 }
 
 /** Moves a piece that is in a room already (free): it is put where the owner set it down. */

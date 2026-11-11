@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { sendSignInLink, signInWithFaceId, signInWithVault } from '../lib/account';
+import { signInWithFaceId, signInWithVault } from '../lib/account';
 import { faceIdName, forgetFaceId, savedFaceIds } from '../lib/faceid';
 import type { BeepKind } from '../lib/sound';
 
-/** Signing in: email and vault number (the simple password set when the home was chosen), an emailed link for the first time or a forgotten number, or, in the
+/** Signing in: email and vault number (the simple password set when the home was chosen), or, in the
  *  app, Face ID (or Touch ID) for an account that was signed in here before and saved. `auto` starts the Face ID check as soon as it opens (the app does this
  *  when it opens signed out and has a saved account). Everything about the account itself (caps, packs, home, sign out, delete) lives in the Data tab once signed in. */
 export default function AccountModal({ onClose, auto = false, onSound }: { onClose: () => void; auto?: boolean; /** The app's sound and buzz for a moment (signing in is one). */ onSound?: (kind: BeepKind) => void }) {
@@ -22,13 +22,6 @@ export default function AccountModal({ onClose, auto = false, onSound }: { onClo
     const problem = await signInWithVault(email.trim(), digits);
     if (problem) setNote(problem);
     else { onSound?.('arrive'); onClose(); }
-    setBusy(false);
-  };
-
-  const mailLink = async () => {
-    setBusy(true);
-    const problem = await sendSignInLink(email.trim());
-    setNote(problem ?? 'Check your email: we sent you a sign-in link. Open it on this device.');
     setBusy(false);
   };
 
@@ -63,7 +56,7 @@ export default function AccountModal({ onClose, auto = false, onSound }: { onClo
           <button type="button" className="rm-btn rm-btn-ghost" onClick={onClose}>CLOSE</button>
         </div>
         <form onSubmit={signIn} className="rm-account-body">
-          <p>Sign in with your email and your vault number, the four digits you chose for your home. New here, or forgot it? We email you a link.</p>
+          <p>Sign in with your email and your vault number, the four digits you chose for your home.</p>
           <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
           <input value={digits} inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="Vault number (4 digits)" autoComplete="current-password"
             onChange={(e) => setDigits(e.target.value.replace(/\D/g, '').slice(0, 4))} aria-label="Vault number" />
@@ -80,7 +73,6 @@ export default function AccountModal({ onClose, auto = false, onSound }: { onClo
             </div>
           )}
           <button type="submit" className="rm-btn" disabled={busy || !email.trim() || digits.length !== 4}>{busy ? 'WORKING…' : 'SIGN IN'}</button>
-          <button type="button" className="rm-btn rm-btn-ghost" disabled={busy || !email.trim()} onClick={() => void mailLink()}>EMAIL ME A LINK INSTEAD</button>
           <p className="rm-account-small"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a></p>
           {face && saved.length > 0 && (
             <p className="rm-account-small rm-faceid-forget">{face === 'FACE ID' ? 'Face ID' : face === 'TOUCH ID' ? 'Touch ID' : 'Biometric'} sign-in is on for this phone. <button type="button" className="rm-link" onClick={() => void forgetFaceId().then(() => setSaved([]))}>Forget it</button></p>

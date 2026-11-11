@@ -454,7 +454,7 @@ function Limb({ d, w = 3.4, fill = DIM }: { d: string; w?: number | string; fill
 }
 
 /** A settler (a person in a vault suit, a dog or a cat), standing on the floor at the origin, facing right. phase runs 0..1 and moves the legs, arms and tail. */
-export function SettlerArt({ kind, pose, phase }: { kind: SettlerKind; pose: Pose; phase: number }) {
+export function SettlerArt({ kind, pose, phase, action }: { kind: SettlerKind; pose: Pose; phase: number; /** What the arms are doing: playing an instrument, cooking, drinking, reaching into the fridge, playing pool... */ action?: string }) {
   const s = Math.sin(phase * Math.PI * 2);
   const moving = pose === 'walk' || pose === 'climb';
   if (kind === 'dog' || kind === 'cat') {
@@ -499,7 +499,7 @@ export function SettlerArt({ kind, pose, phase }: { kind: SettlerKind; pose: Pos
       </g>
     );
   }
-  return <Person female={kind === 'female'} pose={pose} phase={phase} />;
+  return <Person female={kind === 'female'} pose={pose} phase={phase} action={action} />;
 }
 
 // ---- the people: rounded, soft-shaded cartoons in a vault suit (a little like the Sims), in the same green-screen colours ----
@@ -588,7 +588,7 @@ const Boot = ({ at, toe = 1 }: { at: Pt; toe?: number }) => (
 );
 const Hand = ({ at }: { at: Pt }) => <circle cx={at[0]} cy={at[1]} r="1.55" fill={SKIN} stroke={INK} strokeWidth="0.7" />;
 
-function Person({ female, pose, phase }: { female: boolean; pose: Pose; phase: number }) {
+function Person({ female, pose, phase, action }: { female: boolean; pose: Pose; phase: number; action?: string }) {
   const s = Math.sin(phase * Math.PI * 2);
   const c = Math.cos(phase * Math.PI * 2);
   const moving = pose === 'walk' || pose === 'climb';
@@ -618,10 +618,30 @@ function Person({ female, pose, phase }: { female: boolean; pose: Pose; phase: n
         <Seg a={[hipX, hipY]} b={[8, hipY - 0.2]} r1={2.6 * rt} r2={2.1 * rt} fill={SUIT} shade={SUIT_LIGHT} />
         <Seg a={[8, hipY - 0.2]} b={[8.8, -2.4]} r1={2.1 * rt} r2={1.8 * rt} fill={SUIT} shade={SUIT_LIGHT} />
         <Boot at={[9.6, 0.2]} />
+        {action === 'drum' && (
+          <>
+            <Seg a={[0.6, -20]} b={[3.4, -16]} r1={1.7} r2={1.5} fill={SUIT_DARK} />
+            <Seg a={[3.4, -16]} b={[8, -13 - Math.max(0, -s) * 4.4]} r1={1.5} r2={1.3} fill={SUIT_DARK} />
+            <Hand at={[8.8, -13.6 - Math.max(0, -s) * 4.4]} />
+            <path d={`M8.8 ${-13.6 - Math.max(0, -s) * 4.4} L12.6 ${-17 - Math.max(0, -s) * 4.4}`} stroke={INK} strokeWidth="0.9" />
+          </>
+        )}
         <Chest top={-21.6} bottom={-9} female={female} lean={2} />
-        <Seg a={[-0.4, -20]} b={[3.6, -14.4]} r1={1.9} r2={1.6} fill={SUIT} shade={SUIT_LIGHT} />
-        <Seg a={[3.6, -14.4]} b={[7.6, -12]} r1={1.6} r2={1.4} fill={SUIT} />
-        <Hand at={[8.6, -11.6]} />
+        {(() => {
+          // the near arm: down to the lap by default; on the keys, on the drums, or lifting a cup to the mouth
+          const el: Pt = action === 'play' ? [4, -15.2] : action === 'drum' ? [4.4, -16] : action === 'drink' ? [1.4, -17.6] : [3.6, -14.4];
+          const wr: Pt = action === 'play' ? [8.6, -13.4 + s * 1.3] : action === 'drum' ? [9, -15 - Math.max(0, s) * 4.4] : action === 'drink' ? [3.4, -25 - (s > 0.2 ? 1.2 : 0)] : [7.6, -12];
+          const hd: Pt = [wr[0] + 1, wr[1] + (action === 'drink' ? -0.8 : 0.4)];
+          return (
+            <>
+              <Seg a={[-0.4, -20]} b={el} r1={1.9} r2={1.6} fill={SUIT} shade={SUIT_LIGHT} />
+              <Seg a={el} b={wr} r1={1.6} r2={1.4} fill={SUIT} />
+              <Hand at={hd} />
+              {action === 'drum' && <path d={`M${hd[0]} ${hd[1]} L${hd[0] + 3.8} ${hd[1] - 3.4}`} stroke={INK} strokeWidth="0.9" />}
+              {action === 'drink' && <path d={`M${hd[0] - 1.4} ${hd[1] - 2.4} h2.8 l-0.4 3.8 h-2Z`} fill={BG} stroke={INK} strokeWidth="0.7" />}
+            </>
+          );
+        })()}
         <Seg a={[0.6, -22.4]} b={[0.8, -24.4]} r1={1.7} r2={1.7} fill={SKIN_SHADE} />
         <Head cx={1} cy={-29} female={female} />
       </g>
@@ -634,24 +654,37 @@ function Person({ female, pose, phase }: { female: boolean; pose: Pose; phase: n
   const armSwing = moving ? -s * 4.4 : 0;
   const climbing = pose === 'climb';
   const hipY = -13.4;
+  const act = moving ? undefined : action;
+  type Pt2 = [number, number];
+  // the elbow and the wrist of each arm: swinging when they walk, and busy with whatever they are doing when they stand at a piece
+  let farEl: Pt2 = [3.6 - armSwing * 0.6, -16.4], farWr: Pt2 = [4.2 - armSwing, -10.6], nearEl: Pt2 = [-3.4 + armSwing * 0.6, -17.2], nearWr: Pt2 = [-3 + armSwing, -11.4];
+  if (climbing) { farEl = [5.4, -26]; farWr = [7, -30]; nearEl = [-5, -27.6]; nearWr = [-6.4, -31.4]; }
+  if (act === 'drink') { nearEl = [-0.4, -18.4]; nearWr = [3.2, -25.6 - (s > 0.2 ? 1.2 : 0)]; }
+  if (act === 'cook') { nearEl = [3.2, -18]; nearWr = [8.2, -15 + s * 1.6]; farEl = [4, -17.4]; farWr = [8, -14.4 - s * 1.6]; }
+  if (act === 'fridge' || act === 'tvon') { nearEl = [3.4, -20.2]; nearWr = [9.2, -21.6 + (s > 0 ? 0 : 0.8)]; }
+  if (act === 'pool') { farEl = [4.4, -18.4]; farWr = [9, -15]; nearEl = [0.6, -17.4]; nearWr = [4.2, -14.6]; }
+  if (act === 'play') { nearEl = [2.4, -17.6]; nearWr = [6.8, -15.2 + s * 2]; farEl = [4.4, -17.2]; farWr = [8.4, -17 - s * 2]; }
   return (
     <g transform={`translate(0 ${bob})`} strokeLinejoin="round" strokeLinecap="round">
       {/* the far leg and arm */}
       <Seg a={[2.2, hipY]} b={[2.2 + stride * 0.55, hipY + 6.4 - lift2]} r1={2.4 * rt} r2={2 * rt} fill={SUIT_DARK} />
       <Seg a={[2.2 + stride * 0.55, hipY + 6.4 - lift2]} b={[2.2 + stride, -3.4 - lift2]} r1={2 * rt} r2={1.7 * rt} fill={SUIT_DARK} />
       <Boot at={[2.4 + stride, 0 - lift2 * 1.2]} />
-      <Seg a={[2.6, -21.2]} b={climbing ? [5.4, -26] : [3.6 - armSwing * 0.6, -16.4]} r1={1.7} r2={1.5} fill={SUIT_DARK} />
-      <Seg a={climbing ? [5.4, -26] : [3.6 - armSwing * 0.6, -16.4]} b={climbing ? [7, -30] : [4.2 - armSwing, -10.6]} r1={1.5} r2={1.3} fill={SUIT_DARK} />
-      <Hand at={climbing ? [7.4, -31] : [4.4 - armSwing, -9.6]} />
+      <Seg a={[2.6, -21.2]} b={farEl} r1={1.7} r2={1.5} fill={SUIT_DARK} />
+      <Seg a={farEl} b={farWr} r1={1.5} r2={1.3} fill={SUIT_DARK} />
+      <Hand at={[farWr[0] + 0.2, farWr[1] + 1]} />
       {/* the near leg */}
       <Seg a={[-2.2, hipY]} b={[-2.2 - stride * 0.55, hipY + 6.4 - lift]} r1={2.6 * rt} r2={2.1 * rt} fill={SUIT} shade={SUIT_LIGHT} />
       <Seg a={[-2.2 - stride * 0.55, hipY + 6.4 - lift]} b={[-2.2 - stride, -3.4 - lift]} r1={2.1 * rt} r2={1.8 * rt} fill={SUIT} shade={SUIT_LIGHT} />
       <Boot at={[-2 - stride, 0 - lift * 1.2]} />
       <Chest top={-25} bottom={-12.6} female={female} />
       {/* the near arm */}
-      <Seg a={[-2.6, -22.6]} b={climbing ? [-5, -27.6] : [-3.4 + armSwing * 0.6, -17.2]} r1={1.9} r2={1.6} fill={SUIT} shade={SUIT_LIGHT} />
-      <Seg a={climbing ? [-5, -27.6] : [-3.4 + armSwing * 0.6, -17.2]} b={climbing ? [-6.4, -31.4] : [-3 + armSwing, -11.4]} r1={1.6} r2={1.4} fill={SUIT} shade={SUIT_LIGHT} />
-      <Hand at={climbing ? [-6.8, -32.4] : [-3 + armSwing, -10.4]} />
+      <Seg a={[-2.6, -22.6]} b={nearEl} r1={1.9} r2={1.6} fill={SUIT} shade={SUIT_LIGHT} />
+      <Seg a={nearEl} b={nearWr} r1={1.6} r2={1.4} fill={SUIT} shade={SUIT_LIGHT} />
+      <Hand at={[nearWr[0], nearWr[1] + 1]} />
+      {act === 'drink' && <path d={`M${nearWr[0] - 1.4} ${nearWr[1] - 2.2} h2.8 l-0.4 3.8 h-2Z`} fill={BG} stroke={INK} strokeWidth="0.7" />}
+      {act === 'pool' && <path d={`M-10 ${-11.6 + s * 0.8} L20 ${-17.4 + s * 0.8}`} stroke={INK} strokeWidth="1" />}
+      {act === 'cook' && <path d={`M${nearWr[0]} ${nearWr[1]} L${nearWr[0] + 5} ${nearWr[1] - 3.4}`} stroke={INK} strokeWidth="0.9" />}
       <Seg a={[0.4, -25.6]} b={[0.6, -27.4]} r1={1.7} r2={1.7} fill={SKIN_SHADE} />
       <Head cx={0.8} cy={-32} female={female} />
     </g>

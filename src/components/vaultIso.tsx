@@ -116,15 +116,23 @@ function stairShape(r: { col: number; row: number; face?: Face }): Shape {
   return { rect, poly: [[rect.x, rect.y], [rect.x + rect.w, rect.y], [rect.x + rect.w, rect.y + rect.d], [rect.x, rect.y + rect.d]], notch: null };
 }
 
+/** A U stairwell's footprint: two cells wide (a flight in each, a little wider than a hallway), one long. The corridor to the room it joins runs through the cell its open end is in. */
+const U_W = 58;
+function uStairShape(r: { col: number; row: number; entry?: 0 | 1 }): Shape {
+  const c0 = r.col * CELL + CELL / 2, c1 = c0 + CELL;
+  const rect: Rect = { x: c0 - U_W - 4, y: r.row * CELL, w: CELL + 2 * U_W + 8, d: CELL, xc: (r.entry ?? 0) === 0 ? c0 : c1, yc: r.row * CELL + CELL / 2 };
+  return { rect, poly: [[rect.x, rect.y], [rect.x + rect.w, rect.y], [rect.x + rect.w, rect.y + rect.d], [rect.x, rect.y + rect.d]], notch: null };
+}
+
 /** The footprint of a room: its rect, the outline of its floor, and the notch if it has one. */
-export function shapeOf(r: { type: RoomType; col: number; row: number; level?: number; face?: Face }): Shape {
+export function shapeOf(r: { type: RoomType; col: number; row: number; level?: number; face?: Face; shape?: 'u'; entry?: 0 | 1 }): Shape {
   const def = roomDef(r.type);
   const list = VARIANTS[r.type];
   // a hallway is a narrow square in the middle of its cell (a little wider than a doorway); the tunnels to its neighbors make it long
   const cx = r.col * CELL;
   const cy = r.row * CELL;
   if (r.type === 'hallway') return hallwayShape(r);
-  if (r.type === 'stairs') return stairShape(r);
+  if (r.type === 'stairs') return r.shape === 'u' ? uStairShape(r) : stairShape(r);
   if (!list) return { rect: { x: cx + (CELL - SMALL) / 2, y: cy + (CELL - SMALL) / 2, w: SMALL, d: SMALL }, poly: [], notch: null };
   const v = list[hashOf(`${r.type}:${r.col}:${r.row}`) % list.length];
   const w = def.slots * CELL * v.w;
@@ -150,7 +158,7 @@ export function shapeOf(r: { type: RoomType; col: number; row: number; level?: n
 }
 
 /** The floor of a room: a standard room fills most of its cell, a wide one two cells along x, and a small one sits in the middle of its cell. */
-export const roomRect = (r: { type: RoomType; col: number; row: number; face?: Face }): Rect => shapeOf(r).rect;
+export const roomRect = (r: { type: RoomType; col: number; row: number; face?: Face; shape?: 'u'; entry?: 0 | 1 }): Rect => shapeOf(r).rect;
 export const isSmall = (type: RoomType): boolean => roomDef(type).small === true;
 
 /** A spot on a room's floor: u across (0 to 1 along x, from the left back wall) and v deep (0 to 1 along y, from the right back wall). A spot that falls in a notch is moved out of it. */
@@ -279,10 +287,13 @@ export function StairHole({ hole }: { hole: Rect }): ReactElement {
 const STEEL = '#0b5a2a';
 const PANEL = '#06301a';
 
+/** What can be stuck on a wall: a window, a fuse box, a greenhouse pane, or one of the posters. */
+type WallKind = 'window' | 'pane' | 'junction' | 'atom' | 'mushroom' | 'protectron' | 'helmet' | 'ncr' | 'blamco' | 'nuka';
 /** Things stuck on a wall, drawn flat on its plane: local x runs along the wall, local y is minus the height. */
-function WallThing({ along, wall, t, kind }: { along: 'y' | 'x'; wall: number; t: number; kind: 'window' | 'thumbs' | 'cog' | 'atom' | 'calm' | 'junction' }): ReactElement {
+function WallThing({ along, wall, t, kind }: { along: 'y' | 'x'; wall: number; t: number; kind: WallKind }): ReactElement {
   const [X, Y] = along === 'y' ? P(wall, t, 0) : P(t, wall, 0);
-  const ax = along === 'y' ? -KX : KX;
+  // along the wall the picture runs left to right as seen from the room: up and to the right on the left wall, down and to the right on the right wall (so writing is not mirrored)
+  const skew = along === 'y' ? -KY : KY;
   let art: ReactElement;
   if (kind === 'window') {
     art = (
@@ -302,44 +313,97 @@ function WallThing({ along, wall, t, kind }: { along: 'y' | 'x'; wall: number; t
         <path d="M0 -36V-45" stroke={INK} strokeWidth={1.6} />
       </g>
     );
+  } else if (kind === 'pane') {
+    // a greenhouse pane: a tall steel frame of four panes of green glass, with a sprout growing in the lower ones
+    art = (
+      <g>
+        <rect x={-16} y={-49} width={32} height={31} rx={1.5} fill={STEEL} stroke={INK} strokeWidth={0.9} />
+        <rect x={-13.6} y={-46.6} width={27.2} height={26.2} fill="rgba(150,255,190,0.3)" stroke={DIM} strokeWidth={0.6} />
+        <path d="M0 -46.6V-20.4M-13.6 -33.5H13.6" stroke={INK} strokeWidth={1} />
+        <path d="M-6.8 -20.4V-26M-6.8 -23.6Q-10.6 -25 -10 -28.6Q-6.8 -28 -6.8 -23.6ZM-6.8 -24.6Q-3 -26 -3.6 -29.4Q-6.8 -29 -6.8 -24.6Z" fill="rgba(61,255,138,0.55)" stroke={INK} strokeWidth={0.6} />
+        <path d="M7 -20.4V-27M7 -24Q3.4 -25.4 4 -29Q7 -28.4 7 -24ZM7 -25.4Q10.8 -26.8 10.2 -30.4Q7 -29.8 7 -25.4Z" fill="rgba(61,255,138,0.55)" stroke={INK} strokeWidth={0.6} />
+        <path d="M-12 -44L-8 -45.4M-12 -41.2L-6 -43.6M3 -44L7 -45.4M3 -41.2L9 -43.6" stroke="rgba(205,255,225,0.5)" strokeWidth={0.8} />
+      </g>
+    );
   } else {
+    // a poster: a dark card with a picture in the green line art
+    const picture: Record<string, ReactElement> = {
+      atom: (
+        <g fill="none" stroke={INK} strokeWidth={0.8}>
+          <ellipse cx={0} cy={-34} rx={6} ry={2.3} /><ellipse cx={0} cy={-34} rx={6} ry={2.3} transform="rotate(60 0 -34)" /><ellipse cx={0} cy={-34} rx={6} ry={2.3} transform="rotate(120 0 -34)" />
+          <circle cx={0} cy={-34} r={1.4} fill={INK} stroke="none" />
+          <path d="M-4.4 -26H4.4" strokeWidth={1} />
+        </g>
+      ),
+      mushroom: (
+        <g stroke={INK} strokeWidth={0.7}>
+          <path d="M-5.6 -33.5Q-7.4 -37.6 -3.6 -38.5Q-2.4 -42.2 1 -40.9Q4.5 -41.8 5.3 -38.3Q8.2 -36.4 5.5 -33.4Q0 -31.6 -5.6 -33.5Z" fill={INK} opacity={0.92} />
+          <path d="M-2 -32.4Q-1.2 -27.6 -3.8 -24.4H4Q1.4 -27.6 2 -32.4Z" fill={INK} opacity={0.65} />
+          <path d="M-3.4 -35.6Q-1 -37.2 1.4 -35.8" fill="none" stroke={PANEL} strokeWidth={0.6} />
+          <path d="M-6.4 -24.2H6.4" fill="none" strokeWidth={1.2} />
+        </g>
+      ),
+      protectron: (
+        <g fill="none" stroke={INK} strokeWidth={0.8}>
+          <path d="M0 -41V-42.7" />
+          <rect x={-2.5} y={-41} width={5} height={3.8} rx={1.2} />
+          <path d="M-1.5 -39.3H1.5" strokeWidth={1.4} />
+          <path d="M0 -37.2V-36" />
+          <path d="M-3.7 -36H3.7L3 -29.6H-3Z" fill={INK} fillOpacity={0.3} />
+          <path d="M-3.7 -35L-6.2 -31.4M3.7 -35L6.6 -32.2" strokeWidth={1} />
+          <path d="M-1.4 -29.6L-3.8 -24.4H-5.6M1.4 -29.6L3.2 -26.4L2.6 -24.4" strokeWidth={1} />
+        </g>
+      ),
+      helmet: (
+        <g stroke={INK} strokeWidth={0.8}>
+          <path d="M-5 -24.4V-33Q-5 -41.6 0 -41.6Q5 -41.6 5 -33V-24.4L2.8 -23.2H-2.8Z" fill="none" />
+          <path d="M-4.4 -34.8L-1.2 -33.4V-31.4L-4.4 -32.4ZM4.4 -34.8L1.2 -33.4V-31.4L4.4 -32.4Z" fill={INK} />
+          <path d="M0 -41.6V-37.4M-1.7 -40.6H1.7M0 -33V-29.4" fill="none" />
+          <path d="M-1.8 -28.2H1.8M-1.8 -26.6H1.8M-1.8 -25H1.8" fill="none" strokeWidth={0.7} />
+        </g>
+      ),
+      ncr: (
+        <g stroke={INK} strokeWidth={0.7}>
+          <text x={0} y={-38.6} fontSize={5.4} fontWeight="bold" textAnchor="middle" fill={INK} stroke="none" fontFamily="'VT323', monospace">NCR</text>
+          <circle cx={0} cy={-32.6} r={3.2} fill="none" />
+          <circle cx={-3} cy={-35.6} r={1.1} fill="none" /><circle cx={3} cy={-35.6} r={1.1} fill="none" />
+          <ellipse cx={0} cy={-31.6} rx={1.5} ry={1} fill="none" />
+          <circle cx={-1.2} cy={-33.4} r={0.5} fill={INK} stroke="none" /><circle cx={1.2} cy={-33.4} r={0.5} fill={INK} stroke="none" />
+          <text x={0} y={-25} fontSize={3.4} textAnchor="middle" fill={INK} stroke="none" fontFamily="'VT323', monospace">ENLIST</text>
+        </g>
+      ),
+      blamco: (
+        <g stroke={INK} strokeWidth={0.7}>
+          <rect x={-5.6} y={-41.4} width={11.2} height={16.2} fill="none" />
+          <rect x={-5.6} y={-41.4} width={11.2} height={3.6} fill={INK} />
+          <text x={0} y={-38.8} fontSize={2.9} textAnchor="middle" fill={PANEL} stroke="none" fontFamily="'VT323', monospace">BLAMCO</text>
+          <path d="M-3.8 -31.6Q0 -36 3.8 -31.6Z" fill={INK} opacity={0.85} />
+          <circle cx={-1.4} cy={-33.4} r={0.55} fill={PANEL} stroke="none" /><circle cx={1.2} cy={-32.7} r={0.55} fill={PANEL} stroke="none" /><circle cx={0} cy={-34.3} r={0.5} fill={PANEL} stroke="none" />
+          <text x={0} y={-28.6} fontSize={2.6} textAnchor="middle" fill={INK} stroke="none" fontFamily="'VT323', monospace">MAC &amp;</text>
+          <text x={0} y={-26.2} fontSize={2.6} textAnchor="middle" fill={INK} stroke="none" fontFamily="'VT323', monospace">CHEESE</text>
+        </g>
+      ),
+      nuka: (
+        <g stroke={INK} strokeWidth={0.7}>
+          <rect x={-1.9} y={-42.7} width={3.8} height={1.5} fill={INK} />
+          <path d="M-1.5 -41.2H1.5V-38.4Q4.3 -36.6 4.3 -33.4V-25.4H-4.3V-33.4Q-4.3 -36.6 -1.5 -38.4Z" fill="none" />
+          <rect x={-4.3} y={-32.2} width={8.6} height={4.8} fill={INK} />
+          <text x={0} y={-28.8} fontSize={3.2} textAnchor="middle" fill={PANEL} stroke="none" fontFamily="'VT323', monospace">NUKA</text>
+          <circle cx={-1.6} cy={-36} r={0.5} fill="none" /><circle cx={1.4} cy={-34.6} r={0.45} fill="none" /><circle cx={-0.4} cy={-34} r={0.4} fill="none" />
+        </g>
+      ),
+    };
     art = (
       <g>
         <rect x={-7.5} y={-43} width={15} height={20} rx={1} fill={PANEL} stroke={INK} strokeWidth={0.8} />
-        {kind === 'thumbs' && (
-          <g fill="none" stroke={INK} strokeWidth={1}>
-            <circle cx={0} cy={-37} r={3.2} fill={INK} stroke="none" />
-            <path d="M0 -33.6V-28M-4.2 -32.4 0 -31.4 4.2 -32.4M5.4 -31.2V-35.6M0 -28 -2.8 -24.4M0 -28 2.8 -24.4" />
-            <circle cx={-1.1} cy={-37.4} r={0.5} fill={PANEL} stroke="none" /><circle cx={1.1} cy={-37.4} r={0.5} fill={PANEL} stroke="none" />
-          </g>
-        )}
-        {kind === 'cog' && (
-          <g fill="none" stroke={INK}>
-            <circle cx={0} cy={-35} r={5.2} strokeWidth={2.4} strokeDasharray="1.7 1.3" />
-            <circle cx={0} cy={-35} r={3.4} strokeWidth={0.8} /><circle cx={0} cy={-35} r={1.1} fill={INK} stroke="none" />
-            <path d="M-5 -26.5H5M-3.4 -24.5H3.4" strokeWidth={1} />
-          </g>
-        )}
-        {kind === 'atom' && (
-          <g fill="none" stroke={INK} strokeWidth={0.8}>
-            <ellipse cx={0} cy={-34} rx={6} ry={2.3} /><ellipse cx={0} cy={-34} rx={6} ry={2.3} transform="rotate(60 0 -34)" /><ellipse cx={0} cy={-34} rx={6} ry={2.3} transform="rotate(120 0 -34)" />
-            <circle cx={0} cy={-34} r={1.4} fill={INK} stroke="none" />
-            <path d="M-4.4 -26H4.4" strokeWidth={1} />
-          </g>
-        )}
-        {kind === 'calm' && (
-          <g fill="none" stroke={INK} strokeWidth={1.2}>
-            <path d="M-4.6 -39H4.6M-4.6 -36H4.6M-3 -33H3" />
-            <path d="M0 -29.6V-26.4" strokeWidth={1.6} /><circle cx={0} cy={-24.9} r={0.4} fill={INK} stroke="none" />
-          </g>
-        )}
+        {picture[kind]}
       </g>
     );
   }
-  return <g transform={`matrix(${ax} ${KY} 0 1 ${X} ${Y})`} strokeLinecap="round" strokeLinejoin="round">{art}</g>;
+  return <g transform={`matrix(${KX} ${skew} 0 1 ${X} ${Y})`} strokeLinecap="round" strokeLinejoin="round">{art}</g>;
 }
 
-const THINGS: ('window' | 'thumbs' | 'cog' | 'atom' | 'calm' | 'junction')[] = ['window', 'thumbs', 'cog', 'atom', 'calm', 'junction'];
+const THINGS: WallKind[] = ['window', 'atom', 'mushroom', 'protectron', 'helmet', 'ncr', 'blamco', 'nuka', 'junction'];
 
 /** A hallway: the floor of a corridor with low walls along its sides, open where it joins a neighbor (see HallX and HallY for the tunnels to rooms). Chained, hallways make long corridors and corners. It has no name. */
 function HallwayShell({ type, col, row, level }: { type: RoomType; col: number; row: number; level: number }): ReactElement {
@@ -372,19 +436,12 @@ function HallwayShell({ type, col, row, level }: { type: RoomType; col: number; 
   }
   front.sort((p, q) => p.a[0] + p.a[1] + p.b[0] + p.b[1] - (q.a[0] + q.a[1] + q.b[0] + q.b[1]));
   front.forEach((e, i) => slabs.push(<Poly key={`s${i}`} p={[[e.a[0], e.a[1], 0], [e.b[0], e.b[1], 0], [e.b[0], e.b[1], -9], [e.a[0], e.a[1], -9]]} fill={e.nx > 0 ? SLAB : '#073a1b'} />));
-  const seams: ReactNode[] = [];
-  const { rect } = shape;
-  const clip = `hv${col}_${row}_${level}`;
-  for (let t = rect.x + 10; t < rect.x + rect.w; t += 10) seams.push(<Seg key={`a${t}`} a={[t, rect.y, 0]} b={[t, rect.y + rect.d, 0]} o={0.35} />);
-  for (let t = rect.y + 10; t < rect.y + rect.d; t += 10) seams.push(<Seg key={`b${t}`} a={[rect.x, t, 0]} b={[rect.x + rect.w, t, 0]} o={0.35} />);
   const outline = poly.map(([px, py]) => P(px, py, 0).join(',')).join(' ');
   void type;
   return (
     <g>
-      <defs><clipPath id={clip}><polygon points={outline} /></clipPath></defs>
       {slabs}
       <polygon points={outline} fill={FLOOR} stroke={INK} strokeWidth="1.2" strokeLinejoin="round" />
-      <g clipPath={`url(#${clip})`}>{seams}</g>
       {walls}
     </g>
   );
@@ -480,13 +537,121 @@ function StairShell({ col, row, level, face, way }: { col: number; row: number; 
 const alongX = (face: Face): boolean => face === 'l' || face === 'r';
 
 /**
+ * A U-shaped stairwell: two flights side by side in two cells, one long, with a landing across the far end. You come in at the open end (through the cell `entry`), climb the
+ * first flight to the landing, turn, and the second flight brings you back toward the open end, out beside where you came in, on the next level. From the level it goes down
+ * from, the whole thing is a pit: the first flight steps down away from the open end, across the landing, and the second flight comes back down into the dark. From the other
+ * end it is the same two flights seen climbing: up from the open end, across the landing, and back over it into the dark.
+ */
+function UStairShell({ col, row, level, face, way, entry }: { col: number; row: number; level: number; face: Face; way: 'up' | 'down'; entry: 0 | 1 }): ReactElement {
+  const Y0 = row * CELL, y1 = Y0 + CELL;
+  const c0 = col * CELL + CELL / 2, c1 = c0 + CELL, W = U_W;
+  const rect = uStairShape({ col, row, entry }).rect;
+  const x0 = rect.x, x1 = rect.x + rect.w;
+  const front = face === 'f'; // the open end is toward the viewer
+  const yAt = (u: number): number => (front ? y1 - u : Y0 + u);
+  const span = (ua: number, ub: number): [number, number] => [Math.min(yAt(ua), yAt(ub)), Math.max(yAt(ua), yAt(ub))];
+  const lanes = { e: entry === 0 ? c0 : c1, o: entry === 0 ? c1 : c0 };
+  const n = 8;
+  const uA = CELL * 0.18, uB = CELL * 0.72, uEnd = CELL - 4;
+  const run = (uB - uA) / n;
+  const key = (xl: number, xr: number, ya: number, yb: number, z = 0): number => (xl + xr) / 2 + (ya + yb) / 2 + z * 0.001;
+  const parts: { k: number; el: ReactElement }[] = [];
+  const clip = `ustair${col}_${row}_${level}`;
+  const eX: [number, number] = [lanes.e - W, lanes.e + W], oX: [number, number] = [lanes.o - W, lanes.o + W];
+  const aX: [number, number] = [c0 - W, c0 + W], bX: [number, number] = [c1 - W, c1 + W];
+  let pit: ReactElement | null = null;
+  if (way === 'down') {
+    const rE = front ? 3.6 : 6.4, rO = front ? 6.4 : 3.6, D = n * (rE + rO) + 14; // the flight that goes away from the viewer is shallower, or the near rim would hide it
+    const shade = (d: number): string => `rgb(${Math.round(Math.max(4, 18 - d * 0.6))},${Math.round(Math.max(22, 96 - d * 3.4))},${Math.round(Math.max(10, 46 - d * 1.7))})`; // d: how many steps down
+    const outline: V3[] = [[aX[0], yAt(uA), 0], [aX[1], yAt(uA), 0], [aX[1], yAt(uB), 0], [bX[0], yAt(uB), 0], [bX[0], yAt(uA), 0], [bX[1], yAt(uA), 0], [bX[1], yAt(uEnd), 0], [aX[0], yAt(uEnd), 0]];
+    const [ylo, yhi] = [Math.min(yAt(uA), yAt(uEnd)), Math.max(yAt(uA), yAt(uEnd))];
+    // the walls of the pit that face the viewer: the left side, and the end that faces +y
+    parts.push({ k: -1e6, el: <Poly key="wl" p={[[aX[0], ylo, 0], [aX[0], yhi, 0], [aX[0], yhi, -D], [aX[0], ylo, -D]]} fill="#02150a" sw={0.8} stroke={DIM} /> });
+    if (front) parts.push({ k: -1e6 + 1, el: <Poly key="wy" p={[[aX[0], ylo, 0], [bX[1], ylo, 0], [bX[1], ylo, -D], [aX[0], ylo, -D]]} fill="#010a05" sw={0.8} stroke={DIM} /> });
+    else ([aX, bX] as [number, number][]).forEach((xs, i) => parts.push({ k: -1e6 + 1 + i, el: <Poly key={`wy${i}`} p={[[xs[0], ylo, 0], [xs[1], ylo, 0], [xs[1], ylo, -D], [xs[0], ylo, -D]]} fill="#010a05" sw={0.8} stroke={DIM} /> }));
+    // the stone between the two flights: its face toward the second lane, and (when the landing is on the near side of it) its end
+    const [cl, ch] = span(uA, uB);
+    parts.push({ k: key(bX[0], bX[0], cl, ch), el: <Poly key="core" p={[[bX[0], cl, 0], [bX[0], ch, 0], [bX[0], ch, -D + 6], [bX[0], cl, -D + 6]]} fill="#02150a" sw={0.8} stroke={DIM} /> });
+    if (!front) parts.push({ k: key(aX[1], bX[0], ch, ch), el: <Poly key="coreend" p={[[aX[1], ch, 0], [bX[0], ch, 0], [bX[0], ch, -n * rE], [aX[1], ch, -n * rE]]} fill="#02150a" sw={0.8} stroke={DIM} /> });
+    // the first flight goes down away from the open end; the landing; the second comes back down
+    for (let i = 0; i < n; i++) {
+      const ua = uA + i * run, ub = ua + run, [ya, yb] = span(ua, ub), z = -(i + 1) * rE;
+      parts.push({ k: key(eX[0], eX[1], ya, yb, z), el: <Poly key={`e${i}`} p={[[eX[0], ya, z], [eX[1], ya, z], [eX[1], yb, z], [eX[0], yb, z]]} fill={shade(i)} sw={0.9} stroke={i < 6 ? INK : DIM} /> });
+      if (!front) { const yr = span(ub, ub)[0]; parts.push({ k: key(eX[0], eX[1], yr, yr, z - 1), el: <Poly key={`er${i}`} p={[[eX[0], yr, z], [eX[1], yr, z], [eX[1], yr, z - rE], [eX[0], yr, z - rE]]} fill="#02150a" sw={0.6} stroke={DIM} /> }); }
+    }
+    if (!front) { const yr = span(uA, uA)[0]; parts.push({ k: key(eX[0], eX[1], yr, yr, 0), el: <Poly key="e-1" p={[[eX[0], yr, 0], [eX[1], yr, 0], [eX[1], yr, -rE], [eX[0], yr, -rE]]} fill="#02150a" sw={0.6} stroke={DIM} /> }); }
+    const [lya, lyb] = span(uB, uEnd), lz = -n * rE;
+    parts.push({ k: key(aX[0], bX[1], lya, lyb, lz), el: <Poly key="land" p={[[aX[0], lya, lz], [bX[1], lya, lz], [bX[1], lyb, lz], [aX[0], lyb, lz]]} fill={shade(n)} sw={0.9} stroke={DIM} /> });
+    for (let j = 0; j < n; j++) {
+      const ub = uB - j * run, ua = ub - run, [ya, yb] = span(ua, ub), z = lz - (j + 1) * rO;
+      parts.push({ k: key(oX[0], oX[1], ya, yb, z), el: <Poly key={`o${j}`} p={[[oX[0], ya, z], [oX[1], ya, z], [oX[1], yb, z], [oX[0], yb, z]]} fill={shade(n + 1 + j)} sw={0.9} stroke={DIM} /> });
+      if (front) { const yr = span(ub, ub)[0]; parts.push({ k: key(oX[0], oX[1], yr, yr, z - 1), el: <Poly key={`or${j}`} p={[[oX[0], yr, z + rO], [oX[1], yr, z + rO], [oX[1], yr, z], [oX[0], yr, z]]} fill="#02150a" sw={0.6} stroke={DIM} /> }); }
+    }
+    parts.sort((p, q) => p.k - q.k);
+    pit = (
+      <g>
+        <defs><clipPath id={clip}><polygon points={pts(outline)} /></clipPath></defs>
+        <polygon points={pts(outline)} fill="#000503" stroke="none" />
+        <g clipPath={`url(#${clip})`}>{parts.map((p) => p.el)}</g>
+        <polygon points={pts(outline)} fill="none" stroke={INK} strokeWidth="1.6" strokeLinejoin="round" />
+      </g>
+    );
+  }
+  const H = way === 'up' ? 100 : 18, Tk = 4;
+  const walls: ReactElement[] = [];
+  walls.push(<g key="wl"><Poly p={[[x0, Y0, 0], [x0, y1, 0], [x0, y1, H], [x0, Y0, H]]} fill={FACE_L} /><Poly p={[[x0, Y0, H], [x0, y1, H], [x0 - Tk, y1, H], [x0 - Tk, Y0, H]]} fill={CAP} sw={1.6} /></g>);
+  // the back wall, but for the doorway at the open end when that is the back
+  const gaps: [number, number][] = face === 'b' ? [[Math.max(x0, lanes.e - W - 4), Math.min(x1, lanes.e + W + 4)]] : [];
+  let from = x0;
+  const pieces: [number, number][] = [];
+  for (const [ga, gb] of gaps) { if (ga > from) pieces.push([from, ga]); from = gb; }
+  if (from < x1) pieces.push([from, x1]);
+  pieces.forEach(([xa, xb], i) => walls.push(<g key={`wb${i}`}><Poly p={[[xa, Y0, 0], [xb, Y0, 0], [xb, Y0, H], [xa, Y0, H]]} fill={FACE_R} /><Poly p={[[xa, Y0, H], [xb, Y0, H], [xb, Y0 - Tk, H], [xa, Y0 - Tk, H]]} fill={CAP} sw={1.6} /></g>));
+  const slabs = [
+    <Poly key="sr" p={[[x1, Y0, 0], [x1, y1, 0], [x1, y1, -9], [x1, Y0, -9]]} fill={SLAB} />,
+    <Poly key="sf" p={[[x0, y1, 0], [x1, y1, 0], [x1, y1, -9], [x0, y1, -9]]} fill="#073a1b" />,
+  ];
+  let flight: ReactElement[] = [];
+  if (way === 'up') {
+    const rise = 5.2;
+    const shade = (d: number, k: number): string => `rgb(${Math.round((16 - d * 0.7) * k)},${Math.round((88 - d * 4.2) * k)},${Math.round((42 - d * 2) * k)})`;
+    const box = (xl: number, xr: number, ya: number, yb: number, top: number, d: number, id: string) => ({
+      k: key(xl, xr, ya, yb),
+      el: (
+        <g key={id}>
+          <Poly p={[[xl, yb, 0], [xr, yb, 0], [xr, yb, top], [xl, yb, top]]} fill={shade(d, 0.55)} sw={0.9} stroke={DIM} />
+          <Poly p={[[xr, ya, 0], [xr, yb, 0], [xr, yb, top], [xr, ya, top]]} fill={shade(d, 0.38)} sw={0.9} stroke={DIM} />
+          <Poly p={[[xl, ya, top], [xr, ya, top], [xr, yb, top], [xl, yb, top]]} fill={shade(d, 1)} sw={0.9} stroke={d < 8 ? INK : DIM} />
+        </g>
+      ),
+    });
+    const list: { k: number; el: ReactElement }[] = [];
+    for (let i = 0; i < n; i++) { const ua = uA + i * run, [ya, yb] = span(ua, ua + run); list.push(box(eX[0], eX[1], ya, yb, (i + 1) * rise, i, `ue${i}`)); }
+    const [lya, lyb] = span(uB, uEnd);
+    list.push(box(aX[0], bX[1], lya, lyb, n * rise, n, 'ul'));
+    for (let j = 0; j < n; j++) { const ub = uB - j * run, [ya, yb] = span(ub - run, ub); list.push(box(oX[0], oX[1], ya, yb, (n + 1 + j) * rise, n + 1 + j, `uo${j}`)); }
+    flight = list.sort((p, q) => p.k - q.k).map((b) => b.el);
+  }
+  const outline = [[x0, Y0], [x1, Y0], [x1, y1], [x0, y1]].map(([px, py]) => P(px, py, 0).join(',')).join(' ');
+  return (
+    <g>
+      {slabs}
+      <polygon points={outline} fill={FLOOR} stroke={INK} strokeWidth="1.2" strokeLinejoin="round" />
+      {pit}
+      {walls}
+      {flight}
+    </g>
+  );
+}
+
+/**
  * A room: its floor (the shape of this room), the inside of its two back walls, the thick tops of those walls, and the edge of the floor slab at the front. `doorsL`
  * are the heights (y) of the doorways in the left back wall, `doorsR` the positions (x) of those in the right back wall. The walls are vault walls: molded steel with
  * a baseboard and rivets, a rounded corner post, piping and conduit, a fake window or two, and the odd poster.
  */
-export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doorsR, hole = false, face = 'l', way = 'down', furniture = [], labelFront = false }: { rect: Rect; name: string; type: RoomType; col: number; row: number; level?: number; doorsL: number[]; doorsR: number[]; /** A stairwell below: a hole in the floor with stairs going down. */ hole?: boolean; /** A stairwell: the side its open end is on, and whether its flight goes down or up. */ face?: Face; way?: 'up' | 'down'; furniture?: string[]; /** The name goes below the front corner instead of above the back one (a hallway runs behind the room, and the name would seem to be its). */ labelFront?: boolean }): ReactElement {
+export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doorsR, hole = false, face = 'l', way = 'down', shape: uShape, entry = 0, furniture = [], labelFront = false }: { rect: Rect; name: string; type: RoomType; col: number; row: number; level?: number; doorsL: number[]; doorsR: number[]; /** A stairwell below: a hole in the floor with stairs going down. */ hole?: boolean; /** A stairwell: the side its open end is on, and whether its flight goes down or up. */ face?: Face; way?: 'up' | 'down'; /** A U-shaped stairwell, and which of its two cells its open end is in. */ shape?: 'u'; entry?: 0 | 1; furniture?: string[]; /** The name goes below the front corner instead of above the back one (a hallway runs behind the room, and the name would seem to be its). */ labelFront?: boolean }): ReactElement {
   if (type === 'hallway') return <HallwayShell type={type} col={col} row={row} level={level} />;
-  if (type === 'stairs') return <StairShell col={col} row={row} level={level} face={face} way={way} />;
+  if (type === 'stairs') return uShape === 'u' ? <UStairShell col={col} row={row} level={level} face={face} way={way} entry={entry} /> : <StairShell col={col} row={row} level={level} face={face} way={way} />;
   const { x, y, w, d } = rect;
   const x1 = x + w;
   const y1 = y + d;
@@ -497,17 +662,7 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
   const poly: Pt[] = shape.poly.length ? shape.poly : [[x, y], [x1, y], [x1, y1], [x, y1]];
   const clip = `vf${Math.round(x)}_${Math.round(y)}`;
   const floor: ReactNode[] = [];
-  const bx1 = x1 + 12;
-  const by1 = y1 + 12;
-  if (st.floor === 'planks') for (let yy = y + 14; yy < by1; yy += 14) floor.push(<Seg key={`fp${yy}`} a={[x, yy, 0]} b={[bx1, yy, 0]} />);
-  if (st.floor === 'tiles') {
-    for (let yy = y + 16; yy < by1; yy += 16) floor.push(<Seg key={`ft${yy}`} a={[x, yy, 0]} b={[bx1, yy, 0]} o={0.45} />);
-    for (let xx = x + 16; xx < bx1; xx += 16) floor.push(<Seg key={`fu${xx}`} a={[xx, y, 0]} b={[xx, by1, 0]} o={0.45} />);
-  }
-  if (st.floor === 'dots') for (let yy = y + 12; yy < by1; yy += 16) for (let xx = x + 12 + ((yy / 16) % 2) * 8; xx < bx1; xx += 20) { const [X, Y] = P(xx, yy, 0); floor.push(<circle key={`fd${xx}-${yy}`} cx={X} cy={Y} r="1.2" fill={DIM} opacity="0.6" />); }
-  // a floor of steel plates: a seam border just inside the edge, and bolts in the corners
-  const seam = 5;
-  for (const [a, b] of [[[x + seam, y + seam], [x1 - seam, y + seam]], [[x + seam, y + seam], [x + seam, y1 - seam]]] as [Pt, Pt][]) floor.push(<Seg key={`sm${a[0]}${b[0]}${a[1]}${b[1]}`} a={[a[0], a[1], 0]} b={[b[0], b[1], 0]} o={0.5} sw={1.2} />);
+  // the floors are bare: no plank lines, tile grids, dots or seams (the walls keep their panels, tiles and rivets)
   // the vault's cog on the entryway floor
   if (type === 'entry') {
     const cg = (rr: number, n: number) => Array.from({ length: n }, (_, i) => `${x + w / 2 + Math.cos((i / n) * Math.PI * 2) * rr},${y + d / 2 + Math.sin((i / n) * Math.PI * 2) * rr}`);
@@ -541,12 +696,14 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
     for (let t = from + 14; t < to - 6; t += 30) out.push(<Poly key={`${key}pb${t}`} p={[at(t, H - 13), at(t + 2.4, H - 13), at(t + 2.4, H - 7), at(t, H - 7)]} fill={DIM} sw={0.6} />);
     // the things on the wall, away from the doorways
     const doors = along === 'y' ? doorsL : doorsR;
-    const spots = [0.24, 0.5, 0.76].map((f) => from + f * (to - from)).filter((t) => doors.every((c) => Math.abs(c - t) > 24));
+    const greenhouse = type === 'garden';
+    const panes = Math.max(2, Math.floor((to - from) / 46));
+    const spots = (greenhouse ? Array.from({ length: panes }, (_, i) => (i + 0.5) / panes) : [0.24, 0.5, 0.76]).map((f) => from + f * (to - from)).filter((t) => doors.every((c) => Math.abs(c - t) > (greenhouse ? 22 : 24)));
     const seed = hashOf(`${type}:${col}:${row}:${key}`);
-    const want = Math.min(spots.length, key === 'L' ? 2 : 2);
+    const want = greenhouse ? spots.length : Math.min(spots.length, 2);
     for (let i = 0; i < want; i++) {
-      const spot = spots[(i + (seed % spots.length)) % spots.length];
-      const kind = THINGS[(seed >>> (3 + i * 4)) % THINGS.length];
+      const spot = greenhouse ? spots[i] : spots[(i + (seed % spots.length)) % spots.length];
+      const kind: WallKind = greenhouse ? 'pane' : THINGS[(seed >>> (3 + i * 4)) % THINGS.length];
       if (out.some((o) => (o as ReactElement | null)?.key === `${key}w${spot}`)) continue;
       out.push(<WallThing key={`${key}w${spot}`} along={along} wall={along === 'y' ? x : y} t={spot} kind={kind} />);
     }
@@ -598,12 +755,21 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
 /** A room that could be built here: a faded outline of one, with a plus. */
 /** A shovel and a pickaxe, crossed: the sign of a place where a room can be dug out. */
 const DigTools = ({ x, y }: { x: number; y: number }): ReactElement => (
-  <g transform={`translate(${x} ${y}) scale(0.95)`} stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="none" fill="none" opacity="0.9">
-    <path d="M10 -10 L-4 4" /><path d="M7.4 -13 L13 -7.4" />
-    <path d="M-4 4 L-10.5 2.5 Q-14.5 5.5 -13.5 10 L-15 15.5 L-8.5 12.5 Q-3.5 9.5 -4 4 Z" fill={INK} />
-    <path d="M-9 -9 L6 6" />
-    <path d="M-15 -4 Q-9 -15 3.5 -12" strokeWidth="2.3" />
-    <path d="M-15 -4 L-12.4 -7.4 M3.5 -12 L2 -8.6" />
+  <g transform={`translate(${x} ${y}) scale(0.8)`} stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="none" fill="none" opacity="0.92">
+    {/* a spade, handle up and blade down, laid over to the left: a D grip, a shaft, the socket, and a flat blade with square shoulders and a rounded point */}
+    <g transform="rotate(45) translate(0 3)">
+      <path d="M-5 -13 V-18.5 Q-5 -20 -3.5 -20 H3.5 Q5 -20 5 -18.5 V-13" strokeWidth="1.7" />
+      <path d="M0 -13 V3" strokeWidth="2.2" />
+      <path d="M-2.6 3 H2.6 V6 H-2.6 Z" fill={INK} />
+      <path d="M-2.6 6 L-7 8 L-7 11.5 Q-7.4 19 -3.2 22.5 Q0 25 3.2 22.5 Q7.4 19 7 11.5 L7 8 L2.6 6 Z" fill={INK} />
+      <path d="M0 8.5 V21" stroke={BG} strokeWidth="1.1" />
+    </g>
+    {/* a pickaxe: a long straight handle, the iron collar, and a head that curves down to a point at each end */}
+    <g transform="rotate(-45) translate(2 -5)">
+      <path d="M0 -5 V19" strokeWidth="2.6" />
+      <path d="M-14.5 1 Q-11 -7.5 0 -9 Q11 -7.5 14.5 1 Q8.5 -4.8 3.2 -4.8 H-3.2 Q-8.5 -4.8 -14.5 1 Z" fill={INK} />
+      <path d="M-3.4 -10.4 H3.4 V-3.4 H-3.4 Z" fill={INK} stroke={BG} strokeWidth="0.8" />
+    </g>
   </g>
 );
 
@@ -746,9 +912,12 @@ interface Skin { top?: string; l?: string; r?: string; line?: string }
 /** What a piece's drawing helpers are: boxes and cylinders in the piece's own units. */
 export interface G {
   box(cx: number, cy: number, z: number, w: number, d: number, h: number, skin?: Skin): ReactElement;
-  cyl(cx: number, cy: number, z: number, r: number, h: number, skin?: Skin): ReactElement;
+  /** `n` is how many sides it is drawn with (12 by default; more is smoother). */
+  cyl(cx: number, cy: number, z: number, r: number, h: number, skin?: Skin, n?: number): ReactElement;
   /** A flat shape on a face of a box, for screens and windows: (x, y) are in the piece's units, z up. */
   flat(points: V3[], fill: string): ReactElement;
+  /** An outline or a stroke along some points (closed or not), for the pictures on screens. */
+  line(points: V3[], stroke: string, width: number, closed?: boolean): ReactElement;
 }
 
 let keyCount = 0;
@@ -771,9 +940,8 @@ function makeG(swap: boolean): G {
         </g>
       );
     },
-    cyl(cx, cy, z, r, h, skin = {}) {
+    cyl(cx, cy, z, r, h, skin = {}, n = 12) {
       const [X, Y] = sx(cx, cy);
-      const n = 12;
       const ring = (zz: number): V3[] => Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2; return [X + Math.cos(a) * r, Y + Math.sin(a) * r, zz] as V3; });
       const bottom = ring(z);
       const top = ring(z + h);
@@ -788,6 +956,10 @@ function makeG(swap: boolean): G {
     },
     flat(points, fill) {
       return <polygon key={`f${keyCount++}`} points={pts(points.map(([x, y, z]) => { const [a, b] = sx(x, y); return [a, b, z] as V3; }))} fill={fill} stroke="none" />;
+    },
+    line(points, stroke, width, closed = false) {
+      const list = points.map(([x, y, z]) => { const [a, b] = sx(x, y); return [a, b, z] as V3; });
+      return closed ? <polygon key={`l${keyCount++}`} points={pts(list)} fill="none" stroke={stroke} strokeWidth={width} strokeLinejoin="round" /> : <polyline key={`l${keyCount++}`} points={pts(list)} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />;
     },
   };
 }
@@ -890,7 +1062,7 @@ export const FURNITURE: Record<string, Piece> = {
   tv: { u: 0.1, v: 0.5, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 12, 36, 10, DARK)}{vX(g, 0, 6, 1.4, 9)}{g.box(6.5, -6, 4, 1, 1.6, 3, GLOWS)}{g.box(6.5, 6, 4, 1, 1.6, 3, GLOWS)}{g.box(-1, 0, 10, 3, 10, 2, DARK)}{g.box(-1, 0, 12, 4, 32, 20, DARK)}{g.flat([[1.4, -14, 14], [1.4, 14, 14], [1.4, 14, 30], [1.4, -14, 30]], SCREEN)}{g.flat([[1.5, -12, 25], [1.5, -5, 25], [1.5, -9, 29], [1.5, -12, 29]], GLINT)}{g.box(1.2, 12.5, 12.6, 0.8, 1.4, 0.8, GLOWS)}</g> },
   armchair: { u: 0.78, v: 0.62, face: 'y', art: (g) => <g>{g.box(-10, -7, 0, 2.5, 2.5, 3, DARK)}{g.box(10, -7, 0, 2.5, 2.5, 3, DARK)}{g.box(-10, 8, 0, 2.5, 2.5, 3, DARK)}{g.box(10, 8, 0, 2.5, 2.5, 3, DARK)}{g.box(0, -9, 3, 26, 5, 23, UPH)}{g.box(0, 1, 3, 26, 18, 7, UPH)}{soft(g, 0, -5, 10, 17, 6, 14, UPH2)}{soft(g, 0, 4, 10, 17, 13, 4, UPH2)}{soft(g, -10.5, -0.75, 3, 5, 21.5, 14, UPH)}{soft(g, 10.5, -0.75, 3, 5, 21.5, 14, UPH)}</g> },
   coffeetable: { u: 0.5, v: 0.62, face: 'y', art: (g) => <g>{g.box(-12, -6, 0, 2, 2, 8, DARK)}{g.box(12, -6, 0, 2, 2, 8, DARK)}{g.box(-12, 6, 0, 2, 2, 8, DARK)}{g.box(12, 6, 0, 2, 2, 8, DARK)}{g.box(0, 0, 2.5, 26, 14, 1.2, DARK)}{soft(g, 0, 0, 8, 30, 18, 3)}{g.box(-7, -2, 11, 9, 6, 1.6, UPH2)}{g.box(-7, -2, 12.6, 8, 5, 1.4, PILLOW)}{g.cyl(8, 3, 11, 1.7, 3, { top: INK })}</g> },
-  table: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{chair(g, -14, -26, 1)}{chair(g, 14, -26, 1)}{g.box(-24, -12, 0, 3, 3, 16, DARK)}{g.box(24, -12, 0, 3, 3, 16, DARK)}{g.box(-24, 12, 0, 3, 3, 16, DARK)}{g.box(24, 12, 0, 3, 3, 16, DARK)}{g.box(0, 0, 13, 50, 26, 3, DARK)}{soft(g, 0, 0, 16, 56, 32, 3)}{g.cyl(-14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(-14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(0, 0, 19, 4.2, 1.8, DARK)}{g.cyl(0, 0, 20.8, 2.4, 2, { top: INK })}{g.cyl(-8, 0, 19, 0.9, 6, { top: INK })}{g.cyl(8, 0, 19, 0.9, 6, { top: INK })}{chair(g, -14, 26, -1)}{chair(g, 14, 26, -1)}</g> },
+  table: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{chair(g, -14, -26 - pull(0), 1)}{chair(g, 14, -26 - pull(1), 1)}{g.box(-24, -12, 0, 3, 3, 16, DARK)}{g.box(24, -12, 0, 3, 3, 16, DARK)}{g.box(-24, 12, 0, 3, 3, 16, DARK)}{g.box(24, 12, 0, 3, 3, 16, DARK)}{g.box(0, 0, 13, 50, 26, 3, DARK)}{soft(g, 0, 0, 16, 56, 32, 3)}{g.cyl(-14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(-14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(0, 0, 19, 4.2, 1.8, DARK)}{g.cyl(0, 0, 20.8, 2.4, 2, { top: INK })}{g.cyl(-8, 0, 19, 0.9, 6, { top: INK })}{g.cyl(8, 0, 19, 0.9, 6, { top: INK })}{chair(g, -14, 26 + pull(2), -1)}{chair(g, 14, 26 + pull(3), -1)}</g> },
   punchbowl: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, 0, 2, 52, 28, 12, { top: '#9be8bb', l: '#3f9d66', r: '#2d7a4d', line: DIM })}{[-19, -6.5, 6.5, 19].map((x) => <g key={`fold${x}`}>{g.box(x, 14.4, 2.4, 0.7, 0.7, 11, { top: DIM, l: DIM, r: DIM, line: DIM })}</g>)}{g.box(0, 0, 14, 54, 30, 1.4, { top: '#c9ffe0', l: '#5fbf86', r: '#3f9d66', line: INK })}{g.cyl(0, 0, 15.4, 4.2, 1.6, DARK)}{g.cyl(0, 0, 17, 9.4, 5.2, { top: DIM, l: '#1f8f4f', r: '#136b38', line: INK })}{g.cyl(0, 0, 22.2, 9.8, 0.9, { top: INK })}{g.cyl(0, 0, 22, 7.6, 0.5, { top: '#a6ff3d' })}{g.box(7, 3, 22.6, 9, 0.8, 0.8, DARK)}{g.cyl(11.6, 3, 22.2, 1.5, 1.2, { top: INK })}{[[-19, -6], [-21, 5], [-12, 10], [12, 9], [20, 4], [18, -8], [0, -10]].map(([x, y]) => <g key={`cup${x}${y}`}>{g.cyl(x, y, 15.4, 1.9, 2.8, { top: '#e8fff0', l: '#7fd9a4', r: '#4fb27c', line: INK })}{g.cyl(x, y, 17.8, 1.5, 0.5, { top: '#a6ff3d' })}</g>)}</g> },
   chinacabinet: { u: 0.1, v: 0.78, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 15, 37, 3, DARK)}{g.box(0, 0, 3, 14, 36, 46)}{g.box(0, 0, 49, 16, 38, 2.2)}{g.flat([[7.3, -15, 26], [7.3, 15, 26], [7.3, 15, 46], [7.3, -15, 46]], GLASS)}{g.flat([[7.3, -15, 6], [7.3, 15, 6], [7.3, 15, 22], [7.3, -15, 22]], 'rgba(2,19,8,0.5)')}{vX(g, 0, 7, 26, 46)}{vX(g, 0, 7, 6, 22)}{hX(g, -15, 15, 7, 36)}{hX(g, -15, 15, 7, 22.5)}{disc(g, 'x', 7.5, -8, 41, 3, 'rgba(125,255,176,0.6)')}{disc(g, 'x', 7.5, 0, 41, 3, 'rgba(125,255,176,0.6)')}{disc(g, 'x', 7.5, 8, 41, 3, 'rgba(125,255,176,0.6)')}{g.box(7.6, -9, 36.6, 2.6, 2.6, 3, GLOWS)}{g.box(7.6, 8, 36.6, 2.6, 2.6, 3, GLOWS)}{g.box(7.7, -2.5, 20, 1, 1.2, 4, GLOWS)}{g.box(7.7, 2.5, 20, 1, 1.2, 4, GLOWS)}</g> },
   sinkcabinets: { u: 0.5, v: 0.1, face: 'y', art: (g) => <g>{g.box(0, 1, 0, 56, 15, 2, DARK)}{g.box(0, 0, 2, 60, 18, 22)}{vY(g, -10, 9.2, 3, 23)}{vY(g, 10, 9.2, 3, 23)}{g.box(-13, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(-7, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(7, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(13, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(0, -8, 27, 60, 2, 8, DARK)}{soft(g, 0, 1, 24, 62, 20, 3, WORKTOP)}{g.box(-12, 2, 27, 18, 12, 0.6, DARK)}{g.cyl(-12, -4, 27, 1.3, 6)}{g.box(-12, -1, 32.4, 1.4, 6, 1.4)}{g.cyl(10, 3, 27, 2.6, 1.4, { top: INK })}</g> },
@@ -900,13 +1072,19 @@ export const FURNITURE: Record<string, Piece> = {
   nightstand: { u: 0.88, v: 0.14, face: 'y', art: (g) => <g>{g.box(-6, -6, 0, 2, 2, 2, DARK)}{g.box(6, -6, 0, 2, 2, 2, DARK)}{g.box(-6, 6, 0, 2, 2, 2, DARK)}{g.box(6, 6, 0, 2, 2, 2, DARK)}{g.box(0, 0, 2, 16, 16, 14)}{hY(g, -7, 7, 8.2, 9)}{g.box(0, 8.6, 5.4, 3, 1, 1.4, GLOWS)}{g.box(0, 8.6, 12, 3, 1, 1.4, GLOWS)}{g.box(-3, 0, 16, 7, 5, 1.6, UPH2)}{g.box(4, 1, 16, 6, 4, 3.4, DARK)}{g.flat([[4, 3.1, 17], [7, 3.1, 17], [7, 3.1, 18.6], [4, 3.1, 18.6]], SCREEN)}</g> },
   dresser: { u: 0.1, v: 0.75, face: 'x', art: (g) => <g>{g.box(0, -17, 0, 14, 3, 2, DARK)}{g.box(0, 17, 0, 14, 3, 2, DARK)}{g.box(0, 0, 2, 18, 40, 26)}{hX(g, -18, 18, 9.2, 11)}{hX(g, -18, 18, 9.2, 20)}{g.box(9.6, -8, 6, 1, 8, 1.4, GLOWS)}{g.box(9.6, 8, 6, 1, 8, 1.4, GLOWS)}{g.box(9.6, -8, 15, 1, 8, 1.4, GLOWS)}{g.box(9.6, 8, 15, 1, 8, 1.4, GLOWS)}{g.box(9.6, -8, 24, 1, 8, 1.4, GLOWS)}{g.box(9.6, 8, 24, 1, 8, 1.4, GLOWS)}{g.box(-6, 0, 28, 2.2, 28, 14, DARK)}{g.flat([[-4.8, -12, 30], [-4.8, 12, 30], [-4.8, 12, 40], [-4.8, -12, 40]], GLINT)}{g.box(2, -10, 28, 5, 6, 2.6, UPH2)}{g.cyl(3, 10, 28, 1.6, 5, { top: INK })}</g> },
   lamp: { u: 0.12, v: 0.2, face: 'x', art: (g) => <g>{g.cyl(0, 0, 0, 5.6, 1.2, DARK)}{g.cyl(0, 0, 1.2, 4.4, 1, DARK)}{g.box(0, 0, 2.2, 1.8, 1.8, 28, DARK)}{g.cyl(0, 0, 29.6, 7.2, 1, DARK)}{g.cyl(0, 0, 30.6, 6.4, 10, { top: '#9dffc4', l: DIM, r: '#0c6b30' })}{g.box(0, 0, 40.6, 1, 1, 2.6, DARK)}</g> },
-  toilet: { u: 0.7, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, -7, 5, 14, 6, 12, APPL)}{g.box(0, -7, 17, 15, 7, 1.6, WORKTOP)}{g.cyl(0, -7, 18.6, 1.2, 1.2, { top: INK })}{g.box(0, 1, 0, 9, 10, 6, DARK)}{g.cyl(0, 3, 6, 7.8, 5, UPH)}{g.cyl(0, 3, 11, 8.2, 1.4, { top: DIM })}{g.cyl(0, 3.4, 12.2, 5.4, 0.4, { top: '#02130a' })}</g> },
+  toilet: { u: 0.7, v: 0.2, face: 'y', art: (g) => { // a smooth rounded bowl (24 sides, outlines in the porcelain's own tone), a cistern behind it with a lid and flush button
+    const P: Skin = { top: '#b8f2d0', l: '#4fb27c', r: '#3a9566', line: '#3a9566' };
+    const P2: Skin = { top: '#d6ffe6', l: '#6fd39a', r: '#4fb27c', line: '#4fb27c' };
+    return <g>{g.box(0, -11, 7, 20, 8, 17, P)}{g.box(0, -11, 24, 22, 9.4, 2, P2)}{g.cyl(4.8, -11, 26, 1.6, 1, { top: INK, l: INK, r: INK, line: INK }, 16)}
+      {g.cyl(0, 3, 0, 6.6, 7, DARK, 24)}{g.cyl(0, 3, 7, 8.8, 3.6, P, 24)}{g.cyl(0, 3, 10.6, 11.2, 4.4, P, 24)}{g.cyl(0, 3.4, 15, 12, 1.8, P2, 24)}
+      {g.cyl(0, 3.6, 16.8, 8.4, 0.5, { top: '#0a3a1c', l: '#0a3a1c', r: '#0a3a1c', line: '#0a3a1c' }, 24)}{g.cyl(0, 3.6, 17.3, 5.6, 0.3, { top: '#02130a', l: '#02130a', r: '#02130a', line: '#02130a' }, 24)}</g>;
+  } },
   bathsink: { u: 0.25, v: 0.2, face: 'y', art: (g) => <g>{g.cyl(0, -3, 0, 3.6, 18, UPH)}{g.box(0, -9.6, 29, 18, 1, 16, GLASS_SKIN)}{g.box(0, -9, 18, 24, 2, 7, DARK)}{soft(g, 0, 0, 18, 24, 16, 5, APPL)}{g.box(0, 1, 22.6, 16, 10, 0.5, DARK)}{g.cyl(0, -6, 23, 1.2, 5)}{g.box(0, -3, 27, 1.4, 5, 1.4)}{g.cyl(-5, -5, 23, 1, 2, { top: INK })}{g.cyl(5, -5, 23, 1, 2, { top: INK })}</g> },
   shower: { u: 0.78, v: 0.74, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 26, 26, 2, DARK)}{g.box(0, -12, 2, 26, 2, 46, TILE)}{g.box(-12, 0, 2, 2, 26, 46, TILE)}{g.cyl(3, 2, 2, 2, 0.5, DARK)}{g.box(-8, -10, 2, 1.4, 1.4, 40, DARK)}{g.box(-8, -7, 40, 1.4, 7, 1.4, DARK)}{g.cyl(-8, -3, 38.6, 3.6, 1.4, { top: INK })}{g.box(-3, -10.6, 22, 3, 1.2, 3, GLOWS)}{g.box(12, 0, 2, 1.2, 26, 46, GLASS_SKIN)}{g.box(0, 12, 2, 26, 1.2, 46, GLASS_SKIN)}</g> },
   washer: { u: 0.22, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 24, 24, 30, APPL)}{g.box(0, -8, 30, 24, 8, 4, DARK)}{[-7, 0, 7].map((x) => <g key={`wk${x}`}>{g.cyl(x, -8, 34, 1.7, 1.2, { top: INK })}</g>)}{disc(g, 'y', 12.1, 0, 15, 10.4, '#0b5a2a')}{disc(g, 'y', 12.2, 0, 15, 9, '#02130a')}{disc(g, 'y', 12.3, 0, 15, 7.4, SCREEN)}{disc(g, 'y', 12.4, -2.6, 18, 2, GLINT, 8)}{g.box(9.6, 12.3, 16, 1.2, 1, 6, GLOWS)}{g.cyl(8, 3, 30, 2.4, 6, { top: INK })}</g> },
   dryer: { u: 0.62, v: 0.2, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 24, 24, 30, APPL)}{g.box(0, -8, 30, 24, 8, 4, DARK)}{g.cyl(-5, -8, 34, 1.7, 1.2, { top: INK })}{g.cyl(5, -8, 34, 1.7, 1.2, { top: INK })}{disc(g, 'y', 12.1, 0, 15, 10.4, '#0b5a2a')}{disc(g, 'y', 12.2, 0, 15, 9, '#02130a')}{disc(g, 'y', 12.3, 0, 15, 7.4, 'rgba(61,255,138,0.16)')}{g.flat([[-5, 12.4, 11], [-1, 12.4, 10], [2, 12.4, 13], [-2, 12.4, 15]], 'rgba(61,255,138,0.38)')}{g.flat([[1, 12.4, 17], [5, 12.4, 16], [6, 12.4, 19], [2, 12.4, 20]], 'rgba(61,255,138,0.3)')}{g.box(9.6, 12.3, 16, 1.2, 1, 6, GLOWS)}</g> },
   ironingboard: { u: 0.78, v: 0.7, face: 'y', art: (g) => <g>{g.box(-8, -4, 0, 1.6, 1.6, 22, DARK)}{g.box(8, 4, 0, 1.6, 1.6, 22, DARK)}{g.box(-8, 4, 0, 1.6, 1.6, 22, DARK)}{g.box(8, -4, 0, 1.6, 1.6, 22, DARK)}{g.box(0, 0, 10, 16, 1.2, 1.2, DARK)}{g.box(0, 0, 10, 1.2, 8, 1.2, DARK)}{soft(g, 0, 0, 22, 34, 12, 2.6, UPH2)}{g.box(-9, 0, 24.6, 8, 5, 2.6, DARK)}{g.box(-9, 0, 27.2, 5, 1.4, 1.6, GLOWS)}{g.box(6, 1, 24.6, 9, 6, 1.2, PILLOW)}</g> },
-  seating: { u: 0.5, v: 0.62, face: 'y', art: (g) => <g>{[-32, 0, 32].map((cx) => <g key={cx}>{g.box(cx, 0, 0, 20, 14, 3, DARK)}{soft(g, cx, -7, 3, 20, 4, 24, UPH)}{soft(g, cx, -7, 24, 16, 4, 6, UPH2)}{soft(g, cx, 1, 3, 20, 14, 7, UPH2)}</g>)}{[-43, -21, 21, 43].map((x) => <g key={`ar${x}`}>{g.box(x, 0, 3, 2.4, 14, 11, DARK)}</g>)}{g.cyl(-21, 3, 14, 1.4, 0.8, { top: INK })}{g.cyl(21, 3, 14, 1.4, 0.8, { top: INK })}</g> },
+  seating: { u: 0.5, v: 0.62, face: 'y', art: (g) => <g>{[-32, 0, 32].map((cx) => <g key={cx}>{g.box(cx, 0, 0, 20, 14, 3, DARK)}{soft(g, cx, 7, 3, 20, 4, 24, UPH)}{soft(g, cx, 7, 24, 16, 4, 6, UPH2)}{soft(g, cx, -1, 3, 20, 14, 7, UPH2)}</g>)}{[-43, -21, 21, 43].map((x) => <g key={`ar${x}`}>{g.box(x, 0, 3, 2.4, 14, 11, DARK)}</g>)}{g.cyl(-21, -3, 14, 1.4, 0.8, { top: INK })}{g.cyl(21, -3, 14, 1.4, 0.8, { top: INK })}</g> },
   screen: { u: 0.5, v: 0.06, face: 'y', art: (g) => <g>{g.box(0, 0, 0, 100, 6, 4, DARK)}{g.box(0, 0, 4, 100, 4, 50, DARK)}{g.flat([[-44, 2.1, 7], [44, 2.1, 7], [44, 2.1, 52], [-44, 2.1, 52]], SCREEN)}{g.flat([[-36, 2.2, 36], [-18, 2.2, 36], [-30, 2.2, 49], [-36, 2.2, 49]], GLINT)}{soft(g, -47, 2.5, 4, 6, 6, 50, UPH)}{soft(g, 47, 2.5, 4, 6, 6, 50, UPH)}{g.box(0, 2.5, 54, 100, 6, 4, UPH)}</g> },
   speakers: { u: 0.1, v: 0.3, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 17, 17, 2, DARK)}{soft(g, 0, 0, 2, 16, 16, 38, DARK)}{disc(g, 'x', 8.2, 0, 32, 3.2, '#0b5a2a')}{disc(g, 'x', 8.3, 0, 32, 2, INK, 10)}{disc(g, 'x', 8.2, 0, 16, 7, '#0b5a2a')}{disc(g, 'x', 8.3, 0, 16, 5.6, '#02130a')}{disc(g, 'x', 8.4, 0, 16, 2.2, DIM, 10)}{g.box(8.3, 0, 4, 0.8, 5, 1, GLOWS)}</g> },
   pooltable: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(-29, -13, 0, 5, 5, 14, DARK)}{g.box(29, -13, 0, 5, 5, 14, DARK)}{g.box(-29, 13, 0, 5, 5, 14, DARK)}{g.box(29, 13, 0, 5, 5, 14, DARK)}{g.box(0, 0, 14, 68, 36, 6)}{g.box(0, 0, 20, 62, 30, 0.6, { top: '#0e8a40', l: DIM, r: DIM })}{g.box(0, -16.5, 20, 64, 3, 2.4, DARK)}{g.box(0, 16.5, 20, 64, 3, 2.4, DARK)}{g.box(-32.5, 0, 20, 3, 30, 2.4, DARK)}{g.box(32.5, 0, 20, 3, 30, 2.4, DARK)}{[[-30, -14], [30, -14], [-30, 14], [30, 14], [0, -15], [0, 15]].map(([x, y]) => <g key={`pk${x}${y}`}>{g.cyl(x, y, 20.6, 2.6, 0.9, { top: '#010a05' })}</g>)}{[[10, 0], [13, -1.8], [13, 1.8], [16, -3.6], [16, 0], [16, 3.6]].map(([x, y], i) => <g key={`bl${i}`}>{g.cyl(x, y, 20.6, 1.5, 2.2, { top: i % 2 ? INK : '#9dffc4' })}</g>)}{g.cyl(-14, 2, 20.6, 1.5, 2.2, { top: '#e8fff0' })}</g> },
@@ -961,11 +1139,9 @@ export const FURNITURE: Record<string, Piece> = {
   drums: { u: 0.8, v: 0.6, face: 'y', art: (g) => <g>{g.box(0, -6, 0, 20, 16, 16)}{g.box(0, -6, 16, 20, 16, 1.4, { top: INK, l: INK, r: INK })}{g.cyl(-9, -4, 17, 5, 5)}{g.cyl(9, -4, 17, 5, 5)}{g.cyl(-2, 9, 13, 6, 4)}{g.box(-18, -2, 0, 1, 1, 34, DARK)}{g.cyl(-18, -2, 34, 7.5, 0.8, { top: INK, l: DIM, r: DIM })}{g.box(18, 4, 0, 1, 1, 26, DARK)}{g.cyl(18, 4, 26, 5.5, 0.8, { top: INK, l: DIM, r: DIM })}{g.cyl(0, 20, 0, 4, 9, DARK)}</g> },
 };
 
-/** The pieces that can be sat on or lain on, and how far a settler is lifted off the floor on them. */
-export const LIFT: Record<string, number> = { desk: 6, couch: 6, armchair: 6, table: 6, seating: 7, bar: 12, bed: 12 };
-export const SIT = new Set(['couch', 'armchair', 'table', 'seating', 'bar', 'desk']);
-export const LIE = new Set(['bed']);
-
+/** How far each dining chair is pulled out from the table (chairs 0 and 1 are on the back side, 2 and 3 on the front), set by PlacedPiece while it draws the table. */
+let chairPulls: number[] = [];
+const pull = (i: number): number => chairPulls[i] ?? 0;
 /** Where a piece stands in the world (its middle, on the floor). */
 /** How big a piece is drawn in this room: a bit smaller in a small room, and 15% smaller than it was. */
 export function pieceScale(room: { type: RoomType; col: number; row: number }): number {
@@ -978,7 +1154,7 @@ export function pieceScale(room: { type: RoomType; col: number; row: number }): 
 const stretch = (k: number): number => Math.max(0, Math.min(1, 0.5 + (k - 0.5) * 1.22));
 /** How far each piece reaches along the wall it stands against, from its middle (in its own units). */
 const HALF: Record<string, number> = {
-  coatrack: 6, shoebench: 17, decon: 13, couch: 27, tv: 18, lamp: 7, chinacabinet: 18, sinkcabinets: 30, fridge: 12, stove: 14, nightstand: 8, dresser: 20, toilet: 8, bathsink: 12,
+  coatrack: 6, shoebench: 17, decon: 13, couch: 27, tv: 18, lamp: 7, chinacabinet: 18, sinkcabinets: 30, fridge: 12, stove: 14, nightstand: 8, dresser: 20, toilet: 11, bathsink: 12,
   washer: 12, dryer: 12, bookshelf: 19, desk: 27, guitar: 8, instrument: 9, piano: 26, screen: 50, speakers: 8, bar: 38, pinball: 14, toolchest: 18, craftingtable: 28,
 };
 /** The doorways of a room (see doorsOf): heights (y) along the left back wall and positions (x) along the right one. */
@@ -1027,6 +1203,7 @@ function footOf(id: string): Foot {
     box: (cx, cy, _z, w, d) => { see(cx - w / 2, cy - d / 2); see(cx + w / 2, cy + d / 2); return null as unknown as ReactElement; },
     cyl: (cx, cy, _z, r) => { see(cx - r, cy - r); see(cx + r, cy + r); return null as unknown as ReactElement; },
     flat: (points) => { for (const [x, y] of points) see(x, y); return null as unknown as ReactElement; },
+    line: () => null as unknown as ReactElement,
   };
   try { FURNITURE[id]?.art(rec); } catch { /* a piece drawn with its own svg: the default below */ }
   const foot: Foot = Number.isFinite(x0) ? { x0, x1, y0, y1 } : { x0: -10, x1: 10, y0: -10, y1: 10 };
@@ -1242,23 +1419,112 @@ export function pieceFits(room: VaultRoom, at: (col: number, row: number) => Vau
   return true;
 }
 
-/** Where a settler sits on a piece (in the piece's own units, from its middle) and which way they face on the screen (1 looks lower right, -1 lower left). */
-export const SEATS: Record<string, { dx: number; dy: number; face: 1 | -1 }[]> = {
-  couch: [{ dx: -13, dy: 3, face: -1 }, { dx: 13, dy: 3, face: -1 }],
-  armchair: [{ dx: 0, dy: 3, face: -1 }],
-  table: [{ dx: -14, dy: -26, face: -1 }, { dx: 14, dy: -26, face: -1 }, { dx: -14, dy: 26, face: 1 }, { dx: 14, dy: 26, face: 1 }],
-  seating: [{ dx: -32, dy: 4, face: -1 }, { dx: 0, dy: 4, face: -1 }, { dx: 32, dy: 4, face: -1 }],
-  bar: [{ dx: -20, dy: 22, face: 1 }, { dx: 0, dy: 22, face: 1 }, { dx: 20, dy: 22, face: 1 }],
-  desk: [{ dx: 0, dy: 24, face: 1 }],
+// ---- what settlers do with the furniture ----
+
+/** What a settler is doing with a piece, for the way the arms are drawn and what the piece does while they do it. */
+export type UseAction = 'play' | 'drum' | 'cook' | 'drink' | 'fridge' | 'pool' | 'tvon' | 'watch';
+/**
+ * A place on (or beside) a piece where a settler can be: where they stand or sit (dx, dy, in the piece's own units from its middle), the way they face (lx, ly), where they
+ * come from to get there (ax, ay: out in the open beside the piece, so they never walk through it), how far a seated one is lifted, and what they are doing.
+ */
+export interface UseSpot { dx: number; dy: number; lx: number; ly: number; ax: number; ay: number; pose: 'sit' | 'stand' | 'lie'; lift: number; action?: UseAction; /** The dining chair this is (it is pulled out while they sit). */ chair?: number; /** Lies along the bed. */ bed?: boolean; /** Pets can use it too (curled up on it). */ pets?: boolean }
+const spot = (dx: number, dy: number, lx: number, ly: number, ax: number, ay: number, pose: UseSpot['pose'], lift: number, extra: Partial<UseSpot> = {}): UseSpot => ({ dx, dy, lx, ly, ax, ay, pose, lift, ...extra });
+export const USES: Record<string, UseSpot[]> = {
+  // the sofa and chairs face +y: people come at them from the front
+  couch: [spot(-13, 3, 0, 1, -13, 22, 'sit', 6, { pets: true }), spot(13, 3, 0, 1, 13, 22, 'sit', 6, { pets: true })],
+  armchair: [spot(0, 3, 0, 1, 0, 22, 'sit', 6, { pets: true })],
+  // each dining chair is pulled out from the table as they sit (the back chairs face +y, the front ones -y); they come at it from behind
+  table: [spot(-14, -31, 0, 1, -14, -44, 'sit', 6, { chair: 0 }), spot(14, -31, 0, 1, 14, -44, 'sit', 6, { chair: 1 }), spot(-14, 31, 0, -1, -14, 44, 'sit', 6, { chair: 2 }), spot(14, 31, 0, -1, 14, 44, 'sit', 6, { chair: 3 })],
+  desk: [spot(0, 24, 0, -1, 0, 40, 'sit', 6)],
+  // the theatre seats face the screen (-y)
+  seating: [spot(-32, -1, 0, -1, -32, -22, 'sit', 7, { pets: true }), spot(0, -1, 0, -1, 0, -22, 'sit', 7, { pets: true }), spot(32, -1, 0, -1, 32, -22, 'sit', 7, { pets: true })],
+  bar: [spot(-20, 22, 0, -1, -20, 38, 'sit', 12, { action: 'drink' }), spot(0, 22, 0, -1, 0, 38, 'sit', 12, { action: 'drink' }), spot(20, 22, 0, -1, 20, 38, 'sit', 12, { action: 'drink' })],
+  bed: [spot(0, 4, 0, -1, 0, 46, 'lie', 12, { bed: true, pets: true })],
+  piano: [spot(0, 29, 0, -1, 0, 44, 'sit', 4, { action: 'play' })],
+  drums: [spot(0, 20, 0, -1, 0, 36, 'sit', 4, { action: 'drum' })],
+  harp: [spot(0, 16, 0, -1, 0, 30, 'stand', 0, { action: 'play' })],
+  guitar: [spot(14, 0, -1, 0, 30, 0, 'stand', 0, { action: 'play' })],
+  tv: [spot(16, 0, -1, 0, 32, 0, 'stand', 0, { action: 'tvon' })],
+  pooltable: [spot(-14, -26, 0, 1, -14, -40, 'stand', 0, { action: 'pool' }), spot(16, 26, 0, -1, 16, 40, 'stand', 0, { action: 'pool' }), spot(-42, 0, 1, 0, -56, 0, 'stand', 0, { action: 'pool' }), spot(42, 0, -1, 0, 56, 0, 'stand', 0, { action: 'pool' })],
+  fridge: [spot(17, 0, -1, 0, 32, 0, 'stand', 0, { action: 'fridge' })],
+  stove: [spot(0, 17, 0, -1, 0, 32, 'stand', 0, { action: 'cook' })],
+  punchbowl: [spot(-10, 22, 0, -1, -10, 36, 'stand', 0, { action: 'drink' }), spot(10, 22, 0, -1, 10, 36, 'stand', 0, { action: 'drink' })],
 };
 
+/** Where a use spot of a piece is in the world: the spot, where they come from, which way they face on the screen (1 looks to the lower right, -1 to the lower left) and how a lying one is tilted. */
+export function useAt(room: { type: RoomType; col: number; row: number }, at: { x: number; y: number; swap?: boolean }, u: UseSpot): { x: number; y: number; ax: number; ay: number; face: 1 | -1; tilt: number } {
+  const k = pieceScale(room);
+  const sw = !!at.swap;
+  const w = (ox: number, oy: number) => (sw ? { x: at.x + oy * k, y: at.y + ox * k } : { x: at.x + ox * k, y: at.y + oy * k });
+  const me = w(u.dx, u.dy), from = w(u.ax, u.ay);
+  const lx = sw ? u.ly : u.lx, ly = sw ? u.lx : u.ly;
+  // the screen is a flat view of the room: facing along +x or -y looks to the right, along -x or +y to the left
+  let face: 1 | -1 = lx - ly >= 0 ? 1 : -1;
+  let tilt = 0;
+  if (u.bed) {
+    // lying along the bed: the head is at the headboard (the -y end, or the -x end when the bed is turned), the body tilted to follow the bed's line on the screen
+    face = sw ? 1 : -1;
+    tilt = sw ? 30 : -30;
+  }
+  return { x: me.x, y: me.y, ax: from.x, ay: from.y, face, tilt };
+}
+
+/** The floor space of every piece in a room, where it stands now: what a settler has to walk around. */
+export function footprints(room: VaultRoom, at: (col: number, row: number) => VaultRoom | undefined, hasHole: boolean): { id: string; box: Rect }[] {
+  const lay = layoutOf(room, at, hasHole);
+  return room.furniture.flatMap((id) => { const sp = lay.get(id); return sp && FURNITURE[id] ? [{ id, box: footBox(room, id, sp.x, sp.y, !!sp.swap) }] : []; });
+}
+
+// the stand-by card on a television or the movie screen (the splash screen's: rings, a crosshair, and PLEASE STAND BY across a band), drawn on the piece's own screen
+const GLYPHS: Record<string, [number, number][][]> = {
+  P: [[[0, 6], [0, 0], [3, 0], [4, 1], [4, 2], [3, 3], [0, 3]]],
+  L: [[[0, 0], [0, 6], [4, 6]]],
+  E: [[[4, 0], [0, 0], [0, 6], [4, 6]], [[0, 3], [3, 3]]],
+  A: [[[0, 6], [2, 0], [4, 6]], [[0.8, 4], [3.2, 4]]],
+  S: [[[4, 1], [3, 0], [1, 0], [0, 1], [0, 2], [1, 3], [3, 3], [4, 4], [4, 5], [3, 6], [1, 6], [0, 5]]],
+  T: [[[0, 0], [4, 0]], [[2, 0], [2, 6]]],
+  N: [[[0, 6], [0, 0], [4, 6], [4, 0]]],
+  D: [[[0, 0], [0, 6], [2, 6], [4, 4], [4, 2], [2, 0], [0, 0]]],
+  B: [[[0, 0], [0, 6], [3, 6], [4, 5], [4, 4], [3, 3], [0, 3]], [[3, 3], [4, 2], [4, 1], [3, 0], [0, 0]]],
+  Y: [[[0, 0], [2, 3], [4, 0]], [[2, 3], [2, 6]]],
+};
+function StandBy({ id, g }: { id: string; g: G }): ReactElement | null {
+  const tv = id === 'tv';
+  if (!tv && id !== 'screen') return null;
+  // the plane of the picture: (a, b) from -1 to 1 across and up it, as seen from the room (the television faces +x, so its left to right is toward -y; the movie screen faces +y)
+  const map = (a: number, b: number): V3 => (tv ? [1.7, -a * 13, 22 + b * 7.4] : [a * 43, 2.4, 29.5 + b * 21.3]);
+  const ring = (r: number) => Array.from({ length: 30 }, (_, i) => map(Math.cos((i / 30) * Math.PI * 2) * r, Math.sin((i / 30) * Math.PI * 2) * r));
+  const out: ReactElement[] = [];
+  out.push(g.flat([map(-1, -1), map(1, -1), map(1, 1), map(-1, 1)], '#021208'));
+  out.push(g.line(ring(0.92), INK, 0.7, true), g.line(ring(0.52), DIM, 0.5, true));
+  out.push(g.line([map(-1, 0), map(1, 0)], DIM, 0.4), g.line([map(0, -1), map(0, 1)], DIM, 0.4));
+  out.push(g.flat([map(-1, -0.26), map(1, -0.26), map(1, 0.26), map(-1, 0.26)], '#021208'));
+  out.push(g.line([map(-1, -0.26), map(1, -0.26)], INK, 0.6), g.line([map(-1, 0.26), map(1, 0.26)], INK, 0.6));
+  const words = ['PLEASE', 'STAND', 'BY'], gap = 1.5, space = 3.4;
+  const total = words.reduce((n, w) => n + w.length * 4 + (w.length - 1) * gap, 0) + space * (words.length - 1);
+  let x = 0;
+  for (const w of words) {
+    for (const ch of w) {
+      (GLYPHS[ch] ?? []).forEach((stroke) => out.push(g.line(stroke.map(([px, py]) => map(((x + px) / total) * 1.8 - 0.9, (3 - py) / 3 * 0.17)), INK, 0.6)));
+      x += 4 + gap;
+    }
+    x += space - gap;
+  }
+  return <g>{out}</g>;
+}
+
 /** A piece of furniture, in place in its room (the small rooms hold the same things a little smaller). */
-export function PlacedPiece({ room, id, fresh, doors, pos }: { room: VaultRoom; id: string; fresh?: boolean; doors?: Doors; pos?: { x: number; y: number; swap?: boolean } }): ReactElement | null {
+export function PlacedPiece({ room, id, fresh, doors, pos, live }: { room: VaultRoom; id: string; fresh?: boolean; doors?: Doors; pos?: { x: number; y: number; swap?: boolean }; /** What settlers are doing with it right now: the screen is on, these dining chairs are pulled out. */ live?: { on?: boolean; pulled?: number[] } }): ReactElement | null {
   const p = FURNITURE[id];
   const at = pos ?? pieceAt(room, id, doors);
   if (!p || !at) return null;
   const [X, Y] = P(at.x, at.y, 0);
   const scale = pieceScale(room);
   keyCount = 0;
-  return <g className={fresh ? 'rm-vh-fresh' : undefined} transform={`translate(${X} ${Y}) scale(${scale})`}>{p.art(makeG(!!pos?.swap))}</g>;
+  const g = makeG(!!pos?.swap);
+  chairPulls = [];
+  for (const i of live?.pulled ?? []) chairPulls[i] = 5;
+  const art = p.art(g);
+  chairPulls = [];
+  return <g className={fresh ? 'rm-vh-fresh' : undefined} transform={`translate(${X} ${Y}) scale(${scale})`}>{art}{live?.on ? <StandBy id={id} g={g} /> : null}</g>;
 }

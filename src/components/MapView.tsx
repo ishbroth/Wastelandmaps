@@ -34,26 +34,19 @@ function boundsCenterLng(b: google.maps.LatLngBoundsLiteral): number {
   return mid > 180 ? mid - 360 : mid;
 }
 
-const hexRgb = (hex: string): number[] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-const rgbHex = (c: number[]): string => '#' + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
-
 /**
- * The colour of a flooded patch's layers. The water must be one colour, the sea's, all the way to the shore, while the streets still fade as they go in. The
- * layers are stacked, and only the outermost has land showing through, so it is tinted to cancel the land: laid at its opacity over the land it comes out
- * exactly as the sea. Every layer inside it is the sea's own colour (on top of sea, more sea), so only the streets fade, never the water.
+ * The colour of a flooded patch's layers: exactly the sea's colour on every layer. Water on water is the same water (a patch running out over the sea, or
+ * layers stacked on each other, never darken anything); only the streets underneath fade as the layers get more solid toward the middle.
  */
-function floodLayerColor(look: Look, layer: number, alpha: number): string {
-  if (layer > 0) return look.floodFill;
-  const sea = hexRgb(look.floodFill);
-  const land = hexRgb(look.floodLand);
-  return rgbHex(sea.map((o, i) => (o - (1 - alpha) * land[i]) / alpha));
+function floodLayerColor(look: Look, _layer: number, _alpha: number): string {
+  return look.floodFill;
 }
 
 /** Opacity of each nested layer of a flooded patch, outermost first: the streets go from this dim at the shore to nearly gone in the deepest part. */
 function floodLayerAlphas(strength: number, layers: number, edge = 0.16): number[] {
   if (layers <= 1) return [strength];
-  // Where it is deepest the streets are very faint but still there (about 8% shows through). The edge starts dark enough (see floodEdge in looks.ts) that the
-  // outer layer's tint can cancel the land exactly: any lighter and the tint would have to go below black, and the water comes out lighter than the sea.
+  // Where it is deepest the streets are very faint but still there. The edge starts nearly solid (see floodEdge in looks.ts) so the land hardly tints the
+  // water at the shore: it is the sea's colour throughout.
   const deepest = Math.min(0.985, strength + 0.12);
   const out: number[] = [];
   let before = 0;

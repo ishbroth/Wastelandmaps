@@ -166,6 +166,18 @@ function withLoreSites(metro: MetroEntry, places: Location[]): Location[] {
     for (const site of town.sites) {
       const id = `lore:${site.slug}`;
       if (places.some((p) => p.id === id)) continue;
+      if (site.real) {
+        // it stands on one named real place: that place, if this metro has it (it keeps its spot and its snapshot), otherwise a spot at the real place's own coordinates
+        const has = places.findIndex((p) => p.id === `wd:${site.real?.qid}`);
+        const text = `${site.text} In the world before the bombs this was ${site.real.name}.`;
+        if (has >= 0) {
+          const was = places[has];
+          places[has] = { ...was, name: `${site.name} (formerly ${was.oldName || was.name})`, icon: site.icon, lore: { town: town.town, text } };
+        } else {
+          places.push({ id, oldName: site.real.name, name: `${site.name} (formerly ${site.real.name})`, category: 'other', position: { lat: site.real.lat, lng: site.real.lng }, loot: 'A story or two', threat: 'Quiet', rads: 0, icon: site.icon, lore: { town: town.town, text } });
+        }
+        continue;
+      }
       const lat = town.anchor.lat + site.dy / 111_320;
       const lng = town.anchor.lng + site.dx / (111_320 * Math.max(0.2, Math.cos((town.anchor.lat * Math.PI) / 180)));
       if (site.on) {

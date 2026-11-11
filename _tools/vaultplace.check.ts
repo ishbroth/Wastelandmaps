@@ -1,6 +1,6 @@
 // Checks the rules for putting furniture and stairwell holes down by hand, the room count for vacation vaults and the dig-down rule when every slot is used.
 //   npx esbuild _tools/vaultplace.check.ts --bundle --platform=node --format=cjs --outfile=$TEMP/vp.cjs && node $TEMP/vp.cjs
-import { applyBuild, applyDemolish, applyFurnish, applyPlace, cleanPut, hasWayDown, hasWayUp, isTwin, newVault, openCell, reachable, roomAt, roomCount, settlerSlots, stairDir, stairwellsBuilt, whyNotBuild, whyNotDemolish, MAX_SLOTS, ROOMS_FOR_VACATION, type VaultHome, type VaultRoom } from '../src/lib/vaultHome';
+import { atFloorSince, checkIn, excessSettlers, moodAt, neglectAt, applyBuild, applyDemolish, applyFurnish, applyPlace, cleanPut, hasWayDown, hasWayUp, isTwin, newVault, openCell, reachable, roomAt, roomCount, settlerSlots, stairDir, stairwellsBuilt, whyNotBuild, whyNotDemolish, MAX_SLOTS, ROOMS_FOR_VACATION, type VaultHome, type VaultRoom } from '../src/lib/vaultHome';
 import { footBox, layoutOf, pieceFits, roomRect } from '../src/components/vaultIso';
 
 let bad = 0;
@@ -83,6 +83,59 @@ const si = v2.rooms.indexOf(top);
 check('a lone stairwell can be demolished and takes its twin', whyNotDemolish(v2, si) === null && (applyDemolish(v2, si, 0) as { vault: VaultHome }).vault.rooms.length === v.rooms.length);
 check('not while a room below is only reached through it', /only reachable/.test(whyNotDemolish(build(v2, 'bedroom', 1, 7, 5), si) ?? ''));
 check('the nothing-below-the-fifth rule', why({ ...v, rooms: [...v.rooms, room('hallway', 4, 3, 5)] }, 'stairs', 4, 4, 5, 'down') === 'There is nothing below the fifth level');
+
+// U-shaped stairwells: two cells wide, one long, built onto the front or back of a room; the twin opens the same way through the other cell
+const buildU = (vv: VaultHome, l: number, c: number, r: number, dir: 'up' | 'down') => { const q = applyBuild(vv, 'stairs' as never, l, c, r, 0, dir, 'u'); if (!q.ok) throw new Error('u ' + q.reason); return q.vault; };
+const uWhy = (vv: VaultHome, l: number, c: number, r: number, dir: 'up' | 'down') => whyNotBuild(vv, 'stairs' as never, l, c, r, dir, 'u');
+check('a U stairwell can be built onto the back of a room', uWhy(v, 0, 5, 3, 'down') === null);
+check('not onto the side of a room', /front or the back/.test(uWhy(v, 0, 3, 5, 'down') ?? ''));
+check('not onto two rooms', /dead end/.test(uWhy(v, 0, 3, 4, 'down') ?? ''));
+check('not up from the first level', /nothing above/.test(uWhy(v, 0, 5, 3, 'up') ?? ''));
+const vu = buildU(v, 0, 5, 3, 'down');
+const uTop = roomAt(vu, 0, 5, 3) as VaultRoom, uCell2 = roomAt(vu, 0, 6, 3), uTwin = roomAt(vu, 1, 5, 3) as VaultRoom;
+check('it covers two cells and has a twin in the same two', uTop.shape === 'u' && uCell2 === uTop && isTwin(uTwin) && roomAt(vu, 1, 6, 3) === uTwin && uTop.col === 5 && uTwin.col === 5);
+check('the twin opens the same way through the other cell', uTop.face === 'f' && uTwin.face === 'f' && JSON.stringify(openCell(uTop)) === '[5,4]' && JSON.stringify(openCell(uTwin)) === '[6,4]');
+check('it goes down and the twin goes up, and counts as one stairwell', stairDir(vu, uTop) === 'down' && stairDir(vu, uTwin) === 'up' && stairwellsBuilt(vu) === 1 && hasWayDown(vu, 0) && hasWayUp(vu, 1));
+check('nothing joins its side or its closed cell', /dead end/.test(why(vu, 'bedroom', 0, 7, 3) ?? '') && /dead end/.test(why(vu, 'bedroom', 0, 6, 4) ?? '') && why(vu, 'bedroom', 0, 5, 3) === 'That space is taken');
+check('the vault is still joined, and the twin is reached by the stairs', reachable(vu).size === vu.rooms.length);
+const ui = vu.rooms.indexOf(uTop);
+check('demolishing it takes both ends', whyNotDemolish(vu, ui) === null && (applyDemolish(vu, ui, 0) as { vault: VaultHome }).vault.rooms.length === v.rooms.length);
+check('slots are not used by it', settlerSlots(vu) === settlerSlots(v) && roomCount(vu) === roomCount(v));
+
+// settlers, crowding and neglect
+const H = 3_600_000, DAY = 24 * H;
+const crowdedBase: VaultHome = { ...newVault(0, 7), rooms: [room('entry', 0, 5, 5, ['decon']), room('living', 0, 4, 5), room('bedroom', 0, 5, 4), room('kitchen', 0, 6, 5)], settlers: [{ id: 1, kind: 'male', name: 'Ann' }, { id: 2, kind: 'dog' }], from: 80, sessionAt: 0, seenAt: 0 };
+check('two settlers need seven slots: here one is too many for three rooms', excessSettlers(crowdedBase) === 1);
+const ok1: VaultHome = { ...crowdedBase, settlers: [crowdedBase.settlers[0]] };
+check('with enough rooms nobody is crowded', excessSettlers(ok1) === 0);
+const small: VaultHome = { ...ok1, rooms: ok1.rooms.slice(0, 3) }; // two rooms: the one settler is now too many
+check('a settler with too few rooms is crowded', excessSettlers(small) === 1);
+const t0 = 5 * H;
+const m0 = moodAt({ ...small, from: 70, sessionAt: t0, seenAt: t0 }, t0), m1 = moodAt({ ...small, from: 70, sessionAt: t0, seenAt: t0 }, t0 + H);
+check('crowded: a point every ten minutes, even while the vault is open', m0.value - m1.value === 6 && m1.trend === 'down');
+const visit = checkIn({ ...small, from: 20, sessionAt: 0, seenAt: 0 }, 10 * H);
+check('crowded: a visit does not lift happiness', moodAt(visit, 10 * H + 200_000).value <= moodAt(visit, 10 * H).value);
+const slow = { ...ok1, from: 70, sessionAt: 0, seenAt: 0 };
+check('not crowded: the slow slide is a point every four hours', moodAt(slow, 0).value - moodAt(slow, 8 * H).value === 2 && moodAt(slow, 8 * H).trend === null);
+const lowFrom = { ...small, from: 40, sessionAt: 0, seenAt: 0 };
+const since = atFloorSince(lowFrom, 100 * H) as number;
+check('it reaches the lowest point after a while and stays there', since > 0 && since < 100 * H && moodAt(lowFrom, 100 * H).value === moodAt(lowFrom, 100 * H).floor);
+check('crowded settlers do not leave before a day at the lowest point', neglectAt(lowFrom, since + DAY - 1000).left.length === 0);
+const leaving = neglectAt(lowFrom, since + DAY);
+check('they leave after a day, as many as are too many', leaving.left.length === 1 && leaving.left[0].id === 1 && leaving.vault.settlers.length === 0);
+const two: VaultHome = { ...crowdedBase, from: 40, sessionAt: 0, seenAt: 0 };
+const s2 = atFloorSince(two, 100 * H) as number;
+const out2 = neglectAt(two, s2 + DAY);
+check('the first settler to come stays: the latest goes', out2.left.length === 1 && out2.left[0].id === 2 && out2.vault.settlers.length === 1 && out2.vault.settlers[0].id === 1);
+const content: VaultHome = { ...ok1, from: 60, sessionAt: 0, seenAt: 0 };
+const sinceC = atFloorSince(content, 3000 * H) as number;
+check('enough rooms but miserable: they stay and steal nothing in the first day', neglectAt(content, sinceC + DAY - 1000).thefts === 0 && neglectAt(content, sinceC + DAY - 1000).vault.settlers.length === 1);
+const steals = neglectAt(content, sinceC + 3 * DAY + 5);
+check('one piece a day, and they stay', steals.thefts === 3 && steals.left.length === 0 && steals.vault.settlers.length === 1 && steals.vault.stealFrom === sinceC + 3 * DAY);
+check('the same days are not counted twice', neglectAt(steals.vault, sinceC + 3 * DAY + 10).thefts === 0 && neglectAt(steals.vault, sinceC + 4 * DAY + 10).thefts === 1);
+check('no settlers, nothing to steal', neglectAt({ ...content, settlers: [] }, 3000 * H).thefts === 0);
+const gained = applyBuild(checkIn({ ...ok1, from: 80, sessionAt: 0, seenAt: 0 }, 1000), 'bathroom' as never, 0, 3, 5, 2000);
+check('building makes the arrow point up for a few minutes', gained.ok && moodAt(gained.vault, 2000 + 60_000).trend === 'up' && moodAt(gained.vault, 2000 + 20 * 60_000).trend === null);
 
 console.log(bad ? `${bad} FAILED` : 'all good');
 process.exit(bad ? 1 : 0);

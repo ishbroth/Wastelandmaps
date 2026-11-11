@@ -352,7 +352,11 @@ a.rm-btn { text-decoration: none; display: inline-block; }
 /* ---- account, credits and the paid render ---- */
 .rm-account-btn { font: inherit; letter-spacing: 2px; font-size: 14px; padding: 6px 12px; background: transparent; color: var(--ink); border: 1px solid var(--line); cursor: pointer; }
 .rm-account-btn:hover { background: var(--ink); color: var(--on-ink); }
-.rm-account { max-width: 460px; }
+.rm-account { max-width: 460px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "body" "note"; }
+.rm-account > .rm-account-body { grid-area: body; }
+.rm-account > .rm-account-note { grid-area: note; }
+.rm-account .rm-account-body > p, .rm-account .rm-account-body .rm-btn { width: 100%; }
+.rm-account .rm-account-body p { text-align: left; }
 .rm-account-body { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 8px; }
 .rm-account-body input { font: inherit; padding: 8px 10px; background: transparent; color: var(--ink); border: 1px solid var(--line); }
 .rm-account-balance { font-family: var(--font-display); font-size: 44px; margin: 0; }
@@ -988,3 +992,16 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-blast-mute { position: absolute; top: 8px; right: 8px; z-index: 3; width: 38px; height: 38px; padding: 7px; display: grid; place-items: center; background: rgba(2, 26, 12, 0.72); color: #3dff8a; border: 1px solid #3dff8a; border-radius: 50%; cursor: pointer; }
 .rm-blast-mute svg { width: 100%; height: 100%; }
 .rm-blast-mute.off { color: #ff7a7a; border-color: #ff7a7a; }
+
+/* the settlers' roster on the vault screen: level with the share icon, at the far left; the first settler to come stays on top */
+.rm-vh-roster { position: absolute; top: 8px; left: max(8px, env(safe-area-inset-left)); z-index: 2; max-width: 40%; padding: 4px 8px; background: rgba(2, 26, 12, 0.7); border: 1px solid #0a5a2c; font-size: 16px; line-height: 1.15; pointer-events: none; }
+.rm-vh-roster span { color: #13a550; letter-spacing: 1px; }
+.rm-vh-roster em { font-style: normal; margin-left: 6px; }
+.rm-vh-roster ol { list-style: none; margin: 2px 0 0; padding: 0; }
+.rm-vh-roster li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-vh-trend { font-style: normal; font-size: 15px; line-height: 1; }
+.rm-vh-trend.up { color: #3dff8a; }
+.rm-vh-trend.down { color: #ff7a5a; }
+
+/* the metro unlock is lit up in the bright green once there are enough caps for it */
+.rm-atlas .rm-btn.rm-can:not(:disabled) { background: var(--ink); color: var(--on-ink); border-color: var(--ink); box-shadow: 0 0 10px var(--glow); }

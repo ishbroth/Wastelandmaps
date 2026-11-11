@@ -10,35 +10,37 @@ export interface LoreSite {
   slug: string; name: string; icon: IconId; dx: number; dy: number; text: string;
   /** Stand on a real place: the nearest ordinary place to the spot (within 3 km) becomes this site, named "Site (formerly Place)", so it never floats on open water or empty ground. */
   on?: boolean;
+  /** Stand on one named real place (by its Wikidata id, with where it is for when the metro's list does not hold it): the site takes its spot and is named "Site (formerly Place)". */
+  real?: { qid: string; name: string; lat: number; lng: number };
 }
 export interface LoreTown { town: string; anchor: { lat: number; lng: number }; sites: LoreSite[] }
 
 const s = (slug: string, name: string, icon: IconId, dx: number, dy: number, text: string, on = false): LoreSite => ({ slug, name, icon, dx, dy, text, ...(on ? { on } : {}) });
 
+/** A site that stands on a real place picked for it (the offsets do not matter). */
+const real = (slug: string, name: string, icon: IconId, text: string, qid: string, was: string, lat: number, lng: number): LoreSite => ({ slug, name, icon, dx: 0, dy: 0, text, real: { qid, name: was, lat, lng } });
+
 export const LORE_TOWNS: LoreTown[] = [
   {
     town: 'Shady Sands, later the capital of the NCR (Fallout, Fallout 2)',
     anchor: { lat: 33.8303, lng: -116.5453 },
+    // fifteen places of the real Palm Springs and Palm Desert area stand in for the town's (the two airports are left as they are): each is a real place of the same kind, and the site is named for what it was
     sites: [
-      s('ss-council-hall', 'Council Hall', 'capitol', 0, 0, 'Seat of the town government, and later of the whole Republic.'),
-      s('ss-hall-of-congress', 'Hall of Congress', 'capitol', -70, 50, 'The legislative chamber of the New California Republic, inside the Council Hall.'),
-      s('ss-presidential-mansion', 'Presidential Mansion', 'house', 130, 70, 'The official residence beside the Council Hall.'),
-      s('ss-vault-dweller-statue', 'Vault Dweller Statue', 'monument', -140, -30, 'A monument to the stranger who saved the town, near the Hall of Congress.'),
-      s('ss-bazaar', 'NCR Bazaar', 'smallbuilding', 270, -120, 'The trading heart of the town.'),
-      s('ss-busters', "Buster's Fine Emporium of Armament", 'smallbuilding', 330, -160, 'Weapons and armor, in the Bazaar.'),
-      s('ss-rawhide', 'Rawhide Saloon', 'smallbuilding', 230, -200, 'A saloon in the Bazaar.'),
-      s('ss-iguana-bits', "Son of Bob's Iguana Bits", 'smallbuilding', 300, -70, 'Iguana on a stick, a Bazaar tradition.'),
-      s('ss-dustys', "Dusty's Cantina", 'smallbuilding', -260, 170, 'A bar downtown.'),
-      s('ss-hubology', 'Church of Hubology', 'church', -330, 70, 'The Hub-born faith has a church downtown.'),
-      s('ss-hospital', 'New California Republic Hospital', 'hospital', 160, 320, 'The Republic\'s main hospital, downtown.'),
-      s('ss-rangers', 'NCR Rangers Headquarters', 'shield', -200, -230, 'Home of the Rangers, the Republic\'s elite scouts.'),
-      s('ss-sheriff', "Sheriff's Department", 'shield', 90, -270, 'It enforces the town\'s laws against slavery, gambling and drugs.'),
-      s('ss-stockmen', "Stockmen's Association Headquarters", 'smallbuilding', 430, 110, 'The brahmin barons have their headquarters downtown.'),
-      s('ss-brotherhood', 'NCR Brotherhood Outpost', 'castle', -450, -70, 'A Brotherhood of Steel outpost in the town.'),
-      s('ss-power-plant', 'NCR Power Plant', 'cluster', 540, 330, 'Part of the grid that links the Republic to Hoover Dam.'),
-      s('ss-westin-ranch', 'Westin Ranch', 'house', -540, 310, 'A ranch on the edge of downtown.'),
-      s('ss-garden', 'Shady Sands Garden', 'tree', -720, -320, 'The original town garden and brahmin pen, from when it was a village.'),
-      s('ss-radscorpion-cave', 'Radscorpion Cave', 'arch', -980, 700, 'A cave near the old settlement, home to radscorpions.'),
+      real('ss-council-hall', 'Council Hall', 'capitol', 'Seat of the town government, and later of the whole Republic.', 'Q128032195', 'Palm Springs City Hall', 33.824, -116.5118),
+      real('ss-vault-dweller-statue', 'Vault Dweller Statue', 'monument', 'A monument to the stranger who saved the town, near the Hall of Congress.', 'Q5469415', 'Forever Marilyn', 33.8233, -116.547),
+      real('ss-presidential-mansion', 'Presidential Mansion', 'house', 'The official residence beside the Council Hall.', 'Q2256116', 'Elrod House', 33.79356, -116.51086),
+      real('ss-dustys', "Dusty's Cantina", 'smallbuilding', 'A bar downtown.', 'Q125774408', '1501 Uptown Gastropub', 33.8433, -116.5472),
+      real('ss-hospital', 'New California Republic Hospital', 'hospital', "The Republic's main hospital, downtown.", 'Q3049500', 'Eisenhower Medical Center', 33.7633, -116.406),
+      real('ss-iguana-bits', "Son of Bob's Iguana Bits", 'smallbuilding', 'Iguana on a stick, a Bazaar tradition.', 'Q113456557', 'Grill-A-Burger', 33.75714, -116.39019),
+      real('ss-bazaar', 'NCR Bazaar', 'smallbuilding', 'The trading heart of the town.', 'Q7988725', 'Westfield Palm Desert', 33.7235, -116.39508),
+      real('ss-garden', 'Shady Sands Garden', 'tree', 'The original town garden and brahmin pen, from when it was a village.', 'Q5551958', 'Living Desert Zoo and Gardens', 33.69583, -116.37028),
+      real('ss-hall-of-congress', 'Hall of Congress', 'capitol', 'The legislative chamber of the New California Republic, inside the Council Hall.', 'Q65052659', 'Acrisure Arena', 33.77917, -116.33889),
+      real('ss-rawhide', 'Rawhide Saloon', 'smallbuilding', 'A saloon in the Bazaar.', 'Q111393560', 'Agua Caliente Resort Casino Spa Rancho Mirage', 33.81405, -116.40925),
+      real('ss-stockmen', "Stockmen's Association Headquarters", 'smallbuilding', 'The brahmin barons have their headquarters downtown.', 'Q6464736', 'La Quinta Resort and Club', 33.6879, -116.31345),
+      real('ss-westin-ranch', 'Westin Ranch', 'house', 'A ranch on the edge of downtown.', 'Q19461590', 'Empire Polo Club', 33.67981, -116.23726),
+      real('ss-hubology', 'Church of Hubology', 'church', 'The Hub-born faith has a church downtown.', 'Q2583488', 'Forest Lawn Cemetery', 33.8154, -116.441),
+      real('ss-radscorpion-cave', 'Radscorpion Cave', 'arch', 'A cave near the old settlement, home to radscorpions.', 'Q2223242', 'Santa Rosa and San Jacinto Mountains National Monument', 33.80083, -116.70556),
+      real('ss-rangers', 'NCR Rangers Headquarters', 'shield', "Home of the Rangers, the Republic's elite scouts.", 'Q7413436', 'San Bernardino National Forest', 33.5233, -116.425),
     ],
   },
   {
@@ -203,7 +205,8 @@ export const LORE_TOWNS: LoreTown[] = [
     town: 'Dayglow, the ghoul state (Fallout lore)',
     anchor: { lat: 32.7157, lng: -117.1611 },
     sites: [
-      s('dg-glow', 'The Glow', 'monument', 14000, -3000, 'The irradiated crater where the West Tek facility took a direct hit. Dayglow can see it from its borders.'),
+      // the crater is out beyond the coast in the game; here it stands on a real place at Point Loma (the nearest ordinary place within 3 km, which it renames)
+      s('dg-glow', 'The Glow', 'monument', -7500, -5600, 'The irradiated crater where the West Tek facility took a direct hit. Dayglow can see it from its borders.', true),
       // the game puts it out on the water; here it stands on the nearest real place south of downtown, which it renames
       s('dg-new-adytum', 'New Adytum', 'house', 4000, -5000, 'A settlement whose scavenging companies partnered with the ghouls of Dayglow.', true),
     ],

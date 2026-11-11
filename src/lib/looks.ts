@@ -85,7 +85,7 @@ export const LOOKS: Record<LookId, Look> = {
   },
   parchment: {
     id: 'parchment', label: 'Parchment', mapStyles: parchmentStyles, background: '#dfcb99',
-    ink: '#3b2a14', inkDim: '#7a5a2a', zoneFill: 'rgba(160,60,30,0.18)', zoneStroke: '#a3401f', vault: '#1f5f8a', floodFill: '#a5b49b', floodLand: '#dccb9a', floodEdge: 0.4, floodOpacity: 0.86, floodStroke: '#7d8f74',
+    ink: '#3b2a14', inkDim: '#7a5a2a', zoneFill: 'rgba(160,60,30,0.18)', zoneStroke: '#a3401f', vault: '#1f5f8a', floodFill: '#a5b49b', floodLand: '#dccb9a', floodEdge: 0.88, floodOpacity: 0.94, floodStroke: '#7d8f74',
   },
 };
 

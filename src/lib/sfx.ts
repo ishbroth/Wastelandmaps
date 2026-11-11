@@ -78,7 +78,7 @@ export function recordingSink(): MediaStreamAudioDestinationNode | null {
   return context()?.createMediaStreamDestination() ?? null;
 }
 
-// ---- the blast that reveals a rendered picture: a crack, then a thunderous explosion, then debris coming down, in four different versions that take turns. The burst
+// ---- the blast that reveals a rendered picture: a crack, then a thunderous explosion, then debris coming down (wind, dust and rocks), in four different versions that take turns. The burst
 // of light is 1.94 seconds in (see BlowApart). The cracks and the explosions are recordings; the deep boom under them, the rumble, and the rain of falling pieces are
 // made here (the pieces by the dozen, at random but always the same random for a version).
 
@@ -168,18 +168,30 @@ export async function renderBlastSynth(version = 0): Promise<AudioBuffer | null>
     const roar = noise(white, 0.06, 2.2, 'bandpass', 1500, 0.6, 0.6, 0.02, 1.6);
     roar.frequency.setValueAtTime(1500, 0.06);
     roar.frequency.exponentialRampToValueAtTime(240, 1.6);
-    // the debris coming down: small pieces by the dozen, thinning out, a few heavy ones landing, a few clinks
+    // the debris coming down, as wind and dust and rocks (nothing pitched or narrow: that sounds like birds): gusts of wind that swell and die away, a long soft hiss of dust
+    // drifting down, then stones and gravel pattering and a few heavy rocks landing, thinning out
+    for (let g = 0; g < 4; g++) {
+      const at = 0.7 + g * 1.25 + rand() * 0.4;
+      const gust = noise(white, at, 3.2, 'bandpass', 380 + rand() * 200, 0.35, 0.34 * (1 - g * 0.17), 0.9, 1.9);
+      gust.frequency.setValueAtTime(380 + rand() * 200, at);
+      gust.frequency.exponentialRampToValueAtTime(240 + rand() * 120, at + 2.8);
+    }
+    noise(white, 1.0, 4.8, 'highpass', 2600, 0.4, 0.07, 0.6, 3.8);
+    noise(brown, 1.1, 4.6, 'lowpass', 1100, 0.5, 0.4, 0.5, 3.6);
     for (let i = 0; i < v.pieces; i++) {
       const at = 0.9 + 4.4 * Math.pow(rand(), 1.5);
       const fade = 1 - (at - 0.9) / 5.2;
       const kind = rand();
       if (kind < 1 - v.heavy - v.clink) {
-        noise(white, at, 0.06, 'bandpass', Math.exp(Math.log(500) + rand() * (Math.log(6000) - Math.log(500))), 3 + rand() * 5, (0.11 + rand() * 0.36) * fade, 0.001, 0.012 + rand() * 0.04);
+        // a small stone or a clod of dirt: a short, soft, wide tick
+        noise(white, at, 0.09, 'bandpass', 700 + rand() * 1800, 0.5 + rand() * 0.7, (0.1 + rand() * 0.28) * fade, 0.001, 0.02 + rand() * 0.05);
       } else if (kind < 1 - v.clink) {
+        // a heavy rock landing: a dull thud
         tone('sine', at, 150 + rand() * 60, 50, 0.09, (0.4 + rand() * 0.35) * fade, 0.002, 0.1);
         noise(brown, at, 0.1, 'lowpass', 400, 0.7, 0.65 * fade, 0.002, 0.08);
       } else {
-        tone('triangle', at, 1200 + rand() * 2600, 900, 0.1, 0.1 * fade, 0.001, 0.12);
+        // gravel sliding and settling: a longer, gritty scrape
+        noise(white, at, 0.24, 'bandpass', 900 + rand() * 900, 0.6, 0.14 * fade, 0.012, 0.16);
       }
     }
     return await c.startRendering();

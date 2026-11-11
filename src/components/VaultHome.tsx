@@ -10,8 +10,9 @@ import {
   whyNotBuild, whyNotDemolish, hasWayDown, hasWayUp, stairDir, openCell, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
-import { Face, SettlerArt, type Pose } from './vaultArt';
-import { CELL, FURNITURE, SEATS, layoutOf, pieceScale, setHallLookup, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, footBox, pieceFits, roomRect, screenBox, unproject, type Rect } from './vaultIso';
+import { Face, SettlerArt } from './vaultArt';
+import { type Sim, arrive, begin, finish, freePoint, liveOf, plan } from './vaultSims';
+import { CELL, layoutOf, setHallLookup, HallX, HallY, INK, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, cellRect, doorsOf, footBox, pieceFits, roomRect, screenBox, unproject, type Rect } from './vaultIso';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -37,112 +38,37 @@ export interface VacationOffer {
   unlock: (placeId: string, icon: string, replace?: string) => Promise<string | null>;
 }
 
-type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType; /** A stairwell's direction, once chosen. */ dir?: 'up' | 'down' } | { kind: 'room'; idx: number; item?: string; pick?: boolean } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
+type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType; /** A stairwell's shape, once chosen. */ shape?: 'straight' | 'u'; /** A stairwell's direction, once chosen. */ dir?: 'up' | 'down' } | { kind: 'room'; idx: number; item?: string; pick?: boolean } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
 
 // ---- the settlers' wandering ----
 
-interface Sim { id: number; kind: SettlerKind; level: number; x: number; y: number; path: { x: number; y: number }[]; face: 1 | -1; phase: number; pose: Pose; until: number; lift: number; seatFace?: 1 | -1; use: string }
-
-const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
-const cellOf = (x: number, y: number): [number, number] => [Math.max(0, Math.min(COLS - 1, Math.floor(x / CELL))), Math.max(0, Math.min(ROWS - 1, Math.floor(y / CELL)))];
-
-/** The points to walk through to get from one cell to another on a level (world positions): through the doorways between joined rooms. */
-function route(v: VaultHome, level: number, from: [number, number], to: [number, number], end: { x: number; y: number }): Sim['path'] {
-  const key = (c: number, r: number) => `${c},${r}`;
-  const prev = new Map<string, [number, number] | null>([[key(...from), null]]);
-  const queue: [number, number][] = [from];
-  while (queue.length) {
-    const [c, r] = queue.shift() as [number, number];
-    if (c === to[0] && r === to[1]) break;
-    for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-      const n: [number, number] = [c + dc, r + dr];
-      if (!roomAt(v, level, n[0], n[1]) || roomAt(v, level, n[0], n[1])?.type === 'stairs' || prev.has(key(...n))) continue;
-      prev.set(key(...n), [c, r]);
-      queue.push(n);
-    }
-  }
-  if (!prev.has(key(...to))) return [end];
-  const cells: [number, number][] = [];
-  for (let at: [number, number] | null = to; at; at = prev.get(key(...at)) ?? null) cells.unshift(at);
-  const path: Sim['path'] = [];
-  for (let i = 1; i < cells.length; i++) {
-    const [c, r] = cells[i];
-    const [pc, pr] = cells[i - 1];
-    const ra = roomAt(v, level, pc, pr);
-    const rb = roomAt(v, level, c, r);
-    if (!ra || !rb || ra === rb) continue; // inside one wide room there is no door
-    const A = roomRect(ra);
-    const B = roomRect(rb);
-    if (r === pr) {
-      // along x, through the doorway in the right room's left wall
-      const dir = c > pc ? 1 : -1;
-      const y = A.yc ?? B.yc ?? (Math.max(A.y, B.y) + Math.min(A.y + A.d, B.y + B.d)) / 2;
-      path.push({ x: dir > 0 ? A.x + A.w - 9 : A.x + 9, y }, { x: dir > 0 ? B.x + 9 : B.x + B.w - 9, y });
-    } else {
-      // along y, through the doorway in the front room's right wall
-      const dir = r > pr ? 1 : -1;
-      const x = A.xc ?? B.xc ?? (Math.max(A.x, B.x, c * CELL) + Math.min(A.x + A.w, B.x + B.w, (c + 1) * CELL)) / 2;
-      path.push({ x, y: dir > 0 ? A.y + A.d - 9 : A.y + 9 }, { x, y: dir > 0 ? B.y + 9 : B.y + B.d - 9 });
-    }
-  }
-  path.push(end);
-  return path;
-}
-
-function plan(s: Sim, v: VaultHome) {
-  const rooms = roomsOn(v, s.level).filter((r) => r.type !== 'stairs');
-  if (!rooms.length) return;
-  const room = pick(rooms);
-  const use = room.furniture.length && Math.random() < 0.65 ? pick(room.furniture) : '';
-  let spot = floorPoint(room, 0.1 + Math.random() * 0.8, 0.25 + Math.random() * 0.7);
-  if (use && FURNITURE[use]) {
-    const p = FURNITURE[use];
-    // beside the piece, on the side that faces the room
-    spot = floorPoint(room, Math.min(1, p.u + (p.face === 'x' ? 0.16 : 0) + (use === 'table' ? pick([-0.18, 0.18]) : 0)), Math.min(1, p.v + (p.face === 'y' ? 0.16 : 0)));
-  }
-  s.seatFace = undefined;
-  if (use && SEATS[use]) {
-    const seat = pick(SEATS[use]);
-    const at = layoutOf(room, (c, r) => roomAt(v, s.level, c, r), room.type !== 'stairs' && roomAt(v, s.level + 1, room.col, room.row)?.type === 'stairs').get(use);
-    if (at) { const k = pieceScale(room); const turned = !!at.swap; spot = { x: at.x + (turned ? seat.dy : seat.dx) * k, y: at.y + (turned ? seat.dx : seat.dy) * k }; s.seatFace = turned ? (seat.face === 1 ? -1 : 1) : seat.face; }
-  }
-  s.path = route(v, s.level, cellOf(s.x, s.y), cellOf(spot.x, spot.y), spot);
-  s.lift = 0;
-  s.use = use;
-  s.until = 0;
-}
-
-function arrive(s: Sim, now: number) {
-  const use = s.use;
-  const pet = s.kind === 'dog' || s.kind === 'cat';
-  if (use && (SIT.has(use) || LIE.has(use))) {
-    s.pose = LIE.has(use) || (pet && use !== 'bar') ? 'lie' : 'sit';
-    s.lift = LIFT[use] ?? 0;
-    if (s.seatFace) s.face = s.seatFace; // sitting, they look out from the back of the seat
-    s.until = now + 5000 + Math.random() * 6000;
-  } else {
-    s.pose = 'stand';
-    s.until = now + (use ? 3500 + Math.random() * 4000 : 700 + Math.random() * 2200);
-    if (use) s.face = pick([1, -1]);
-  }
-}
-
-function useSettlers(vault: VaultHome | null) {
+/** The settlers' wandering: each one picks a piece of furniture (or just an open spot) and goes to it around everything else in the room (see vaultSims). */
+function useSettlers(vault: VaultHome | null): Sim[] {
   const sims = useRef<Sim[]>([]);
   const vref = useRef<VaultHome | null>(vault);
   vref.current = vault;
+  const layout = useRef('');
   const [, setTick] = useState(0);
   useEffect(() => {
     if (!vault) return;
-    const have = new Set(sims.current.map((s) => s.id));
+    // something was built, moved or demolished: what they were about to do may no longer be there, so they start over
+    const sig = JSON.stringify(vault.rooms.map((r) => [r.type, r.level, r.col, r.row, r.furniture, r.put ?? null]));
+    if (layout.current && layout.current !== sig) {
+      for (const t of sims.current) { t.queue = []; t.cur = null; t.path = []; t.fx = null; t.seat = null; t.exit = null; t.pose = 'stand'; t.lift = 0; t.tilt = 0; t.action = undefined; t.until = 0; }
+    }
+    layout.current = sig;
+    // settlers who have left are gone from the picture
+    const here = new Set((vault.settlers as Settler[]).map((st) => st.id));
+    sims.current = sims.current.filter((t) => here.has(t.id));
+    const have = new Set(sims.current.map((t) => t.id));
     const levels = [...new Set(vault.rooms.map((r) => r.level))];
     for (const st of vault.settlers as Settler[]) {
       if (have.has(st.id)) continue;
       // each settler lives on one level (spread out over the ones that have rooms), and wanders only there
       const level = levels[st.id % levels.length] ?? 0;
       const home = roomsOn(vault, level)[0] ?? vault.rooms[0];
-      const at = floorPoint(home, 0.2 + Math.random() * 0.6, 0.4 + Math.random() * 0.4);
-      sims.current.push({ id: st.id, kind: st.kind, level, x: at.x, y: at.y, path: [], face: 1, phase: Math.random(), pose: 'stand', until: 0, lift: 0, use: '' });
+      const at = freePoint(vault, home);
+      sims.current.push({ id: st.id, kind: st.kind, level, x: at.x, y: at.y, path: [], face: 1, phase: Math.random(), pose: 'stand', until: 0, lift: 0, tilt: 0, queue: [], cur: null, exit: null, fx: null, seat: null });
     }
   }, [vault]);
   useEffect(() => {
@@ -155,24 +81,32 @@ function useSettlers(vault: VaultHome | null) {
       const v = vref.current;
       const now = Date.now();
       if (v && v.rooms.length) {
-        for (const s of sims.current) {
-          if (s.until > now) continue;
-          if (s.pose !== 'walk' && s.path.length === 0) { s.lift = 0; plan(s, v); }
-          const wp = s.path[0];
-          if (!wp) { s.pose = 'stand'; s.until = now + 600; continue; }
-          const dx = wp.x - s.x;
-          const dy = wp.y - s.y;
+        for (const t2 of sims.current) {
+          if (t2.until > now) continue;
+          if (t2.path.length === 0 && t2.pose !== 'walk') {
+            // done with the last thing: the next one in the list, or a new one
+            if (t2.cur) { t2.cur = null; if (t2.queue.length === 0) finish(t2); }
+            if (t2.queue.length === 0) plan(t2, v, sims.current);
+            const next = t2.queue.shift();
+            if (!next) { t2.pose = 'stand'; t2.until = now + 600; continue; }
+            begin(t2, next, v);
+            if (t2.path.length === 0) { arrive(t2, now); continue; }
+          }
+          const wp = t2.path[0];
+          if (!wp) { t2.pose = 'stand'; t2.until = now + 600; continue; }
+          const dx = wp.x - t2.x;
+          const dy = wp.y - t2.y;
           const dist = Math.hypot(dx, dy);
-          const speed = s.kind === 'dog' ? 44 : s.kind === 'cat' ? 38 : 32;
+          const speed = t2.kind === 'dog' ? 44 : t2.kind === 'cat' ? 38 : 32;
           if (dist <= speed * dt) {
-            s.x = wp.x; s.y = wp.y; s.path.shift();
-            if (!s.path.length) arrive(s, now);
+            t2.x = wp.x; t2.y = wp.y; t2.path.shift();
+            if (!t2.path.length) arrive(t2, now);
           } else {
-            s.x += (dx / dist) * speed * dt; s.y += (dy / dist) * speed * dt;
+            t2.x += (dx / dist) * speed * dt; t2.y += (dy / dist) * speed * dt;
             const across = dx - dy; // along the screen
-            if (Math.abs(across) > 0.5) s.face = across > 0 ? 1 : -1;
-            s.phase = (s.phase + dt * 2.2) % 1;
-            s.pose = 'walk';
+            if (Math.abs(across) > 0.5) t2.face = across > 0 ? 1 : -1;
+            t2.phase = (t2.phase + dt * 2.2) % 1;
+            t2.pose = 'walk';
           }
         }
       }
@@ -282,11 +216,19 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
   }, [fresh]);
   // a message that flashes for a moment: why something cannot be done yet
   const flashTimer = useRef(0);
-  const say = useCallback((text: string) => {
+  const say = useCallback((text: string, ms = 3600) => {
     setFlash(text.toUpperCase());
     window.clearTimeout(flashTimer.current);
-    flashTimer.current = window.setTimeout(() => setFlash(''), 3600);
+    flashTimer.current = window.setTimeout(() => setFlash(''), ms);
   }, []);
+  /** What neglect did while the vault was left alone: settlers who left, and loot that went missing. Each message flashes for a while, one after the other. */
+  const report = useCallback((r: { stolen?: string[]; left?: { kind: string; name?: string }[] }) => {
+    const lines = [
+      ...(r.left ?? []).map((x) => `${x.name ?? x.kind} has left the vault: there were not enough rooms for them`),
+      ...(r.stolen ?? []).map((id) => `1 x ${lootName(id as LootId)} has disappeared from your inventory...you suspect one of your settlers, since they have been grumbling lately`),
+    ];
+    lines.forEach((t, i) => window.setTimeout(() => say(t, 7000), i * 7200));
+  }, [say]);
   // the camera: the picture is a window onto the level, and moving between the whole level and one room slides and scales that window
   const viewRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -318,28 +260,32 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     const visit = async () => {
       const r = await call({ action: 'visit' });
       if (off) return;
-      if (r.ok) { setVault(r.vault); setError(null); } else setError(REASONS[r.reason] ?? 'COULD NOT ENTER THE VAULT');
+      if (r.ok) { setVault(r.vault); setError(null); if (r.stolen?.length) void account.refresh(); report(r); } else setError(REASONS[r.reason] ?? 'COULD NOT ENTER THE VAULT');
     };
     void visit();
     const id = window.setInterval(() => { if (!document.hidden) void visit(); }, 30_000);
     return () => { off = true; window.clearInterval(id); };
-  }, [call]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, report]);
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
 
   const sims = useSettlers(vault);
+  const live = liveOf(sims);
+  const liveKey = [...live.entries()].map(([k, e]) => `${k}${e.on ? '+' : ''}${(e.pulled ?? []).join('')}`).join('|');
 
   const act = useCallback(async (body: Parameters<typeof vaultCall>[0], done?: (v: VaultHome, refund?: Record<string, number>) => void) => {
     setBusy(true);
     const r = await call(body);
     setBusy(false);
-    if (r.ok) { setVault(r.vault); setError(null); setPanel(null); done?.(r.vault, r.refund); void account.refresh(); } else setError(REASONS[r.reason] ?? r.reason);
-  }, [account, call]);
+    if (r.ok) { setVault(r.vault); setError(null); setPanel(null); done?.(r.vault, r.refund); void account.refresh(); report(r); } else setError(REASONS[r.reason] ?? r.reason);
+  }, [account, call, report]);
 
   const mood = vault ? moodAt({ ...vault, seenAt: now }, now) : null;
-  const waiting = vault ? settlersWaiting(vault) : 0;
+  // never negative: with more settlers than the rooms provide for (after a demolition) nobody is waiting, and a negative number would count as someone waiting and block every tap
+  const waiting = vault ? Math.max(0, settlersWaiting(vault)) : 0;
   // the menu of rooms to build shows six at a time and scrolls inside a window of that size
   const [buildList, setBuildList] = useState<HTMLUListElement | null>(null);
   const [buildHeight, setBuildHeight] = useState<number | null>(null);
@@ -566,7 +512,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
         el: (
           <g className={`rm-vh-room${fresh && fresh.room === idx && !fresh.item ? ' rm-vh-fresh' : ''}`} role="button" aria-label={def.name}>
             {halls}
-            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} level={room.level} labelFront={[at(room.col - 1, room.row), ...Array.from({ length: slots }, (_, k) => at(room.col + k, room.row - 1))].some((n) => n?.type === 'hallway')} doorsL={doorsL} doorsR={doorsR} hole={room.type !== 'stairs' && roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} face={room.face} way={stairDir(vault, room) ?? 'down'} furniture={room.furniture} />
+            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} level={room.level} labelFront={[at(room.col - 1, room.row), ...Array.from({ length: slots }, (_, k) => at(room.col + k, room.row - 1))].some((n) => n?.type === 'hallway')} doorsL={doorsL} doorsR={doorsR} hole={room.type !== 'stairs' && roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} face={room.face} way={stairDir(vault, room) ?? 'down'} shape={room.shape} entry={room.entry} furniture={room.furniture} />
           </g>
         ),
       });
@@ -609,14 +555,15 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
           el: (
             <g key={`f${idx}-${id}`}
               onPointerDown={(e) => { if (placingRef.current || room.type === 'hallway') return; const pid = e.pointerId; hold.current = { x: e.clientX, y: e.clientY, id: pid, timer: window.setTimeout(() => { hold.current = null; beginMoveRef.current(idx, id, pid); }, 550) }; }}>
-              <PlacedPiece room={room} id={id} pos={at} fresh={!!fresh && fresh.room === idx && fresh.item === id} />
+              <PlacedPiece room={room} id={id} pos={at} fresh={!!fresh && fresh.room === idx && fresh.item === id} live={live.get(`${idx}:${id}`)} />
             </g>
           ),
         }];
       }));
     });
     return out;
-  }, [vault, level, fresh, movingKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vault, level, fresh, movingKey, liveKey]);
 
   // where the window should be while a room is blown up (above the upgrade popup while that is open)
   const docked = panel?.kind === 'room';
@@ -692,6 +639,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
           <span>HAPPINESS</span>
           <div className="rm-vh-bar"><div style={{ width: `${mood.shown}%` }} /></div>
           <b>{mood.shown}</b>
+          {mood.trend && <i className={`rm-vh-trend ${mood.trend}`} title={mood.trend === 'up' ? 'Going up' : 'Going down'} aria-label={mood.trend === 'up' ? 'Happiness is going up' : 'Happiness is going down'}>{mood.trend === 'up' ? '▲' : '▼'}</i>}
           <em>{mood.word}</em>
         </div>
       )}
@@ -726,7 +674,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             const top = (s.pose === 'lie' ? 16 : s.pose === 'sit' ? 38 : 47) * SETTLER_SCALE;
             return (
               <g key={`s${s.id}`} transform={`translate(${X} ${Y - s.lift * SETTLER_SCALE})`} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setPanel({ kind: 'settler', id: s.id, name }); }}>
-                <g transform={`scale(${s.face * SETTLER_SCALE} ${SETTLER_SCALE})`}><SettlerArt kind={s.kind} pose={s.pose} phase={s.phase} /></g>
+                <g transform={`rotate(${s.tilt}) scale(${s.face * SETTLER_SCALE} ${SETTLER_SCALE})`}><SettlerArt kind={s.kind} pose={s.pose} phase={s.phase} action={s.action} /></g>
                 <rect x={-14} y={-top - 12} width={28} height={top + 12} fill="transparent" stroke="none" />
                 {name && (
                   <g transform={`translate(0 ${-top - 2})`}>
@@ -785,6 +733,12 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
           );
         })()}
       </div>
+        {vault && (
+          <div className="rm-vh-roster" aria-label="Settlers">
+            <span>SETTLERS:</span>
+            {vault.settlers.length === 0 ? <em>None</em> : <ol>{vault.settlers.map((st) => <li key={st.id}>{st.name ?? st.kind.charAt(0).toUpperCase() + st.kind.slice(1)}</li>)}</ol>}
+          </div>
+        )}
         {vault && vault.rooms.length > 0 && (
           <button type="button" className={`rm-vh-share${levelsShown ? '' : ' alone'}`} onClick={() => void shareVault()} aria-label="Share a picture of your vault" title="Share your vault">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -902,13 +856,32 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                 <div className="rm-vh-row rm-vh-row-more"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel(null)}>CANCEL</button><span className={`rm-vh-more${buildMore ? ' on' : ''}`} aria-hidden="true">▼</span></div>
               </div>
             )}
-            {panel.kind === 'build' && panel.type === 'stairs' && !panel.dir && (
+            {panel.kind === 'build' && panel.type === 'stairs' && !panel.shape && (
+              <div className="rm-vh-sheet-body">
+                <h3>WHICH KIND OF STAIRWELL?</h3>
+                <p>A STRAIGHT ONE IS A SINGLE FLIGHT. A U-SHAPED ONE IS TWO CELLS WIDE: IT HAS A LANDING AND TURNS BACK THE WAY YOU CAME ON THE NEXT LEVEL.</p>
+                <ul className="rm-vh-types">
+                  {([['straight', 'STRAIGHT', 'ONE FLIGHT, ONE CELL'], ['u', 'U-SHAPED', 'TWO FLIGHTS AND A LANDING, TWO CELLS WIDE']] as const).map(([id, name, note]) => {
+                    const why = whyNotBuild(vault, 'stairs', panel.level, panel.col, panel.row, undefined, id);
+                    return (
+                      <li key={id}>
+                        <button type="button" className={!why ? 'can' : undefined} disabled={!!why} onClick={() => setPanel({ ...panel, shape: id })}>
+                          <span>{name}</span><i>{why ? why.toUpperCase() : note}</i>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel({ kind: 'build', level: panel.level, col: panel.col, row: panel.row })}>BACK</button></div>
+              </div>
+            )}
+            {panel.kind === 'build' && panel.type === 'stairs' && panel.shape && !panel.dir && (
               <div className="rm-vh-sheet-body">
                 <h3>WHICH WAY DOES IT GO?</h3>
                 <p>A STAIRWELL MAKES ITS OTHER END ON THE LEVEL IT GOES TO. TO CHANGE YOUR MIND LATER, YOU HAVE TO DEMOLISH IT.</p>
                 <div className="rm-vh-dirs">
                   {(['up', 'down'] as const).map((d) => {
-                    const why = whyNotBuild(vault, 'stairs', panel.level, panel.col, panel.row, d);
+                    const why = whyNotBuild(vault, 'stairs', panel.level, panel.col, panel.row, d, panel.shape);
                     return (
                       <button key={d} type="button" className={!why ? 'can' : undefined} disabled={!!why} onClick={() => setPanel({ ...panel, dir: d })}>
                         <b>{d === 'up' ? '▲' : '▼'}</b><span>{d === 'up' ? 'UP' : 'DOWN'}</span><i>{why ? why.toUpperCase() : `LEVEL ${panel.level + (d === 'up' ? 0 : 2)}`}</i>
@@ -916,14 +889,14 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                     );
                   })}
                 </div>
-                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel({ kind: 'build', level: panel.level, col: panel.col, row: panel.row })}>BACK</button></div>
+                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel({ ...panel, shape: undefined })}>BACK</button></div>
               </div>
             )}
             {panel.kind === 'build' && panel.type && (panel.type !== 'stairs' || panel.dir) && (
               <RecipeCard
-                verb="BUILD" what={roomDef(panel.type).name.toUpperCase()} title={panel.type === 'stairs' ? `BUILD A STAIRWELL ${panel.dir === 'up' ? 'UP' : 'DOWN'}` : `BUILD A ${roomDef(panel.type).name.toUpperCase()}`} recipe={buildRecipe(vault, panel.type)} have={ownLoot} busy={busy}
+                verb="BUILD" what={roomDef(panel.type).name.toUpperCase()} title={panel.type === 'stairs' ? `BUILD A ${panel.shape === 'u' ? 'U-SHAPED ' : ''}STAIRWELL ${panel.dir === 'up' ? 'UP' : 'DOWN'}` : `BUILD A ${roomDef(panel.type).name.toUpperCase()}`} recipe={buildRecipe(vault, panel.type)} have={ownLoot} busy={busy}
                 onBack={() => setPanel(panel.type === 'stairs' ? { ...panel, dir: undefined } : { kind: 'build', level: panel.level, col: panel.col, row: panel.row })}
-                onPay={() => act({ action: 'build', type: panel.type as string, level: panel.level, col: panel.col, row: panel.row, ...(panel.type === 'stairs' ? { dir: panel.dir } : {}) }, (v) => setFresh({ room: panel.type === 'stairs' ? v.rooms.length - 2 : v.rooms.length - 1 }))}
+                onPay={() => act({ action: 'build', type: panel.type as string, level: panel.level, col: panel.col, row: panel.row, ...(panel.type === 'stairs' ? { dir: panel.dir, shape: panel.shape } : {}) }, (v) => setFresh({ room: panel.type === 'stairs' ? v.rooms.length - 2 : v.rooms.length - 1 }))}
               />
             )}
             {panel.kind === 'room' && room && !panel.item && !panel.pick && (
