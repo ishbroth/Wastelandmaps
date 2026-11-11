@@ -27,7 +27,8 @@ import type { Region } from '../lib/google';
 
 /** Is this place's snapshot unlocked? The same test the snapshot button uses: a free landmark, a place unlocked with a credit, or your home (unlocked under its vault key). */
 function snapshotUnlocked(account: Account, id: string): boolean {
-  if (account.unlocked.has(id) || freeRenderFor(id)) return true;
+  // a cleared place was unlocked: the raid is refused on the server until it is (so a cleared one never shows as locked, whichever way it was unlocked: one at a time, or the whole metro's atlas)
+  if (account.unlocked.has(id) || account.cleared.has(id) || freeRenderFor(id)) return true;
   if (id.startsWith('me:')) {
     const place = id.slice(3);
     for (const key of account.unlocked) if (key.startsWith(`vault:${place}:`)) return true;

@@ -171,7 +171,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       if (g.killed > before) { if (!voicedDeath) playSound('kill', sound); buzz('kill'); }
       if (g.hits > hitsBefore) { playSound('hurt', sound); buzz('hurt'); }
       if (pointer.current.down) shoot();
-      draw(c, g, now / 1000);
+      // turning the phone makes the canvas briefly empty or changes its size under us: one bad frame must never end the loop (it used to stop the whole fight)
+      try { draw(c, g, now / 1000); } catch { /* skip this frame */ }
       if (now - lastHud > 100) {
         lastHud = now;
         const boss = g.enemies.find((e) => e.boss && e.state !== 'dying');
@@ -209,6 +210,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       const picture = bg.current as HTMLImageElement;
       const dpr = window.devicePixelRatio || 1;
       const cssW = c.clientWidth, cssH = c.clientHeight;
+      if (cssW < 2 || cssH < 2 || !picture.naturalWidth) return; // mid-turn: nothing to draw on yet
       if (c.width !== Math.round(cssW * dpr) || c.height !== Math.round(cssH * dpr)) {
         c.width = Math.round(cssW * dpr);
         c.height = Math.round(cssH * dpr);
