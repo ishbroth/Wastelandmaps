@@ -105,7 +105,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   const irradiated = isIrradiated(spot.position, zones);
   const supplied = manualBefore(spot.id);
   const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || !!supplied || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned || (streetState === 'no' && !spot.personal?.home))));
-  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated, vault: spot.vault?.number }, !!rendered?.owned || homeOwned);
+  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated, vault: spot.vault?.number, category: spot.kind }, !!rendered?.owned || homeOwned);
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
   // a vacation vault: its picture is the place with a vault door in it (made when it was unlocked)
@@ -121,6 +121,9 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   const locked = canPay && !paidReady && !vacationPlace;
   // unlocked before: opening it again only fetches the picture, so there is no sealed notice, just the cog and the message
   const ownedAlready = !!rendered?.owned || homeOwned || account.unlocked.has(spot.id);
+  // whether it is theirs is not known until the account's unlocks have loaded and (for an address) the check of it has answered: until then nothing says SEALED or offers to unlock
+  // (it used to flash up for a snapshot that was paid for already, and then turn into the film being fetched)
+  const ownershipKnown = !account.session || (account.credits !== null && (!personal || rendered !== null));
 
   // what the reveal plays between: the real photo, and the finished picture
   const reveal = vacationReveal ?? (paidReady?.rubble && personal ? { before: paidReady.url, after: paidReady.url, name: spot.name, file: fileName, pristine: true, credit: null } : render
@@ -199,8 +202,8 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
           )}
           {tab === 'snapshot' && locked && (
             <div className="rm-locked">
-              {!ownedAlready && <b>SNAPSHOT SEALED</b>}
-              {ownedAlready && paid.state.kind !== 'error' ? null : home
+              {ownershipKnown && !ownedAlready && <b>SNAPSHOT SEALED</b>}
+              {!ownershipKnown || (ownedAlready && paid.state.kind !== 'error') ? null : home
                 ? <p>Blow up your own home. The Street View picture of your address is turned into the ruin it would be: rubble, with your vault door in the ground and your number on it. Made just for you, yours to download and share.</p>
                 : personal
                 ? (streetState === 'no'
@@ -208,7 +211,9 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
                   : <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share.</p>)
                 : <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>}
               {paid.state.kind === 'error' && (paid.state.resetsAt ? <ProjectorDown resetsAt={paid.state.resetsAt} /> : <p className="rm-account-note">{paid.state.message}</p>)}
-              {paid.state.kind === 'working' || (ownedAlready && paid.state.kind !== 'error') ? (
+              {!ownershipKnown ? (
+                <button type="button" className="rm-btn rm-developing" disabled><CogSpinner /> CHECKING YOUR FILM…</button>
+              ) : paid.state.kind === 'working' || (ownedAlready && paid.state.kind !== 'error') ? (
                 <button type="button" className="rm-btn rm-developing" disabled><CogSpinner /> RETRIEVING FILM… 20 SECONDS</button>
               ) : (
                 <button type="button" className="rm-btn" onClick={() => (!account.session ? onAccount() : (account.credits ?? 0) < cost ? setBuying(true) : void paid.run())}>{home ? 'BLOW UP MY HOME' : 'UNLOCK'} FOR <Caps n={account.session ? `${caps(cost)}/${caps(account.credits ?? 0).toLocaleString('en-US')}` : caps(cost)} /></button>

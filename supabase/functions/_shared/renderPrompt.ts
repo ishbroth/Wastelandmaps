@@ -63,13 +63,27 @@ function generic(name: string): string {
   return 'Severely damaged: a large part of the structure has collapsed or broken off and lies in the rubble, with big holes torn through the walls and roof and the frame exposed.';
 }
 
+/** Words that name a building (a place with one has something standing to put a door in). */
+const BUILDING = /\b(hall|museum|church|cathedral|basilica|chapel|temple|mosque|synagogue|castle|palace|tower|building|center|centre|library|school|college|university|hospital|hotel|house|mansion|station|terminal|stadium|arena|theater|theatre|capitol|courthouse|mall|market|bank|office|headquarters|factory|plant|warehouse|monument|memorial|lighthouse|fort|prison|airport|opera|gallery|club|casino|restaurant|brewery|mill|barn|depot|arcade)\b/i;
+/** Names of places that are ground, not a building: parks, fields, plazas, beaches, lakes. */
+const GROUND = /\b(park|garden|gardens|square|plaza|common|green|field|fields|meadow|preserve|reserve|forest|woods|beach|lake|pond|river|creek|cemetery|trail|trailhead|playground|campground|quarry|farm|ranch|mountain|hill|summit|point|bay|island|reservoir|canal|grounds|lawn|prairie|marsh|wetland|dune|dunes|plain)\b/i;
+/** Has this place no building to speak of (a park, a field, a plaza, a beach)? Then its vault door lies in the ground. The kind of place helps: a park is a park. */
+export function hasNoBuilding(name: string, category?: string): boolean {
+  if (BUILDING.test(name)) return false;
+  // a place of a building kind (a stadium called a park, a school, a hospital) has a building whatever its name says
+  if (category && ['arena', 'medical', 'school', 'chapel', 'lodging', 'market', 'guard', 'cantina', 'fuel'].includes(category)) return false;
+  return category === 'park' || GROUND.test(name);
+}
+
 /** What a vault entrance's picture must show: the vault door, in a surviving wall of the ruin or in the ground among the rubble, with its number. */
-function vaultDoor(number: number): string {
+function vaultDoor(number: number, ground = false): string {
   const n = String(number).padStart(3, '0');
+  // nothing stands here worth putting a door in: the door lies in the ground (a hatch), never upright as if it were left over from a building
+  if (ground) return ` THIS PLACE IS ALSO THE ENTRANCE TO VAULT ${n}, and the vault door must be clearly visible in the picture. There is no building here, so the door is NOT standing up and is NOT set in a wall or any upright structure: it lies FLAT IN THE GROUND, horizontal like a cellar hatch, set into a broken concrete frame in the bare earth among the scorched grass, dead weeds and rubble, seen from above at an angle. It is a massive round steel vault door (gear-shaped, thick bolts, heavy hinge, worn yellow and blue paint), sealed or partly open, with the number ${n} painted in large, crisp, legible white numerals on its face.`;
   return ` THIS PLACE IS ALSO THE ENTRANCE TO VAULT ${n}, and the vault door must be clearly visible in the picture: either set into a wall that is still standing in the ruined building, or, if the building is a pile of rubble or an open park or field, set flat into the ground among the rubble in a concrete hatch. It is a massive round steel vault door (gear-shaped, thick bolts, heavy hinge, worn yellow and blue paint), sealed or partly open, with the number ${n} painted in large, crisp, legible white numerals on its face.`;
 }
 
-export function renderPrompt(name: string, entityId?: string, flooded = false, irradiated = false, vaultNumber?: number): string {
-  const damage = ((entityId && SPECIFIC[entityId]) || NAMED.find(([re]) => re.test(name))?.[1] || generic(name)) + (vaultNumber ? vaultDoor(vaultNumber) : '') + (irradiated ? ` It stands in a radiation zone: the sky is a sickly green-yellow haze of radioactive clouds with glowing green fallout drifting through the scene, and acid rain falls in streaks, leaving the ruins wet, stained and corroded.` : '') + (flooded ? ` The area is also partly flooded since the bombs fell: dark standing water fills the streets and the lower floors, the ruins rise out of it, and it shows muddy reflections of the broken buildings and the sky.` : '');
+export function renderPrompt(name: string, entityId?: string, flooded = false, irradiated = false, vaultNumber?: number, category?: string): string {
+  const damage = ((entityId && SPECIFIC[entityId]) || NAMED.find(([re]) => re.test(name))?.[1] || generic(name)) + (vaultNumber ? vaultDoor(vaultNumber, hasNoBuilding(name, category)) : '') + (irradiated ? ` It stands in a radiation zone: the sky is a sickly green-yellow haze of radioactive clouds with glowing green fallout drifting through the scene, and acid rain falls in streaks, leaving the ruins wet, stained and corroded.` : '') + (flooded ? ` The area is also partly flooded since the bombs fell: dark standing water fills the streets and the lower floors, the ruins rise out of it, and it shows muddy reflections of the broken buildings and the sky.` : '');
   return `Re-render this photograph as a scene from a modern open-world post-apocalyptic video game, in the visual style of Fallout 4 gameplay: the same landmark${name ? ` (${name})` : ''}, from the same angle and framing, still clearly recognizable and in the same place, but two hundred years after a nuclear war, and DESTROYED. The destruction must be dramatic and obvious, not just rust or dirt: ${damage} The rest of the scene is ruined too: fallen debris and heavy rubble, broken and burnt buildings, cracked ground with dead weeds and scrub, abandoned rusted cars, patches of vines. A hazy dusty sky in sickly orange-green with heavy clouds and a low sun, soft volumetric light, warm highlights and teal shadows, slightly desaturated colors, painterly realistic game-engine look, subtle film grain. Remove all modern people, boats, flags, cranes and signs. No text, no logos, no UI.`;
 }

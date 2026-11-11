@@ -36,7 +36,7 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-async function generate(photo: Photo, name: string, entity: string, flooded: boolean, irradiated: boolean, vaultNumber?: number): Promise<Uint8Array> {
+async function generate(photo: Photo, name: string, entity: string, flooded: boolean, irradiated: boolean, vaultNumber?: number, category?: string): Promise<Uint8Array> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) throw new Error('image generation is not set up');
   const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
@@ -44,7 +44,7 @@ async function generate(photo: Photo, name: string, entity: string, flooded: boo
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: renderPrompt(name, entity, flooded, irradiated, vaultNumber) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }],
+      contents: [{ parts: [{ text: renderPrompt(name, entity, flooded, irradiated, vaultNumber, category) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     }),
   });
@@ -63,7 +63,9 @@ Deno.serve(async (req) => {
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
 
-  const { placeId, name, flooded, irradiated, vault } = (await req.json().catch(() => ({}))) as { placeId?: string; name?: string; flooded?: boolean; irradiated?: boolean; vault?: number };
+  const { placeId, name, flooded, irradiated, vault, category } = (await req.json().catch(() => ({}))) as { placeId?: string; name?: string; flooded?: boolean; irradiated?: boolean; vault?: number; category?: string };
+  // what kind of place it is (a park has no building to put the vault door in)
+  const kindOf = typeof category === 'string' && /^[a-z]{2,20}$/.test(category) ? category : undefined;
   // a place that is the entrance to a vault: its picture has the vault door in it (the number is the vault's)
   const vaultNum = Number.isInteger(vault) && (vault as number) >= 1 && (vault as number) <= 999 ? (vault as number) : null;
   // a Wikidata place, or the one second-tier landmark whose render was supplied (see the renders row for it)
@@ -115,7 +117,7 @@ Deno.serve(async (req) => {
           else { await db.from('renders').delete().eq('place_id', placeId); await giveBack(); return reply(req, { error: 'no_photo' }, 404); }
         } else {
           try {
-            const png = await generate(photo, placeName, entity, flooded === true, irradiated === true, vaultNum ?? undefined);
+            const png = await generate(photo, placeName, entity, flooded === true, irradiated === true, vaultNum ?? undefined, kindOf);
             const path = `${entity}.png`;
             const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
             if (up.error) throw new Error('could not store the image');
