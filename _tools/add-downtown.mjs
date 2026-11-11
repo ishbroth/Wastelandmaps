@@ -143,6 +143,127 @@ async function fetchMissing() {
   plan();
 }
 
+
+/** A second look at the downtowns still empty: whatever Wikidata records as tall (30 m or more, or 7 floors or more) within 3 km, whatever kind of building it is called. */
+async function fetchTall() {
+  const fetchedFile = path.join(ROOT, '_data', 'downtown-fetched.json');
+  const tallDone = path.join(ROOT, '_data', 'downtown-tall.json');
+  const done = fs.existsSync(fetchedFile) ? readJson(fetchedFile) : {};
+  const seen = fs.existsSync(tallDone) ? readJson(tallDone) : {};
+  const { empty } = readJson(PLAN);
+  const todo = empty.filter((id) => seen[id] === undefined);
+  console.log('asking Wikidata for tall buildings in ' + todo.length + ' downtowns');
+  const OKCLASS = /building|skyscraper|hotel|tower|office|apartment|residential|hall|headquarters|bank|courthouse|house|block|complex|tall|high-?rise|condominium/i;
+  let n = 0;
+  const worker = async () => {
+    while (todo.length) {
+      const id = todo.shift();
+      const m = metros.find((x) => x.id === id);
+      const query = `SELECT ?item ?itemLabel ?sl ?coord ?classLabel WHERE {
+  SERVICE wikibase:around { ?item wdt:P625 ?coord . bd:serviceParam wikibase:center "Point(${m.lng} ${m.lat})"^^geo:wktLiteral . bd:serviceParam wikibase:radius "3" . }
+  { ?item wdt:P2048 ?h . FILTER(?h >= 30) } UNION { ?item wdt:P1101 ?fl . FILTER(?fl >= 7) }
+  ?item wikibase:sitelinks ?sl .
+  OPTIONAL { ?item wdt:P31 ?class . }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,mul,fr,de,es,pt,it,nl,ru,ja,zh,ko". }
+} LIMIT 800`;
+      let rows = [];
+      try {
+        const data = await sparql(query);
+        const byItem = new Map();
+        for (const b of data.results.bindings) {
+          const mm = /Point\(([-\d.e]+) ([-\d.e]+)\)/.exec(b.coord.value);
+          if (!mm) continue;
+          const item = b.item.value.split('/').pop();
+          const cls = b.classLabel?.value ?? '';
+          const hit = byItem.get(item);
+          if (hit) hit.classes.add(cls); else byItem.set(item, { row: { item, label: b.itemLabel.value, sl: Number(b.sl.value), lat: Number(mm[2]), lng: Number(mm[1]) }, classes: new Set([cls]) });
+        }
+        for (const { row, classes } of byItem.values()) {
+          if (NAME_NOT.test(row.label)) continue;
+          const list = [...classes].filter(Boolean);
+          if (list.some((c) => NOT.test(c))) continue;
+          if (list.length && !list.some((c) => OKCLASS.test(c))) continue;
+          const hotel = list.some((c) => /hotel|resort/i.test(c));
+          rows.push({ id: row.item, name: row.label, lat: row.lat, lng: row.lng, sl: row.sl, score: hotel ? 3 : 5, category: hotel ? 'lodging' : 'other', km: dist(m, row) / 1000 });
+        }
+      } catch { rows = null; }
+      if (rows) { seen[id] = rows.length; done[id] = [...(done[id] ?? []), ...rows.sort((a, b) => rank(b) - rank(a)).slice(0, 6)]; }
+      if (++n % 20 === 0) { fs.writeFileSync(fetchedFile, JSON.stringify(done)); fs.writeFileSync(tallDone, JSON.stringify(seen)); console.log(n, 'of', n + todo.length); }
+      await sleep(1100);
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  fs.writeFileSync(fetchedFile, JSON.stringify(done));
+  fs.writeFileSync(tallDone, JSON.stringify(seen));
+  plan();
+}
+
+/**
+ * A third look at the downtowns still empty, for the cities whose listed center is not their downtown (a centroid, a city hall out in the suburbs): everything tall or
+ * downtown-like within 10 km, then the place where such buildings bunch up is taken as the downtown, and only the buildings within 2 km of that are kept.
+ */
+async function fetchWide() {
+  const fetchedFile = path.join(ROOT, '_data', 'downtown-fetched.json');
+  const wideDone = path.join(ROOT, '_data', 'downtown-wide.json');
+  const done = fs.existsSync(fetchedFile) ? readJson(fetchedFile) : {};
+  const seen = fs.existsSync(wideDone) ? readJson(wideDone) : {};
+  const { empty } = readJson(PLAN);
+  const todo = empty.filter((id) => seen[id] === undefined);
+  console.log('asking Wikidata about the wider downtowns of ' + todo.length + ' metros');
+  const OKCLASS = /building|skyscraper|hotel|tower|office|apartment|residential|hall|headquarters|bank|courthouse|house|block|complex|tall|high-?rise|condominium|square|plaza/i;
+  let n = 0;
+  const worker = async () => {
+    while (todo.length) {
+      const id = todo.shift();
+      const m = metros.find((x) => x.id === id);
+      const reach = Math.min(m.radiusKm, 10);
+      const query = `SELECT ?item ?itemLabel ?sl ?coord ?classLabel WHERE {
+  SERVICE wikibase:around { ?item wdt:P625 ?coord . bd:serviceParam wikibase:center "Point(${m.lng} ${m.lat})"^^geo:wktLiteral . bd:serviceParam wikibase:radius "${reach}" . }
+  { ?item wdt:P2048 ?h . FILTER(?h >= 30) } UNION { ?item wdt:P1101 ?fl . FILTER(?fl >= 7) } UNION { VALUES ?cls { wd:Q11303 wd:Q1021645 wd:Q27686 wd:Q174782 } ?item wdt:P31 ?cls . }
+  ?item wikibase:sitelinks ?sl .
+  OPTIONAL { ?item wdt:P31 ?class . }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,mul,fr,de,es,pt,it,nl,ru,ja,zh,ko". }
+} LIMIT 1200`;
+      let rows = [];
+      try {
+        const data = await sparql(query);
+        const byItem = new Map();
+        for (const b of data.results.bindings) {
+          const mm = /Point\(([-\d.e]+) ([-\d.e]+)\)/.exec(b.coord.value);
+          if (!mm) continue;
+          const item = b.item.value.split('/').pop();
+          const cls = b.classLabel?.value ?? '';
+          const hit = byItem.get(item);
+          if (hit) hit.classes.add(cls); else byItem.set(item, { row: { item, label: b.itemLabel.value, sl: Number(b.sl.value), lat: Number(mm[2]), lng: Number(mm[1]) }, classes: new Set([cls]) });
+        }
+        const all = [];
+        for (const { row, classes } of byItem.values()) {
+          if (NAME_NOT.test(row.label)) continue;
+          const list = [...classes].filter(Boolean);
+          if (list.some((c) => NOT.test(c))) continue;
+          if (list.length && !list.some((c) => OKCLASS.test(c))) continue;
+          const hotel = list.some((c) => /hotel|resort/i.test(c));
+          all.push({ id: row.item, name: row.label, lat: row.lat, lng: row.lng, sl: row.sl, score: hotel ? 3 : 5, category: hotel ? 'lodging' : 'other' });
+        }
+        if (all.length) {
+          // the downtown is where they bunch up: the one with the most (weighted) neighbors within 1.5 km
+          const weight = (c) => 1 + Math.log(1 + c.sl);
+          let best = all[0], bestSum = -1;
+          for (const c of all) { const sum = all.reduce((t, o) => t + (dist(c, o) <= 1500 ? weight(o) : 0), 0); if (sum > bestSum) { best = c; bestSum = sum; } }
+          for (const c of all) { const km = dist(best, c) / 1000; if (km <= 2) rows.push({ ...c, km }); }
+        }
+      } catch { rows = null; }
+      if (rows) { seen[id] = rows.length; done[id] = [...(done[id] ?? []), ...rows.sort((a, b) => rank(b) - rank(a)).slice(0, 6)]; }
+      if (++n % 20 === 0) { fs.writeFileSync(fetchedFile, JSON.stringify(done)); fs.writeFileSync(wideDone, JSON.stringify(seen)); console.log(n, 'of', n + todo.length); }
+      await sleep(1200);
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  fs.writeFileSync(fetchedFile, JSON.stringify(done));
+  fs.writeFileSync(wideDone, JSON.stringify(seen));
+  plan();
+}
+
 async function learnImages() {
   const { result } = readJson(PLAN);
   const ids = [...new Set(Object.values(result).flat().map((c) => c.id))].filter((id) => hasImage[id] === undefined);
@@ -179,6 +300,8 @@ function apply() {
 const [,, step = 'plan'] = process.argv;
 if (step === 'plan') plan();
 else if (step === 'fetch') await fetchMissing();
+else if (step === 'tall') await fetchTall();
+else if (step === 'wide') await fetchWide();
 else if (step === 'images') { plan(); await learnImages(); plan(); }
 else if (step === 'apply') apply();
-else console.log('plan | fetch | images | apply');
+else console.log('plan | fetch | tall | images | apply');
