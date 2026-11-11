@@ -26,7 +26,9 @@ import type { LookId } from '../lib/looks';
 import type { Region } from '../lib/google';
 
 /** Is this place's snapshot unlocked? The same test the snapshot button uses: a free landmark, a place unlocked with a credit, or your home (unlocked under its vault key). */
-function snapshotUnlocked(account: Account, id: string): boolean {
+function snapshotUnlocked(account: Account, id: string, metroId?: string | null): boolean {
+  // an address in a metro whose atlas this person bought is theirs to open, cleared or not
+  if (id.startsWith('me:') && metroId && account.metros.has(metroId)) return true;
   // a cleared place was unlocked: the raid is refused on the server until it is (so a cleared one never shows as locked, whichever way it was unlocked: one at a time, or the whole metro's atlas)
   if (account.unlocked.has(id) || account.cleared.has(id) || freeRenderFor(id)) return true;
   if (id.startsWith('me:')) {
@@ -351,7 +353,7 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
       )}
       <ul className="rm-list rm-found-list" ref={foundWindow.ref} style={foundWindow.style}>
         {places.map(({ p, d }) => {
-          const unlocked = snapshotUnlocked(account, p.id);
+          const unlocked = snapshotUnlocked(account, p.id, p.metroId);
           const cleared = account.cleared.has(p.id);
           const loc = locationOf(p.id);
           const waiting = waitingLine(account.waiting.get(p.id));
