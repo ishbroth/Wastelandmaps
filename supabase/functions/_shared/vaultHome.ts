@@ -638,7 +638,7 @@ export function spentOn(v: VaultHome, idx: number): LootBag {
   const slotsBefore = before.reduce((n, r) => n + (isPassage(r) ? 0 : slotsOf(r)), 0);
   const hallsBefore = before.filter((r) => r.type === 'hallway').length;
   const stairsBefore = before.filter((r) => r.type === 'stairs' && !isTwin(r)).length;
-  if (isTwin(room)) return total; // the twin of a built one: it cost nothing
+  if (isTwin(room)) { const built = twinsOf(v, room)[0]; return built ? spentOn(v, v.rooms.indexOf(built)) : total; } // the twin end cost nothing: demolishing from here returns what the built end cost
   const first = slotsBefore + 1;
   const pieces = room.type === 'hallway' ? slotPrice(hallsBefore + 2) : room.type === 'stairs' ? slotPrice(stairsBefore + 2) : roomDef(room.type).slots === 2 ? Math.min(MAX_ROOM_PRICE, slotPrice(first) + slotPrice(first + 1)) : slotPrice(first);
   add(recipeFor(v.seed ?? 0, `room:${room.type}:${room.type === 'hallway' ? hallsBefore : room.type === 'stairs' ? stairsBefore : slotsBefore}`, pieces));
@@ -647,15 +647,15 @@ export function spentOn(v: VaultHome, idx: number): LootBag {
 }
 
 /** The twin made with a built stairwell (the stairwell in the same place on the next level, marked as a twin). */
-const twinsOf = (v: VaultHome, room: VaultRoom): VaultRoom[] => (room.type === 'stairs' && !isTwin(room) ? v.rooms.filter((r) => isTwin(r) && r.col === room.col && r.row === room.row && Math.abs(r.level - room.level) === 1) : []);
+/** The other end of a stairwell (the one built, or the twin that came with it): a stairwell comes down from either level, and takes its other end with it. */
+const twinsOf = (v: VaultHome, room: VaultRoom): VaultRoom[] => (room.type === 'stairs' ? v.rooms.filter((r) => r.type === 'stairs' && isTwin(r) !== isTwin(room) && r.col === room.col && r.row === room.row && Math.abs(r.level - room.level) === 1) : []);
 
 /** Can this room be demolished? Null if yes, or the reason. */
 export function whyNotDemolish(v: VaultHome, idx: number): string | null {
   const room = v.rooms[idx];
   if (!room) return 'No such room';
   if (room.type === 'entry') return 'The entryway cannot be demolished';
-  // a stairwell is demolished from the end that was built, and takes its twin with it
-  if (isTwin(room)) return 'This is the other end of a stairwell: demolish it from the end that was built';
+  // a stairwell can be demolished from either level (it takes its other end with it), once the rooms built onto it are gone
   const gone = [room, ...twinsOf(v, room)];
   // everything left must still be joined to the entryway: next door on its level, or up and down a stairwell
   const left = v.rooms.filter((r) => !gone.includes(r));
