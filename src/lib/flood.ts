@@ -15,15 +15,21 @@ export function loadFlood(): Promise<Record<string, FloodPatch[]>> {
   return loading;
 }
 
-/** The outline of a patch: an oval along the shore with an uneven edge. */
+/**
+ * The outline of a patch: a pool lying along the shore, with a smooth, natural edge. It is made of a few slow waves around the oval (a lobe here, an inlet there, a
+ * long bay along the shore) and no random spikes, so the edge flows like a real waterline. The same seed always gives the same outline, and the nested layers that
+ * give the water its depth (the same outline at smaller sizes) stay neatly inside one another.
+ */
 export function patchOutline([lat, lng, radius, aspect, angle, seed]: FloodPatch): LatLng[] {
   const rand = seeded(seed);
   const turn = (angle * Math.PI) / 180;
+  const phase = [rand() * 6.283, rand() * 6.283, rand() * 6.283, rand() * 6.283];
+  const amp = [0.13 + rand() * 0.09, 0.09 + rand() * 0.07, 0.05 + rand() * 0.04, 0.025 + rand() * 0.02];
   const points: LatLng[] = [];
-  const steps = 16;
+  const steps = 56;
   for (let i = 0; i < steps; i++) {
     const t = (i / steps) * Math.PI * 2;
-    const wobble = 0.72 + rand() * 0.5;
+    const wobble = 0.9 + amp[0] * Math.sin(2 * t + phase[0]) + amp[1] * Math.sin(3 * t + phase[1]) + amp[2] * Math.sin(4 * t + phase[2]) + amp[3] * Math.sin(6 * t + phase[3]);
     const x = Math.cos(t) * radius * aspect * wobble; // along the shore
     const y = Math.sin(t) * radius * wobble;
     const east = x * Math.cos(turn) - y * Math.sin(turn);
