@@ -74,8 +74,8 @@ function superOf(iso: string, p: LatLng, continent: string): string {
 const COUNTRY_NAMES: Record<string, string> = {
   US: 'The Commonwealths of America', CA: 'The Great White Wasteland', MX: 'The United Mexican States', BR: 'The Kablamazon', AR: 'The Arg', CL: 'The Strip',
   PE: 'Pe-ruined', CO: 'Col-bombia', VE: 'Ground Vene-zero', CU: 'The Big Cigar', EC: 'Ecuadorian Refuge Colony', BS: 'The Bahama Flood Zone', TT: 'The Trinidadian Flood Zone', TW: 'Tai-bombed', KH: 'Cam-blow-dia', LK: 'The Sri Lanka Refuge Colony', UY: 'Burntuguay', DO: 'Dominican Reclamation Zone', HT: 'The Haitian Refuge',
-  GB: 'The British Ex-pire', IE: 'The Emerald Embers', FR: 'Zone des Frites', DE: 'Deutschland Dust', ES: 'The Rainy Plains', PT: 'Portu-Gone', IT: 'New Roman Republic', CH: 'The Neutral Crater',
-  AT: 'The Alpine Ashes', NL: 'The Drowned Lowlands', BE: 'The Waffle Wastes', PL: 'The Polish Pits', SE: 'The Swedish Cinders', NO: 'Fallout Fjords', FI: 'The Frozen Thousand Lakes',
+  GB: 'The British Ex-pire', IE: 'The Emerald Embers', FR: 'Zone des Frites', DE: 'The Dusty Deutsch', ES: 'The Rainy Plains', PT: 'Portu-Gone', IT: 'New Roman Republic', CH: 'The Neutral Crater',
+  AT: 'The Alpine Ashes', NL: 'The Shatterlands', BE: 'The Waffle Wastes', PL: 'The Polish Pits', SE: 'The Swedish Cinders', NO: 'Fallout Fjords', FI: 'The Frozen Thousand Lakes',
   DK: 'The Danish Dead Zone', GR: 'The Classical Ruins', TR: 'Smoked Turkey', RU: 'The Ironed Curtain', BY: 'The Pale Plains', RO: 'The Carpathian Cinders',
   CN: 'The Red Wastes', JP: 'Jablam', KR: 'South Krater', KP: 'North Krater', IN: 'The Subcontinent', PK: 'The Indus Cinders', ID: 'The Ring of Fire Islands', TH: 'Bye-Land',
   VN: 'The Delta Dead Zone', PH: 'The Thousand Burning Isles', IR: 'The Persian Dust', SA: 'The Great Oil-Slick', EG: 'The Dusty Dynasty', ZA: 'The Scorched Cape', NG: 'The Niger Nuke Zone',
