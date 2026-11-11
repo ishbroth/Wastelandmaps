@@ -72,7 +72,7 @@ export default function App() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [hidden, setHidden] = useState<Set<CategoryId>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [soundOn, setSoundOn] = useState(() => isNative()); // on in the app, off on the website until switched on
+  const [soundOn, setSoundOn] = useState(true); // on, in the app and on the website (it can be switched off)
 
   // the survivor: where they stand, what time it is, how irradiated they are, what they have seen
   const [player, setPlayer] = useState<LatLng | null>(null);

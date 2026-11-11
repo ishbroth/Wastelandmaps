@@ -35,5 +35,6 @@ begin
   delete from leaderboard_names where user_id = u;
   delete from map_positions where user_id = u;
   delete from credit_ledger where user_id = u;
+  if to_regclass('public.discovery_checks') is not null then delete from discovery_checks where user_id = u; end if;   -- where they were last seen discovering (the speed check)
   raise notice 'done: % is back at the start (home kept, not cleared)', me;
 end $$;

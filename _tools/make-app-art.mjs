@@ -10,22 +10,26 @@ const DIM = '#1f9a52';
 const DARK = '#000a04';
 /** On the full icon the cogwheel is drawn at this size (1 is full size; the rendered-road background used 0.6). */
 const COG_SCALE = Number(process.env.ICON_COG_SCALE ?? 1);
+/** How far the cogwheel is moved down from the middle, in icon units (ICON_COG_DY), to show what is behind its top. */
+const COG_DY = Number(process.env.ICON_COG_DY ?? 0);
 const n = (v) => Math.round(v * 10) / 10;
 
 // The picture behind the cogwheel: a destroyed road seen from the walker's own eyes (made once by _tools/gen-icon-road.mjs, kept in resources/icon-road.png).
 // Set ICON_BACKGROUND=plain to go back to the plain dark background the icon had before (also the git tag icon-cog-only-v1).
 // The icon is the cogwheel and the arrow on the dark background with a few green map roads behind them (like the streets of the Apple Maps icon, in the app's green).
 // ICON_BACKGROUND=photo puts the rendered destroyed road behind them instead; ICON_BACKGROUND=plain leaves the background bare.
-const useRoad = process.env.ICON_BACKGROUND === 'photo' && fs.existsSync('resources/icon-road.png');
+const ROAD_FILE = process.env.ICON_ROAD_FILE || 'resources/icon-road.png';
+const useRoad = process.env.ICON_BACKGROUND === 'photo' && fs.existsSync(ROAD_FILE);
 let road1024 = null;
 let roadSmall = null;
 if (useRoad) {
   // in the picture the horizon sits a little above the middle (44% of the way down); the top is cropped away so it lands 70% of the way up (30% down)
-  const meta = await sharp('resources/icon-road.png').metadata();
+  const meta = await sharp(ROAD_FILE).metadata();
   const horizon = Number(process.env.ROAD_HORIZON ?? 0.44) * meta.height;
-  const top = Math.max(0, Math.round((horizon - 0.3 * meta.height) / 0.7));
+  const horizonAt = Number(process.env.ROAD_HORIZON_AT ?? 0.3);
+  const top = Math.max(0, Math.round((horizon - horizonAt * meta.height) / (1 - horizonAt)));
   const side = meta.height - top;
-  const square = sharp('resources/icon-road.png').extract({ left: Math.round((meta.width - side) / 2), top, width: side, height: side });
+  const square = sharp(ROAD_FILE).extract({ left: Math.round((meta.width - side) / 2), top, width: side, height: side });
   road1024 = await square.clone().resize(1024, 1024).jpeg({ quality: 88 }).toBuffer();
   roadSmall = await square.clone().resize(96, 96).jpeg({ quality: 72 }).toBuffer();
 }
@@ -43,9 +47,16 @@ const ROADS = '<g fill="none" stroke-linecap="round" stroke-linejoin="round">'
   + road('M-60 560 L 180 560', 26, 0.85)
   + road('M850 470 L 1100 470', 26, 0.85)
   + '</g>';
+/** One road winding across the picture seen from above (ICON_BACKGROUND=curvy): bright edge lines, a dark surface, a dashed line down the middle. */
+const CURVY_PATH = 'M 872 -90 L 872 250 C 872 410 800 462 650 462 L 400 462 C 236 462 148 540 148 704 L 148 1114';
+const CURVY = '<g fill="none" stroke-linecap="butt" stroke-linejoin="round">'
+  + '<path d="' + CURVY_PATH + '" stroke="' + GREEN + '" stroke-width="176" opacity="0.9"/>'
+  + '<path d="' + CURVY_PATH + '" stroke="#031a0c" stroke-width="154"/>'
+  + '<path d="' + CURVY_PATH + '" stroke="' + DIM + '" stroke-width="7" stroke-dasharray="48 34" opacity="0.95"/>'
+  + '</g>';
 const BACKGROUND = useRoad
   ? '<image href="data:image/jpeg;base64,' + (road1024 ? road1024.toString('base64') : '') + '" width="1024" height="1024"/><rect width="1024" height="1024" fill="#000a04" opacity="0.06"/>'
-  : process.env.ICON_BACKGROUND === 'plain' ? '<rect width="1024" height="1024" fill="url(#sky)"/>' : '<rect width="1024" height="1024" fill="url(#sky)"/><g filter="url(#g)">' + ROADS + '</g>';
+  : process.env.ICON_BACKGROUND === 'plain' ? '<rect width="1024" height="1024" fill="url(#sky)"/>' : process.env.ICON_BACKGROUND === 'curvy' ? '<rect width="1024" height="1024" fill="url(#sky)"/><g filter="url(#g)">' + CURVY + '</g>' : '<rect width="1024" height="1024" fill="url(#sky)"/><g filter="url(#g)">' + ROADS + '</g>';
 /** The website's tab icon: the same background, small, in a rounded square with the green rim. */
 const FLAT_BACKGROUND = useRoad
   ? '<clipPath id="rr"><rect width="1024" height="1024" rx="190"/></clipPath><image clip-path="url(#rr)" href="data:image/jpeg;base64,' + (roadSmall ? roadSmall.toString('base64') : '') + '" width="1024" height="1024"/><rect width="1024" height="1024" rx="190" fill="#000a04" opacity="0.22"/><rect x="26" y="26" width="972" height="972" rx="166" fill="none" stroke="#1f9a52" stroke-width="14"/>'
@@ -157,7 +168,7 @@ function iconArt(withBackground) {
     + '<radialGradient id="sky" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#06301a"/><stop offset="1" stop-color="' + DARK + '"/></radialGradient></defs>'
     + (withBackground ? BACKGROUND : '')
     + '<g filter="url(#g)">'
-    + (withBackground && useRoad ? '<g transform="translate(512 512) scale(' + COG_SCALE + ') translate(-512 -512)">' : '<g>')
+    + (withBackground && (COG_SCALE !== 1 || COG_DY !== 0) ? '<g transform="translate(512 ' + (512 + COG_DY) + ') scale(' + COG_SCALE + ') translate(-512 -512)">' : '<g>')
     + '<path d="' + gear + '" fill="' + GREEN + '" stroke="' + GREEN + '" stroke-width="10" stroke-linejoin="round"/>'
     + '<circle cx="' + cx + '" cy="' + cy + '" r="' + windowR + '" fill="#04170c"/>'
     + '<path d="' + outline + '" fill="none" stroke="' + GREEN + '" stroke-width="18" stroke-linejoin="round" stroke-linecap="round"/>'
@@ -167,6 +178,8 @@ function iconArt(withBackground) {
 
 const png = (svg, size) => sharp(Buffer.from(svg)).resize(size, size).png();
 
+// ICON_PREVIEW=file.png: just that one picture (the full icon), not the app's real icons
+if (process.env.ICON_PREVIEW) { await png(iconArt(true), 1024).toFile(process.env.ICON_PREVIEW); console.log('preview', process.env.ICON_PREVIEW); process.exit(0); }
 // the store icon: the whole picture, full square (the stores round the corners themselves)
 await png(iconArt(true), 1024).toFile('resources/icon-only.png');
 // the adaptive Android icon: the picture inside the central safe zone on a transparent layer, over a plain dark layer
