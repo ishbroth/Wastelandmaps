@@ -117,14 +117,16 @@ function stairShape(r: { col: number; row: number; face?: Face }): Shape {
 }
 
 /** A U stairwell takes one cell like any stairwell and is drawn about as big as a bathroom: two hallway-wide lanes side by side (a flight in each), one long. The corridor to the room it joins runs through the lane its open end is on. */
-const U_LEN = 120;
+const U_LEN = CELL; // as long as a straight stairwell: the whole cell
+const U_ACROSS = 120; // and as wide as two of them side by side (a hallway is 60)
 const U_LANE = 30; // a lane's middle, from the middle of the cell
 function uStairShape(r: { col: number; row: number; face?: Face; entry?: 0 | 1 }): Shape {
-  const m = (CELL - U_LEN) / 2;
+  const m = (CELL - U_ACROSS) / 2;
   const cx = r.col * CELL + CELL / 2, cy = r.row * CELL + CELL / 2;
   const off = (r.entry ?? 0) === 1 ? U_LANE : -U_LANE;
   const sideways = r.face === 'l' || r.face === 'r';
-  const rect: Rect = { x: r.col * CELL + m, y: r.row * CELL + m, w: U_LEN, d: U_LEN, xc: sideways ? cx : cx + off, yc: sideways ? cy + off : cy };
+  // two straight stairwells side by side: a cell long (the way of travel) and two hallways wide (across it)
+  const rect: Rect = sideways ? { x: r.col * CELL, y: r.row * CELL + m, w: CELL, d: U_ACROSS, xc: cx, yc: cy + off } : { x: r.col * CELL + m, y: r.row * CELL, w: U_ACROSS, d: CELL, xc: cx + off, yc: cy };
   return { rect, poly: [[rect.x, rect.y], [rect.x + rect.w, rect.y], [rect.x + rect.w, rect.y + rect.d], [rect.x, rect.y + rect.d]], notch: null };
 }
 
@@ -552,7 +554,7 @@ function UStairShell({ col, row, level, face, way, entry }: { col: number; row: 
   const sgn = face === 'b' || face === 'l' ? 1 : -1; // from the open end, the way of travel is toward larger x or y (b, l) or smaller (f, r)
   const rect = uStairShape({ col, row, face, entry }).rect;
   const x0 = rect.x, x1 = rect.x + rect.w, y0 = rect.y, y1 = rect.y + rect.d;
-  const T0 = (sideways ? col * CELL : row * CELL) + (CELL - U_LEN) / 2;
+  const T0 = sideways ? col * CELL : row * CELL;
   const along = (u: number): number => (sgn > 0 ? T0 + u : T0 + U_LEN - u);
   const span = (ua: number, ub: number): [number, number] => [Math.min(along(ua), along(ub)), Math.max(along(ua), along(ub))];
   const W = 26; // half the width of a flight
@@ -560,8 +562,9 @@ function UStairShell({ col, row, level, face, way, entry }: { col: number; row: 
   const c0 = mid - U_LANE, c1 = mid + U_LANE; // the middles of the two flights, across
   const lane = (c: number): [number, number] => [c - W, c + W];
   const eW = lane(entry === 0 ? c0 : c1), oW = lane(entry === 0 ? c1 : c0), aW = lane(c0), bW = lane(c1);
-  const n = 6;
-  const uA = U_LEN * 0.16, uB = U_LEN * 0.7, uEnd = U_LEN - 3;
+  // like the straight stairwell: from a third of the way along (a floor to stand on at the open end) to the far end when it is a pit, from a sixth when it is climbed; the landing takes the last quarter
+  const n = 8;
+  const uA = U_LEN * (way === 'down' ? 0.3 : 0.16), uB = U_LEN * 0.76, uEnd = U_LEN - 4;
   const run = (uB - uA) / n;
   type B = { xa: number; xb: number; ya: number; yb: number };
   const box = (ua: number, ub: number, wa: number, wb: number): B => { const [ta, tb] = span(ua, ub); return sideways ? { xa: ta, xb: tb, ya: wa, yb: wb } : { xa: wa, xb: wb, ya: ta, yb: tb }; };
@@ -575,10 +578,11 @@ function UStairShell({ col, row, level, face, way, entry }: { col: number; row: 
   let pit: ReactElement | null = null;
   if (way === 'down') {
     // the first flight is shallower when it goes away from the viewer (or the near rim would hide it), and the second the other way round
-    const rE = sgn > 0 ? 8 : 4.6, rO = sgn > 0 ? 4.6 : 8, D = n * (rE + rO) + 14;
-    const shade = (d: number): string => `rgb(${Math.round(Math.max(4, 18 - d * 0.6))},${Math.round(Math.max(22, 96 - d * 3.4))},${Math.round(Math.max(10, 46 - d * 1.7))})`; // d: how many steps down
+    const rE = sgn > 0 ? 4.2 : 2.4, rO = sgn > 0 ? 2.4 : 4.2, D = n * (rE + rO) + 8;
+    const shade = (d: number): string => `rgb(${Math.round(Math.max(6, 18 - d * 0.4))},${Math.round(Math.max(40, 100 - d * 2.6))},${Math.round(Math.max(16, 48 - d * 1.2))})`; // d: how many steps down (it fades slowly, so both flights can be seen)
     const pt = (u: number, w: number): [number, number] => (sideways ? [along(u), w] : [w, along(u)]);
-    const outline = [pt(uA, aW[0]), pt(uA, aW[1]), pt(uB, aW[1]), pt(uB, bW[0]), pt(uA, bW[0]), pt(uA, bW[1]), pt(uEnd, bW[1]), pt(uEnd, aW[0])];
+    // one open well across both flights (they are open to each other, as in a plan of a U stair), with a low handrail down the middle between them
+    const outline = [pt(uA, aW[0]), pt(uA, bW[1]), pt(uEnd, bW[1]), pt(uEnd, aW[0])];
     const outline3: V3[] = outline.map(([px, py]) => [px, py, 0]);
     // the walls of the pit that the viewer can see: every edge of the outline with the pit on its +x or +y side (the sides of it, the end of the landing, the stone between the flights)
     let area = 0;
@@ -604,6 +608,9 @@ function UStairShell({ col, row, level, face, way, entry }: { col: number; row: 
       parts.push({ k: keyOf(bx, z), el: <Poly key={`o${j}`} p={flat(bx, z)} fill={shade(n + 1 + j)} sw={0.9} stroke={DIM} /> });
     }
     if (sgn < 0) for (let k = 0; k < n; k++) parts.push({ k: riserKey(uB - k * run, oW), el: <Poly key={`or${k}`} p={riser(uB - k * run, oW, lz - k * rO, lz - (k + 1) * rO)} fill="#02150a" sw={0.6} stroke={DIM} /> });
+    const mid = (aW[1] + bW[0]) / 2;
+    const rail = (u: number): [V3, V3] => [[...pt(u, mid), 0] as V3, [...pt(u, mid), 11] as V3];
+    parts.push({ k: 1e9, el: <g key="rail"><Seg a={rail(uA)[1]} b={rail(uB)[1]} c={INK} sw={1.6} o={0.95} /><Seg a={rail(uA)[0]} b={rail(uA)[1]} c={INK} sw={1.6} o={0.95} /><Seg a={rail(uB)[0]} b={rail(uB)[1]} c={INK} sw={1.6} o={0.95} /></g> });
     parts.sort((p1, q1) => p1.k - q1.k);
     pit = (
       <g>
