@@ -12,7 +12,7 @@ import {
 } from '../lib/vaultHome';
 import { Face, SettlerArt } from './vaultArt';
 import { type Sim, arrive, begin, finish, freePoint, liveOf, plan } from './vaultSims';
-import { CELL, layoutOf, setHallLookup, HallX, HallY, INK, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, cellRect, doorsOf, footBox, pieceFits, roomRect, screenBox, unproject, type Rect } from './vaultIso';
+import { CELL, layoutOf, setHallLookup, HallX, HallY, INK, P, PieceIcon, PlacedPiece, RoomOutline, VaultDoor, RoomShell, cellRect, doorsOf, footBox, pieceFits, roomRect, screenBox, unproject, type Rect } from './vaultIso';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -436,7 +436,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
   const confirmPlace = () => {
     const p = placing;
     if (!p || busy) return;
-    if (!fitsNow()) { say('It does not fit there: it is over something, in a doorway, or off the floor'); return; }
+    if (!fitsNow()) { say('It does not fit there: it is over something, off the floor, or it would shut a doorway off (leave room to walk around it)'); return; }
     const at = { u: p.u, v: p.v, ...(p.swap ? { swap: true } : {}) };
     if (p.isNew) void act({ action: 'furnish', room: p.room, item: p.item, at }, () => { setPlacing(null); setFresh({ room: p.room, item: p.item }); if (p.item === 'instrument') setPanel({ kind: 'room', idx: p.room, pick: true }); });
     else void act({ action: 'place', room: p.room, item: p.item, at }, () => setPlacing(null));
@@ -914,7 +914,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                     return (
                       <li key={f.id}>
                         <button type="button" className={waitingPick || (!placed && canAfford(ownLoot as never, furnishRecipe(vault, panel.idx, f.id) as never)) ? 'can' : undefined} disabled={placed && !waitingPick} onClick={() => (waitingPick ? setPanel({ kind: 'room', idx: panel.idx, pick: true }) : setPanel({ ...panel, item: f.id }))}>
-                          <span>{f.name.toUpperCase()}</span><i>{waitingPick ? 'CHOOSE WHICH' : placed ? (here ? (f.id === 'instrument' ? (INSTRUMENT_NAMES[room.furniture.find((x) => slotOf(x) === 'instrument') ?? ''] ?? 'PLACED').toUpperCase() : 'PLACED') : 'ONE PIECE ONLY') : describeBag(furnishRecipe(vault, panel.idx, f.id) as never).toUpperCase()}</i>
+                          <span className="rm-vh-name"><PieceIcon id={f.id} />{f.name.toUpperCase()}</span><i>{waitingPick ? 'CHOOSE WHICH' : placed ? (here ? (f.id === 'instrument' ? (INSTRUMENT_NAMES[room.furniture.find((x) => slotOf(x) === 'instrument') ?? ''] ?? 'PLACED').toUpperCase() : 'PLACED') : 'ONE PIECE ONLY') : describeBag(furnishRecipe(vault, panel.idx, f.id) as never).toUpperCase()}</i>
                         </button>
                       </li>
                     );

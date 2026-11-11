@@ -1006,3 +1006,8 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 
 /* the metro unlock is lit up in the bright green once there are enough caps for it */
 .rm-atlas .rm-btn.rm-can:not(:disabled) { background: var(--ink); color: var(--on-ink); border-color: var(--ink); box-shadow: 0 0 10px var(--glow); }
+
+.rm-vh-name { display: inline-flex; align-items: center; gap: 8px; }
+.rm-vh-icon { width: 30px; height: 30px; flex: none; overflow: visible; }
+.rm-vh-icon * { vector-effect: non-scaling-stroke; }
+.rm-vh-types button:hover:not(:disabled) .rm-vh-icon { filter: invert(1) hue-rotate(180deg); }

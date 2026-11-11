@@ -4,7 +4,7 @@
 //
 // World units: a standard room is CELL by CELL on the floor and WALL_H tall; x runs toward the lower right of the screen, y toward the lower left, z up.
 
-import type { ReactElement, ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { roomDef, type Face, type RoomType, type VaultRoom } from '../lib/vaultHome';
 
 export const INK = '#3dff8a';
@@ -1401,25 +1401,6 @@ export function layoutOf(room: VaultRoom, at: (col: number, row: number) => Vaul
   return out;
 }
 
-/** The lanes that have to stay clear on a room's floor: from each doorway to the middle of the room. */
-function lanesOf(room: VaultRoom, at: (col: number, row: number) => VaultRoom | undefined): Rect[] {
-  const rect = roomRect(room);
-  const slots = roomDef(room.type).slots;
-  const doors = doorsOf(room, at);
-  const rightN = at(room.col + slots, room.row);
-  let frontN: VaultRoom | undefined;
-  for (let i = 0; i < slots && !frontN; i++) frontN = at(room.col + i, room.row + 1);
-  const mid = (a: number, b: number, c: number, d: number) => (Math.max(a, c) + Math.min(b, d)) / 2;
-  const cx = rect.x + rect.w / 2, cy = rect.y + rect.d / 2;
-  const LANE = 17;
-  const out: Rect[] = [];
-  doors.doorsL.forEach((c) => out.push({ x: rect.x, y: c - LANE, w: cx - rect.x, d: 2 * LANE }));
-  doors.doorsR.forEach((c) => out.push({ x: c - LANE, y: rect.y, w: 2 * LANE, d: cy - rect.y }));
-  if (rightN) { const r = roomRect(rightN); const y = r.yc ?? mid(rect.y, rect.y + rect.d, r.y, r.y + r.d); out.push({ x: cx, y: y - LANE, w: rect.x + rect.w - cx, d: 2 * LANE }); }
-  if (frontN) { const r = roomRect(frontN); const x = r.xc ?? mid(rect.x, rect.x + rect.w, r.x, r.x + r.w); out.push({ x: x - LANE, y: cy, w: 2 * LANE, d: rect.y + rect.d - cy }); }
-  return out;
-}
-
 /** The floor space of a piece (with what is drawn around it) standing here, in the room's units. */
 export function footBox(room: VaultRoom, id: string, x: number, y: number, swap = false): Rect {
   const k = pieceScale(room);
@@ -1429,7 +1410,67 @@ export function footBox(room: VaultRoom, id: string, x: number, y: number, swap 
   return { x: x + t.x0 * k, y: y + t.y0 * k, w: (t.x1 - t.x0) * k, d: (t.y1 - t.y0) * k };
 }
 
-/** Can this piece stand here? It must be on the floor of its room, clear of every other piece, of the doorways' lanes and of the hole in the floor. */
+/** The spots just inside every doorway of a room, where a settler comes in (the same places the walking routes use). */
+function doorPoints(room: VaultRoom, at: (col: number, row: number) => VaultRoom | undefined): { x: number; y: number }[] {
+  const rect = roomRect(room);
+  const slots = roomDef(room.type).slots;
+  const doors = doorsOf(room, at);
+  const rightN = at(room.col + slots, room.row);
+  let frontN: VaultRoom | undefined;
+  for (let i = 0; i < slots && !frontN; i++) frontN = at(room.col + i, room.row + 1);
+  const mid = (a: number, b: number, c: number, d: number) => (Math.max(a, c) + Math.min(b, d)) / 2;
+  const out: { x: number; y: number }[] = [];
+  doors.doorsL.forEach((c) => out.push({ x: rect.x + 9, y: c }));
+  doors.doorsR.forEach((c) => out.push({ x: c, y: rect.y + 9 }));
+  if (rightN) { const r = roomRect(rightN); out.push({ x: rect.x + rect.w - 9, y: r.yc ?? mid(rect.y, rect.y + rect.d, r.y, r.y + r.d) }); }
+  if (frontN) { const r = roomRect(frontN); out.push({ x: r.xc ?? mid(rect.x, rect.x + rect.w, r.x, r.x + r.w), y: rect.y + rect.d - 9 }); }
+  return out;
+}
+
+/**
+ * A piece may stand anywhere, even between two doorways, as long as a settler can still walk from every doorway to every other and to the open floor around the room: the floor is
+ * laid out on a grid, everything (the pieces, the hole, the notch, with half a body of room around each) is blocked, and every doorway has to be reachable from the others.
+ */
+function doorsStayJoined(room: VaultRoom, at: (col: number, row: number) => VaultRoom | undefined, hasHole: boolean, id: string, mine: Rect, lay: Map<string, Spot>): boolean {
+  const doors = doorPoints(room, at);
+  if (doors.length === 0) return true;
+  const rect = roomRect(room);
+  const { notch } = shapeOf(room);
+  const BODY = 7;
+  const boxes: Rect[] = [mine];
+  for (const other of room.furniture) {
+    if (other === id || ANCHORED[other] === id || ANCHORED[id] === other) continue;
+    const spot = lay.get(other);
+    if (spot && FURNITURE[other]) boxes.push(footBox(room, other, spot.x, spot.y, !!spot.swap));
+  }
+  if (notch) boxes.push(notch);
+  if (hasHole) boxes.push(holeRect({ type: room.type, col: room.col, row: room.row, furniture: room.furniture }));
+  const step = 4, x0 = rect.x + 8, y0 = rect.y + 8;
+  const nx = Math.max(2, Math.floor((rect.w - 16) / step) + 1), ny = Math.max(2, Math.floor((rect.d - 16) / step) + 1);
+  const free = (i: number, j: number): boolean => {
+    if (i < 0 || j < 0 || i >= nx || j >= ny) return false;
+    const x = x0 + i * step, y = y0 + j * step;
+    return !boxes.some((b) => x > b.x - BODY && x < b.x + b.w + BODY && y > b.y - BODY && y < b.y + b.d + BODY);
+  };
+  const cell = (p: { x: number; y: number }): [number, number] => [Math.max(0, Math.min(nx - 1, Math.round((p.x - x0) / step))), Math.max(0, Math.min(ny - 1, Math.round((p.y - y0) / step)))];
+  const starts = doors.map(cell);
+  if (!starts.every(([i, j]) => free(i, j))) return false; // the piece itself is in the doorway
+  const seen = new Set<number>();
+  const q: [number, number][] = [starts[0]];
+  seen.add(starts[0][1] * nx + starts[0][0]);
+  while (q.length) {
+    const [i, j] = q.pop() as [number, number];
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const a = i + di, c = j + dj;
+      if (!free(a, c) || seen.has(c * nx + a)) continue;
+      seen.add(c * nx + a);
+      q.push([a, c]);
+    }
+  }
+  return starts.every(([i, j]) => seen.has(j * nx + i));
+}
+
+/** Can this piece stand here? It must be on the floor of its room, clear of every other piece and of the hole in the floor, and it must leave a way for a settler between the doorways (it may stand between them). */
 export function pieceFits(room: VaultRoom, at: (col: number, row: number) => VaultRoom | undefined, hasHole: boolean, id: string, x: number, y: number, swap: boolean): boolean {
   if (room.type === 'hallway') return false;
   const rect = roomRect(room);
@@ -1437,7 +1478,6 @@ export function pieceFits(room: VaultRoom, at: (col: number, row: number) => Vau
   const b = footBox(room, id, x, y, swap);
   if (b.x < rect.x + 1 || b.y < rect.y + 1 || b.x + b.w > rect.x + rect.w - 1 || b.y + b.d > rect.y + rect.d - 1) return false;
   if (notch && overlaps(b, notch)) return false;
-  if (lanesOf(room, at).some((l) => overlapArea(b, l) > 0)) return false;
   if (hasHole) { const h = holeRect({ type: room.type, col: room.col, row: room.row, furniture: room.furniture }); if (overlaps(b, { x: h.x - 3, y: h.y - 3, w: h.w + 6, d: h.d + 6 })) return false; }
   const lay = layoutOf(room, at, hasHole);
   for (const other of room.furniture) {
@@ -1446,7 +1486,7 @@ export function pieceFits(room: VaultRoom, at: (col: number, row: number) => Vau
     if (!spot || !FURNITURE[other]) continue;
     if (overlaps(b, footBox(room, other, spot.x, spot.y, !!spot.swap), 2)) return false;
   }
-  return true;
+  return doorsStayJoined(room, at, hasHole, id, b, lay);
 }
 
 // ---- what settlers do with the furniture ----
@@ -1557,4 +1597,20 @@ export function PlacedPiece({ room, id, fresh, doors, pos, live }: { room: Vault
   const art = p.art(g);
   chairPulls = [];
   return <g className={fresh ? 'rm-vh-fresh' : undefined} transform={`translate(${X} ${Y}) scale(${scale})`}>{art}{live?.on ? <StandBy id={id} g={g} /> : null}</g>;
+}
+
+/** A tiny picture of a piece of furniture on its own (for the list of what can be added to a room): its drawing, cropped to fit. */
+export function PieceIcon({ id }: { id: string }): ReactElement | null {
+  const key = id === 'instrument' ? 'guitar' : id;
+  const ref = useRef<SVGGElement>(null);
+  const [box, setBox] = useState('-40 -70 80 80');
+  useLayoutEffect(() => {
+    const b = ref.current?.getBBox();
+    if (b && b.width > 0 && b.height > 0) { const m = Math.max(b.width, b.height); setBox(`${b.x - (m - b.width) / 2 - 2} ${b.y - (m - b.height) / 2 - 2} ${m + 4} ${m + 4}`); }
+  }, [key]);
+  const p = FURNITURE[key];
+  if (!p) return null;
+  keyCount = 0;
+  const art = p.art(makeG(false));
+  return <svg className="rm-vh-icon" viewBox={box} aria-hidden="true"><g ref={ref}>{art}</g></svg>;
 }
