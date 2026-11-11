@@ -6,12 +6,12 @@ import ConfirmSpend from './ConfirmSpend';
 import { canAfford, describeBag, lootName, type LootId } from '../lib/raid/loot';
 type Bag = Partial<Record<string, number>>;
 import {
-  COLS, ENTRY_AT, isPassage, MAX_HALLWAYS_PER_LEVEL, hallwaysOn, isDoorCell, LEVELS, ROOMS_FOR_VACATION, ROOMS_TO_DIG, ROOM_DEFS, ROWS, buildRecipe, deepestLevel, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
-  whyNotBuild, whyNotDig, whyNotDemolish, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
+  COLS, ENTRY_AT, isPassage, MAX_HALLWAYS_PER_LEVEL, hallwaysOn, isDoorCell, LEVELS, ROOMS_FOR_VACATION, roomCount as countRooms, ROOM_DEFS, ROWS, buildRecipe, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
+  whyNotBuild, whyNotDemolish, hasWayDown, hasWayUp, stairDir, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt, type Pose } from './vaultArt';
-import { CELL, FURNITURE, SEATS, layoutOf, pieceScale, setHallLookup, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, roomRect, screenBox, type Rect } from './vaultIso';
+import { CELL, FURNITURE, SEATS, layoutOf, pieceScale, setHallLookup, HallX, HallY, INK, LIE, LIFT, P, PlacedPiece, RoomOutline, VaultDoor, RoomShell, SIT, cellRect, doorsOf, floorPoint, footBox, pieceFits, roomRect, screenBox, unproject, type Rect } from './vaultIso';
 
 const REASONS: Record<string, string> = {
   loot: 'NOT ENOUGH LOOT',
@@ -30,14 +30,14 @@ export interface VacationChoice { placeId: string; name: string; icon: string; k
 export interface VacationOffer {
   choices: VacationChoice[];
   count: number;
-  /** Ten rooms are built, so vacation vaults can be made. */
+  /** Twelve rooms are built, so vacation vaults can be made. */
   ready: boolean;
   /** The vacation vaults they have now (one of them can be replaced by a new place when all four are used). */
   mine: { placeId: string; name: string }[];
   unlock: (placeId: string, icon: string, replace?: string) => Promise<string | null>;
 }
 
-type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType } | { kind: 'room'; idx: number; item?: string; pick?: boolean } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
+type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType; /** A stairwell's direction, once chosen. */ dir?: 'up' | 'down' } | { kind: 'room'; idx: number; item?: string; pick?: boolean } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
 
 // ---- the settlers' wandering ----
 
@@ -103,7 +103,7 @@ function plan(s: Sim, v: VaultHome) {
   s.seatFace = undefined;
   if (use && SEATS[use]) {
     const seat = pick(SEATS[use]);
-    const at = layoutOf(room, (c, r) => roomAt(v, s.level, c, r), roomAt(v, s.level + 1, room.col, room.row)?.type === 'stairs').get(use);
+    const at = layoutOf(room, (c, r) => roomAt(v, s.level, c, r), room.type !== 'stairs' && roomAt(v, s.level + 1, room.col, room.row)?.type === 'stairs').get(use);
     if (at) { const k = pieceScale(room); const turned = !!at.swap; spot = { x: at.x + (turned ? seat.dy : seat.dx) * k, y: at.y + (turned ? seat.dx : seat.dy) * k }; s.seatFace = turned ? (seat.face === 1 ? -1 : 1) : seat.face; }
   }
   s.path = route(v, s.level, cellOf(s.x, s.y), cellOf(spot.x, spot.y), spot);
@@ -261,6 +261,20 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
   const focusRef = useRef<number | null>(null);
   focusRef.current = focus;
   const [fresh, setFresh] = useState<{ room: number; item?: string } | null>(null);
+  // a piece of furniture (new, or one picked up again), floating until the owner sets it down: where (u, v of the floor) and whether it is turned
+  type Placing = { what: 'piece'; room: number; item: string; isNew: boolean; u: number; v: number; swap: boolean };
+  const [placing, setPlacing] = useState<Placing | null>(null);
+  const placingRef = useRef<Placing | null>(null);
+  placingRef.current = placing;
+  const placeDrag = useRef<number | null>(null);
+  const hold = useRef<{ x: number; y: number; timer: number; id: number } | null>(null);
+  const beginMoveRef = useRef<(idx: number, item: string, pointer: number) => void>(() => undefined);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!placing) return;
+    const id = window.setTimeout(() => setTick((n) => n + 1), 700); // the camera has slid to the room: the buttons find their place
+    return () => window.clearTimeout(id);
+  }, [placing?.what, placing?.room]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!fresh) return;
     const id = window.setTimeout(() => setFresh(null), 2600);
@@ -329,6 +343,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
   // the menu of rooms to build shows six at a time and scrolls inside a window of that size
   const [buildList, setBuildList] = useState<HTMLUListElement | null>(null);
   const [buildHeight, setBuildHeight] = useState<number | null>(null);
+  const [buildMore, setBuildMore] = useState(false);
   useLayoutEffect(() => {
     if (!buildList) { setBuildHeight(null); return; }
     const measure = () => {
@@ -338,11 +353,16 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
       setBuildHeight((prev) => (prev !== null && Math.abs(prev - h) < 2 ? prev : h));
     };
     measure();
-    const ro = new ResizeObserver(measure);
+    const more = () => setBuildMore(buildList.scrollHeight - buildList.scrollTop - buildList.clientHeight > 3);
+    more();
+    buildList.addEventListener('scroll', more);
+    const ro = new ResizeObserver(() => { measure(); more(); });
     ro.observe(buildList);
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); buildList.removeEventListener('scroll', more); };
   }, [buildList]);
-  const levelsShown = !!vault && (vault.legacy || deepestLevel(vault) > 0 || (hasDecon(vault) && roomsOn(vault, level).length >= ROOMS_TO_DIG));
+  const canUp = !!vault && hasWayUp(vault, level);
+  const canDown = !!vault && hasWayDown(vault, level);
+  const levelsShown = canUp || canDown;
   /** A new settler whose name is being chosen. */
   const [naming, setNaming] = useState<{ kind: SettlerKind; name: string } | null>(null);
 
@@ -416,31 +436,96 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
 
   /** Moves to another level (back to the whole-level view). */
   const goLevel = useCallback((to: number) => { setFocus(null); setPanel(null); setLevel(to); }, []);
-  const down = () => {
+  const down = () => { if (canDown) goLevel(level + 1); };
+
+  // ---- putting a piece of furniture down by hand ----
+  const lookupFor = (lvl: number) => (c: number, r: number) => (vault ? roomAt(vault, lvl, c, r) : undefined);
+  const hasHoleUnder = (room: VaultRoom) => !!vault && room.type !== 'stairs' && roomAt(vault, room.level + 1, room.col, room.row)?.type === 'stairs';
+  const toPart = (n: number) => Math.round(Math.max(0, Math.min(1, n)) * 1000) / 1000;
+  /** A piece that has just been chosen: it floats in the spot the layout would have given it. */
+  const startPlacingNew = (idx: number, item: string) => {
     if (!vault) return;
-    if (level < deepestLevel(vault)) { goLevel(level + 1); return; }
-    const why = whyNotDig(vault, level);
-    if (why) { say(why); return; }
-    goLevel(level + 1);
+    const room = vault.rooms[idx];
+    if (!room) return;
+    const spot = layoutOf({ ...room, furniture: [...room.furniture, item] }, lookupFor(room.level), hasHoleUnder(room)).get(item);
+    const rect = roomRect(room);
+    const s0 = spot ?? { x: rect.x + rect.w / 2, y: rect.y + rect.d / 2 };
+    setPanel(null);
+    setFocus(idx);
+    setPlacing({ what: 'piece', room: idx, item, isNew: true, u: toPart((s0.x - rect.x) / rect.w), v: toPart((s0.y - rect.y) / rect.d), swap: !!(spot as { swap?: boolean } | undefined)?.swap });
+    say('Drag it where you want it, turn it if you like, then tick it into place');
   };
+  /** A piece that was set down before, picked up again by holding a finger on it. */
+  beginMoveRef.current = (idx: number, item: string, pointer: number) => {
+    if (!vault || placingRef.current || panel || waiting > 0) return;
+    const room = vault.rooms[idx];
+    if (!room || room.type === 'hallway') return;
+    const spot = layoutOf(room, lookupFor(room.level), hasHoleUnder(room)).get(item);
+    if (!spot) return;
+    const rect = roomRect(room);
+    setFocus(idx);
+    setPlacing({ what: 'piece', room: idx, item, isNew: false, u: toPart((spot.x - rect.x) / rect.w), v: toPart((spot.y - rect.y) / rect.d), swap: !!spot.swap });
+    placeDrag.current = pointer;
+    svgRef.current?.setPointerCapture?.(pointer);
+    say('Drag it to its new place, then tick it down');
+  };
+  const fitsNow = (): boolean => {
+    const p = placing;
+    const room = p ? vault?.rooms[p.room] : undefined;
+    if (!p || !room) return false;
+    const rect = roomRect(room);
+    return pieceFits(room, lookupFor(room.level), hasHoleUnder(room), p.item, rect.x + p.u * rect.w, rect.y + p.v * rect.d, p.swap);
+  };
+  const dragPlaceTo = (clientX: number, clientY: number) => {
+    const p = placingRef.current;
+    const svg = svgRef.current;
+    const room = p ? vault?.rooms[p.room] : undefined;
+    const ctm = svg?.getScreenCTM();
+    if (!p || !room || !ctm) return;
+    const pt = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse());
+    const w = unproject(pt.x, pt.y + 12);
+    const rect = roomRect(room);
+    setPlacing({ ...p, u: toPart((w.x - rect.x) / rect.w), v: toPart((w.y - rect.y) / rect.d) });
+  };
+  const confirmPlace = () => {
+    const p = placing;
+    if (!p || busy) return;
+    if (!fitsNow()) { say('It does not fit there: it is over something, in a doorway, or off the floor'); return; }
+    const at = { u: p.u, v: p.v, ...(p.swap ? { swap: true } : {}) };
+    if (p.isNew) void act({ action: 'furnish', room: p.room, item: p.item, at }, () => { setPlacing(null); setFresh({ room: p.room, item: p.item }); if (p.item === 'instrument') setPanel({ kind: 'room', idx: p.room, pick: true }); });
+    else void act({ action: 'place', room: p.room, item: p.item, at }, () => setPlacing(null));
+  };
+  const cancelPlace = () => {
+    const p = placing;
+    setPlacing(null);
+    if (!p) return;
+    if (p.isNew) setPanel({ kind: 'room', idx: p.room });
+  };
+  /** Where the buttons under the floating piece go on the screen. */
+  const placeBar = (() => {
+    const vb = vbRef.current;
+    const room = placing && vault ? vault.rooms[placing.room] : undefined;
+    if (!placing || !room || !size || !vb) return null;
+    const rect = roomRect(room);
+    const b = footBox(room, placing.item, rect.x + placing.u * rect.w, rect.y + placing.v * rect.d, placing.swap);
+    const corner = { x: b.x + b.w, y: b.y + b.d };
+    const [X, Y] = P(corner.x, corner.y, 0);
+    const k = size.w / vb[2];
+    return { left: Math.max(96, Math.min(size.w - 96, (X - vb[0]) * k)), top: Math.max(8, Math.min(size.h - 64, (Y - vb[1]) * k + 12)) };
+  })();
 
   // the drawing needs to know which cells have a room (a hallway runs the way its neighbors are)
   setHallLookup(vault ? (l, c, r) => !!roomAt(vault, l, c, r) : null);
 
-  // the cells where a room could be built: next to a room of this level, or (on a level with no rooms yet) under a room of the level above
+  // the cells where a room could be built: next to a room of this level
   const openCells = useMemo<[number, number][]>(() => {
     if (!vault) return [];
     const out: [number, number][] = [];
-    const here = roomsOn(vault, level);
-    const needsStairs = level > 0 && !here.some((r) => r.type === 'stairs');
     for (let row = 0; row < ROWS; row++) {
       for (let col = 0; col < COLS; col++) {
         if (roomAt(vault, level, col, row) || isDoorCell(vault, level, col, row)) continue;
         const touches = [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => !!roomAt(vault, level, col + dc, row + dr));
-        const above = level > 0 ? roomAt(vault, level - 1, col, row) : undefined;
-        // a level with no stairwell yet shows only the places one can go (under a room, next to what is there); the rest wait
-        const ok = needsStairs ? !!above && above.type !== 'stairs' && above.type !== 'hallway' && (here.length === 0 || touches) : touches;
-        if (ok) out.push([col, row]);
+        if (touches) out.push([col, row]);
       }
     }
     return out;
@@ -449,11 +534,10 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
   // the part of the picture that only changes when the vault does: the rooms and the places for more, back to front, each room with the halls that join it to the ones behind it
   const scene = useMemo(() => {
     if (!vault) return null;
-    const here = roomsOn(vault, level);
     const at = (c: number, r: number) => roomAt(vault, level, c, r);
     const tapRoom = (e: React.MouseEvent, idx: number) => {
       e.stopPropagation();
-      if (dragged.current) return; // the finger moved the picture: it is not a tap
+      if (dragged.current || placingRef.current) return; // the finger moved the picture, or something is being put down: it is not a tap
       setFocus(idx);
       setPanel({ kind: 'room', idx });
     };
@@ -477,7 +561,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
         el: (
           <g className={`rm-vh-room${fresh && fresh.room === idx && !fresh.item ? ' rm-vh-fresh' : ''}`} role="button" aria-label={def.name}>
             {halls}
-            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} level={room.level} labelFront={[at(room.col - 1, room.row), ...Array.from({ length: slots }, (_, k) => at(room.col + k, room.row - 1))].some((n) => n?.type === 'hallway')} doorsL={doorsL} doorsR={doorsR} hole={roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} furniture={room.furniture} />
+            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} level={room.level} labelFront={[at(room.col - 1, room.row), ...Array.from({ length: slots }, (_, k) => at(room.col + k, room.row - 1))].some((n) => n?.type === 'hallway')} doorsL={doorsL} doorsR={doorsR} hole={room.type !== 'stairs' && roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} down={room.type === 'stairs' && roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} way={stairDir(vault, room) ?? undefined} furniture={room.furniture} />
           </g>
         ),
       });
@@ -490,9 +574,9 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             if (focusRef.current !== null) return;
             e.stopPropagation();
             if (!hasDecon(vault)) { say(DECON_REASON); return; }
-            setPanel({ kind: 'build', level, col, row, ...(level > 0 && !here.some((r) => r.type === 'stairs') ? { type: 'stairs' as RoomType } : {}) });
+            setPanel({ kind: 'build', level, col, row });
           }}>
-            <RoomOutline rect={cellRect(col, row)} label={here.length === 0 ? 'DIG DOWN' : 'CLEAR & BUILD'} near={roomAt(vault, level, col - 1, row) ? 'left' : roomAt(vault, level, col, row - 1) ? 'back' : roomAt(vault, level, col + 1, row) ? 'right' : roomAt(vault, level, col, row + 1) ? 'front' : undefined} />
+            <RoomOutline rect={cellRect(col, row)} label="CLEAR & BUILD" near={roomAt(vault, level, col - 1, row) ? 'left' : roomAt(vault, level, col, row - 1) ? 'back' : roomAt(vault, level, col + 1, row) ? 'right' : roomAt(vault, level, col, row + 1) ? 'front' : undefined} />
           </g>
         ),
       });
@@ -504,20 +588,30 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     return { layers, ghosts, entry, tapRoom };
   }, [vault, fresh, level, say, openCells]);
 
-  // the furniture of each room, with where it stands (so it can be painted among the settlers, back to front)
+  // the furniture of each room, with where it stands (so it can be painted among the settlers, back to front); the piece being moved is drawn floating instead
+  const movingKey = placing && placing.what === 'piece' && !placing.isNew ? `${placing.room}:${placing.item}` : '';
   const pieces = useMemo(() => {
     const out = new Map<number, { key: string; depth: number; el: React.ReactElement }[]>();
     if (!vault) return out;
     vault.rooms.forEach((room, idx) => {
       if (room.level !== level) return;
-      const lay = layoutOf(room, (c, r) => roomAt(vault, level, c, r), roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs');
+      const lay = layoutOf(room, (c, r) => roomAt(vault, level, c, r), room.type !== 'stairs' && roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs');
       out.set(idx, room.furniture.flatMap((id) => {
         const at = lay.get(id);
-        return at ? [{ key: `f${idx}-${id}`, depth: at.x + at.y, el: <PlacedPiece key={`f${idx}-${id}`} room={room} id={id} pos={at} fresh={!!fresh && fresh.room === idx && fresh.item === id} /> }] : [];
+        if (!at || (movingKey === `${idx}:${id}`)) return [];
+        return [{
+          key: `f${idx}-${id}`, depth: at.x + at.y,
+          el: (
+            <g key={`f${idx}-${id}`}
+              onPointerDown={(e) => { if (placingRef.current || room.type === 'hallway') return; const pid = e.pointerId; hold.current = { x: e.clientX, y: e.clientY, id: pid, timer: window.setTimeout(() => { hold.current = null; beginMoveRef.current(idx, id, pid); }, 550) }; }}>
+              <PlacedPiece room={room} id={id} pos={at} fresh={!!fresh && fresh.room === idx && fresh.item === id} />
+            </g>
+          ),
+        }];
       }));
     });
     return out;
-  }, [vault, level, fresh]);
+  }, [vault, level, fresh, movingKey]);
 
   // where the window should be while a room is blown up (above the upgrade popup while that is open)
   const docked = panel?.kind === 'room';
@@ -539,11 +633,11 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     const rects: Rect[] = vault.rooms.filter((r) => r.level === level).map(roomRect);
     if (rects.length === 0) for (const [c, r] of openCells) rects.push(cellRect(c, r));
     if (rects.length === 0) rects.push(cellRect(ENTRY_AT.col, ENTRY_AT.row));
-    // the window is the rooms plus about half a cell around them: the next places to build show half of themselves
-    const half = CELL * 0.5;
+    // the window is the rooms plus a little around them: the next places to build show only their edge (scroll to see the rest)
+    const half = CELL * 0.18;
     const b = screenBox(rects.map((r) => ({ x: r.x - half, y: r.y - half, w: r.w + 2 * half, d: r.d + 2 * half })));
     const pad = 4;
-    const sc = Math.min(size.w / (b.w + 2 * pad), size.h / (b.h + 2 * pad), 2.6);
+    const sc = Math.min(size.w / (b.w + 2 * pad), size.h / (b.h + 2 * pad), 3.6);
     const w = size.w / sc;
     const h = size.h / sc;
     return [b.x + b.w / 2 - w / 2, b.y + b.h / 2 - h / 2, w, h];
@@ -578,8 +672,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
 
   const room: VaultRoom | undefined = panel?.kind === 'room' ? vault?.rooms[panel.idx] : undefined;
   const ownLoot = account.loot;
-  const rooms = vault ? vault.rooms.length : 0;
-  const canDown = !!vault && (level < deepestLevel(vault) || whyNotDig(vault, level) === null);
+  const rooms = vault ? countRooms(vault) : 0;
 
   return createPortal(
     <div className="rm-vh" role="dialog" aria-label="Your home vault" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
@@ -602,6 +695,21 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
       <div className="rm-vh-viewwrap">
       <div className={`rm-vh-view${focus !== null ? ' focused' : ''}`} ref={viewRef}>
         {!vault && !error && <p className="rm-vh-wait">ENTERING THE VAULT…</p>}
+        {placing && placeBar && (
+          <div className="rm-vh-place" style={{ left: placeBar.left, top: placeBar.top }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="rm-vh-place-x" onClick={cancelPlace} disabled={busy} aria-label="Cancel: nothing is spent" title="Cancel (nothing is spent)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
+            </button>
+            {(
+              <button type="button" className="rm-vh-place-turn" onClick={() => setPlacing({ ...placing, swap: !placing.swap })} disabled={busy} aria-label="Turn it" title="Turn it">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.2-5.1M19 4v4.5h-4.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            )}
+            <button type="button" className={`rm-vh-place-ok${fitsNow() ? '' : ' blocked'}`} onClick={confirmPlace} disabled={busy} aria-label="Set it down" title="Set it down">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+          </div>
+        )}
         {vault && size && scene && (() => {
           // each settler is painted with the room it is in (or, in a hall, with the front-most one), back to front among that room's furniture
           const rooms = scene.layers.filter((l) => l.room);
@@ -626,8 +734,10 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
           })() }));
           return (
             <svg ref={svgRef} className="rm-vh-svg" style={{ width: size.w, height: size.h, touchAction: focus !== null ? 'none' : undefined }} fill="none" stroke={INK} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
-              onPointerDown={(e) => { if (focus !== null && !animating.current) drag.current = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId }; }}
+              onPointerDown={(e) => { if (placingRef.current) { placeDrag.current = e.pointerId; (e.currentTarget as SVGSVGElement).setPointerCapture?.(e.pointerId); dragPlaceTo(e.clientX, e.clientY); return; } if (focus !== null && !animating.current) drag.current = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId }; }}
               onPointerMove={(e) => {
+                if (placeDrag.current !== null) { dragPlaceTo(e.clientX, e.clientY); return; }
+                if (hold.current && Math.hypot(e.clientX - hold.current.x, e.clientY - hold.current.y) > 10) { window.clearTimeout(hold.current.timer); hold.current = null; }
                 const d = drag.current;
                 const vb = vbRef.current;
                 if (!d || !vb || !size) return;
@@ -640,15 +750,31 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                 d.x = e.clientX;
                 d.y = e.clientY;
               }}
-              onPointerUp={() => { const d = drag.current; drag.current = null; if (d?.moved) { dragged.current = true; window.setTimeout(() => { dragged.current = false; }, 60); } }}
-              onPointerCancel={() => { drag.current = null; }}
-              onClick={() => { if (dragged.current) return; if (focus !== null) { if (panel) setPanel(null); else setFocus(null); } }}>
+              onPointerUp={() => { placeDrag.current = null; if (hold.current) { window.clearTimeout(hold.current.timer); hold.current = null; } const d = drag.current; drag.current = null; if (d?.moved) { dragged.current = true; window.setTimeout(() => { dragged.current = false; }, 60); } }}
+              onPointerCancel={() => { drag.current = null; placeDrag.current = null; if (hold.current) { window.clearTimeout(hold.current.timer); hold.current = null; } }}
+              onClick={() => { if (dragged.current || placingRef.current) return; if (focus !== null) { if (panel) setPanel(null); else setFocus(null); } }}>
               <g className="rm-vh-ghosts">{scene.ghosts}</g>
               {scene.layers.map((l) => {
                 const here = l.room;
                 const things = here ? [...(pieces.get(here.idx) ?? []), ...settlers.filter((t) => t.owner === here.idx)].sort((x, y) => x.depth - y.depth) : [];
                 return <g key={l.key} onClick={here ? (e) => scene.tapRoom(e, here.idx) : undefined}>{l.el}{things.map((t) => t.el)}</g>;
               })}
+              {placing && (() => {
+                const room = vault.rooms[placing.room];
+                if (!room) return null;
+                const rect = roomRect(room);
+                const ok = fitsNow();
+                const edge = ok ? INK : '#ff5a5a';
+                const fill = ok ? 'rgba(61,255,138,0.16)' : 'rgba(255,90,90,0.22)';
+                const outline = (b: Rect) => [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.d], [b.x, b.y + b.d]].map(([a, c]) => P(a, c, 0).map((n) => Math.round(n * 10) / 10).join(',')).join(' ');
+                const x = rect.x + placing.u * rect.w, y = rect.y + placing.v * rect.d;
+                return (
+                  <g pointerEvents="none">
+                    <polygon points={outline(footBox(room, placing.item, x, y, placing.swap))} fill={fill} stroke={edge} strokeWidth={1.8} strokeDasharray="5 3" />
+                    <g transform="translate(0 -9)" opacity={0.93}><PlacedPiece room={room} id={placing.item} pos={{ x, y, swap: placing.swap }} /></g>
+                  </g>
+                );
+              })()}
               {scene.entry && <VaultDoor rect={roomRect(scene.entry)} onTap={onExit} />}
             </svg>
           );
@@ -659,15 +785,15 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
         )}
-        {vault && (vault.legacy || deepestLevel(vault) > 0 || (hasDecon(vault) && roomsOn(vault, level).length >= ROOMS_TO_DIG)) && (
+        {vault && !placing && levelsShown && (
           <div className="rm-vh-levels" role="group" aria-label="Levels">
-            <button type="button" className="rm-vh-lv" disabled={level <= 0} onClick={() => goLevel(level - 1)} aria-label="Up one level">▲</button>
+            {canUp && <button type="button" className="rm-vh-lv" onClick={() => goLevel(level - 1)} aria-label="Up one level">▲</button>}
             <span>LEVEL {level + 1}<i>OF {LEVELS}</i></span>
-            <button type="button" className={`rm-vh-lv${canDown ? '' : ' locked'}`} disabled={level + 1 >= LEVELS} onClick={down} aria-label="Down one level">▼</button>
+            {canDown && <button type="button" className="rm-vh-lv" onClick={down} aria-label="Down one level">▼</button>}
           </div>
         )}
       </div>
-      {focus !== null && !panel && !waiting && <button type="button" className="rm-btn rm-vh-fab" onClick={() => setPanel({ kind: 'room', idx: focus })}>UPGRADES</button>}
+      {focus !== null && !panel && !waiting && !placing && <button type="button" className="rm-btn rm-vh-fab" onClick={() => setPanel({ kind: 'room', idx: focus })}>UPGRADES</button>}
 
       {vault && panel && !waiting && (
         <div className={`rm-vh-sheet${panel.kind === 'room' ? ' dock' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setPanel(null); }}>
@@ -753,7 +879,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             )}
             {panel.kind === 'build' && !panel.type && (
               <div className="rm-vh-sheet-body">
-                <h3>{roomsOn(vault, panel.level).length === 0 ? 'DIG DOWN' : 'CLEAR & BUILD'}</h3>
+                <h3>CLEAR & BUILD</h3>
                 <ul className="rm-vh-types rm-vh-types-window" ref={setBuildList} style={buildHeight ? { height: buildHeight } : undefined}>
                   {ROOM_DEFS.filter((d) => d.buildable !== false).map((d) => {
                     const why = whyNotBuild(vault, d.id, panel.level, panel.col, panel.row);
@@ -768,21 +894,38 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                     );
                   })}
                 </ul>
-                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel(null)}>CANCEL</button></div>
+                <div className="rm-vh-row rm-vh-row-more"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel(null)}>CANCEL</button><span className={`rm-vh-more${buildMore ? ' on' : ''}`} aria-hidden="true">▼</span></div>
               </div>
             )}
-            {panel.kind === 'build' && panel.type && (
+            {panel.kind === 'build' && panel.type === 'stairs' && !panel.dir && (
+              <div className="rm-vh-sheet-body">
+                <h3>WHICH WAY DOES IT GO?</h3>
+                <p>A STAIRWELL MAKES ITS OTHER END ON THE LEVEL IT GOES TO. TO CHANGE YOUR MIND LATER, YOU HAVE TO DEMOLISH IT.</p>
+                <div className="rm-vh-dirs">
+                  {(['up', 'down'] as const).map((d) => {
+                    const why = whyNotBuild(vault, 'stairs', panel.level, panel.col, panel.row, d);
+                    return (
+                      <button key={d} type="button" className={!why ? 'can' : undefined} disabled={!!why} onClick={() => setPanel({ ...panel, dir: d })}>
+                        <b>{d === 'up' ? '▲' : '▼'}</b><span>{d === 'up' ? 'UP' : 'DOWN'}</span><i>{why ? why.toUpperCase() : `LEVEL ${panel.level + (d === 'up' ? 0 : 2)}`}</i>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel({ kind: 'build', level: panel.level, col: panel.col, row: panel.row })}>BACK</button></div>
+              </div>
+            )}
+            {panel.kind === 'build' && panel.type && (panel.type !== 'stairs' || panel.dir) && (
               <RecipeCard
-                verb={panel.type === 'stairs' ? 'DIG' : 'BUILD'} what={roomDef(panel.type).name.toUpperCase()} title={panel.type === 'stairs' ? 'DIG A STAIRWELL DOWN' : `BUILD A ${roomDef(panel.type).name.toUpperCase()}`} recipe={buildRecipe(vault, panel.type)} have={ownLoot} busy={busy}
-                onBack={() => setPanel(panel.type === 'stairs' ? null : { kind: 'build', level: panel.level, col: panel.col, row: panel.row })}
-                onPay={() => act({ action: 'build', type: panel.type as string, level: panel.level, col: panel.col, row: panel.row }, (v) => setFresh({ room: v.rooms.length - 1 }))}
+                verb="BUILD" what={roomDef(panel.type).name.toUpperCase()} title={panel.type === 'stairs' ? `BUILD A STAIRWELL ${panel.dir === 'up' ? 'UP' : 'DOWN'}` : `BUILD A ${roomDef(panel.type).name.toUpperCase()}`} recipe={buildRecipe(vault, panel.type)} have={ownLoot} busy={busy}
+                onBack={() => setPanel(panel.type === 'stairs' ? { ...panel, dir: undefined } : { kind: 'build', level: panel.level, col: panel.col, row: panel.row })}
+                onPay={() => act({ action: 'build', type: panel.type as string, level: panel.level, col: panel.col, row: panel.row, ...(panel.type === 'stairs' ? { dir: panel.dir } : {}) }, (v) => setFresh({ room: panel.type === 'stairs' ? v.rooms.length - 2 : v.rooms.length - 1 }))}
               />
             )}
             {panel.kind === 'room' && room && !panel.item && !panel.pick && (
               <div className="rm-vh-sheet-body">
                 <button type="button" className="rm-vh-x" onClick={() => setPanel(null)} aria-label="Close">×</button>
                 <h3>{roomDef(room.type).name.toUpperCase()}</h3>
-                <p>{room.type === 'stairs' ? 'THE STAIRS GO BACK UP. THE ROOM ABOVE HAS A HOLE IN ITS FLOOR FOR THEM.' : room.type === 'hallway' ? (room.furniture.length ? 'ONE PIECE IN A HALLWAY, AND IT IS HERE.' : `A HALLWAY HOLDS ONE PIECE: CHOOSE WELL. IT COSTS ${furnishCost(room)} PIECES OF LOOT.`) : roomComplete(room) ? 'FULLY FURNISHED.' : `EACH PIECE COSTS ${furnishCost(room)} PIECES OF LOOT, A DIFFERENT MIX FOR EACH.`}</p>
+                <p>{room.type === 'stairs' ? (stairDir(vault, room) === 'up' ? 'THESE STAIRS GO UP: USE THE UP ARROW TO SEE THE LEVEL ABOVE. NO FURNITURE, NO HAPPINESS: JUST THE WAY BETWEEN.' : 'THESE STAIRS GO DOWN: USE THE DOWN ARROW TO SEE THE LEVEL BELOW. NO FURNITURE, NO HAPPINESS: JUST THE WAY BETWEEN.') : room.type === 'hallway' ? (room.furniture.length ? 'ONE PIECE IN A HALLWAY, AND IT IS HERE.' : `A HALLWAY HOLDS ONE PIECE: CHOOSE WELL. IT COSTS ${furnishCost(room)} PIECES OF LOOT.`) : roomComplete(room) ? 'FULLY FURNISHED.' : `EACH PIECE COSTS ${furnishCost(room)} PIECES OF LOOT, A DIFFERENT MIX FOR EACH.`}</p>
                 <ul className="rm-vh-types">
                   {furnitureOf(room.type).map((f) => {
                     const placed = room.furniture.some((x) => slotOf(x) === f.id) || (room.type === 'hallway' && room.furniture.length >= 1);
@@ -807,7 +950,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
               <RecipeCard
                 verb="PLACE IT" what={(furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()} title={`ADD ${(furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()}`} recipe={furnishRecipe(vault, panel.idx, panel.item)} have={ownLoot} busy={busy}
                 onBack={() => setPanel({ kind: 'room', idx: panel.idx })}
-                onPay={() => act({ action: 'furnish', room: panel.idx, item: panel.item as string }, () => { setFresh({ room: panel.idx, item: panel.item }); if (panel.item === 'instrument') setPanel({ kind: 'room', idx: panel.idx, pick: true }); })}
+                onPay={async () => { if (room.type !== 'hallway') { startPlacingNew(panel.idx, panel.item as string); return; } await act({ action: 'furnish', room: panel.idx, item: panel.item as string }, () => { setFresh({ room: panel.idx, item: panel.item }); if (panel.item === 'instrument') setPanel({ kind: 'room', idx: panel.idx, pick: true }); }); }}
               />
             )}
           </div>

@@ -14,7 +14,7 @@
 import { callerId, corsHeaders, reply, serviceClient, dailyRenderCap, nextRenderReset } from '../_shared/common.ts';
 import { streetPrompt } from '../_shared/streetPrompt.ts';
 import { findPhotoFor } from '../_shared/photoSources.ts';
-import { normalize, vacationRecipe, ROOMS_FOR_VACATION, MAX_VACATIONS, type VaultHome } from '../_shared/vaultHome.ts';
+import { normalize, vacationRecipe, ROOMS_FOR_VACATION, MAX_VACATIONS, roomCount, type VaultHome } from '../_shared/vaultHome.ts';
 
 const UA = { 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' };
 /** A place this far from home (km) is outside the home metro (metros reach 80 km at most). */
@@ -127,14 +127,14 @@ Deno.serve(async (req) => {
   const icon = String(b.icon ?? '');
   if (!/^[a-z0-9:_-]{1,60}$/i.test(icon)) return reply(req, { error: 'bad_icon' }, 400);
 
-  // the home vault: ten rooms or more, and where home is
+  // the home vault: twelve rooms or more, and where home is
   const [{ data: home }, { data: hv }] = await Promise.all([
     db.from('user_home').select('place_id,vault_number,lat,lng').eq('user_id', user).maybeSingle(),
     db.from('home_vault').select('state').eq('user_id', user).eq('vault_key', 'home').maybeSingle(),
   ]);
   if (!home || home.vault_number === null || home.vault_number === undefined || !hv?.state) return reply(req, { error: 'no_home' }, 400);
   const homeVault = normalize(hv.state as VaultHome);
-  if (homeVault.rooms.length < ROOMS_FOR_VACATION) return reply(req, { error: 'too_few_rooms' }, 403);
+  if (roomCount(homeVault) < ROOMS_FOR_VACATION) return reply(req, { error: 'too_few_rooms' }, 403);
 
   // a place they have found (the server's own record of it: where it is and what it is called), well outside the home metro
   let { data: found } = await db.from('found_places').select('name,lat,lng').eq('user_id', user).eq('place_id', placeId).maybeSingle();

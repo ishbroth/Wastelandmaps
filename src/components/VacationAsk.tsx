@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import ConfirmSpend from './ConfirmSpend';
 import CogSpinner from './CogSpinner';
 import { vaultCall, type Account } from '../lib/account';
-import { MAX_VACATIONS, ROOMS_FOR_VACATION, vacationRecipe, type VaultHome } from '../lib/vaultHome';
+import { MAX_VACATIONS, ROOMS_FOR_VACATION, roomCount, vacationRecipe, type VaultHome } from '../lib/vaultHome';
 import type { VacationChoice, VacationOffer } from './VaultHome';
 
 /**
@@ -34,8 +34,8 @@ export default function VacationAsk({ choice, offer, account, onClose, onDone }:
 
   if (problem) return card(<><h3>VACATION VAULT</h3><p>{problem}</p><div className="rm-confirm-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={onClose}>CLOSE</button></div></>);
   if (!vault) return card(<><h3>VACATION VAULT</h3><p><CogSpinner /> READING YOUR VAULT…</p></>);
-  if (vault.rooms.length < ROOMS_FOR_VACATION) {
-    return card(<><h3>VACATION VAULT</h3><p>BUILD {ROOMS_FOR_VACATION} ROOMS IN YOUR HOME VAULT FIRST. YOU HAVE {vault.rooms.length}.</p><div className="rm-confirm-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={onClose}>CLOSE</button></div></>);
+  if (roomCount(vault) < ROOMS_FOR_VACATION) {
+    return card(<><h3>VACATION VAULT</h3><p>BUILD {ROOMS_FOR_VACATION} ROOMS IN YOUR HOME VAULT FIRST. YOU HAVE {roomCount(vault)}.</p><div className="rm-confirm-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={onClose}>CLOSE</button></div></>);
   }
   if (full && !replace) {
     return card(

@@ -8,13 +8,15 @@ fs.mkdirSync('resources', { recursive: true });
 const GREEN = '#3dff8a';
 const DIM = '#1f9a52';
 const DARK = '#000a04';
-/** On the full icon the cogwheel is drawn this much smaller, so the rendered road behind it can be seen all around it (ICON_COG_SCALE=1 for the old size). */
-const COG_SCALE = Number(process.env.ICON_COG_SCALE ?? 0.6);
+/** On the full icon the cogwheel is drawn at this size (1 is full size; the rendered-road background used 0.6). */
+const COG_SCALE = Number(process.env.ICON_COG_SCALE ?? 1);
 const n = (v) => Math.round(v * 10) / 10;
 
 // The picture behind the cogwheel: a destroyed road seen from the walker's own eyes (made once by _tools/gen-icon-road.mjs, kept in resources/icon-road.png).
 // Set ICON_BACKGROUND=plain to go back to the plain dark background the icon had before (also the git tag icon-cog-only-v1).
-const useRoad = process.env.ICON_BACKGROUND !== 'plain' && fs.existsSync('resources/icon-road.png');
+// The icon is the cogwheel and the arrow on the dark background with a few green map roads behind them (like the streets of the Apple Maps icon, in the app's green).
+// ICON_BACKGROUND=photo puts the rendered destroyed road behind them instead; ICON_BACKGROUND=plain leaves the background bare.
+const useRoad = process.env.ICON_BACKGROUND === 'photo' && fs.existsSync('resources/icon-road.png');
 let road1024 = null;
 let roadSmall = null;
 if (useRoad) {
@@ -27,13 +29,27 @@ if (useRoad) {
   road1024 = await square.clone().resize(1024, 1024).jpeg({ quality: 88 }).toBuffer();
   roadSmall = await square.clone().resize(96, 96).jpeg({ quality: 72 }).toBuffer();
 }
+/** A few streets in the map's green: a wide main road crossing the icon on a slant, a street across it, a curving one and some small ones, each a dim band with a bright line down it. */
+const road = (d, w, o = 1) => '<path d="' + d + '" stroke="#0a3d1c" stroke-width="' + (w + 10) + '" opacity="' + o + '"/><path d="' + d + '" stroke="' + DIM + '" stroke-width="' + w + '" opacity="' + (0.75 * o) + '"/><path d="' + d + '" stroke="' + GREEN + '" stroke-width="' + Math.max(3, w * 0.16) + '" opacity="' + (0.85 * o) + '"/>';
+const ROADS = '<g fill="none" stroke-linecap="round" stroke-linejoin="round">'
+  // a wide avenue on the slant, passing behind the cog and coming out at two corners
+  + road('M-120 1000 L 330 700 C 470 610 560 430 700 330 L 1150 20', 96)
+  // the street that crosses it the other way, with a bend
+  + road('M-100 140 L 300 260 C 420 296 480 420 560 520 C 650 640 780 700 900 760 L 1140 880', 70)
+  // the blocks near the edges
+  + road('M-60 910 L 1100 910', 44, 0.95)
+  + road('M906 -60 L 906 1100', 44, 0.95)
+  // a couple of small ones
+  + road('M-60 560 L 180 560', 26, 0.85)
+  + road('M850 470 L 1100 470', 26, 0.85)
+  + '</g>';
 const BACKGROUND = useRoad
   ? '<image href="data:image/jpeg;base64,' + (road1024 ? road1024.toString('base64') : '') + '" width="1024" height="1024"/><rect width="1024" height="1024" fill="#000a04" opacity="0.06"/>'
-  : '<rect width="1024" height="1024" fill="url(#sky)"/>';
+  : process.env.ICON_BACKGROUND === 'plain' ? '<rect width="1024" height="1024" fill="url(#sky)"/>' : '<rect width="1024" height="1024" fill="url(#sky)"/><g filter="url(#g)">' + ROADS + '</g>';
 /** The website's tab icon: the same background, small, in a rounded square with the green rim. */
 const FLAT_BACKGROUND = useRoad
   ? '<clipPath id="rr"><rect width="1024" height="1024" rx="190"/></clipPath><image clip-path="url(#rr)" href="data:image/jpeg;base64,' + (roadSmall ? roadSmall.toString('base64') : '') + '" width="1024" height="1024"/><rect width="1024" height="1024" rx="190" fill="#000a04" opacity="0.22"/><rect x="26" y="26" width="972" height="972" rx="166" fill="none" stroke="#1f9a52" stroke-width="14"/>'
-  : '<rect width="1024" height="1024" rx="190" fill="#04170c"/><rect x="26" y="26" width="972" height="972" rx="166" fill="none" stroke="#1f9a52" stroke-width="14"/>';
+  : '<clipPath id="rr"><rect width="1024" height="1024" rx="190"/></clipPath><rect width="1024" height="1024" rx="190" fill="#04170c"/>' + (process.env.ICON_BACKGROUND === 'plain' ? '' : '<g clip-path="url(#rr)">' + ROADS + '</g>') + '<rect x="26" y="26" width="972" height="972" rx="166" fill="none" stroke="#1f9a52" stroke-width="14"/>';
 
 /** The outline of a cog (a vault door): a ring of teeth. */
 function cog(cx, cy, teeth, outer, root) {
@@ -157,7 +173,8 @@ await png(iconArt(true), 1024).toFile('resources/icon-only.png');
 const small = await png(iconArt(false), 676).toBuffer();
 await sharp({ create: { width: 1024, height: 1024, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([{ input: small, gravity: 'center' }]).png().toFile('resources/icon-foreground.png');
 if (useRoad) await sharp(road1024).png().toFile('resources/icon-background.png');
-else await sharp({ create: { width: 1024, height: 1024, channels: 4, background: DARK } }).png().toFile('resources/icon-background.png');
+else if (process.env.ICON_BACKGROUND === 'plain') await sharp({ create: { width: 1024, height: 1024, channels: 4, background: DARK } }).png().toFile('resources/icon-background.png');
+else await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs><filter id="g" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><radialGradient id="sky" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#06301a"/><stop offset="1" stop-color="' + DARK + '"/></radialGradient></defs><rect width="1024" height="1024" fill="url(#sky)"/><g filter="url(#g)">' + ROADS + '</g></svg>')).png().toFile('resources/icon-background.png');
 // the splash: an old television's stand-by test card in Pip-Boy green (rings, a sunburst, a crosshair, corner targets, gratings, and PLEASE STAND BY across the middle)
 function standBySvg() {
   const W = 2732, c = W / 2;

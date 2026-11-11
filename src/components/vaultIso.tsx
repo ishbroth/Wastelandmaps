@@ -13,16 +13,18 @@ export const BG = '#021a0c';
 
 // ---- the projection ----
 
-export const CELL = 120;
+export const CELL = 168;
 export const WALL_H = 54;
 export const WALL_T = 6;
 /** A small room (the entryway, the bathroom, the laundry room): this wide and deep, in the middle of its cell. */
-export const SMALL = 82;
+export const SMALL = 115;
 const KX = 0.866;
 const KY = 0.5;
 
 /** A point of the world on the screen. */
 export const P = (x: number, y: number, z = 0): [number, number] => [(x - y) * KX, (x + y) * KY - z];
+/** The spot of the floor (z = 0) that a point of the picture shows: the opposite of P. */
+export const unproject = (sx: number, sy: number): { x: number; y: number } => { const a = sx / KX, b = sy / KY; return { x: (a + b) / 2, y: (b - a) / 2 }; };
 type V3 = [number, number, number];
 const pts = (list: V3[]): string => list.map(([x, y, z]) => P(x, y, z).map((n) => Math.round(n * 10) / 10).join(',')).join(' ');
 
@@ -211,10 +213,11 @@ const Slab = ({ x0, y0, x1, y1, z0 = 0, z1, k }: { x0: number; y0: number; x1: n
 );
 
 /** The hole in the floor of a room that has a stairwell under it: out of the way of the furniture, in a front corner (the walls there are cut away). */
+export const HOLE = 46;
 export function holeRect(room: { type: RoomType; col: number; row: number; furniture: string[] }): Rect {
-  const S = 30;
+  const S = HOLE;
   const { rect, notch } = shapeOf(room);
-  const m = 9;
+  const m = 12;
   const spots: Rect[] = [
     { x: rect.x + rect.w - m - S, y: rect.y + rect.d - m - S, w: S, d: S },
     { x: rect.x + m, y: rect.y + rect.d - m - S, w: S, d: S },
@@ -228,24 +231,47 @@ export function holeRect(room: { type: RoomType; col: number; row: number; furni
   return spots.find(free) ?? spots[0];
 }
 
-/** A hole in the floor with a flight of stairs going down into it, and a railing along its open sides. */
-function StairHole({ hole }: { hole: Rect }): ReactElement {
+/**
+ * A black rectangular hole, flush with the floor, with a flight of stairs going down into the dark along the far wall (the steps fade to black) and a handrail
+ * slanting down along with them. Nothing stands above the floor but the top of the rail. What is below the floor is only seen through the opening, so it is
+ * clipped to it; the flight is narrow and shallow enough that its steps are not hidden by the near rim.
+ */
+export function StairHole({ hole }: { hole: Rect }): ReactElement {
   const hx0 = hole.x, hy0 = hole.y, hx1 = hole.x + hole.w, hy1 = hole.y + hole.d;
-  const D = 17;
-  const steps = [2, 1, 0].map((k) => {
-    const y0 = hy1 - (k + 1) * 7.5 - 2;
-    return <Poly key={`t${k}`} p={[[hx0 + 3, y0, -(k + 1) * 4.2], [hx1 - 3, y0, -(k + 1) * 4.2], [hx1 - 3, y0 + 7.5, -(k + 1) * 4.2], [hx0 + 3, y0 + 7.5, -(k + 1) * 4.2]]} fill={k === 0 ? SLAB : '#0a3a1c'} sw={0.9} />;
+  const D = 26;
+  const n = 6;
+  const id = `hole${Math.round(hx0)}_${Math.round(hy0)}`;
+  const top = hy1 - 3;
+  const bottom = hy0 + 3;
+  const run = (top - bottom) / n;
+  const rise = D / (n + 1);
+  const xl = hx0 + 3;
+  const xr = hx0 + 3 + 19;
+  // the steps go down toward the back, each darker than the one above it
+  const shade = (i: number): string => `rgb(${Math.round(16 - i * 2)},${Math.round(88 - i * 12)},${Math.round(42 - i * 5.8)})`;
+  const steps = Array.from({ length: n }, (_, i) => {
+    const y1 = top - i * run, y0 = y1 - run, z = -(i + 1) * rise;
+    return (
+      <g key={`t${i}`}>
+        <Poly p={[[xl, y0, z], [xr, y0, z], [xr, y1, z], [xl, y1, z]]} fill={shade(i)} sw={0.9} stroke={i < 4 ? INK : DIM} />
+        <Poly p={[[xl, y1, z], [xr, y1, z], [xr, y1, z + rise], [xl, y1, z + rise]]} fill="#02150a" sw={0.6} stroke={DIM} />
+      </g>
+    );
   });
-  const post = (x: number, y: number, key: string) => <Seg key={key} a={[x, y, 0]} b={[x, y, 15]} c={INK} sw={1.2} o={0.9} />;
+  const railTop = 5, railEnd = -(n * rise) + 5;
   return (
     <g>
-      <Poly p={[[hx0, hy0, 0], [hx1, hy0, 0], [hx1, hy1, 0], [hx0, hy1, 0]]} fill="#010a05" sw={1.6} />
-      <Poly p={[[hx0, hy0, 0], [hx0, hy1, 0], [hx0, hy1, -D], [hx0, hy0, -D]]} fill="#042a12" sw={1} />
-      <Poly p={[[hx0, hy0, 0], [hx1, hy0, 0], [hx1, hy0, -D], [hx0, hy0, -D]]} fill="#06361a" sw={1} />
-      {steps}
-      {post(hx0, hy1, 'p0')}{post(hx1, hy1, 'p1')}{post(hx1, hy0, 'p2')}
-      <Seg a={[hx0, hy1, 15]} b={[hx1, hy1, 15]} c={INK} sw={1.4} o={0.95} />
-      <Seg a={[hx1, hy1, 15]} b={[hx1, hy0, 15]} c={INK} sw={1.4} o={0.95} />
+      <defs><clipPath id={id}><polygon points={pts([[hx0, hy0, 0], [hx1, hy0, 0], [hx1, hy1, 0], [hx0, hy1, 0]])} /></clipPath></defs>
+      <Poly p={[[hx0, hy0, 0], [hx1, hy0, 0], [hx1, hy1, 0], [hx0, hy1, 0]]} fill="#000503" sw={0} />
+      <g clipPath={`url(#${id})`}>
+        <Poly p={[[hx0, hy0, 0], [hx0, hy1, 0], [hx0, hy1, -D], [hx0, hy0, -D]]} fill="#02150a" sw={0.8} stroke={DIM} />
+        <Poly p={[[hx0, hy0, 0], [hx1, hy0, 0], [hx1, hy0, -D], [hx0, hy0, -D]]} fill="#010a05" sw={0.8} stroke={DIM} />
+        {steps}
+        <Poly p={[[xr, top, 0], [xr, bottom, -n * rise], [xr, bottom, -D], [xr, top, -D]]} fill="#010a05" sw={0.6} stroke={DIM} />
+        <Seg a={[xr + 1, top, railTop]} b={[xr + 1, bottom + 2, railEnd]} c={INK} sw={1.5} o={0.95} />
+        <Seg a={[xr + 1, top, railTop]} b={[xr + 1, top, 0]} c={INK} sw={1.5} o={0.95} />
+      </g>
+      <polygon points={pts([[hx0, hy0, 0], [hx1, hy0, 0], [hx1, hy1, 0], [hx0, hy1, 0]])} fill="none" stroke={INK} strokeWidth="1.6" strokeLinejoin="round" />
     </g>
   );
 }
@@ -253,14 +279,24 @@ function StairHole({ hole }: { hole: Rect }): ReactElement {
 /** The flight of stairs up in a stairwell room: eight steps rising along the left back wall toward the back, as high as the wall. */
 function StairsUp({ rect }: { rect: Rect }): ReactElement {
   const n = 8;
-  const lo = rect.y + 8;
-  const hi = rect.y + rect.d - 8;
+  const lo = rect.y + 6;
+  // the wall this flight stands against can have a doorway in the middle of it (30 wide): the lowest step ends well before that
+  const hi = Math.min(rect.y + rect.d - 8, rect.y + rect.d / 2 - 15 - 6);
   const run = (hi - lo) / n;
   const x0 = rect.x + 3;
   const x1 = rect.x + 29;
   const out: ReactElement[] = [];
   for (let i = n - 1; i >= 0; i--) out.push(<Slab key={`s${i}`} k={`s${i}`} x0={x0} x1={x1} y0={hi - (i + 1) * run} y1={hi - i * run} z1={(i + 1) * 5.4} />);
   return <g>{out}</g>;
+}
+
+/** An arrow painted on the floor of a stairwell: which way it goes. */
+function StairArrow({ rect, way, down }: { rect: Rect; way: 'up' | 'down'; down: boolean }): ReactElement {
+  // a stairwell with a hole in its floor keeps its arrow on the clear stretch in front of it
+  const x = rect.x + rect.w * (down ? 0.5 : 0.62), y = rect.y + rect.d * (down ? 0.88 : 0.72);
+  const [X, Y] = P(x, y, 0);
+  const d = way === 'up' ? 'M0 -9 L9 3 H3 V10 H-3 V3 H-9 Z' : 'M0 9 L9 -3 H3 V-10 H-3 V-3 H-9 Z';
+  return <g transform={`translate(${X} ${Y}) scale(1.1 0.7)`} pointerEvents="none"><path d={d} fill="rgba(61,255,138,0.2)" stroke={INK} strokeWidth={1.4} strokeLinejoin="round" /></g>;
 }
 
 const STEEL = '#0b5a2a';
@@ -382,7 +418,7 @@ function HallwayShell({ type, col, row, level }: { type: RoomType; col: number; 
  * are the heights (y) of the doorways in the left back wall, `doorsR` the positions (x) of those in the right back wall. The walls are vault walls: molded steel with
  * a baseboard and rivets, a rounded corner post, piping and conduit, a fake window or two, and the odd poster.
  */
-export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doorsR, hole = false, furniture = [], labelFront = false }: { rect: Rect; name: string; type: RoomType; col: number; row: number; level?: number; doorsL: number[]; doorsR: number[]; /** A stairwell below: a hole in the floor with stairs going down. */ hole?: boolean; furniture?: string[]; /** The name goes below the front corner instead of above the back one (a hallway runs behind the room, and the name would seem to be its). */ labelFront?: boolean }): ReactElement {
+export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doorsR, hole = false, down = false, way, furniture = [], labelFront = false }: { rect: Rect; name: string; type: RoomType; col: number; row: number; level?: number; doorsL: number[]; doorsR: number[]; /** A stairwell below: a hole in the floor with stairs going down. */ hole?: boolean; /** Which way a stairwell goes, shown as an arrow on its floor. */ way?: 'up' | 'down'; /** A stairwell that goes down (its twin is on the level below): the floor has a hole with stairs going down into the dark; otherwise a stairwell shows its flight going up. */ down?: boolean; furniture?: string[]; /** The name goes below the front corner instead of above the back one (a hallway runs behind the room, and the name would seem to be its). */ labelFront?: boolean }): ReactElement {
   if (type === 'hallway') return <HallwayShell type={type} col={col} row={row} level={level} />;
   const { x, y, w, d } = rect;
   const x1 = x + w;
@@ -475,6 +511,7 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
       <polygon points={poly.map(([px, py]) => P(px, py, 0).join(',')).join(' ')} fill={FLOOR} stroke={INK} strokeWidth="1.2" strokeLinejoin="round" />
       <g clipPath={`url(#${clip})`}>{floor}</g>
       {hole && <StairHole hole={holeRect({ type, col, row, furniture })} />}
+      {type === 'stairs' && down && <StairHole hole={{ x: rect.x + (rect.w - 62) / 2, y: rect.y + (rect.d - 62) / 2 + 4, w: 62, d: 62 }} />}
       {/* the inside of the left back wall, and of the right one */}
       <Poly p={[[x, y, 0], [x, y1, 0], [x, y1, H], [x, y, H]]} fill={FACE_L} />
       {wallL}
@@ -482,7 +519,8 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
       {wallR}
       {doorsL.map((c) => door(true, c))}
       {doorsR.map((c) => door(false, c))}
-      {type === 'stairs' && <StairsUp rect={rect} />}
+      {type === 'stairs' && !down && <StairsUp rect={rect} />}
+      {type === 'stairs' && way && <StairArrow rect={rect} way={way} down={down} />}
       {/* the thick tops of the walls, rounded off, and the molded post in the corner */}
       <Poly p={[[x, y, H], [x, y1, H], [x - T, y1, H], [x - T, y, H]]} fill={CAP} sw={2} />
       <Poly p={[[x, y, H], [x1, y, H], [x1, y - T, H], [x, y - T, H]]} fill={CAP} sw={2} />
@@ -496,7 +534,7 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
 /** A room that could be built here: a faded outline of one, with a plus. */
 /** A shovel and a pickaxe, crossed: the sign of a place where a room can be dug out. */
 const DigTools = ({ x, y }: { x: number; y: number }): ReactElement => (
-  <g transform={`translate(${x} ${y}) scale(1.6)`} stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="none" fill="none" opacity="0.9">
+  <g transform={`translate(${x} ${y}) scale(0.95)`} stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="none" fill="none" opacity="0.9">
     <path d="M10 -10 L-4 4" /><path d="M7.4 -13 L13 -7.4" />
     <path d="M-4 4 L-10.5 2.5 Q-14.5 5.5 -13.5 10 L-15 15.5 L-8.5 12.5 Q-3.5 9.5 -4 4 Z" fill={INK} />
     <path d="M-9 -9 L6 6" />
@@ -975,7 +1013,7 @@ export function layoutOf(room: VaultRoom, at: (col: number, row: number) => Vaul
   const mid = (a: number, b: number, c: number, d: number) => (Math.max(a, c) + Math.min(b, d)) / 2;
   const rightY = rightN ? (roomRect(rightN).yc ?? mid(rect.y, rect.y + rect.d, roomRect(rightN).y, roomRect(rightN).y + roomRect(rightN).d)) : 0;
   const frontX = frontN ? (roomRect(frontN).xc ?? mid(rect.x, rect.x + rect.w, roomRect(frontN).x, roomRect(frontN).x + roomRect(frontN).w)) : 0;
-  const key = [room.type, room.col, room.row, room.level, room.furniture.join(','), doors.doorsL.join(','), doors.doorsR.join(','), Math.round(rightY), Math.round(frontX), hasHole ? 1 : 0].join('|');
+  const key = [room.type, room.col, room.row, room.level, room.furniture.join(','), JSON.stringify(room.put ?? null), doors.doorsL.join(','), doors.doorsR.join(','), Math.round(rightY), Math.round(frontX), hasHole ? 1 : 0].join('|');
   const hit = layoutCache.get(key);
   if (hit) return hit;
   if (layoutCache.size > 400) layoutCache.clear();
@@ -1009,8 +1047,17 @@ export function layoutOf(room: VaultRoom, at: (col: number, row: number) => Vaul
   const turned = (f: Foot): Foot => ({ x0: f.y0, x1: f.y1, y0: f.x0, y1: f.x1 });
   const isLeftWall = (id: string) => FURNITURE[id].face === 'x' && FURNITURE[id].u <= 0.25;
   const isRightWall = (id: string) => FURNITURE[id].face === 'y' && FURNITURE[id].v <= 0.25;
-  const lead = ids.filter((id) => !ANCHORED[id]);
+  const manual = room.put ?? {};
+  const lead = ids.filter((id) => !ANCHORED[id] && !manual[id]);
   const order = [...lead.filter(isLeftWall), ...lead.filter(isRightWall), ...lead.filter((id) => !isLeftWall(id) && !isRightWall(id))];
+  // what the owner has put down stays where it was put (the rest is laid out around it)
+  for (const id of ids) {
+    const m = manual[id];
+    if (!m || ANCHORED[id]) continue;
+    const spot: Spot = { x: rect.x + m.u * rect.w, y: rect.y + m.v * rect.d, ...(m.swap ? { swap: true } : {}) };
+    out.set(id, spot);
+    placed.push(box(m.swap ? turned(feet(id)) : feet(id), spot.x, spot.y));
+  }
 
   /** The best spot along a wall for a piece: its cost (0 is a clean fit) and where. */
   const alongWall = (id: string, wall: 'L' | 'R', swap: boolean, wantAlong: number): { cost: number; spot: Spot } => {
@@ -1082,6 +1129,54 @@ export function layoutOf(room: VaultRoom, at: (col: number, row: number) => Vaul
   }
   layoutCache.set(key, out);
   return out;
+}
+
+/** The lanes that have to stay clear on a room's floor: from each doorway to the middle of the room. */
+function lanesOf(room: VaultRoom, at: (col: number, row: number) => VaultRoom | undefined): Rect[] {
+  const rect = roomRect(room);
+  const slots = roomDef(room.type).slots;
+  const doors = doorsOf(room, at);
+  const rightN = at(room.col + slots, room.row);
+  let frontN: VaultRoom | undefined;
+  for (let i = 0; i < slots && !frontN; i++) frontN = at(room.col + i, room.row + 1);
+  const mid = (a: number, b: number, c: number, d: number) => (Math.max(a, c) + Math.min(b, d)) / 2;
+  const cx = rect.x + rect.w / 2, cy = rect.y + rect.d / 2;
+  const LANE = 17;
+  const out: Rect[] = [];
+  doors.doorsL.forEach((c) => out.push({ x: rect.x, y: c - LANE, w: cx - rect.x, d: 2 * LANE }));
+  doors.doorsR.forEach((c) => out.push({ x: c - LANE, y: rect.y, w: 2 * LANE, d: cy - rect.y }));
+  if (rightN) { const r = roomRect(rightN); const y = r.yc ?? mid(rect.y, rect.y + rect.d, r.y, r.y + r.d); out.push({ x: cx, y: y - LANE, w: rect.x + rect.w - cx, d: 2 * LANE }); }
+  if (frontN) { const r = roomRect(frontN); const x = r.xc ?? mid(rect.x, rect.x + rect.w, r.x, r.x + r.w); out.push({ x: x - LANE, y: cy, w: 2 * LANE, d: rect.y + rect.d - cy }); }
+  return out;
+}
+
+/** The floor space of a piece (with what is drawn around it) standing here, in the room's units. */
+export function footBox(room: VaultRoom, id: string, x: number, y: number, swap = false): Rect {
+  const k = pieceScale(room);
+  const f = { ...footOf(id) };
+  for (const other of room.furniture) if (ANCHORED[other] === id) { const g = footOf(other); f.x0 = Math.min(f.x0, g.x0); f.x1 = Math.max(f.x1, g.x1); f.y0 = Math.min(f.y0, g.y0); f.y1 = Math.max(f.y1, g.y1); }
+  const t = swap ? { x0: f.y0, x1: f.y1, y0: f.x0, y1: f.x1 } : f;
+  return { x: x + t.x0 * k, y: y + t.y0 * k, w: (t.x1 - t.x0) * k, d: (t.y1 - t.y0) * k };
+}
+
+/** Can this piece stand here? It must be on the floor of its room, clear of every other piece, of the doorways' lanes and of the hole in the floor. */
+export function pieceFits(room: VaultRoom, at: (col: number, row: number) => VaultRoom | undefined, hasHole: boolean, id: string, x: number, y: number, swap: boolean): boolean {
+  if (room.type === 'hallway') return false;
+  const rect = roomRect(room);
+  const { notch } = shapeOf(room);
+  const b = footBox(room, id, x, y, swap);
+  if (b.x < rect.x + 1 || b.y < rect.y + 1 || b.x + b.w > rect.x + rect.w - 1 || b.y + b.d > rect.y + rect.d - 1) return false;
+  if (notch && overlaps(b, notch)) return false;
+  if (lanesOf(room, at).some((l) => overlapArea(b, l) > 0)) return false;
+  if (hasHole) { const h = holeRect({ type: room.type, col: room.col, row: room.row, furniture: room.furniture }); if (overlaps(b, { x: h.x - 3, y: h.y - 3, w: h.w + 6, d: h.d + 6 })) return false; }
+  const lay = layoutOf(room, at, hasHole);
+  for (const other of room.furniture) {
+    if (other === id || ANCHORED[other] === id || ANCHORED[id] === other) continue;
+    const spot = lay.get(other);
+    if (!spot || !FURNITURE[other]) continue;
+    if (overlaps(b, footBox(room, other, spot.x, spot.y, !!spot.swap), 2)) return false;
+  }
+  return true;
 }
 
 /** Where a settler sits on a piece (in the piece's own units, from its middle) and which way they face on the screen (1 looks lower right, -1 lower left). */

@@ -45,6 +45,7 @@ import VacationAsk from './components/VacationAsk';
 import CogSpinner from './components/CogSpinner';
 import { carEnd, carUpdate, onCarEndRequested, type CarPayload } from './lib/carplay';
 import { waitingLine } from './lib/waitingLoot';
+import { ROOMS_FOR_VACATION } from './lib/vaultHome';
 import { ferryUrl, isFerryByName, loadFerryIds, ROAD_STOPS_SHORT_M } from './lib/ferry';
 import { currentFix, flightsUrl, isOverseas, progressAlong, requestRoute, spokenInstruction, type NavRoute } from './lib/navigation';
 import {
@@ -201,13 +202,13 @@ export default function App() {
     return {
       choices,
       count: account.vacations.length,
-      ready: account.homeRooms >= 10,
+      ready: account.homeRooms >= ROOMS_FOR_VACATION,
       mine: account.vacations.map((v) => ({ placeId: v.placeId, name: v.name })),
       unlock: async (placeId, icon, replace) => {
         const r = await vacationUnlock(placeId, icon, replace);
         if (r.ok) { await account.refresh(); return null; }
         const says: Record<string, string> = {
-          loot: 'NOT ENOUGH LOOT', not_cleared: 'CLEAR THAT PLACE FIRST', not_yours: 'THAT VACATION VAULT IS NOT YOURS TO REPLACE', full: 'YOU ALREADY HAVE ALL FOUR VACATION VAULTS', too_close: 'THAT PLACE IS INSIDE YOUR HOME METRO AREA', too_few_rooms: 'BUILD TEN ROOMS FIRST',
+          loot: 'NOT ENOUGH LOOT', not_cleared: 'CLEAR THAT PLACE FIRST', not_yours: 'THAT VACATION VAULT IS NOT YOURS TO REPLACE', full: 'YOU ALREADY HAVE ALL FOUR VACATION VAULTS', too_close: 'THAT PLACE IS INSIDE YOUR HOME METRO AREA', too_few_rooms: 'BUILD TWELVE ROOMS FIRST',
           no_picture: 'NO PICTURE OF THAT PLACE COULD BE FOUND: PICK ANOTHER. NOTHING WAS TAKEN', failed: 'THE PICTURE COULD NOT BE MADE. NOTHING WAS TAKEN: TRY AGAIN',
           working: 'IT IS BEING MADE: TRY AGAIN IN A MINUTE', busy: 'THE VAULT PROJECTOR IS DOWN FOR NOW. NOTHING WAS TAKEN',
         };

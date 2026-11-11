@@ -141,7 +141,7 @@ export function useAccount(): Account {
       db().from('vacation_vault').select('place_id,name,icon,lat,lng').eq('user_id', s.user.id).eq('status', 'ready'),
       db().from('home_vault').select('state').eq('user_id', s.user.id).eq('vault_key', 'home').maybeSingle(),
     ]).then(([l, w, st, tm, vc, hv]) => {
-      setHomeRooms(((hv.data?.state as { rooms?: unknown[] } | undefined)?.rooms ?? []).length);
+      setHomeRooms(((hv.data?.state as { rooms?: { type?: string }[] } | undefined)?.rooms ?? []).filter((r) => r.type !== 'entry' && r.type !== 'stairs' && r.type !== 'hallway').length);
       setVacations(((vc.data ?? []) as { place_id: string; name: string; icon: string; lat: number; lng: number }[]).map((r) => ({ placeId: r.place_id, name: r.name, icon: r.icon, lat: r.lat, lng: r.lng })));
       setStimpaks((st.data?.qty as number | undefined) ?? 0);
       setLegendaryTime((tm.data?.qty as number | undefined) ?? 0);
@@ -570,7 +570,7 @@ export async function loadClearable(metroId: string): Promise<string[]> {
 export type VaultAnswer = { ok: true; vault: VaultHome; version: number; /** Loot paid back for a demolished room. */ refund?: Record<string, number> } | { ok: false; reason: string };
 
 /** Asks the vault function to do something: 'visit', 'build', 'furnish' or 'settler'. */
-export async function vaultCall(body: ({ action: 'visit' } | { action: 'build'; type: string; level: number; col: number; row: number } | { action: 'furnish'; room: number; item: string } | { action: 'settler'; kind: string; name?: string } | { action: 'rename'; id: number; name: string } | { action: 'demolish'; room: number } | { action: 'instrument'; room: number; choice: string }) & { vault?: string }): Promise<VaultAnswer> {
+export async function vaultCall(body: ({ action: 'visit' } | { action: 'build'; type: string; level: number; col: number; row: number; dir?: 'up' | 'down' } | { action: 'furnish'; room: number; item: string; at?: { u: number; v: number; swap?: boolean } } | { action: 'place'; room: number; item: string; at: { u: number; v: number; swap?: boolean } } | { action: 'settler'; kind: string; name?: string } | { action: 'rename'; id: number; name: string } | { action: 'demolish'; room: number } | { action: 'instrument'; room: number; choice: string }) & { vault?: string }): Promise<VaultAnswer> {
   const { data, error } = await db().functions.invoke('vault', { body });
   return error || !data ? { ok: false, reason: 'server' } : (data as VaultAnswer);
 }

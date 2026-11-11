@@ -12,7 +12,7 @@
 // Deploy: supabase functions deploy vault
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
-import { applyBuild, applyDemolish, applyFurnish, applyInstrument, applyRename, applySettler, checkIn, newVault, normalize, type LootBag, type VaultHome } from '../_shared/vaultHome.ts';
+import { applyBuild, applyDemolish, applyFurnish, applyInstrument, applyPlace, applyRename, applySettler, checkIn, newVault, normalize, type LootBag, type VaultHome } from '../_shared/vaultHome.ts';
 
 const newSeed = (): number => Math.floor(Math.random() * 2147483646) + 1;
 
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
 
-  const b = (await req.json().catch(() => ({}))) as { vault?: string; action?: string; type?: string; level?: number; col?: number; row?: number; room?: number; item?: string; kind?: string };
+  const b = (await req.json().catch(() => ({}))) as { vault?: string; action?: string; type?: string; level?: number; col?: number; row?: number; room?: number; item?: string; kind?: string; at?: unknown; dir?: string };
   const db = serviceClient();
 
   // which vault: their home (default), or one of their vacation vaults, named by its place id
@@ -54,14 +54,19 @@ Deno.serve(async (req) => {
   switch (b.action) {
     case 'visit': next = checkIn(vault, now); break;
     case 'build': {
-      const r = applyBuild(checkIn(vault, now), String(b.type) as never, Number(b.level ?? 0), Number(b.col), Number(b.row), now);
+      const r = applyBuild(checkIn(vault, now), String(b.type) as never, Number(b.level ?? 0), Number(b.col), Number(b.row), now, b.dir === 'up' ? 'up' : 'down');
       if (!r.ok) return reply(req, { ok: false, reason: r.reason });
       next = r.vault; spend = r.recipe; break;
     }
     case 'furnish': {
-      const r = applyFurnish(checkIn(vault, now), Number(b.room), String(b.item), now);
+      const r = applyFurnish(checkIn(vault, now), Number(b.room), String(b.item), now, b.at);
       if (!r.ok) return reply(req, { ok: false, reason: r.reason });
       next = r.vault; spend = r.recipe; break;
+    }
+    case 'place': {
+      const r = applyPlace(vault, Number(b.room), String(b.item), b.at);
+      if (!r.ok) return reply(req, { ok: false, reason: r.reason });
+      next = r.vault; break;
     }
     case 'settler': {
       const r = applySettler(vault, String(b.kind), b.name);

@@ -10,16 +10,14 @@ export const COLS = 11;
 export const ROWS = 11;
 /** Levels down: the one you start on and four more. */
 export const LEVELS = 5;
-/** The most room slots a vault can hold, on whatever levels (a wide room takes two). Hallways and stairwells do not count. */
+/** The most room slots a vault can hold, on whatever levels (a wide room takes two). The entryway, hallways and stairwells do not count. */
 export const MAX_SLOTS = 25;
 /** The most hallways on one level. */
 export const MAX_HALLWAYS_PER_LEVEL = 6;
 /** What the dearest room costs, in pieces of loot (the cheapest costs 4). */
 export const MAX_ROOM_PRICE = 40;
-/** A level needs this many rooms before the next one can be dug under it: the entryway counts for the first level, so you can dig down at once once the decontamination shower is in. */
-export const ROOMS_TO_DIG = 1;
-/** Rooms it takes before a vacation vault can be bought, and how many of them a person can have. */
-export const ROOMS_FOR_VACATION = 10;
+/** Rooms (not the entryway, hallways or stairwells) it takes before a vacation vault can be bought, and how many of them a person can have. */
+export const ROOMS_FOR_VACATION = 12;
 export const MAX_VACATIONS = 4;
 /** Where the entryway stands on the first level. */
 export const ENTRY_AT = { col: 5, row: 5 };
@@ -43,8 +41,8 @@ export interface RoomDef {
 
 export const ROOM_DEFS: RoomDef[] = [
   { id: 'entry', name: 'Entryway', slots: 1, max: 1, buildable: false, small: true, furniture: [{ id: 'coatrack', name: 'Coat Rack' }, { id: 'shoebench', name: 'Shoe Bench' }, { id: 'decon', name: 'Decontamination Shower' }] },
-  // the way down: digging to a new level makes this stairwell there (under the room you dug from, which gets a hole in its floor with stairs going down); it is not built from the list and does not count toward the slots
-  { id: 'stairs', name: 'Stairwell', slots: 1, max: LEVELS - 1, buildable: false, small: true, furniture: [] },
+  // the way down: built like a room, it makes a second stairwell in the same place on the level below (where that level starts); no furniture, no happiness, no slot, and it does not count as a room
+  { id: 'stairs', name: 'Stairwell', slots: 1, max: LEVELS - 1, small: true, furniture: [] },
   // a narrow passage, long and thin: it joins to rooms and to other hallways (straight, or turning a corner); six to a level, no slot, no happiness; one piece in it
   { id: 'hallway', name: 'Hallway', slots: 1, max: MAX_HALLWAYS_PER_LEVEL * LEVELS, small: true, furniture: [{ id: 'fishtank', name: 'Fish Tank' }, { id: 'weaponrack', name: 'Weapon Rack' }, { id: 'statue', name: 'Art Statue' }, { id: 'plant', name: 'Indoor Tree' }] },
   { id: 'garden', name: 'Garden', slots: 2, max: 2, furniture: [{ id: 'corn', name: 'Corn' }, { id: 'tatoes', name: 'Tato Plants' }, { id: 'mutfruit', name: 'Mutfruit Plants' }] },
@@ -72,7 +70,23 @@ export interface VaultRoom {
   row: number;
   /** Furniture placed, in the order it was placed. */
   furniture: string[];
+  /** Where the owner put a piece (by the piece's id), as a part of the room's floor, and whether it is turned. A piece with no entry here is laid out by itself. */
+  put?: Record<string, Put>;
+  /** A stairwell that was made by building the one at the other end of it (it cost nothing, and is demolished from the other end). */
+  twin?: boolean;
 }
+
+/** A piece's place on the floor of its room: u across and v deep (0 to 1 of the floor), and whether it is turned a quarter. */
+export interface Put { u: number; v: number; swap?: boolean }
+const part = (n: unknown): number | null => (typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1 ? Math.round(n * 1000) / 1000 : null);
+/** A placement as it is kept, or null if it is not one. */
+export function cleanPut(raw: unknown): Put | null {
+  const r = raw as { u?: unknown; v?: unknown; swap?: unknown } | null;
+  if (!r || typeof r !== 'object') return null;
+  const u = part(r.u), v = part(r.v);
+  return u === null || v === null ? null : { u, v, ...(r.swap === true ? { swap: true } : {}) };
+}
+
 
 export type SettlerKind = 'male' | 'female' | 'dog' | 'cat';
 export const SETTLER_KINDS: SettlerKind[] = ['male', 'female', 'dog', 'cat'];
@@ -113,6 +127,8 @@ export const slotsOf = (r: VaultRoom): number => roomDef(r.type).slots;
 /** Stairwells and hallways are passages: they take no slot, add no happiness and make no settlers. */
 export const isPassage = (r: { type: RoomType }): boolean => r.type === 'stairs' || r.type === 'hallway';
 export const slotsUsed = (v: VaultHome): number => v.rooms.reduce((n, r) => n + (isPassage(r) ? 0 : slotsOf(r)), 0);
+/** How many rooms there are, not counting the entryway, the hallways or the stairwells. */
+export const roomCount = (v: VaultHome): number => v.rooms.filter((r) => !isPassage(r) && r.type !== 'entry').length;
 export const furnitureCount = (v: VaultHome): number => v.rooms.reduce((n, r) => n + (isPassage(r) ? 0 : r.furniture.length), 0);
 export const hallwaysOn = (v: VaultHome, level: number): number => v.rooms.filter((r) => r.type === 'hallway' && r.level === level).length;
 export const roomsOn = (v: VaultHome, level: number): VaultRoom[] => v.rooms.filter((r) => r.level === level);
@@ -126,51 +142,91 @@ export const roomAt = (v: VaultHome, level: number, col: number, row: number): V
 export const DECON_REASON = 'The vault will not let you build until everyone coming in has been decontaminated';
 export const hasDecon = (v: VaultHome): boolean => v.legacy === true || v.rooms.some((r) => r.type === 'entry' && r.furniture.includes('decon'));
 
-/** Can this level be dug under now (it has enough rooms, and there is a level left)? Returns null if yes, or the reason. */
-export function whyNotDig(v: VaultHome, level: number): string | null {
-  if (level + 1 >= LEVELS) return 'There is nothing below the fifth level';
-  if (roomsOn(v, level + 1).length > 0) return null;
-  if (!hasDecon(v)) return DECON_REASON;
-  if (!v.legacy && roomsOn(v, level).length < ROOMS_TO_DIG) return ROOMS_TO_DIG === 1 ? 'Build a room on this level before digging down' : `Build at least ${ROOMS_TO_DIG} rooms on this level before digging down`;
-  if (roomsOn(v, level).length === 0) return 'There is nothing to dig under';
-  return null;
-}
-
 /** The cell on the entryway's front-left side stays empty for good: that wall holds the vault door. */
 export const isDoorCell = (v: VaultHome, level: number, col: number, row: number): boolean =>
   v.rooms.some((r) => r.type === 'entry' && r.level === level && col === r.col && row === r.row + 1);
 
-/** Can a stairwell be dug at this cell of this level (the first thing on a new level, under a room of the level above that is not a stairwell)? Null if yes, or the reason. */
-export function whyNotStairs(v: VaultHome, level: number, col: number, row: number): string | null {
-  if (level < 1 || level >= LEVELS) return 'There is nothing to dig down to there';
-  if (roomsOn(v, level).some((r) => r.type === 'stairs')) return 'This level already has its stairwell';
-  if (roomAt(v, level, col, row)) return 'That space is taken';
-  const dig = whyNotDig(v, level - 1);
-  if (dig) return dig;
-  const above = roomAt(v, level - 1, col, row);
-  if (!above) return 'It has to be dug under a room of the level above';
-  if (above.type === 'stairs') return 'You cannot dig down under a stairwell: pick another room';
-  if (above.type === 'hallway') return 'You cannot dig down under a hallway: pick a room';
-  // on a level that already has rooms (dug before stairwells), it goes next to one of them
-  if (roomsOn(v, level).length > 0 && ![[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => roomAt(v, level, col + dc, row + dr))) return 'It has to connect to a room you already have';
+// ---- stairwells ----
+// A stairwell is built like any room, and goes up or down: it makes a second one in the same place on the level above or below, which is where the owner arrives
+// (it costs nothing). A level has at most two stairwells (either end of one counts). The arrows between levels only show where there is a stairwell to use, and every
+// room has to stay joined to the entryway, next door on its own level or up and down a stairwell.
+
+/** How many stairwells a level can hold, counting both ends. */
+export const STAIRS_PER_LEVEL = 2;
+export type StairDir = 'up' | 'down';
+/** The stairwell that was made for you by building the one at the other end. */
+export const isTwin = (r: VaultRoom): boolean => r.type === 'stairs' && r.twin === true;
+/** Is there a stairwell between this level and the one below it? (An old vault dug a stairwell under a room: that counts too.) */
+export const hasWayDown = (v: VaultHome, level: number): boolean => v.rooms.some((r) => r.type === 'stairs' && ((r.level === level && roomAt(v, level + 1, r.col, r.row)?.type === 'stairs') || (r.level === level + 1 && !!roomAt(v, level, r.col, r.row))));
+export const hasWayUp = (v: VaultHome, level: number): boolean => level > 0 && hasWayDown(v, level - 1);
+/** How many stairwells have been built (not counting the twin each one makes). */
+export const stairwellsBuilt = (v: VaultHome): number => v.rooms.filter((r) => r.type === 'stairs' && !isTwin(r)).length;
+/** Which way a stairwell goes: down if there is a stairwell under it, up if there is one over it (an old one, dug under a room, goes up). */
+export const stairDir = (v: VaultHome, r: VaultRoom): StairDir | null => {
+  if (r.type !== 'stairs') return null;
+  if (roomAt(v, r.level + 1, r.col, r.row)?.type === 'stairs') return 'down';
+  return r.level > 0 && roomAt(v, r.level - 1, r.col, r.row) ? 'up' : null;
+};
+
+/** Can a stairwell going this way be built at this cell of this level? Null if yes, or the reason. */
+export function whyNotStairs(v: VaultHome, level: number, col: number, row: number, dir: StairDir): string | null {
+  const other = dir === 'down' ? level + 1 : level - 1;
+  if (other >= LEVELS) return 'There is nothing below the fifth level';
+  if (other < 0) return 'There is nothing above the first level';
+  if (roomsOn(v, level).filter((r) => r.type === 'stairs').length >= STAIRS_PER_LEVEL) return `A level holds at most ${STAIRS_PER_LEVEL} stairwells`;
+  if (roomsOn(v, other).filter((r) => r.type === 'stairs').length >= STAIRS_PER_LEVEL) return `The level ${dir === 'down' ? 'below' : 'above'} already has ${STAIRS_PER_LEVEL} stairwells`;
+  // with every room slot used there is nothing to put on a level that has not been reached yet (the entryway, hallways and stairwells take no slot)
+  if (roomsOn(v, other).length === 0 && settlerSlots(v) >= MAX_SLOTS) return 'Every room slot is used: you cannot go down to a new level';
+  if (roomAt(v, other, col, row)) return `There is already a room ${dir === 'down' ? 'under' : 'over'} it`;
+  if (isDoorCell(v, other, col, row)) return 'That is the wall with the vault door on the level above: it stays clear';
   return null;
 }
 
+// ---- keeping everything joined ----
+
+const coversCell = (r: VaultRoom, col: number, row: number): boolean => r.row === row && col >= r.col && col < r.col + slotsOf(r);
+/** Do two rooms of the same level share a wall? (Not at a corner.) */
+const nextTo = (a: VaultRoom, b: VaultRoom): boolean =>
+  a.level === b.level && (Array.from({ length: slotsOf(a) }, (_, k) => a.col + k).some((c) => coversCell(b, c - 1, a.row) || coversCell(b, c + 1, a.row) || coversCell(b, c, a.row - 1) || coversCell(b, c, a.row + 1))
+    || Array.from({ length: slotsOf(b) }, (_, k) => b.col + k).some((c) => coversCell(a, c - 1, b.row) || coversCell(a, c + 1, b.row) || coversCell(a, c, b.row - 1) || coversCell(a, c, b.row + 1)));
+/** Does a stairwell join these two rooms (one is a stairwell and the other is in the same place on the level above or below it)? */
+const joinedByStairs = (a: VaultRoom, b: VaultRoom): boolean =>
+  Math.abs(a.level - b.level) === 1 && ((a.type === 'stairs' && coversCell(b, a.col, a.row)) || (b.type === 'stairs' && coversCell(a, b.col, b.row)));
+/** Every room that can be reached from the entryway without the ones skipped: through a shared wall on its level, or up and down a stairwell. */
+export function reachable(v: VaultHome, skip: VaultRoom[] = []): Set<VaultRoom> {
+  const rooms = v.rooms.filter((r) => !skip.includes(r));
+  const start = rooms.find((r) => r.type === 'entry') ?? rooms[0];
+  const seen = new Set<VaultRoom>();
+  if (!start) return seen;
+  seen.add(start);
+  const queue = [start];
+  while (queue.length) {
+    const r = queue.shift() as VaultRoom;
+    for (const o of rooms) if (!seen.has(o) && (nextTo(r, o) || joinedByStairs(r, o))) { seen.add(o); queue.push(o); }
+  }
+  return seen;
+}
+
 /** Can a room of this type be built with its left cell here? Returns null if yes, or the reason. */
-export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number): string | null {
+export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, dir?: StairDir): string | null {
   const def = roomDef(type);
-  if (type === 'stairs') return whyNotStairs(v, level, col, row);
   if (def.buildable === false) return 'There is only one entryway';
   if (!hasDecon(v)) return DECON_REASON;
   if (level < 0 || level >= LEVELS || row < 0 || row >= ROWS || col < 0 || col + def.slots > COLS) return 'There is no room for it there';
-  if (type !== 'hallway' && slotsUsed(v) + def.slots > MAX_SLOTS) return 'Room limit reached';
+  if (type === 'stairs') {
+    // no way chosen yet (the list of rooms): it can be built if it can go either way
+    const down = dir === 'up' ? null : whyNotStairs(v, level, col, row, 'down');
+    const up = dir === 'down' ? null : whyNotStairs(v, level, col, row, 'up');
+    if (dir === 'down' && down) return down;
+    if (dir === 'up' && up) return up;
+    if (dir === undefined && down && up) return level + 1 < LEVELS ? down : up;
+  }
+  if (type !== 'hallway' && type !== 'stairs' && settlerSlots(v) + def.slots > MAX_SLOTS) return 'Room limit reached';
   if (type === 'hallway' && hallwaysOn(v, level) >= MAX_HALLWAYS_PER_LEVEL) return `A level holds at most ${MAX_HALLWAYS_PER_LEVEL} hallways`;
-  if (type !== 'hallway' && v.rooms.filter((r) => r.type === type).length >= def.max) return `A vault holds at most ${def.max} ${def.name}${def.max > 1 ? 's' : ''}`;
+  if (type !== 'hallway' && type !== 'stairs' && v.rooms.filter((r) => r.type === type).length >= def.max) return `A vault holds at most ${def.max} ${def.name}${def.max > 1 ? 's' : ''}`;
   for (let c = col; c < col + def.slots; c++) if (roomAt(v, level, c, row)) return 'That space is taken';
   for (let c = col; c < col + def.slots; c++) if (isDoorCell(v, level, c, row)) return 'That wall is the vault door: it stays clear';
-  // each new level starts with its stairwell, dug under a room of the level above (see whyNotStairs): nothing else can be built on it until then
-  if (level > 0 && !roomsOn(v, level).some((r) => r.type === 'stairs')) return 'Dig the stairwell down to this level first: it is the first thing to build on each new level';
-  if (roomsOn(v, level).length === 0) return 'There is nothing here to build on';
+  if (roomsOn(v, level).length === 0 && type !== 'stairs') return 'There is nothing here to build on';
   // after that, it must touch a room of the same level, not at a corner
   let touches = false;
   for (let c = col; c < col + def.slots; c++) {
@@ -215,6 +271,7 @@ export const slotPrice = (n: number): number => {
 export function buildCost(v: VaultHome, type: RoomType): number {
   // a hallway is priced by how many hallways there are already, on the same climb as the rooms (the first costs what the cheapest room does)
   if (type === 'hallway') return slotPrice(v.rooms.filter((r) => r.type === 'hallway').length + 2);
+  if (type === 'stairs') return slotPrice(stairwellsBuilt(v) + 2);
   const first = slotsUsed(v) + 1;
   return roomDef(type).slots === 2 ? Math.min(MAX_ROOM_PRICE, slotPrice(first) + slotPrice(first + 1)) : slotPrice(first);
 }
@@ -274,7 +331,7 @@ export function recipeFor(seed: number, key: string, pieces: number): LootBag {
 }
 
 /** What building a room of this type costs now, as a mix of loot. */
-export const buildRecipe = (v: VaultHome, type: RoomType): LootBag => recipeFor(v.seed ?? 0, `room:${type}:${type === 'hallway' ? v.rooms.filter((r) => r.type === 'hallway').length : slotsUsed(v)}`, buildCost(v, type));
+export const buildRecipe = (v: VaultHome, type: RoomType): LootBag => recipeFor(v.seed ?? 0, `room:${type}:${type === 'hallway' ? v.rooms.filter((r) => r.type === 'hallway').length : type === 'stairs' ? stairwellsBuilt(v) : slotsUsed(v)}`, buildCost(v, type));
 /** Pieces of loot a vacation vault costs, as a random mix (the same for the same place in the same vault, on the phone and on the server). */
 export const VACATION_PIECES = 8;
 export const vacationRecipe = (v: VaultHome, placeId: string): LootBag => recipeFor(v.seed ?? 0, `vacation:${placeId}`, VACATION_PIECES);
@@ -357,14 +414,17 @@ function settle(v: VaultHome, now: number): VaultHome {
 
 export type Action<T> = { ok: true; vault: VaultHome; cost: number; /** The exact mix of loot it costs. */ recipe: LootBag } & T | { ok: false; reason: string };
 
-export function applyBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, now: number): Action<unknown> {
+export function applyBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, now: number, dir: StairDir = 'down'): Action<unknown> {
   if (!ROOM_DEFS.some((d) => d.id === type)) return { ok: false, reason: 'No such room' };
-  const why = whyNotBuild(v, type, level, col, row);
+  if (dir !== 'up' && dir !== 'down') return { ok: false, reason: 'Up or down?' };
+  const why = whyNotBuild(v, type, level, col, row, type === 'stairs' ? dir : undefined);
   if (why) return { ok: false, reason: why };
   const cost = buildCost(v, type);
   const recipe = buildRecipe(v, type);
   const s = settle(v, now);
-  return { ok: true, cost, recipe, vault: { ...s, rooms: [...s.rooms, { type, level, col, row, furniture: [] }], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
+  // a stairwell has its twin on the level it goes to, where you arrive
+  const made: VaultRoom[] = type === 'stairs' ? [{ type, level, col, row, furniture: [] }, { type, level: dir === 'down' ? level + 1 : level - 1, col, row, furniture: [], twin: true }] : [{ type, level, col, row, furniture: [] }];
+  return { ok: true, cost, recipe, vault: { ...s, rooms: [...s.rooms, ...made], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
 }
 
 // ---- demolishing a room ----
@@ -378,38 +438,29 @@ export function spentOn(v: VaultHome, idx: number): LootBag {
   const before = v.rooms.slice(0, idx);
   const slotsBefore = before.reduce((n, r) => n + (isPassage(r) ? 0 : slotsOf(r)), 0);
   const hallsBefore = before.filter((r) => r.type === 'hallway').length;
+  const stairsBefore = before.filter((r) => r.type === 'stairs' && !isTwin(r)).length;
+  if (isTwin(room)) return total; // the twin of a built one: it cost nothing
   const first = slotsBefore + 1;
-  const pieces = room.type === 'hallway' ? slotPrice(hallsBefore + 2) : roomDef(room.type).slots === 2 ? Math.min(MAX_ROOM_PRICE, slotPrice(first) + slotPrice(first + 1)) : slotPrice(first);
-  add(recipeFor(v.seed ?? 0, `room:${room.type}:${room.type === 'hallway' ? hallsBefore : slotsBefore}`, pieces));
+  const pieces = room.type === 'hallway' ? slotPrice(hallsBefore + 2) : room.type === 'stairs' ? slotPrice(stairsBefore + 2) : roomDef(room.type).slots === 2 ? Math.min(MAX_ROOM_PRICE, slotPrice(first) + slotPrice(first + 1)) : slotPrice(first);
+  add(recipeFor(v.seed ?? 0, `room:${room.type}:${room.type === 'hallway' ? hallsBefore : room.type === 'stairs' ? stairsBefore : slotsBefore}`, pieces));
   room.furniture.forEach((item, k) => add(recipeFor(v.seed ?? 0, `item:${idx}:${room.type}:${slotOf(item)}:${k}`, 3 + k)));
   return total;
 }
+
+/** The twin made with a built stairwell (the stairwell in the same place on the next level, marked as a twin). */
+const twinsOf = (v: VaultHome, room: VaultRoom): VaultRoom[] => (room.type === 'stairs' && !isTwin(room) ? v.rooms.filter((r) => isTwin(r) && r.col === room.col && r.row === room.row && Math.abs(r.level - room.level) === 1) : []);
 
 /** Can this room be demolished? Null if yes, or the reason. */
 export function whyNotDemolish(v: VaultHome, idx: number): string | null {
   const room = v.rooms[idx];
   if (!room) return 'No such room';
   if (room.type === 'entry') return 'The entryway cannot be demolished';
-  const covers = (r: VaultRoom, col: number, row: number) => r.row === row && col >= r.col && col < r.col + slotsOf(r);
-  // a stairwell under it holds up a level below
-  if (v.rooms.some((r) => r.type === 'stairs' && r.level === room.level + 1 && Array.from({ length: slotsOf(room) }, (_, k) => room.col + k).some((c) => covers(r, c, room.row)))) return 'There is a stairwell under it: demolish the rooms below first';
-  const others = v.rooms.filter((r, i) => i !== idx && r.level === room.level);
-  if (room.type === 'stairs' && others.length > 0) return 'Demolish the other rooms on that level first';
-  // everything left on the level must still be joined together
-  if (others.length > 1) {
-    const seen = new Set<VaultRoom>([others[0]]);
-    const queue = [others[0]];
-    while (queue.length) {
-      const r = queue.shift() as VaultRoom;
-      for (const o of others) {
-        if (seen.has(o)) continue;
-        const touches = Array.from({ length: slotsOf(r) }, (_, k) => r.col + k).some((c) => covers(o, c - 1, r.row) || covers(o, c + 1, r.row) || covers(o, c, r.row - 1) || covers(o, c, r.row + 1))
-          || Array.from({ length: slotsOf(o) }, (_, k) => o.col + k).some((c) => covers(r, c - 1, o.row) || covers(r, c + 1, o.row) || covers(r, c, o.row - 1) || covers(r, c, o.row + 1));
-        if (touches) { seen.add(o); queue.push(o); }
-      }
-    }
-    if (seen.size < others.length) return 'Other rooms are only reachable through it: demolish those first';
-  }
+  // a stairwell is demolished from the end that was built, and takes its twin with it
+  if (isTwin(room)) return 'This is the other end of a stairwell: demolish it from the end that was built';
+  const gone = [room, ...twinsOf(v, room)];
+  // everything left must still be joined to the entryway: next door on its level, or up and down a stairwell
+  const left = v.rooms.filter((r) => !gone.includes(r));
+  if (reachable(v, gone).size < left.length) return 'Other rooms are only reachable through it: demolish those first, or join them another way';
   return null;
 }
 
@@ -430,7 +481,10 @@ export function applyDemolish(v: VaultHome, idx: number, now: number, rand: () =
   if (why) return { ok: false, reason: why };
   const refund = refundFor(v, idx, rand);
   const s = settle(v, now);
-  return { ok: true, cost: 0, recipe: {}, refund, vault: { ...s, rooms: s.rooms.filter((_, i) => i !== idx) } };
+  // a built stairwell takes its twin on the level below with it
+  const room = v.rooms[idx];
+  const gone = [room, ...twinsOf(v, room)];
+  return { ok: true, cost: 0, recipe: {}, refund, vault: { ...s, rooms: s.rooms.filter((r) => !gone.includes(r)) } };
 }
 
 /** Picks the instrument for a study's instrument slot (paid for already): it turns into the guitar, piano, harp or drum set chosen. */
@@ -439,10 +493,10 @@ export function applyInstrument(v: VaultHome, roomIndex: number, choice: string)
   if (!room) return { ok: false, reason: 'No such room' };
   if (!(INSTRUMENTS as readonly string[]).includes(choice)) return { ok: false, reason: 'Not an instrument' };
   if (!room.furniture.includes('instrument')) return { ok: false, reason: 'There is no instrument waiting to be chosen' };
-  return { ok: true, cost: 0, recipe: {}, vault: { ...v, rooms: v.rooms.map((r, i) => (i === roomIndex ? { ...r, furniture: r.furniture.map((x) => (x === 'instrument' ? choice : x)) } : r)) } };
+  return { ok: true, cost: 0, recipe: {}, vault: { ...v, rooms: v.rooms.map((r, i) => (i === roomIndex ? { ...r, furniture: r.furniture.map((x) => (x === 'instrument' ? choice : x)), ...(r.put?.instrument ? { put: Object.fromEntries(Object.entries(r.put).map(([k, p]) => [k === 'instrument' ? choice : k, p])) } : {}) } : r)) } };
 }
 
-export function applyFurnish(v: VaultHome, roomIndex: number, item: string, now: number): Action<unknown> {
+export function applyFurnish(v: VaultHome, roomIndex: number, item: string, now: number, at?: unknown): Action<unknown> {
   const room = v.rooms[roomIndex];
   if (!room) return { ok: false, reason: 'No such room' };
   if (!furnitureOf(room.type).some((f) => f.id === item)) return { ok: false, reason: 'That does not belong in this room' };
@@ -451,7 +505,20 @@ export function applyFurnish(v: VaultHome, roomIndex: number, item: string, now:
   const cost = furnishCost(room);
   const recipe = furnishRecipe(v, roomIndex, item);
   const s = settle(v, now);
-  return { ok: true, cost, recipe, vault: { ...s, rooms: s.rooms.map((r, i) => (i === roomIndex ? { ...r, furniture: [...r.furniture, item] } : r)), boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
+  const put = at === undefined ? null : cleanPut(at);
+  if (at !== undefined && !put) return { ok: false, reason: 'That is not a place on the floor' };
+  return { ok: true, cost, recipe, vault: { ...s, rooms: s.rooms.map((r, i) => (i === roomIndex ? { ...r, furniture: [...r.furniture, item], ...(put ? { put: { ...(r.put ?? {}), [item]: put } } : {}) } : r)), boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
+}
+
+/** Moves a piece that is in a room already (free): it is put where the owner set it down. */
+export function applyPlace(v: VaultHome, roomIndex: number, item: string, at: unknown): Action<unknown> {
+  const room = v.rooms[roomIndex];
+  if (!room) return { ok: false, reason: 'No such room' };
+  if (!room.furniture.includes(item)) return { ok: false, reason: 'That piece is not in this room' };
+  if (room.type === 'hallway') return { ok: false, reason: 'A hallway piece stays where it is' };
+  const put = cleanPut(at);
+  if (!put) return { ok: false, reason: 'That is not a place on the floor' };
+  return { ok: true, cost: 0, recipe: {}, vault: { ...v, rooms: v.rooms.map((r, i) => (i === roomIndex ? { ...r, put: { ...(r.put ?? {}), [item]: put } } : r)) } };
 }
 
 export function applySettler(v: VaultHome, kind: string, name?: unknown): Action<unknown> {
