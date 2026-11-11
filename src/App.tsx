@@ -1402,7 +1402,7 @@ export default function App() {
       </main>
 
       <footer className="rm-foot">
-        WastelandMaps is an unofficial fan project. Fallout is a trademark of Bethesda Softworks LLC; this site is not affiliated with or endorsed by Bethesda or Microsoft.
+        WastelandMaps is an unofficial fan project, not affiliated with, endorsed or sponsored by any game publisher or developer.
         Map © Google. Places from Wikidata (CC0); city sizes from GeoNames (CC BY 4.0). Snapshots are free-licensed photos from Wikimedia Commons, adapted with credit.
       </footer>
     </div>

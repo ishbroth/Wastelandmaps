@@ -436,7 +436,7 @@ export function SharePanel({ query, look, account }: { query: string; look: Look
       </div>
       <p className="rm-fine">
         The poster prints exactly what is on screen (use "Save as PDF" in the print window). Map imagery belongs to Google and is for your own
-        use; WastelandMaps is an unofficial fan project and is not affiliated with Bethesda or Microsoft.
+        use; WastelandMaps is an unofficial fan project and is not affiliated with any game publisher or developer.
       </p>
       <Leaderboard account={account} />
     </div>
