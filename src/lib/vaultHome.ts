@@ -577,7 +577,8 @@ export function neglectAt(v: VaultHome, now: number): Neglect {
   if (excess > 0) {
     if (now - since < LEAVE_AFTER_MS) return none;
     const keep = v.settlers.length - excess;
-    return { vault: { ...v, settlers: v.settlers.slice(0, keep), stealFrom: now }, left: v.settlers.slice(keep), thefts: 0 };
+    // the crowding is over: happiness is at its lowest as they go, and from here it climbs back toward what the rooms give (as in any visit), not jumping there at once
+    return { vault: { ...v, settlers: v.settlers.slice(0, keep), stealFrom: now, from: floorOf(v), sessionAt: now, seenAt: now, floorAt: undefined, gainAt: now }, left: v.settlers.slice(keep), thefts: 0 };
   }
   const from = Math.max(since, v.stealFrom ?? 0);
   const days = Math.floor((now - from) / THEFT_EVERY_MS);
