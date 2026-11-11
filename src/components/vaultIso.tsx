@@ -609,8 +609,12 @@ function UStairShell({ col, row, level, face, way, entry }: { col: number; row: 
     }
     if (sgn < 0) for (let k = 0; k < n; k++) parts.push({ k: riserKey(uB - k * run, oW), el: <Poly key={`or${k}`} p={riser(uB - k * run, oW, lz - k * rO, lz - (k + 1) * rO)} fill="#02150a" sw={0.6} stroke={DIM} /> });
     const mid = (aW[1] + bW[0]) / 2;
-    const rail = (u: number): [V3, V3] => [[...pt(u, mid), 0] as V3, [...pt(u, mid), 11] as V3];
-    parts.push({ k: 1e9, el: <g key="rail"><Seg a={rail(uA)[1]} b={rail(uB)[1]} c={INK} sw={1.6} o={0.95} /><Seg a={rail(uA)[0]} b={rail(uA)[1]} c={INK} sw={1.6} o={0.95} /><Seg a={rail(uB)[0]} b={rail(uB)[1]} c={INK} sw={1.6} o={0.95} /></g> });
+    // the handrail runs down the middle with the first flight: its top follows the steps down (11 above each), with a post every few steps
+    const rz = (u: number): number => -((u - uA) / (uB - uA)) * n * rE; // how far the flight has dropped at u
+    const rp = (u: number, z: number): V3 => [...pt(u, mid), z] as V3;
+    const posts: ReactElement[] = [];
+    for (let k = 0; k <= n; k += Math.max(1, Math.round(n / 4))) { const u = uA + (k / n) * (uB - uA); posts.push(<Seg key={`rp${k}`} a={rp(u, rz(u))} b={rp(u, rz(u) + 11)} c={INK} sw={1.6} o={0.95} />); }
+    parts.push({ k: 1e9, el: <g key="rail"><Seg a={rp(uA, 11)} b={rp(uB, rz(uB) + 11)} c={INK} sw={1.6} o={0.95} />{posts}<Seg a={rp(uB, rz(uB))} b={rp(uB, rz(uB) + 11)} c={INK} sw={1.6} o={0.95} /></g> });
     parts.sort((p1, q1) => p1.k - q1.k);
     pit = (
       <g>
