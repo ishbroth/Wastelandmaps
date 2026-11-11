@@ -859,9 +859,9 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             {panel.kind === 'build' && panel.type === 'stairs' && !panel.shape && (
               <div className="rm-vh-sheet-body">
                 <h3>WHICH KIND OF STAIRWELL?</h3>
-                <p>A STRAIGHT ONE IS A SINGLE FLIGHT. A U-SHAPED ONE IS TWO CELLS WIDE: IT HAS A LANDING AND TURNS BACK THE WAY YOU CAME ON THE NEXT LEVEL.</p>
+                <p>A STRAIGHT ONE IS A SINGLE FLIGHT. A U-SHAPED ONE GOES AWAY FROM THE ROOM, TURNS ON A LANDING AND COMES BACK THE WAY YOU CAME ON THE NEXT LEVEL. AT THE VERY EDGE OF THE VAULT IT HAS TO BE A U.</p>
                 <ul className="rm-vh-types">
-                  {([['straight', 'STRAIGHT', 'ONE FLIGHT, ONE CELL'], ['u', 'U-SHAPED', 'TWO FLIGHTS AND A LANDING, TWO CELLS WIDE']] as const).map(([id, name, note]) => {
+                  {([['straight', 'STRAIGHT', 'ONE FLIGHT, ONE CELL'], ['u', 'U-SHAPED', 'TWO FLIGHTS AND A LANDING, TURNS BACK']] as const).map(([id, name, note]) => {
                     const why = whyNotBuild(vault, 'stairs', panel.level, panel.col, panel.row, undefined, id);
                     return (
                       <li key={id}>

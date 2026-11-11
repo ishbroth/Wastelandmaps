@@ -209,6 +209,7 @@ const NICKNAMES: Record<string, string> = {
   'chongqing|cn': 'Chongqing Mountain Ruins',
   'taipei|tw': 'Taipei Ruins',
   'singapore|sg': 'Singapore Scrapyard',
+  'mission viejo|us': 'Orange-Glow County',
   'kuala lumpur|my': 'Kabooma Lumpur',
   'ho chi minh city|vn': 'The Ho',
   'thanh pho ho chi minh|vn': 'The Ho',

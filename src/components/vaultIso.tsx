@@ -116,11 +116,15 @@ function stairShape(r: { col: number; row: number; face?: Face }): Shape {
   return { rect, poly: [[rect.x, rect.y], [rect.x + rect.w, rect.y], [rect.x + rect.w, rect.y + rect.d], [rect.x, rect.y + rect.d]], notch: null };
 }
 
-/** A U stairwell's footprint: two cells wide (a flight in each, a little wider than a hallway), one long. The corridor to the room it joins runs through the cell its open end is in. */
-const U_W = 58;
-function uStairShape(r: { col: number; row: number; entry?: 0 | 1 }): Shape {
-  const c0 = r.col * CELL + CELL / 2, c1 = c0 + CELL;
-  const rect: Rect = { x: c0 - U_W - 4, y: r.row * CELL, w: CELL + 2 * U_W + 8, d: CELL, xc: (r.entry ?? 0) === 0 ? c0 : c1, yc: r.row * CELL + CELL / 2 };
+/** A U stairwell takes one cell like any stairwell and is drawn about as big as a bathroom: two hallway-wide lanes side by side (a flight in each), one long. The corridor to the room it joins runs through the lane its open end is on. */
+const U_LEN = 120;
+const U_LANE = 30; // a lane's middle, from the middle of the cell
+function uStairShape(r: { col: number; row: number; face?: Face; entry?: 0 | 1 }): Shape {
+  const m = (CELL - U_LEN) / 2;
+  const cx = r.col * CELL + CELL / 2, cy = r.row * CELL + CELL / 2;
+  const off = (r.entry ?? 0) === 1 ? U_LANE : -U_LANE;
+  const sideways = r.face === 'l' || r.face === 'r';
+  const rect: Rect = { x: r.col * CELL + m, y: r.row * CELL + m, w: U_LEN, d: U_LEN, xc: sideways ? cx : cx + off, yc: sideways ? cy + off : cy };
   return { rect, poly: [[rect.x, rect.y], [rect.x + rect.w, rect.y], [rect.x + rect.w, rect.y + rect.d], [rect.x, rect.y + rect.d]], notch: null };
 }
 
@@ -538,105 +542,120 @@ const alongX = (face: Face): boolean => face === 'l' || face === 'r';
 
 /**
  * A U-shaped stairwell: two flights side by side in two cells, one long, with a landing across the far end. You come in at the open end (through the cell `entry`), climb the
- * first flight to the landing, turn, and the second flight brings you back toward the open end, out beside where you came in, on the next level. From the level it goes down
- * from, the whole thing is a pit: the first flight steps down away from the open end, across the landing, and the second flight comes back down into the dark. From the other
- * end it is the same two flights seen climbing: up from the open end, across the landing, and back over it into the dark.
+ * first flight away from the room it is built onto to the landing, turn, and the second flight brings you back toward the room, out beside where you came in, on the next
+ * level. From the level it goes down from, the whole thing is a pit: the first flight steps down away from the open end, across the landing, and the second flight comes back
+ * down into the dark. From the other end it is the same two flights seen climbing. It can open to any side (b, f, l or r): everything is worked out along the way of travel
+ * (u, from the open end) and across it (w), and put on the floor the right way round for the side.
  */
 function UStairShell({ col, row, level, face, way, entry }: { col: number; row: number; level: number; face: Face; way: 'up' | 'down'; entry: 0 | 1 }): ReactElement {
-  const Y0 = row * CELL, y1 = Y0 + CELL;
-  const c0 = col * CELL + CELL / 2, c1 = c0 + CELL, W = U_W;
-  const rect = uStairShape({ col, row, entry }).rect;
-  const x0 = rect.x, x1 = rect.x + rect.w;
-  const front = face === 'f'; // the open end is toward the viewer
-  const yAt = (u: number): number => (front ? y1 - u : Y0 + u);
-  const span = (ua: number, ub: number): [number, number] => [Math.min(yAt(ua), yAt(ub)), Math.max(yAt(ua), yAt(ub))];
-  const lanes = { e: entry === 0 ? c0 : c1, o: entry === 0 ? c1 : c0 };
-  const n = 8;
-  const uA = CELL * 0.18, uB = CELL * 0.72, uEnd = CELL - 4;
+  const sideways = face === 'l' || face === 'r'; // it runs along x: the open end is on the left or right, and the two flights lie side by side along y
+  const sgn = face === 'b' || face === 'l' ? 1 : -1; // from the open end, the way of travel is toward larger x or y (b, l) or smaller (f, r)
+  const rect = uStairShape({ col, row, face, entry }).rect;
+  const x0 = rect.x, x1 = rect.x + rect.w, y0 = rect.y, y1 = rect.y + rect.d;
+  const T0 = (sideways ? col * CELL : row * CELL) + (CELL - U_LEN) / 2;
+  const along = (u: number): number => (sgn > 0 ? T0 + u : T0 + U_LEN - u);
+  const span = (ua: number, ub: number): [number, number] => [Math.min(along(ua), along(ub)), Math.max(along(ua), along(ub))];
+  const W = 26; // half the width of a flight
+  const mid = sideways ? row * CELL + CELL / 2 : col * CELL + CELL / 2;
+  const c0 = mid - U_LANE, c1 = mid + U_LANE; // the middles of the two flights, across
+  const lane = (c: number): [number, number] => [c - W, c + W];
+  const eW = lane(entry === 0 ? c0 : c1), oW = lane(entry === 0 ? c1 : c0), aW = lane(c0), bW = lane(c1);
+  const n = 6;
+  const uA = U_LEN * 0.16, uB = U_LEN * 0.7, uEnd = U_LEN - 3;
   const run = (uB - uA) / n;
-  const key = (xl: number, xr: number, ya: number, yb: number, z = 0): number => (xl + xr) / 2 + (ya + yb) / 2 + z * 0.001;
+  type B = { xa: number; xb: number; ya: number; yb: number };
+  const box = (ua: number, ub: number, wa: number, wb: number): B => { const [ta, tb] = span(ua, ub); return sideways ? { xa: ta, xb: tb, ya: wa, yb: wb } : { xa: wa, xb: wb, ya: ta, yb: tb }; };
+  const flat = (bx: B, z: number): V3[] => [[bx.xa, bx.ya, z], [bx.xb, bx.ya, z], [bx.xb, bx.yb, z], [bx.xa, bx.yb, z]];
+  const keyOf = (bx: B, z = 0): number => (bx.xa + bx.xb) / 2 + (bx.ya + bx.yb) / 2 + z * 0.001;
+  // a wall across the way of travel, at u, over the across range w: from height zt down (or up) to zb
+  const riser = (u: number, w: [number, number], zt: number, zb: number): V3[] => { const t = along(u); return sideways ? [[t, w[0], zt], [t, w[1], zt], [t, w[1], zb], [t, w[0], zb]] : [[w[0], t, zt], [w[1], t, zt], [w[1], t, zb], [w[0], t, zb]]; };
+  const riserKey = (u: number, w: [number, number]): number => along(u) + (w[0] + w[1]) / 2;
   const parts: { k: number; el: ReactElement }[] = [];
   const clip = `ustair${col}_${row}_${level}`;
-  const eX: [number, number] = [lanes.e - W, lanes.e + W], oX: [number, number] = [lanes.o - W, lanes.o + W];
-  const aX: [number, number] = [c0 - W, c0 + W], bX: [number, number] = [c1 - W, c1 + W];
   let pit: ReactElement | null = null;
   if (way === 'down') {
-    const rE = front ? 3.6 : 6.4, rO = front ? 6.4 : 3.6, D = n * (rE + rO) + 14; // the flight that goes away from the viewer is shallower, or the near rim would hide it
+    // the first flight is shallower when it goes away from the viewer (or the near rim would hide it), and the second the other way round
+    const rE = sgn > 0 ? 8 : 4.6, rO = sgn > 0 ? 4.6 : 8, D = n * (rE + rO) + 14;
     const shade = (d: number): string => `rgb(${Math.round(Math.max(4, 18 - d * 0.6))},${Math.round(Math.max(22, 96 - d * 3.4))},${Math.round(Math.max(10, 46 - d * 1.7))})`; // d: how many steps down
-    const outline: V3[] = [[aX[0], yAt(uA), 0], [aX[1], yAt(uA), 0], [aX[1], yAt(uB), 0], [bX[0], yAt(uB), 0], [bX[0], yAt(uA), 0], [bX[1], yAt(uA), 0], [bX[1], yAt(uEnd), 0], [aX[0], yAt(uEnd), 0]];
-    const [ylo, yhi] = [Math.min(yAt(uA), yAt(uEnd)), Math.max(yAt(uA), yAt(uEnd))];
-    // the walls of the pit that face the viewer: the left side, and the end that faces +y
-    parts.push({ k: -1e6, el: <Poly key="wl" p={[[aX[0], ylo, 0], [aX[0], yhi, 0], [aX[0], yhi, -D], [aX[0], ylo, -D]]} fill="#02150a" sw={0.8} stroke={DIM} /> });
-    if (front) parts.push({ k: -1e6 + 1, el: <Poly key="wy" p={[[aX[0], ylo, 0], [bX[1], ylo, 0], [bX[1], ylo, -D], [aX[0], ylo, -D]]} fill="#010a05" sw={0.8} stroke={DIM} /> });
-    else ([aX, bX] as [number, number][]).forEach((xs, i) => parts.push({ k: -1e6 + 1 + i, el: <Poly key={`wy${i}`} p={[[xs[0], ylo, 0], [xs[1], ylo, 0], [xs[1], ylo, -D], [xs[0], ylo, -D]]} fill="#010a05" sw={0.8} stroke={DIM} /> }));
-    // the stone between the two flights: its face toward the second lane, and (when the landing is on the near side of it) its end
-    const [cl, ch] = span(uA, uB);
-    parts.push({ k: key(bX[0], bX[0], cl, ch), el: <Poly key="core" p={[[bX[0], cl, 0], [bX[0], ch, 0], [bX[0], ch, -D + 6], [bX[0], cl, -D + 6]]} fill="#02150a" sw={0.8} stroke={DIM} /> });
-    if (!front) parts.push({ k: key(aX[1], bX[0], ch, ch), el: <Poly key="coreend" p={[[aX[1], ch, 0], [bX[0], ch, 0], [bX[0], ch, -n * rE], [aX[1], ch, -n * rE]]} fill="#02150a" sw={0.8} stroke={DIM} /> });
+    const pt = (u: number, w: number): [number, number] => (sideways ? [along(u), w] : [w, along(u)]);
+    const outline = [pt(uA, aW[0]), pt(uA, aW[1]), pt(uB, aW[1]), pt(uB, bW[0]), pt(uA, bW[0]), pt(uA, bW[1]), pt(uEnd, bW[1]), pt(uEnd, aW[0])];
+    const outline3: V3[] = outline.map(([px, py]) => [px, py, 0]);
+    // the walls of the pit that the viewer can see: every edge of the outline with the pit on its +x or +y side (the sides of it, the end of the landing, the stone between the flights)
+    let area = 0;
+    outline.forEach(([px, py], i) => { const [qx, qy] = outline[(i + 1) % outline.length]; area += px * qy - qx * py; });
+    outline.forEach(([px, py], i) => {
+      const [qx, qy] = outline[(i + 1) % outline.length];
+      const dx = qx - px, dy = qy - py;
+      const nx = area > 0 ? -dy : dy, ny = area > 0 ? dx : -dx; // pointing into the pit
+      if (!(nx > 0 || ny > 0)) return;
+      parts.push({ k: (px + qx) / 2 + (py + qy) / 2 - 0.5, el: <Poly key={`pw${i}`} p={[[px, py, 0], [qx, qy, 0], [qx, qy, -D], [px, py, -D]]} fill="#02150a" sw={0.8} stroke={DIM} /> });
+    });
     // the first flight goes down away from the open end; the landing; the second comes back down
     for (let i = 0; i < n; i++) {
-      const ua = uA + i * run, ub = ua + run, [ya, yb] = span(ua, ub), z = -(i + 1) * rE;
-      parts.push({ k: key(eX[0], eX[1], ya, yb, z), el: <Poly key={`e${i}`} p={[[eX[0], ya, z], [eX[1], ya, z], [eX[1], yb, z], [eX[0], yb, z]]} fill={shade(i)} sw={0.9} stroke={i < 6 ? INK : DIM} /> });
-      if (!front) { const yr = span(ub, ub)[0]; parts.push({ k: key(eX[0], eX[1], yr, yr, z - 1), el: <Poly key={`er${i}`} p={[[eX[0], yr, z], [eX[1], yr, z], [eX[1], yr, z - rE], [eX[0], yr, z - rE]]} fill="#02150a" sw={0.6} stroke={DIM} /> }); }
+      const bx = box(uA + i * run, uA + (i + 1) * run, eW[0], eW[1]), z = -(i + 1) * rE;
+      parts.push({ k: keyOf(bx, z), el: <Poly key={`e${i}`} p={flat(bx, z)} fill={shade(i)} sw={0.9} stroke={i < 6 ? INK : DIM} /> });
     }
-    if (!front) { const yr = span(uA, uA)[0]; parts.push({ k: key(eX[0], eX[1], yr, yr, 0), el: <Poly key="e-1" p={[[eX[0], yr, 0], [eX[1], yr, 0], [eX[1], yr, -rE], [eX[0], yr, -rE]]} fill="#02150a" sw={0.6} stroke={DIM} /> }); }
-    const [lya, lyb] = span(uB, uEnd), lz = -n * rE;
-    parts.push({ k: key(aX[0], bX[1], lya, lyb, lz), el: <Poly key="land" p={[[aX[0], lya, lz], [bX[1], lya, lz], [bX[1], lyb, lz], [aX[0], lyb, lz]]} fill={shade(n)} sw={0.9} stroke={DIM} /> });
+    if (sgn > 0) for (let k = 0; k < n; k++) parts.push({ k: riserKey(uA + k * run, eW), el: <Poly key={`er${k}`} p={riser(uA + k * run, eW, -k * rE, -(k + 1) * rE)} fill="#02150a" sw={0.6} stroke={DIM} /> });
+    const lz = -n * rE;
+    const land = box(uB, uEnd, aW[0], bW[1]);
+    parts.push({ k: keyOf(land, lz), el: <Poly key="land" p={flat(land, lz)} fill={shade(n)} sw={0.9} stroke={DIM} /> });
     for (let j = 0; j < n; j++) {
-      const ub = uB - j * run, ua = ub - run, [ya, yb] = span(ua, ub), z = lz - (j + 1) * rO;
-      parts.push({ k: key(oX[0], oX[1], ya, yb, z), el: <Poly key={`o${j}`} p={[[oX[0], ya, z], [oX[1], ya, z], [oX[1], yb, z], [oX[0], yb, z]]} fill={shade(n + 1 + j)} sw={0.9} stroke={DIM} /> });
-      if (front) { const yr = span(ub, ub)[0]; parts.push({ k: key(oX[0], oX[1], yr, yr, z - 1), el: <Poly key={`or${j}`} p={[[oX[0], yr, z + rO], [oX[1], yr, z + rO], [oX[1], yr, z], [oX[0], yr, z]]} fill="#02150a" sw={0.6} stroke={DIM} /> }); }
+      const bx = box(uB - (j + 1) * run, uB - j * run, oW[0], oW[1]), z = lz - (j + 1) * rO;
+      parts.push({ k: keyOf(bx, z), el: <Poly key={`o${j}`} p={flat(bx, z)} fill={shade(n + 1 + j)} sw={0.9} stroke={DIM} /> });
     }
-    parts.sort((p, q) => p.k - q.k);
+    if (sgn < 0) for (let k = 0; k < n; k++) parts.push({ k: riserKey(uB - k * run, oW), el: <Poly key={`or${k}`} p={riser(uB - k * run, oW, lz - k * rO, lz - (k + 1) * rO)} fill="#02150a" sw={0.6} stroke={DIM} /> });
+    parts.sort((p1, q1) => p1.k - q1.k);
     pit = (
       <g>
-        <defs><clipPath id={clip}><polygon points={pts(outline)} /></clipPath></defs>
-        <polygon points={pts(outline)} fill="#000503" stroke="none" />
-        <g clipPath={`url(#${clip})`}>{parts.map((p) => p.el)}</g>
-        <polygon points={pts(outline)} fill="none" stroke={INK} strokeWidth="1.6" strokeLinejoin="round" />
+        <defs><clipPath id={clip}><polygon points={pts(outline3)} /></clipPath></defs>
+        <polygon points={pts(outline3)} fill="#000503" stroke="none" />
+        <g clipPath={`url(#${clip})`}>{parts.map((q1) => q1.el)}</g>
+        <polygon points={pts(outline3)} fill="none" stroke={INK} strokeWidth="1.6" strokeLinejoin="round" />
       </g>
     );
   }
+  // the inside of the two back walls (the left one at x0, the back one at y0), with a doorway where the open end is on that side
   const H = way === 'up' ? 100 : 18, Tk = 4;
+  const gapE: [number, number] = [Math.max(sideways ? y0 : x0, eW[0] - 4), Math.min(sideways ? y1 : x1, eW[1] + 4)];
+  const pieces = (lo: number, hi: number, gap: [number, number] | null): [number, number][] => {
+    if (!gap) return [[lo, hi]];
+    const out: [number, number][] = [];
+    if (gap[0] > lo) out.push([lo, gap[0]]);
+    if (gap[1] < hi) out.push([gap[1], hi]);
+    return out;
+  };
   const walls: ReactElement[] = [];
-  walls.push(<g key="wl"><Poly p={[[x0, Y0, 0], [x0, y1, 0], [x0, y1, H], [x0, Y0, H]]} fill={FACE_L} /><Poly p={[[x0, Y0, H], [x0, y1, H], [x0 - Tk, y1, H], [x0 - Tk, Y0, H]]} fill={CAP} sw={1.6} /></g>);
-  // the back wall, but for the doorway at the open end when that is the back
-  const gaps: [number, number][] = face === 'b' ? [[Math.max(x0, lanes.e - W - 4), Math.min(x1, lanes.e + W + 4)]] : [];
-  let from = x0;
-  const pieces: [number, number][] = [];
-  for (const [ga, gb] of gaps) { if (ga > from) pieces.push([from, ga]); from = gb; }
-  if (from < x1) pieces.push([from, x1]);
-  pieces.forEach(([xa, xb], i) => walls.push(<g key={`wb${i}`}><Poly p={[[xa, Y0, 0], [xb, Y0, 0], [xb, Y0, H], [xa, Y0, H]]} fill={FACE_R} /><Poly p={[[xa, Y0, H], [xb, Y0, H], [xb, Y0 - Tk, H], [xa, Y0 - Tk, H]]} fill={CAP} sw={1.6} /></g>));
+  pieces(y0, y1, face === 'l' ? gapE : null).forEach(([ya, yb], i) => walls.push(<g key={`wl${i}`}><Poly p={[[x0, ya, 0], [x0, yb, 0], [x0, yb, H], [x0, ya, H]]} fill={FACE_L} /><Poly p={[[x0, ya, H], [x0, yb, H], [x0 - Tk, yb, H], [x0 - Tk, ya, H]]} fill={CAP} sw={1.6} /></g>));
+  pieces(x0, x1, face === 'b' ? gapE : null).forEach(([xa, xb], i) => walls.push(<g key={`wb${i}`}><Poly p={[[xa, y0, 0], [xb, y0, 0], [xb, y0, H], [xa, y0, H]]} fill={FACE_R} /><Poly p={[[xa, y0, H], [xb, y0, H], [xb, y0 - Tk, H], [xa, y0 - Tk, H]]} fill={CAP} sw={1.6} /></g>));
   const slabs = [
-    <Poly key="sr" p={[[x1, Y0, 0], [x1, y1, 0], [x1, y1, -9], [x1, Y0, -9]]} fill={SLAB} />,
+    <Poly key="sr" p={[[x1, y0, 0], [x1, y1, 0], [x1, y1, -9], [x1, y0, -9]]} fill={SLAB} />,
     <Poly key="sf" p={[[x0, y1, 0], [x1, y1, 0], [x1, y1, -9], [x0, y1, -9]]} fill="#073a1b" />,
   ];
   let flight: ReactElement[] = [];
   if (way === 'up') {
-    const rise = 5.2;
+    const rise = 6.6;
     const shade = (d: number, k: number): string => `rgb(${Math.round((16 - d * 0.7) * k)},${Math.round((88 - d * 4.2) * k)},${Math.round((42 - d * 2) * k)})`;
-    const box = (xl: number, xr: number, ya: number, yb: number, top: number, d: number, id: string) => ({
-      k: key(xl, xr, ya, yb),
+    const solid = (bx: B, top: number, d: number, id: string) => ({
+      k: keyOf(bx),
       el: (
         <g key={id}>
-          <Poly p={[[xl, yb, 0], [xr, yb, 0], [xr, yb, top], [xl, yb, top]]} fill={shade(d, 0.55)} sw={0.9} stroke={DIM} />
-          <Poly p={[[xr, ya, 0], [xr, yb, 0], [xr, yb, top], [xr, ya, top]]} fill={shade(d, 0.38)} sw={0.9} stroke={DIM} />
-          <Poly p={[[xl, ya, top], [xr, ya, top], [xr, yb, top], [xl, yb, top]]} fill={shade(d, 1)} sw={0.9} stroke={d < 8 ? INK : DIM} />
+          <Poly p={[[bx.xa, bx.yb, 0], [bx.xb, bx.yb, 0], [bx.xb, bx.yb, top], [bx.xa, bx.yb, top]]} fill={shade(d, 0.55)} sw={0.9} stroke={DIM} />
+          <Poly p={[[bx.xb, bx.ya, 0], [bx.xb, bx.yb, 0], [bx.xb, bx.yb, top], [bx.xb, bx.ya, top]]} fill={shade(d, 0.38)} sw={0.9} stroke={DIM} />
+          <Poly p={flat(bx, top)} fill={shade(d, 1)} sw={0.9} stroke={d < 8 ? INK : DIM} />
         </g>
       ),
     });
     const list: { k: number; el: ReactElement }[] = [];
-    for (let i = 0; i < n; i++) { const ua = uA + i * run, [ya, yb] = span(ua, ua + run); list.push(box(eX[0], eX[1], ya, yb, (i + 1) * rise, i, `ue${i}`)); }
-    const [lya, lyb] = span(uB, uEnd);
-    list.push(box(aX[0], bX[1], lya, lyb, n * rise, n, 'ul'));
-    for (let j = 0; j < n; j++) { const ub = uB - j * run, [ya, yb] = span(ub - run, ub); list.push(box(oX[0], oX[1], ya, yb, (n + 1 + j) * rise, n + 1 + j, `uo${j}`)); }
-    flight = list.sort((p, q) => p.k - q.k).map((b) => b.el);
+    for (let i = 0; i < n; i++) list.push(solid(box(uA + i * run, uA + (i + 1) * run, eW[0], eW[1]), (i + 1) * rise, i, `ue${i}`));
+    list.push(solid(box(uB, uEnd, aW[0], bW[1]), n * rise, n, 'ul'));
+    for (let j = 0; j < n; j++) list.push(solid(box(uB - (j + 1) * run, uB - j * run, oW[0], oW[1]), (n + 1 + j) * rise, n + 1 + j, `uo${j}`));
+    flight = list.sort((p1, q1) => p1.k - q1.k).map((q1) => q1.el);
   }
-  const outline = [[x0, Y0], [x1, Y0], [x1, y1], [x0, y1]].map(([px, py]) => P(px, py, 0).join(',')).join(' ');
+  const outlineFloor = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([px, py]) => P(px, py, 0).join(',')).join(' ');
   return (
     <g>
       {slabs}
-      <polygon points={outline} fill={FLOOR} stroke={INK} strokeWidth="1.2" strokeLinejoin="round" />
+      <polygon points={outlineFloor} fill={FLOOR} stroke={INK} strokeWidth="1.2" strokeLinejoin="round" />
       {pit}
       {walls}
       {flight}

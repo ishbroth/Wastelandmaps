@@ -1,6 +1,6 @@
 // Checks the rules for putting furniture and stairwell holes down by hand, the room count for vacation vaults and the dig-down rule when every slot is used.
 //   npx esbuild _tools/vaultplace.check.ts --bundle --platform=node --format=cjs --outfile=$TEMP/vp.cjs && node $TEMP/vp.cjs
-import { atFloorSince, checkIn, excessSettlers, moodAt, neglectAt, applyBuild, applyDemolish, applyFurnish, applyPlace, cleanPut, hasWayDown, hasWayUp, isTwin, newVault, openCell, reachable, roomAt, roomCount, settlerSlots, stairDir, stairwellsBuilt, whyNotBuild, whyNotDemolish, MAX_SLOTS, ROOMS_FOR_VACATION, type VaultHome, type VaultRoom } from '../src/lib/vaultHome';
+import { slotsOf, atFloorSince, checkIn, excessSettlers, moodAt, neglectAt, applyBuild, applyDemolish, applyFurnish, applyPlace, cleanPut, hasWayDown, hasWayUp, isTwin, newVault, openCell, reachable, roomAt, roomCount, settlerSlots, stairDir, stairwellsBuilt, whyNotBuild, whyNotDemolish, MAX_SLOTS, ROOMS_FOR_VACATION, type VaultHome, type VaultRoom } from '../src/lib/vaultHome';
 import { footBox, layoutOf, pieceFits, roomRect } from '../src/components/vaultIso';
 
 let bad = 0;
@@ -84,23 +84,35 @@ check('a lone stairwell can be demolished and takes its twin', whyNotDemolish(v2
 check('not while a room below is only reached through it', /only reachable/.test(whyNotDemolish(build(v2, 'bedroom', 1, 7, 5), si) ?? ''));
 check('the nothing-below-the-fifth rule', why({ ...v, rooms: [...v.rooms, room('hallway', 4, 3, 5)] }, 'stairs', 4, 4, 5, 'down') === 'There is nothing below the fifth level');
 
-// U-shaped stairwells: two cells wide, one long, built onto the front or back of a room; the twin opens the same way through the other cell
+// U-shaped stairwells: one cell like a straight one (drawn about as big as a bathroom), built onto any side of a room, opening the same way on both levels
 const buildU = (vv: VaultHome, l: number, c: number, r: number, dir: 'up' | 'down') => { const q = applyBuild(vv, 'stairs' as never, l, c, r, 0, dir, 'u'); if (!q.ok) throw new Error('u ' + q.reason); return q.vault; };
 const uWhy = (vv: VaultHome, l: number, c: number, r: number, dir: 'up' | 'down') => whyNotBuild(vv, 'stairs' as never, l, c, r, dir, 'u');
-check('a U stairwell can be built onto the back of a room', uWhy(v, 0, 5, 3, 'down') === null);
-check('not onto the side of a room', /front or the back/.test(uWhy(v, 0, 3, 5, 'down') ?? ''));
-check('not onto two rooms', /dead end/.test(uWhy(v, 0, 3, 4, 'down') ?? ''));
+check('a U stairwell can be built onto a room', uWhy(v, 0, 5, 3, 'down') === null);
+check('and onto the side of a room too', uWhy(v, 0, 3, 5, 'down') === null);
+check('not onto two rooms', /dead end/.test(uWhy(v, 0, 4, 4, 'down') ?? ''));
 check('not up from the first level', /nothing above/.test(uWhy(v, 0, 5, 3, 'up') ?? ''));
-const vu = buildU(v, 0, 5, 3, 'down');
-const uTop = roomAt(vu, 0, 5, 3) as VaultRoom, uCell2 = roomAt(vu, 0, 6, 3), uTwin = roomAt(vu, 1, 5, 3) as VaultRoom;
-check('it covers two cells and has a twin in the same two', uTop.shape === 'u' && uCell2 === uTop && isTwin(uTwin) && roomAt(vu, 1, 6, 3) === uTwin && uTop.col === 5 && uTwin.col === 5);
-check('the twin opens the same way through the other cell', uTop.face === 'f' && uTwin.face === 'f' && JSON.stringify(openCell(uTop)) === '[5,4]' && JSON.stringify(openCell(uTwin)) === '[6,4]');
+const plan4 = (c: number, r: number) => { const q = buildU(v, 0, c, r, 'down'); return { q, t: q.rooms[q.rooms.length - 2], w: q.rooms[q.rooms.length - 1] }; };
+// the four ways it can face: away from the room it is built onto, whichever side that is
+const faceF = plan4(5, 3), faceB = plan4(4, 6), faceR = plan4(3, 5), faceL = plan4(6, 4);
+check('room in front of it: opens to the front', faceF.t.face === 'f' && JSON.stringify(openCell(faceF.t)) === '[5,4]');
+check('room behind it: opens to the back', faceB.t.face === 'b' && JSON.stringify(openCell(faceB.t)) === '[4,5]');
+check('room on its right: opens to the right', faceR.t.face === 'r' && JSON.stringify(openCell(faceR.t)) === '[4,5]');
+check('room on its left: opens to the left', faceL.t.face === 'l' && JSON.stringify(openCell(faceL.t)) === '[5,4]');
+for (const [name, x] of [['front', faceF], ['back', faceB], ['right', faceR], ['left', faceL]] as const) {
+  check('opening ' + name + ': one cell, the twin in the same cell opening the same way on the other lane', slotsOf(x.t) === 1 && roomAt(x.q, 1, x.t.col, x.t.row) === x.w && isTwin(x.w) && !isTwin(x.t) && x.w.face === x.t.face && x.t.entry === 0 && x.w.entry === 1 && JSON.stringify(openCell(x.w)) === JSON.stringify(openCell(x.t)));
+}
+const vu = faceF.q, uTop = faceF.t, uTwin = faceF.w;
 check('it goes down and the twin goes up, and counts as one stairwell', stairDir(vu, uTop) === 'down' && stairDir(vu, uTwin) === 'up' && stairwellsBuilt(vu) === 1 && hasWayDown(vu, 0) && hasWayUp(vu, 1));
-check('nothing joins its side or its closed cell', /dead end/.test(why(vu, 'bedroom', 0, 7, 3) ?? '') && /dead end/.test(why(vu, 'bedroom', 0, 6, 4) ?? '') && why(vu, 'bedroom', 0, 5, 3) === 'That space is taken');
+check('nothing joins its side or its far end', /dead end/.test(whyNotBuild(vu, 'bedroom' as never, 0, 4, 3) ?? '') && /dead end/.test(whyNotBuild(vu, 'bedroom' as never, 0, 6, 3) ?? '') && /dead end/.test(whyNotBuild(vu, 'bedroom' as never, 0, 5, 2) ?? ''));
 check('the vault is still joined, and the twin is reached by the stairs', reachable(vu).size === vu.rooms.length);
-const ui = vu.rooms.indexOf(uTop);
-check('demolishing it takes both ends', whyNotDemolish(vu, ui) === null && (applyDemolish(vu, ui, 0) as { vault: VaultHome }).vault.rooms.length === v.rooms.length);
+check('demolishing it takes both ends', whyNotDemolish(vu, vu.rooms.indexOf(uTop)) === null && (applyDemolish(vu, vu.rooms.indexOf(uTop), 0) as { vault: VaultHome }).vault.rooms.length === v.rooms.length);
 check('slots are not used by it', settlerSlots(vu) === settlerSlots(v) && roomCount(vu) === roomCount(v));
+// at the very edge of the vault a straight stairwell would run into the edge on the other level: it has to turn back
+const edge: VaultHome = { ...v, rooms: [...v.rooms, room('hallway', 0, 1, 5)] };
+check('a straight stairwell cannot go at the very edge', /very edge/.test(whyNotBuild(edge, 'stairs' as never, 0, 0, 5, 'down', 'straight') ?? ''));
+check('a U stairwell can, and it turns back', whyNotBuild(edge, 'stairs' as never, 0, 0, 5, 'down', 'u') === null);
+check('with no shape chosen yet the stairwell is still offered at the edge (as a U)', whyNotBuild(edge, 'stairs' as never, 0, 0, 5, 'down') === null);
+check('away from the edge a straight one is fine', whyNotBuild(v, 'stairs' as never, 0, 6, 5, 'down', 'straight') === null);
 
 // settlers, crowding and neglect
 const H = 3_600_000, DAY = 24 * H;
