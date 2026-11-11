@@ -34,28 +34,34 @@ function boundsCenterLng(b: google.maps.LatLngBoundsLiteral): number {
   return mid > 180 ? mid - 360 : mid;
 }
 
+const hexRgb = (hex: string): number[] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const rgbHex = (c: number[]): string => '#' + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+
 /**
- * The colour of a flooded patch's layers: exactly the sea's colour on every layer. Water on water is the same water (a patch running out over the sea, or
- * layers stacked on each other, never darken anything); only the streets underneath fade as the layers get more solid toward the middle.
+ * The colour of a flooded patch's layers. The water is one colour, the sea's own (measured off the live map: the ocean and the middle of a patch are the same pixel
+ * colour). The layers are stacked, and only the outermost has the land showing through it, so that one is tinted to cancel the land: laid at its opacity over the
+ * land it comes out exactly the colour of the sea, so no edge of the land can be seen under the water. Every layer inside it is the sea's own colour (on top of sea,
+ * more sea), so only the streets fade, never the water. The outer layer is nearly solid, so where a patch reaches over the real ocean the tint changes it by almost nothing.
  */
-function floodLayerColor(look: Look, _layer: number, _alpha: number): string {
-  return look.floodFill;
+function floodLayerColor(look: Look, layer: number, alpha: number): string {
+  if (layer > 0) return look.floodFill;
+  const sea = hexRgb(look.floodFill);
+  const land = hexRgb(look.floodLand);
+  return rgbHex(sea.map((o, i) => (o - (1 - alpha) * land[i]) / alpha));
 }
 
-/** Opacity of each nested layer of a flooded patch, outermost first: the streets go from this dim at the shore to nearly gone in the deepest part. */
-function floodLayerAlphas(strength: number, layers: number, edge = 0.16): number[] {
+/**
+ * Opacity of each nested layer of a flooded patch, outermost first. How much of what is under the water still shows after layer k (1 minus its total opacity) shrinks
+ * by the same factor every layer, from the edge's (a streets show faintly, the land is cancelled by the tint) to almost nothing at the middle, so every layer after
+ * the first covers a good part of what is left (never a thin film: the map is drawn in 8 bits, and a layer that changes a colour by less than half a step does nothing,
+ * which used to leave the middle of the water a step or two off the sea's colour, more so the more layers there were).
+ */
+function floodLayerAlphas(strength: number, layers: number, edge = 0.93): number[] {
   if (layers <= 1) return [strength];
-  // Where it is deepest the streets are very faint but still there. The edge starts nearly solid (see floodEdge in looks.ts) so the land hardly tints the
-  // water at the shore: it is the sea's colour throughout.
-  const deepest = Math.min(0.985, strength + 0.12);
-  const out: number[] = [];
-  let before = 0;
-  for (let k = 0; k < layers; k++) {
-    const total = edge + (deepest - edge) * Math.pow(k / (layers - 1), 1.15); // how dark it should be after this layer: a long, even fade from the shore in to the middle fifth, where only a thin faint line of road is left
-    out.push(Math.min(0.99, Math.max(0.02, 1 - (1 - total) / (1 - before))));
-    before = total;
-  }
-  return out;
+  const deepest = Math.min(0.997, strength + 0.12);
+  const first = 1 - edge, last = 1 - deepest;
+  const left = (k: number) => first * Math.pow(last / first, k / (layers - 1));
+  return Array.from({ length: layers }, (_, k) => (k === 0 ? 1 - left(0) : 1 - left(k) / left(k - 1)));
 }
 
 interface Props {
@@ -94,7 +100,12 @@ interface Props {
 /** The most markers on the map at once. */
 const MAX_PINS = 450;
 const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
-const LABEL_ZOOM = 16;
+/** From this zoom in every name tag shows on its own (the icons' and the radiation zones' too); it was 16, one level later. */
+const LABEL_ZOOM = 15;
+/** Picking a place from the list zooms the map in to at least this far. */
+const PICK_ZOOM = 16;
+/** The picked place's name tag stays while you zoom out as far as this (about where the ordinary places drop off the map, leaving the famous landmarks), and goes below it. */
+const SELECTED_TAG_ZOOM = 11;
 /** Below this zoom (zoomed out past a city) the irradiated zones are taken off the map: they only belong to the city you are looking at. */
 const CITY_ZOOM = 9;
 /** The radiation icons and their IRRADIATED tags show from this zoom in (the same level the personal icons drop off at); their IRRADIATED tags show only at the zoom where every other name tag does; the clouds stay longer. */
@@ -261,11 +272,13 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     meButton.current = me;
     map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(me);
     if (import.meta.env.DEV) (window as unknown as { __wlmap?: google.maps.Map }).__wlmap = map; // for the browser checks in _tools
+    if (import.meta.env.DEV) (window as unknown as { __wlflood?: Map<string, google.maps.Polygon> }).__wlflood = floodShapes.current;
     const markClose = () => {
       const zoom = map.getZoom() ?? 0;
       const far = zoom < 12;
       if (far !== farRoads.current) { farRoads.current = far; map.setOptions({ styles: stylesAt(lookRef.current, zoom) }); }
       holder.current?.classList.toggle('rm-zoomed', zoom >= LABEL_ZOOM);
+      holder.current?.classList.toggle('rm-near', zoom >= SELECTED_TAG_ZOOM);
       // half size at city level, full size from three zoom steps closer
       holder.current?.style.setProperty('--pin-size', `${Math.round(Math.min(36, Math.max(18, 18 + (zoom - 11) * 6)))}px`);
     };
@@ -428,11 +441,12 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     // looks drowned. Zoomed in, each patch is a stack of nested outlines, so the water is thin at the shore and deepest in the middle, and the main
     // streets running into it fade out gradually instead of stopping at an edge.
     const onScreen = near.filter((p) => (p[2] * Math.max(1, p[3])) / ((156543.03 * Math.cos((p[0] * Math.PI) / 180)) / 2 ** zoomNow) >= 1.2);
-    const baseLayers = zoomNow >= 15 ? 28 : zoomNow >= 12 ? 18 : zoomNow >= 10 ? 5 : 1;
+    // a few rings, not dozens: each has to be thick enough to matter (see floodLayerAlphas)
+    const baseLayers = zoomNow >= 12 ? 8 : zoomNow >= 10 ? 5 : 1;
     const layers = Math.max(1, Math.min(baseLayers, Math.floor(600 / Math.max(1, onScreen.length))));
     const wanted = new Map<string, { patch: FloodPatch; layer: number }>();
     for (const p of onScreen) {
-      for (let k = 0; k < layers; k++) wanted.set(`${p[5]}:${layers}:${k}`, { patch: [p[0], p[1], p[2] * (layers === 1 ? 1 : 1 - (k / layers) * 0.8), p[3], p[4], p[5]], layer: k });
+      for (let k = 0; k < layers; k++) wanted.set(`${p[5]}:${layers}:${k}`, { patch: [p[0], p[1], p[2] * (layers === 1 ? 1 : 1 - (k / (layers - 1)) * 0.45), p[3], p[4], p[5]], layer: k });
     }
     shapes.forEach((shape, key) => {
       if (wanted.has(key)) return;
@@ -541,7 +555,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     const target = selectedId === VAULT_ID ? vault.current?.position : selectedId ? (pins.current.get(selectedId)?.position ?? locations.find((l) => l.id === selectedId)?.position) : null;
     if (map && target) {
       map.panTo(target);
-      if ((map.getZoom() ?? 0) < LABEL_ZOOM) map.setZoom(LABEL_ZOOM);
+      if ((map.getZoom() ?? 0) < PICK_ZOOM) map.setZoom(PICK_ZOOM);
     }
   }, [selectedId, locations, hiddenCategories, wasteland]);
 
