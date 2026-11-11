@@ -7,7 +7,7 @@ import { canAfford, describeBag, lootName, type LootId } from '../lib/raid/loot'
 type Bag = Partial<Record<string, number>>;
 import {
   COLS, ENTRY_AT, isPassage, MAX_HALLWAYS_PER_LEVEL, hallwaysOn, isDoorCell, LEVELS, ROOMS_FOR_VACATION, roomCount as countRooms, ROOM_DEFS, ROWS, buildRecipe, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
-  whyNotBuild, whyNotDemolish, hasWayDown, hasWayUp, stairDir, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
+  whyNotBuild, whyNotDemolish, hasWayDown, hasWayUp, stairDir, openCell, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt, type Pose } from './vaultArt';
@@ -56,7 +56,7 @@ function route(v: VaultHome, level: number, from: [number, number], to: [number,
     if (c === to[0] && r === to[1]) break;
     for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
       const n: [number, number] = [c + dc, r + dr];
-      if (!roomAt(v, level, n[0], n[1]) || prev.has(key(...n))) continue;
+      if (!roomAt(v, level, n[0], n[1]) || roomAt(v, level, n[0], n[1])?.type === 'stairs' || prev.has(key(...n))) continue;
       prev.set(key(...n), [c, r]);
       queue.push(n);
     }
@@ -90,7 +90,7 @@ function route(v: VaultHome, level: number, from: [number, number], to: [number,
 }
 
 function plan(s: Sim, v: VaultHome) {
-  const rooms = roomsOn(v, s.level);
+  const rooms = roomsOn(v, s.level).filter((r) => r.type !== 'stairs');
   if (!rooms.length) return;
   const room = pick(rooms);
   const use = room.furniture.length && Math.random() < 0.65 ? pick(room.furniture) : '';
@@ -98,7 +98,7 @@ function plan(s: Sim, v: VaultHome) {
   if (use && FURNITURE[use]) {
     const p = FURNITURE[use];
     // beside the piece, on the side that faces the room
-    spot = floorPoint(room, Math.min(1, p.u + (p.face === 'x' ? 0.16 : 0) + (use === 'chairs' ? pick([-0.18, 0.18]) : 0)), Math.min(1, p.v + (p.face === 'y' ? 0.16 : 0)));
+    spot = floorPoint(room, Math.min(1, p.u + (p.face === 'x' ? 0.16 : 0) + (use === 'table' ? pick([-0.18, 0.18]) : 0)), Math.min(1, p.v + (p.face === 'y' ? 0.16 : 0)));
   }
   s.seatFace = undefined;
   if (use && SEATS[use]) {
@@ -524,7 +524,12 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     for (let row = 0; row < ROWS; row++) {
       for (let col = 0; col < COLS; col++) {
         if (roomAt(vault, level, col, row) || isDoorCell(vault, level, col, row)) continue;
-        const touches = [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => !!roomAt(vault, level, col + dc, row + dr));
+        const touches = [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dc, dr]) => {
+          const o = roomAt(vault, level, col + dc, row + dr);
+          if (!o) return false;
+          const oc = openCell(o); // a stairwell is a dead end: only its open end leads on
+          return !oc || (oc[0] === col && oc[1] === row);
+        });
         if (touches) out.push([col, row]);
       }
     }
@@ -561,7 +566,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
         el: (
           <g className={`rm-vh-room${fresh && fresh.room === idx && !fresh.item ? ' rm-vh-fresh' : ''}`} role="button" aria-label={def.name}>
             {halls}
-            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} level={room.level} labelFront={[at(room.col - 1, room.row), ...Array.from({ length: slots }, (_, k) => at(room.col + k, room.row - 1))].some((n) => n?.type === 'hallway')} doorsL={doorsL} doorsR={doorsR} hole={room.type !== 'stairs' && roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} down={room.type === 'stairs' && roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} way={stairDir(vault, room) ?? undefined} furniture={room.furniture} />
+            <RoomShell rect={me} name={def.name.toUpperCase()} type={room.type} col={room.col} row={room.row} level={room.level} labelFront={[at(room.col - 1, room.row), ...Array.from({ length: slots }, (_, k) => at(room.col + k, room.row - 1))].some((n) => n?.type === 'hallway')} doorsL={doorsL} doorsR={doorsR} hole={room.type !== 'stairs' && roomAt(vault, level + 1, room.col, room.row)?.type === 'stairs'} face={room.face} way={stairDir(vault, room) ?? 'down'} furniture={room.furniture} />
           </g>
         ),
       });
@@ -923,9 +928,11 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             )}
             {panel.kind === 'room' && room && !panel.item && !panel.pick && (
               <div className="rm-vh-sheet-body">
+                {room.type !== 'stairs' && (
+                  <>
                 <button type="button" className="rm-vh-x" onClick={() => setPanel(null)} aria-label="Close">×</button>
                 <h3>{roomDef(room.type).name.toUpperCase()}</h3>
-                <p>{room.type === 'stairs' ? (stairDir(vault, room) === 'up' ? 'THESE STAIRS GO UP: USE THE UP ARROW TO SEE THE LEVEL ABOVE. NO FURNITURE, NO HAPPINESS: JUST THE WAY BETWEEN.' : 'THESE STAIRS GO DOWN: USE THE DOWN ARROW TO SEE THE LEVEL BELOW. NO FURNITURE, NO HAPPINESS: JUST THE WAY BETWEEN.') : room.type === 'hallway' ? (room.furniture.length ? 'ONE PIECE IN A HALLWAY, AND IT IS HERE.' : `A HALLWAY HOLDS ONE PIECE: CHOOSE WELL. IT COSTS ${furnishCost(room)} PIECES OF LOOT.`) : roomComplete(room) ? 'FULLY FURNISHED.' : `EACH PIECE COSTS ${furnishCost(room)} PIECES OF LOOT, A DIFFERENT MIX FOR EACH.`}</p>
+                <p>{room.type === 'hallway' ? (room.furniture.length ? 'ONE PIECE IN A HALLWAY, AND IT IS HERE.' : `A HALLWAY HOLDS ONE PIECE: CHOOSE WELL. IT COSTS ${furnishCost(room)} PIECES OF LOOT.`) : roomComplete(room) ? 'FULLY FURNISHED.' : `EACH PIECE COSTS ${furnishCost(room)} PIECES OF LOOT, A DIFFERENT MIX FOR EACH.`}</p>
                 <ul className="rm-vh-types">
                   {furnitureOf(room.type).map((f) => {
                     const placed = room.furniture.some((x) => slotOf(x) === f.id) || (room.type === 'hallway' && room.furniture.length >= 1);
@@ -940,6 +947,8 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                     );
                   })}
                 </ul>
+                  </>
+                )}
                 <div className="rm-vh-row rm-vh-row-split">
                   {room.type !== 'entry' && <button type="button" className="rm-btn rm-btn-ghost rm-vh-demo" onClick={() => { const why = whyNotDemolish(vault, panel.idx); if (why) say(why); else setPanel({ kind: 'demolish', idx: panel.idx }); }}>DEMOLISH</button>}
                   <button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel(null)}>CLOSE</button>

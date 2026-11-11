@@ -49,7 +49,7 @@ export const ROOM_DEFS: RoomDef[] = [
   // a little bigger than the living room, dining room and bedrooms, but still one slot
   { id: 'study', name: 'Study', slots: 1, max: 2, furniture: [{ id: 'bookshelf', name: 'Bookshelf' }, { id: 'desk', name: 'Desk' }, { id: 'instrument', name: 'Instrument' }, { id: 'easel', name: 'Art Easel' }] },
   { id: 'living', name: 'Living Room', slots: 1, max: 4, furniture: [{ id: 'couch', name: 'Couch' }, { id: 'tv', name: 'TV' }, { id: 'armchair', name: 'Chair' }, { id: 'coffeetable', name: 'Coffee Table' }] },
-  { id: 'dining', name: 'Dining Room', slots: 1, max: 3, furniture: [{ id: 'table', name: 'Dining Table' }, { id: 'chairs', name: 'Dining Chairs' }, { id: 'chandelier', name: 'Candle Chandelier' }, { id: 'chinacabinet', name: 'China Cabinet' }] },
+  { id: 'dining', name: 'Dining Room', slots: 1, max: 3, furniture: [{ id: 'table', name: 'Dining Table' }, { id: 'chinacabinet', name: 'China Cabinet' }, { id: 'punchbowl', name: 'Punchbowl' }] },
   { id: 'kitchen', name: 'Kitchen', slots: 1, max: 3, furniture: [{ id: 'sinkcabinets', name: 'Cabinets & Sink' }, { id: 'fridge', name: 'Refrigerator' }, { id: 'stove', name: 'Stove' }] },
   { id: 'bedroom', name: 'Bedroom', slots: 1, max: 7, furniture: [{ id: 'bed', name: 'Bed' }, { id: 'nightstand', name: 'Nightstands' }, { id: 'dresser', name: 'Dresser' }, { id: 'lamp', name: 'Lamp' }] },
   { id: 'laundry', name: 'Laundry Room', slots: 1, max: 2, small: true, furniture: [{ id: 'washer', name: 'Washer' }, { id: 'dryer', name: 'Dryer' }, { id: 'ironingboard', name: 'Ironing Board' }] },
@@ -74,7 +74,16 @@ export interface VaultRoom {
   put?: Record<string, Put>;
   /** A stairwell that was made by building the one at the other end of it (it cost nothing, and is demolished from the other end). */
   twin?: boolean;
+  /** Which side of a stairwell's cell its open end is on (a stairwell is a dead-end corridor: only that end joins another room). */
+  face?: Face;
 }
+
+/** A side of a cell: left (the column before), right, back (the row before) and front (the row after). */
+export type Face = 'l' | 'r' | 'b' | 'f';
+const FACE_STEP: Record<Face, [number, number]> = { l: [-1, 0], r: [1, 0], b: [0, -1], f: [0, 1] };
+export const OPPOSITE: Record<Face, Face> = { l: 'r', r: 'l', b: 'f', f: 'b' };
+/** The cell a stairwell's open end leads to, on its own level. */
+export const openCell = (r: VaultRoom): [number, number] | null => (r.type === 'stairs' && r.face ? [r.col + FACE_STEP[r.face][0], r.row + FACE_STEP[r.face][1]] : null);
 
 /** A piece's place on the floor of its room: u across and v deep (0 to 1 of the floor), and whether it is turned a quarter. */
 export interface Put { u: number; v: number; swap?: boolean }
@@ -168,6 +177,15 @@ export const stairDir = (v: VaultHome, r: VaultRoom): StairDir | null => {
   return r.level > 0 && roomAt(v, r.level - 1, r.col, r.row) ? 'up' : null;
 };
 
+/** The rooms around a cell of a level, with the side of the cell each is on. */
+const around = (v: VaultHome, level: number, col: number, row: number): { face: Face; room: VaultRoom }[] =>
+  (Object.keys(FACE_STEP) as Face[]).flatMap((face) => { const room = roomAt(v, level, col + FACE_STEP[face][0], row + FACE_STEP[face][1]); return room ? [{ face, room }] : []; });
+/** Which side the open end of a stairwell built here would be on: the side of the one room it is joined to. Null if it is not joined to exactly one room. */
+export function stairFace(v: VaultHome, level: number, col: number, row: number): Face | null {
+  const near = around(v, level, col, row);
+  return near.length === 1 ? near[0].face : null;
+}
+
 /** Can a stairwell going this way be built at this cell of this level? Null if yes, or the reason. */
 export function whyNotStairs(v: VaultHome, level: number, col: number, row: number, dir: StairDir): string | null {
   const other = dir === 'down' ? level + 1 : level - 1;
@@ -175,19 +193,33 @@ export function whyNotStairs(v: VaultHome, level: number, col: number, row: numb
   if (other < 0) return 'There is nothing above the first level';
   if (roomsOn(v, level).filter((r) => r.type === 'stairs').length >= STAIRS_PER_LEVEL) return `A level holds at most ${STAIRS_PER_LEVEL} stairwells`;
   if (roomsOn(v, other).filter((r) => r.type === 'stairs').length >= STAIRS_PER_LEVEL) return `The level ${dir === 'down' ? 'below' : 'above'} already has ${STAIRS_PER_LEVEL} stairwells`;
+  // a stairwell is a dead-end corridor: it joins the one room it is built onto, and nothing else can touch it
+  const near = around(v, level, col, row);
+  if (near.length === 0) return 'A stairwell has to be built onto a room or a hallway';
+  if (near.length > 1) return 'A stairwell is a dead end: it can only touch the one room it is built onto';
+  if (near[0].room.type === 'stairs') return 'A stairwell cannot be built onto another stairwell';
   // with every room slot used there is nothing to put on a level that has not been reached yet (the entryway, hallways and stairwells take no slot)
   if (roomsOn(v, other).length === 0 && settlerSlots(v) >= MAX_SLOTS) return 'Every room slot is used: you cannot go down to a new level';
   if (roomAt(v, other, col, row)) return `There is already a room ${dir === 'down' ? 'under' : 'over'} it`;
   if (isDoorCell(v, other, col, row)) return 'That is the wall with the vault door on the level above: it stays clear';
+  // at the other end the corridor picks up from the opposite side: nothing may be beside it on the other three
+  const open = OPPOSITE[near[0].face];
+  const beside = around(v, other, col, row).filter((n) => n.face !== open);
+  if (beside.length > 0) return `There is something in the way beside it on the level ${dir === 'down' ? 'below' : 'above'}`;
   return null;
 }
 
 // ---- keeping everything joined ----
 
 const coversCell = (r: VaultRoom, col: number, row: number): boolean => r.row === row && col >= r.col && col < r.col + slotsOf(r);
+/** A stairwell joins another room only at its open end: is this room (not a stairwell, or one that opens here) allowed to join it? */
+const opensTo = (stairs: VaultRoom, other: VaultRoom): boolean => {
+  const oc = openCell(stairs);
+  return !oc || coversCell(other, oc[0], oc[1]);
+};
 /** Do two rooms of the same level share a wall? (Not at a corner.) */
 const nextTo = (a: VaultRoom, b: VaultRoom): boolean =>
-  a.level === b.level && (Array.from({ length: slotsOf(a) }, (_, k) => a.col + k).some((c) => coversCell(b, c - 1, a.row) || coversCell(b, c + 1, a.row) || coversCell(b, c, a.row - 1) || coversCell(b, c, a.row + 1))
+  a.level === b.level && opensTo(a, b) && opensTo(b, a) && (Array.from({ length: slotsOf(a) }, (_, k) => a.col + k).some((c) => coversCell(b, c - 1, a.row) || coversCell(b, c + 1, a.row) || coversCell(b, c, a.row - 1) || coversCell(b, c, a.row + 1))
     || Array.from({ length: slotsOf(b) }, (_, k) => b.col + k).some((c) => coversCell(a, c - 1, b.row) || coversCell(a, c + 1, b.row) || coversCell(a, c, b.row - 1) || coversCell(a, c, b.row + 1)));
 /** Does a stairwell join these two rooms (one is a stairwell and the other is in the same place on the level above or below it)? */
 const joinedByStairs = (a: VaultRoom, b: VaultRoom): boolean =>
@@ -227,6 +259,13 @@ export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: nu
   for (let c = col; c < col + def.slots; c++) if (roomAt(v, level, c, row)) return 'That space is taken';
   for (let c = col; c < col + def.slots; c++) if (isDoorCell(v, level, c, row)) return 'That wall is the vault door: it stays clear';
   if (roomsOn(v, level).length === 0 && type !== 'stairs') return 'There is nothing here to build on';
+  // a stairwell is a dead end: nothing joins its sides or its far end, only the open end
+  for (let c = col; c < col + def.slots; c++) {
+    for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const o = roomAt(v, level, c + dc, row + dr);
+      if (o && o.type === 'stairs' && o.face && type !== 'stairs') { const oc = openCell(o) as [number, number]; if (!(oc[0] === c && oc[1] === row)) return 'A stairwell is a dead end: only its open end joins a room'; }
+    }
+  }
   // after that, it must touch a room of the same level, not at a corner
   let touches = false;
   for (let c = col; c < col + def.slots; c++) {
@@ -255,6 +294,10 @@ export function normalize(v: VaultHome): VaultHome {
     rooms.unshift({ type: 'entry', level: 0, col: spot[0], row: spot[1], furniture: [] });
     w = { ...w, layout: 2, legacy: true, rooms };
   }
+  // the dining chairs come with the table now, and the candle chandelier is gone
+  if (w.rooms.some((r) => r.furniture.includes('chairs') || r.furniture.includes('chandelier'))) w = { ...w, rooms: w.rooms.map((r) => (r.furniture.includes('chairs') || r.furniture.includes('chandelier') ? { ...r, furniture: r.furniture.filter((x) => x !== 'chairs' && x !== 'chandelier'), ...(r.put ? { put: Object.fromEntries(Object.entries(r.put).filter(([k]) => k !== 'chairs' && k !== 'chandelier')) } : {}) } : r)) };
+  // a stairwell made before they had an open end gets one: toward a room beside it
+  if (w.rooms.some((r) => r.type === 'stairs' && !r.face)) w = { ...w, rooms: w.rooms.map((r) => (r.type === 'stairs' && !r.face ? { ...r, face: (Object.keys(FACE_STEP) as Face[]).find((f) => roomAt(w, r.level, r.col + FACE_STEP[f][0], r.row + FACE_STEP[f][1])) ?? 'l' } : r)) };
   // the first floorplan was five by three: it moves into the middle of the bigger one
   if (w.layout === 2) w = { ...w, layout: 3, rooms: w.rooms.map((r) => ({ ...r, col: r.col + 3, row: r.row + 3 })) };
   return w;
@@ -423,7 +466,8 @@ export function applyBuild(v: VaultHome, type: RoomType, level: number, col: num
   const recipe = buildRecipe(v, type);
   const s = settle(v, now);
   // a stairwell has its twin on the level it goes to, where you arrive
-  const made: VaultRoom[] = type === 'stairs' ? [{ type, level, col, row, furniture: [] }, { type, level: dir === 'down' ? level + 1 : level - 1, col, row, furniture: [], twin: true }] : [{ type, level, col, row, furniture: [] }];
+  const face = type === 'stairs' ? stairFace(v, level, col, row) : null;
+  const made: VaultRoom[] = type === 'stairs' && face ? [{ type, level, col, row, furniture: [], face }, { type, level: dir === 'down' ? level + 1 : level - 1, col, row, furniture: [], twin: true, face: OPPOSITE[face] }] : [{ type, level, col, row, furniture: [] }];
   return { ok: true, cost, recipe, vault: { ...s, rooms: [...s.rooms, ...made], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)) } };
 }
 

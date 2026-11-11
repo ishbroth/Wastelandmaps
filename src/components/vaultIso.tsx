@@ -5,7 +5,7 @@
 // World units: a standard room is CELL by CELL on the floor and WALL_H tall; x runs toward the lower right of the screen, y toward the lower left, z up.
 
 import type { ReactElement, ReactNode } from 'react';
-import { roomDef, type RoomType, type VaultRoom } from '../lib/vaultHome';
+import { roomDef, type Face, type RoomType, type VaultRoom } from '../lib/vaultHome';
 
 export const INK = '#3dff8a';
 export const DIM = '#13a550';
@@ -108,14 +108,23 @@ function hallwayShape(r: { col: number; row: number; level?: number }): Shape & 
   return { rect: { x, y, w: x1 - x, d: y1 - y, xc: cx, yc: cy }, poly, notch: null, nb };
 }
 
+/** A stairwell's floor: a corridor as long and as wide as a hallway, running from its open end (the side of the room it was built onto) to the far end. */
+function stairShape(r: { col: number; row: number; face?: Face }): Shape {
+  const face = r.face ?? 'l';
+  const X0 = r.col * CELL, Y0 = r.row * CELL, cx = X0 + CELL / 2, cy = Y0 + CELL / 2, h = HALL_W / 2;
+  const rect: Rect = face === 'l' || face === 'r' ? { x: X0, y: cy - h, w: CELL, d: HALL_W, xc: cx, yc: cy } : { x: cx - h, y: Y0, w: HALL_W, d: CELL, xc: cx, yc: cy };
+  return { rect, poly: [[rect.x, rect.y], [rect.x + rect.w, rect.y], [rect.x + rect.w, rect.y + rect.d], [rect.x, rect.y + rect.d]], notch: null };
+}
+
 /** The footprint of a room: its rect, the outline of its floor, and the notch if it has one. */
-export function shapeOf(r: { type: RoomType; col: number; row: number; level?: number }): Shape {
+export function shapeOf(r: { type: RoomType; col: number; row: number; level?: number; face?: Face }): Shape {
   const def = roomDef(r.type);
   const list = VARIANTS[r.type];
   // a hallway is a narrow square in the middle of its cell (a little wider than a doorway); the tunnels to its neighbors make it long
   const cx = r.col * CELL;
   const cy = r.row * CELL;
   if (r.type === 'hallway') return hallwayShape(r);
+  if (r.type === 'stairs') return stairShape(r);
   if (!list) return { rect: { x: cx + (CELL - SMALL) / 2, y: cy + (CELL - SMALL) / 2, w: SMALL, d: SMALL }, poly: [], notch: null };
   const v = list[hashOf(`${r.type}:${r.col}:${r.row}`) % list.length];
   const w = def.slots * CELL * v.w;
@@ -141,7 +150,7 @@ export function shapeOf(r: { type: RoomType; col: number; row: number; level?: n
 }
 
 /** The floor of a room: a standard room fills most of its cell, a wide one two cells along x, and a small one sits in the middle of its cell. */
-export const roomRect = (r: { type: RoomType; col: number; row: number }): Rect => shapeOf(r).rect;
+export const roomRect = (r: { type: RoomType; col: number; row: number; face?: Face }): Rect => shapeOf(r).rect;
 export const isSmall = (type: RoomType): boolean => roomDef(type).small === true;
 
 /** A spot on a room's floor: u across (0 to 1 along x, from the left back wall) and v deep (0 to 1 along y, from the right back wall). A spot that falls in a notch is moved out of it. */
@@ -203,15 +212,6 @@ const Seg = ({ a, b, c = DIM, sw = 0.8, o = 0.6 }: { a: V3; b: V3; c?: string; s
 
 // ---- the stairs between levels ----
 
-/** A solid box drawn with its three visible faces (for the steps). */
-const Slab = ({ x0, y0, x1, y1, z0 = 0, z1, k }: { x0: number; y0: number; x1: number; y1: number; z0?: number; z1: number; k: string }): ReactElement => (
-  <g key={k}>
-    <Poly p={[[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]]} fill={SIDE_Y} sw={0.9} />
-    <Poly p={[[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]]} fill={SIDE_X} sw={0.9} />
-    <Poly p={[[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]} fill={TOP} sw={0.9} />
-  </g>
-);
-
 /** The hole in the floor of a room that has a stairwell under it: out of the way of the furniture, in a front corner (the walls there are cut away). */
 export const HOLE = 46;
 export function holeRect(room: { type: RoomType; col: number; row: number; furniture: string[] }): Rect {
@@ -232,29 +232,29 @@ export function holeRect(room: { type: RoomType; col: number; row: number; furni
 }
 
 /**
- * A black rectangular hole, flush with the floor, with a flight of stairs going down into the dark along the far wall (the steps fade to black) and a handrail
- * slanting down along with them. Nothing stands above the floor but the top of the rail. What is below the floor is only seen through the opening, so it is
- * clipped to it; the flight is narrow and shallow enough that its steps are not hidden by the near rim.
+ * A black rectangular hole, flush with the floor, with a steep flight of stairs going down into the dark along the left back wall, the same flight that is seen from
+ * the level below: it comes down from the back of the hole toward the front. The steps fade to black, the near rim hides the deepest of them, and a handrail slants
+ * down with them. Nothing stands above the floor but the top of the rail. What is below the floor is only seen through the opening, so it is clipped to it.
  */
 export function StairHole({ hole }: { hole: Rect }): ReactElement {
   const hx0 = hole.x, hy0 = hole.y, hx1 = hole.x + hole.w, hy1 = hole.y + hole.d;
-  const D = 26;
-  const n = 6;
+  const n = 8;
   const id = `hole${Math.round(hx0)}_${Math.round(hy0)}`;
-  const top = hy1 - 3;
-  const bottom = hy0 + 3;
-  const run = (top - bottom) / n;
-  const rise = D / (n + 1);
+  const back = hy0 + 3;
+  const front = hy1 - 3;
+  const run = (front - back) / n;
+  const rise = run * 1.3; // as steep as the flight seen from below
+  const D = n * rise + 12;
   const xl = hx0 + 3;
-  const xr = hx0 + 3 + 19;
-  // the steps go down toward the back, each darker than the one above it
-  const shade = (i: number): string => `rgb(${Math.round(16 - i * 2)},${Math.round(88 - i * 12)},${Math.round(42 - i * 5.8)})`;
+  const xr = hx0 + 3 + 22;
+  const shade = (i: number): string => `rgb(${Math.round(18 - i * 1.9)},${Math.round(92 - i * 10.5)},${Math.round(44 - i * 5)})`;
+  // from the top of the flight at the back, down toward the front: each tread a step lower and a step darker, and the riser in front of it
   const steps = Array.from({ length: n }, (_, i) => {
-    const y1 = top - i * run, y0 = y1 - run, z = -(i + 1) * rise;
+    const y0 = back + i * run, y1 = y0 + run, z = -(i + 1) * rise;
     return (
       <g key={`t${i}`}>
-        <Poly p={[[xl, y0, z], [xr, y0, z], [xr, y1, z], [xl, y1, z]]} fill={shade(i)} sw={0.9} stroke={i < 4 ? INK : DIM} />
-        <Poly p={[[xl, y1, z], [xr, y1, z], [xr, y1, z + rise], [xl, y1, z + rise]]} fill="#02150a" sw={0.6} stroke={DIM} />
+        <Poly p={[[xl, y0, z], [xr, y0, z], [xr, y1, z], [xl, y1, z]]} fill={shade(i)} sw={0.9} stroke={i < 5 ? INK : DIM} />
+        <Poly p={[[xl, y1, z], [xr, y1, z], [xr, y1, z - rise], [xl, y1, z - rise]]} fill="#02150a" sw={0.6} stroke={DIM} />
       </g>
     );
   });
@@ -267,36 +267,13 @@ export function StairHole({ hole }: { hole: Rect }): ReactElement {
         <Poly p={[[hx0, hy0, 0], [hx0, hy1, 0], [hx0, hy1, -D], [hx0, hy0, -D]]} fill="#02150a" sw={0.8} stroke={DIM} />
         <Poly p={[[hx0, hy0, 0], [hx1, hy0, 0], [hx1, hy0, -D], [hx0, hy0, -D]]} fill="#010a05" sw={0.8} stroke={DIM} />
         {steps}
-        <Poly p={[[xr, top, 0], [xr, bottom, -n * rise], [xr, bottom, -D], [xr, top, -D]]} fill="#010a05" sw={0.6} stroke={DIM} />
-        <Seg a={[xr + 1, top, railTop]} b={[xr + 1, bottom + 2, railEnd]} c={INK} sw={1.5} o={0.95} />
-        <Seg a={[xr + 1, top, railTop]} b={[xr + 1, top, 0]} c={INK} sw={1.5} o={0.95} />
+        <Poly p={[[xr, back, 0], [xr, front, -n * rise], [xr, front, -D], [xr, back, -D]]} fill="#010a05" sw={0.6} stroke={DIM} />
+        <Seg a={[xr + 1, back, railTop]} b={[xr + 1, front - 2, railEnd]} c={INK} sw={1.4} o={0.95} />
+        <Seg a={[xr + 1, back, railTop]} b={[xr + 1, back, 0]} c={INK} sw={1.4} o={0.95} />
       </g>
       <polygon points={pts([[hx0, hy0, 0], [hx1, hy0, 0], [hx1, hy1, 0], [hx0, hy1, 0]])} fill="none" stroke={INK} strokeWidth="1.6" strokeLinejoin="round" />
     </g>
   );
-}
-
-/** The flight of stairs up in a stairwell room: eight steps rising along the left back wall toward the back, as high as the wall. */
-function StairsUp({ rect }: { rect: Rect }): ReactElement {
-  const n = 8;
-  const lo = rect.y + 6;
-  // the wall this flight stands against can have a doorway in the middle of it (30 wide): the lowest step ends well before that
-  const hi = Math.min(rect.y + rect.d - 8, rect.y + rect.d / 2 - 15 - 6);
-  const run = (hi - lo) / n;
-  const x0 = rect.x + 3;
-  const x1 = rect.x + 29;
-  const out: ReactElement[] = [];
-  for (let i = n - 1; i >= 0; i--) out.push(<Slab key={`s${i}`} k={`s${i}`} x0={x0} x1={x1} y0={hi - (i + 1) * run} y1={hi - i * run} z1={(i + 1) * 5.4} />);
-  return <g>{out}</g>;
-}
-
-/** An arrow painted on the floor of a stairwell: which way it goes. */
-function StairArrow({ rect, way, down }: { rect: Rect; way: 'up' | 'down'; down: boolean }): ReactElement {
-  // a stairwell with a hole in its floor keeps its arrow on the clear stretch in front of it
-  const x = rect.x + rect.w * (down ? 0.5 : 0.62), y = rect.y + rect.d * (down ? 0.88 : 0.72);
-  const [X, Y] = P(x, y, 0);
-  const d = way === 'up' ? 'M0 -9 L9 3 H3 V10 H-3 V3 H-9 Z' : 'M0 9 L9 -3 H3 V-10 H-3 V-3 H-9 Z';
-  return <g transform={`translate(${X} ${Y}) scale(1.1 0.7)`} pointerEvents="none"><path d={d} fill="rgba(61,255,138,0.2)" stroke={INK} strokeWidth={1.4} strokeLinejoin="round" /></g>;
 }
 
 const STEEL = '#0b5a2a';
@@ -414,12 +391,102 @@ function HallwayShell({ type, col, row, level }: { type: RoomType; col: number; 
 }
 
 /**
+ * A stairwell: a corridor as long and as wide as a hallway, a dead end with one open end (where the room or hallway it was built onto joins it). On the level it goes
+ * down from it is a flight of steps going down into a black pit, steeply, so the deepest steps are lost in the dark; on the level below it is the same flight seen
+ * from the other end, climbing up from the open end into the dark. It has no name, no furniture and no other room can join it.
+ */
+function StairShell({ col, row, level, face, way }: { col: number; row: number; level: number; face: Face; way: 'up' | 'down' }): ReactElement {
+  const X0 = col * CELL, Y0 = row * CELL, cx = X0 + CELL / 2, cy = Y0 + CELL / 2, h = HALL_W / 2;
+  const rect = stairShape({ col, row, face }).rect;
+  // a spot of the corridor: u along it from the open end, v across, z up
+  const at = (u: number, v: number, z = 0): V3 => (face === 'l' ? [X0 + u, cy + v, z] : face === 'r' ? [X0 + CELL - u, cy + v, z] : face === 'b' ? [cx + v, Y0 + u, z] : [cx + v, Y0 + CELL - u, z]);
+  const toward = face === 'l' || face === 'b'; // the corridor runs toward the viewer (to larger x or y) away from its open end
+  const W = h - 4;
+  const H = way === 'up' ? 62 : 18;
+  const Tk = 4;
+  const x1 = rect.x + rect.w, y1 = rect.y + rect.d;
+  const open = face === 'l' ? 'left' : face === 'b' ? 'back' : face === 'r' ? 'right' : 'front';
+  const slabs = [
+    <Poly key="sr" p={[[x1, rect.y, 0], [x1, y1, 0], [x1, y1, -9], [x1, rect.y, -9]]} fill={SLAB} />,
+    <Poly key="sf" p={[[rect.x, y1, 0], [x1, y1, 0], [x1, y1, -9], [rect.x, y1, -9]]} fill="#073a1b" />,
+  ];
+  const walls: ReactElement[] = [];
+  if (open !== 'left') walls.push(<g key="wl"><Poly p={[[rect.x, rect.y, 0], [rect.x, y1, 0], [rect.x, y1, H], [rect.x, rect.y, H]]} fill={FACE_L} /><Poly p={[[rect.x, rect.y, H], [rect.x, y1, H], [rect.x - Tk, y1, H], [rect.x - Tk, rect.y, H]]} fill={CAP} sw={1.6} /></g>);
+  if (open !== 'back') walls.push(<g key="wb"><Poly p={[[rect.x, rect.y, 0], [x1, rect.y, 0], [x1, rect.y, H], [rect.x, rect.y, H]]} fill={FACE_R} /><Poly p={[[rect.x, rect.y, H], [x1, rect.y, H], [x1, rect.y - Tk, H], [rect.x, rect.y - Tk, H]]} fill={CAP} sw={1.6} /></g>);
+  const n = 10;
+  let flight: ReactElement[] = [];
+  let pit: ReactElement | null = null;
+  const clip = `stair${col}_${row}_${level}`;
+  if (way === 'down') {
+    // a pit in the floor from a third of the way along to the far end, the steps going down it away from the open end
+    const u0 = CELL * 0.3, u1 = CELL - 4, run = (u1 - u0) / n, rise = toward ? 9.5 : 4.6, D = n * rise + 10; // looking down a pit whose stairs go away from you, the line of sight stays above steep steps: they are not as steep
+    const corners = [at(u0, -W), at(u1, -W), at(u1, W), at(u0, W)];
+    const xs = corners.map((p) => p[0]), ys = corners.map((p) => p[1]);
+    const px0 = Math.min(...xs), px1 = Math.max(...xs), py0 = Math.min(...ys), py1 = Math.max(...ys);
+    const shade = (i: number): string => `rgb(${Math.round(18 - i * 1.5)},${Math.round(96 - i * 8.8)},${Math.round(46 - i * 4.2)})`;
+    const steps = Array.from({ length: n }, (_, i) => {
+      const a = u0 + i * run, b = a + run, z = -(i + 1) * rise;
+      return (
+        <g key={`s${i}`}>
+          <Poly p={[at(a, -W, z), at(b, -W, z), at(b, W, z), at(a, W, z)]} fill={shade(i)} sw={0.9} stroke={i < 6 ? INK : DIM} />
+          {toward && <Poly p={[at(b, -W, z), at(b, W, z), at(b, W, z - rise), at(b, -W, z - rise)]} fill="#02150a" sw={0.6} stroke={DIM} />}
+        </g>
+      );
+    });
+    pit = (
+      <g>
+        <defs><clipPath id={clip}><polygon points={pts(corners)} /></clipPath></defs>
+        <Poly p={corners} fill="#000503" sw={0} />
+        <g clipPath={`url(#${clip})`}>
+          {alongX(face) ? <Poly p={[[px0, py0, 0], [px1, py0, 0], [px1, py0, -D], [px0, py0, -D]]} fill="#02150a" sw={0.8} stroke={DIM} /> : <Poly p={[[px0, py0, 0], [px0, py1, 0], [px0, py1, -D], [px0, py0, -D]]} fill="#02150a" sw={0.8} stroke={DIM} />}
+          {(face === 'r' || face === 'f') && (alongX(face) ? <Poly p={[[px0, py0, 0], [px0, py1, 0], [px0, py1, -D], [px0, py0, -D]]} fill="#010a05" sw={0.8} stroke={DIM} /> : <Poly p={[[px0, py0, 0], [px1, py0, 0], [px1, py0, -D], [px0, py0, -D]]} fill="#010a05" sw={0.8} stroke={DIM} />)}
+          {toward ? steps : [...steps].reverse()}
+        </g>
+        <polygon points={pts(corners)} fill="none" stroke={INK} strokeWidth="1.6" strokeLinejoin="round" />
+      </g>
+    );
+  } else {
+    // the same flight from the other end: steps climbing from the open end toward the far end, up into the dark
+    const u0 = CELL * 0.16, u1 = CELL - 3, run = (u1 - u0) / n, rise = 6.2;
+    const shade = (i: number, k: number): string => `rgb(${Math.round((16 - i * 1.4) * k)},${Math.round((86 - i * 8.2) * k)},${Math.round((40 - i * 3.9) * k)})`;
+    const boxes = Array.from({ length: n }, (_, i) => {
+      const a = u0 + i * run, b = a + run, z = (i + 1) * rise;
+      const c0 = at(a, -W), c1 = at(b, W);
+      const bx0 = Math.min(c0[0], c1[0]), bx1 = Math.max(c0[0], c1[0]), by0 = Math.min(c0[1], c1[1]), by1 = Math.max(c0[1], c1[1]);
+      return {
+        depth: bx0 + by0,
+        el: (
+          <g key={`b${i}`}>
+            <Poly p={[[bx0, by1, 0], [bx1, by1, 0], [bx1, by1, z], [bx0, by1, z]]} fill={shade(i, 0.55)} sw={0.9} stroke={DIM} />
+            <Poly p={[[bx1, by0, 0], [bx1, by1, 0], [bx1, by1, z], [bx1, by0, z]]} fill={shade(i, 0.38)} sw={0.9} stroke={DIM} />
+            <Poly p={[[bx0, by0, z], [bx1, by0, z], [bx1, by1, z], [bx0, by1, z]]} fill={shade(i, 1)} sw={0.9} stroke={i < 6 ? INK : DIM} />
+          </g>
+        ),
+      };
+    }).sort((p, q) => p.depth - q.depth);
+    flight = boxes.map((b) => b.el);
+  }
+  const outline = [[rect.x, rect.y], [x1, rect.y], [x1, y1], [rect.x, y1]].map(([px, py]) => P(px, py, 0).join(',')).join(' ');
+  return (
+    <g>
+      {slabs}
+      <polygon points={outline} fill={FLOOR} stroke={INK} strokeWidth="1.2" strokeLinejoin="round" />
+      {pit}
+      {walls}
+      {flight}
+    </g>
+  );
+}
+const alongX = (face: Face): boolean => face === 'l' || face === 'r';
+
+/**
  * A room: its floor (the shape of this room), the inside of its two back walls, the thick tops of those walls, and the edge of the floor slab at the front. `doorsL`
  * are the heights (y) of the doorways in the left back wall, `doorsR` the positions (x) of those in the right back wall. The walls are vault walls: molded steel with
  * a baseboard and rivets, a rounded corner post, piping and conduit, a fake window or two, and the odd poster.
  */
-export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doorsR, hole = false, down = false, way, furniture = [], labelFront = false }: { rect: Rect; name: string; type: RoomType; col: number; row: number; level?: number; doorsL: number[]; doorsR: number[]; /** A stairwell below: a hole in the floor with stairs going down. */ hole?: boolean; /** Which way a stairwell goes, shown as an arrow on its floor. */ way?: 'up' | 'down'; /** A stairwell that goes down (its twin is on the level below): the floor has a hole with stairs going down into the dark; otherwise a stairwell shows its flight going up. */ down?: boolean; furniture?: string[]; /** The name goes below the front corner instead of above the back one (a hallway runs behind the room, and the name would seem to be its). */ labelFront?: boolean }): ReactElement {
+export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doorsR, hole = false, face = 'l', way = 'down', furniture = [], labelFront = false }: { rect: Rect; name: string; type: RoomType; col: number; row: number; level?: number; doorsL: number[]; doorsR: number[]; /** A stairwell below: a hole in the floor with stairs going down. */ hole?: boolean; /** A stairwell: the side its open end is on, and whether its flight goes down or up. */ face?: Face; way?: 'up' | 'down'; furniture?: string[]; /** The name goes below the front corner instead of above the back one (a hallway runs behind the room, and the name would seem to be its). */ labelFront?: boolean }): ReactElement {
   if (type === 'hallway') return <HallwayShell type={type} col={col} row={row} level={level} />;
+  if (type === 'stairs') return <StairShell col={col} row={row} level={level} face={face} way={way} />;
   const { x, y, w, d } = rect;
   const x1 = x + w;
   const y1 = y + d;
@@ -511,7 +578,6 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
       <polygon points={poly.map(([px, py]) => P(px, py, 0).join(',')).join(' ')} fill={FLOOR} stroke={INK} strokeWidth="1.2" strokeLinejoin="round" />
       <g clipPath={`url(#${clip})`}>{floor}</g>
       {hole && <StairHole hole={holeRect({ type, col, row, furniture })} />}
-      {type === 'stairs' && down && <StairHole hole={{ x: rect.x + (rect.w - 62) / 2, y: rect.y + (rect.d - 62) / 2 + 4, w: 62, d: 62 }} />}
       {/* the inside of the left back wall, and of the right one */}
       <Poly p={[[x, y, 0], [x, y1, 0], [x, y1, H], [x, y, H]]} fill={FACE_L} />
       {wallL}
@@ -519,8 +585,6 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
       {wallR}
       {doorsL.map((c) => door(true, c))}
       {doorsR.map((c) => door(false, c))}
-      {type === 'stairs' && !down && <StairsUp rect={rect} />}
-      {type === 'stairs' && way && <StairArrow rect={rect} way={way} down={down} />}
       {/* the thick tops of the walls, rounded off, and the molded post in the corner */}
       <Poly p={[[x, y, H], [x, y1, H], [x - T, y1, H], [x - T, y, H]]} fill={CAP} sw={2} />
       <Poly p={[[x, y, H], [x1, y, H], [x1, y - T, H], [x, y - T, H]]} fill={CAP} sw={2} />
@@ -826,9 +890,8 @@ export const FURNITURE: Record<string, Piece> = {
   tv: { u: 0.1, v: 0.5, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 12, 36, 10, DARK)}{vX(g, 0, 6, 1.4, 9)}{g.box(6.5, -6, 4, 1, 1.6, 3, GLOWS)}{g.box(6.5, 6, 4, 1, 1.6, 3, GLOWS)}{g.box(-1, 0, 10, 3, 10, 2, DARK)}{g.box(-1, 0, 12, 4, 32, 20, DARK)}{g.flat([[1.4, -14, 14], [1.4, 14, 14], [1.4, 14, 30], [1.4, -14, 30]], SCREEN)}{g.flat([[1.5, -12, 25], [1.5, -5, 25], [1.5, -9, 29], [1.5, -12, 29]], GLINT)}{g.box(1.2, 12.5, 12.6, 0.8, 1.4, 0.8, GLOWS)}</g> },
   armchair: { u: 0.78, v: 0.62, face: 'y', art: (g) => <g>{g.box(-10, -7, 0, 2.5, 2.5, 3, DARK)}{g.box(10, -7, 0, 2.5, 2.5, 3, DARK)}{g.box(-10, 8, 0, 2.5, 2.5, 3, DARK)}{g.box(10, 8, 0, 2.5, 2.5, 3, DARK)}{g.box(0, -9, 3, 26, 5, 23, UPH)}{g.box(0, 1, 3, 26, 18, 7, UPH)}{soft(g, 0, -5, 10, 17, 6, 14, UPH2)}{soft(g, 0, 4, 10, 17, 13, 4, UPH2)}{soft(g, -10.5, -0.75, 3, 5, 21.5, 14, UPH)}{soft(g, 10.5, -0.75, 3, 5, 21.5, 14, UPH)}</g> },
   coffeetable: { u: 0.5, v: 0.62, face: 'y', art: (g) => <g>{g.box(-12, -6, 0, 2, 2, 8, DARK)}{g.box(12, -6, 0, 2, 2, 8, DARK)}{g.box(-12, 6, 0, 2, 2, 8, DARK)}{g.box(12, 6, 0, 2, 2, 8, DARK)}{g.box(0, 0, 2.5, 26, 14, 1.2, DARK)}{soft(g, 0, 0, 8, 30, 18, 3)}{g.box(-7, -2, 11, 9, 6, 1.6, UPH2)}{g.box(-7, -2, 12.6, 8, 5, 1.4, PILLOW)}{g.cyl(8, 3, 11, 1.7, 3, { top: INK })}</g> },
-  table: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(-24, -12, 0, 3, 3, 16, DARK)}{g.box(24, -12, 0, 3, 3, 16, DARK)}{g.box(-24, 12, 0, 3, 3, 16, DARK)}{g.box(24, 12, 0, 3, 3, 16, DARK)}{g.box(0, 0, 13, 50, 26, 3, DARK)}{soft(g, 0, 0, 16, 56, 32, 3)}{g.cyl(-14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(-14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(0, 0, 19, 4.2, 1.8, DARK)}{g.cyl(0, 0, 20.8, 2.4, 2, { top: INK })}{g.cyl(-8, 0, 19, 0.9, 6, { top: INK })}{g.cyl(8, 0, 19, 0.9, 6, { top: INK })}</g> },
-  chairs: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{chair(g, -14, -26, 1)}{chair(g, 14, -26, 1)}{chair(g, -14, 26, -1)}{chair(g, 14, 26, -1)}</g> },
-  chandelier: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, 0, 54, 1.2, 1.2, 10, DARK)}{g.cyl(0, 0, 49, 2, 5, DARK)}{g.cyl(0, 0, 46.5, 3.4, 2.5)}{g.box(0, 0, 46, 24, 1.6, 1.6)}{g.box(0, 0, 46, 1.6, 24, 1.6)}{[[-12, 0], [12, 0], [0, -12], [0, 12]].map(([x, y]) => <g key={`cd${x}${y}`}>{g.cyl(x, y, 44.8, 1.8, 1.4, DARK)}{g.cyl(x, y, 46.2, 1.1, 5, { top: INK })}{g.box(x, y, 51.2, 0.9, 0.9, 1.8, GLOWS)}</g>)}</g> },
+  table: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{chair(g, -14, -26, 1)}{chair(g, 14, -26, 1)}{g.box(-24, -12, 0, 3, 3, 16, DARK)}{g.box(24, -12, 0, 3, 3, 16, DARK)}{g.box(-24, 12, 0, 3, 3, 16, DARK)}{g.box(24, 12, 0, 3, 3, 16, DARK)}{g.box(0, 0, 13, 50, 26, 3, DARK)}{soft(g, 0, 0, 16, 56, 32, 3)}{g.cyl(-14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, -9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(-14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(14, 9, 19, 3.4, 0.6, { top: DIM })}{g.cyl(0, 0, 19, 4.2, 1.8, DARK)}{g.cyl(0, 0, 20.8, 2.4, 2, { top: INK })}{g.cyl(-8, 0, 19, 0.9, 6, { top: INK })}{g.cyl(8, 0, 19, 0.9, 6, { top: INK })}{chair(g, -14, 26, -1)}{chair(g, 14, 26, -1)}</g> },
+  punchbowl: { u: 0.5, v: 0.5, face: 'y', art: (g) => <g>{g.box(0, 0, 2, 52, 28, 12, { top: '#9be8bb', l: '#3f9d66', r: '#2d7a4d', line: DIM })}{[-19, -6.5, 6.5, 19].map((x) => <g key={`fold${x}`}>{g.box(x, 14.4, 2.4, 0.7, 0.7, 11, { top: DIM, l: DIM, r: DIM, line: DIM })}</g>)}{g.box(0, 0, 14, 54, 30, 1.4, { top: '#c9ffe0', l: '#5fbf86', r: '#3f9d66', line: INK })}{g.cyl(0, 0, 15.4, 4.2, 1.6, DARK)}{g.cyl(0, 0, 17, 9.4, 5.2, { top: DIM, l: '#1f8f4f', r: '#136b38', line: INK })}{g.cyl(0, 0, 22.2, 9.8, 0.9, { top: INK })}{g.cyl(0, 0, 22, 7.6, 0.5, { top: '#a6ff3d' })}{g.box(7, 3, 22.6, 9, 0.8, 0.8, DARK)}{g.cyl(11.6, 3, 22.2, 1.5, 1.2, { top: INK })}{[[-19, -6], [-21, 5], [-12, 10], [12, 9], [20, 4], [18, -8], [0, -10]].map(([x, y]) => <g key={`cup${x}${y}`}>{g.cyl(x, y, 15.4, 1.9, 2.8, { top: '#e8fff0', l: '#7fd9a4', r: '#4fb27c', line: INK })}{g.cyl(x, y, 17.8, 1.5, 0.5, { top: '#a6ff3d' })}</g>)}</g> },
   chinacabinet: { u: 0.1, v: 0.78, face: 'x', art: (g) => <g>{g.box(0, 0, 0, 15, 37, 3, DARK)}{g.box(0, 0, 3, 14, 36, 46)}{g.box(0, 0, 49, 16, 38, 2.2)}{g.flat([[7.3, -15, 26], [7.3, 15, 26], [7.3, 15, 46], [7.3, -15, 46]], GLASS)}{g.flat([[7.3, -15, 6], [7.3, 15, 6], [7.3, 15, 22], [7.3, -15, 22]], 'rgba(2,19,8,0.5)')}{vX(g, 0, 7, 26, 46)}{vX(g, 0, 7, 6, 22)}{hX(g, -15, 15, 7, 36)}{hX(g, -15, 15, 7, 22.5)}{disc(g, 'x', 7.5, -8, 41, 3, 'rgba(125,255,176,0.6)')}{disc(g, 'x', 7.5, 0, 41, 3, 'rgba(125,255,176,0.6)')}{disc(g, 'x', 7.5, 8, 41, 3, 'rgba(125,255,176,0.6)')}{g.box(7.6, -9, 36.6, 2.6, 2.6, 3, GLOWS)}{g.box(7.6, 8, 36.6, 2.6, 2.6, 3, GLOWS)}{g.box(7.7, -2.5, 20, 1, 1.2, 4, GLOWS)}{g.box(7.7, 2.5, 20, 1, 1.2, 4, GLOWS)}</g> },
   sinkcabinets: { u: 0.5, v: 0.1, face: 'y', art: (g) => <g>{g.box(0, 1, 0, 56, 15, 2, DARK)}{g.box(0, 0, 2, 60, 18, 22)}{vY(g, -10, 9.2, 3, 23)}{vY(g, 10, 9.2, 3, 23)}{g.box(-13, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(-7, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(7, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(13, 9.6, 14, 1.2, 1, 6, GLOWS)}{g.box(0, -8, 27, 60, 2, 8, DARK)}{soft(g, 0, 1, 24, 62, 20, 3, WORKTOP)}{g.box(-12, 2, 27, 18, 12, 0.6, DARK)}{g.cyl(-12, -4, 27, 1.3, 6)}{g.box(-12, -1, 32.4, 1.4, 6, 1.4)}{g.cyl(10, 3, 27, 2.6, 1.4, { top: INK })}</g> },
   fridge: { u: 0.1, v: 0.35, face: 'x', art: (g) => <g>{g.box(0, -9, 0, 20, 4, 2, DARK)}{g.box(0, 9, 0, 20, 4, 2, DARK)}{soft(g, 0, 0, 2, 24, 24, 56, APPL)}{hX(g, -11.5, 11.5, 12.2, 36)}{g.box(12.6, -8, 38, 1.4, 1.4, 14, GLOWS)}{g.box(12.6, -8, 10, 1.4, 1.4, 20, GLOWS)}{g.flat([[12.4, 3, 44], [12.4, 9, 44], [12.4, 9, 51], [12.4, 3, 51]], SCREEN)}{g.box(12.5, 7, 30, 0.6, 0.6, 0.6, GLOWS)}</g> },
@@ -899,8 +962,8 @@ export const FURNITURE: Record<string, Piece> = {
 };
 
 /** The pieces that can be sat on or lain on, and how far a settler is lifted off the floor on them. */
-export const LIFT: Record<string, number> = { desk: 6, couch: 6, armchair: 6, chairs: 6, seating: 7, bar: 12, bed: 12 };
-export const SIT = new Set(['couch', 'armchair', 'chairs', 'seating', 'bar', 'desk']);
+export const LIFT: Record<string, number> = { desk: 6, couch: 6, armchair: 6, table: 6, seating: 7, bar: 12, bed: 12 };
+export const SIT = new Set(['couch', 'armchair', 'table', 'seating', 'bar', 'desk']);
 export const LIE = new Set(['bed']);
 
 /** Where a piece stands in the world (its middle, on the floor). */
@@ -977,7 +1040,7 @@ const overlaps = (a: Rect, b: Rect, pad = 0): boolean => a.x < b.x + b.w + pad &
 const overlapArea = (a: Rect, b: Rect): number => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.d, b.y + b.d) - Math.max(a.y, b.y));
 export type Spot = { x: number; y: number; /** Drawn turned a quarter (its back to the other back wall). */ swap?: boolean };
 /** Pieces drawn around another one (so they move with it). */
-const ANCHORED: Record<string, string> = { chairs: 'table', chandelier: 'table' };
+const ANCHORED: Record<string, string> = {};
 const layoutCache = new Map<string, Map<string, Spot>>();
 /** A neighbor's wall hides this much of the stretch next to it (for the low pieces along a wall). */
 const HIDDEN_BAND = 34;
@@ -1183,7 +1246,7 @@ export function pieceFits(room: VaultRoom, at: (col: number, row: number) => Vau
 export const SEATS: Record<string, { dx: number; dy: number; face: 1 | -1 }[]> = {
   couch: [{ dx: -13, dy: 3, face: -1 }, { dx: 13, dy: 3, face: -1 }],
   armchair: [{ dx: 0, dy: 3, face: -1 }],
-  chairs: [{ dx: -14, dy: -26, face: -1 }, { dx: 14, dy: -26, face: -1 }, { dx: -14, dy: 26, face: 1 }, { dx: 14, dy: 26, face: 1 }],
+  table: [{ dx: -14, dy: -26, face: -1 }, { dx: 14, dy: -26, face: -1 }, { dx: -14, dy: 26, face: 1 }, { dx: 14, dy: 26, face: 1 }],
   seating: [{ dx: -32, dy: 4, face: -1 }, { dx: 0, dy: 4, face: -1 }, { dx: 32, dy: 4, face: -1 }],
   bar: [{ dx: -20, dy: 22, face: 1 }, { dx: 0, dy: 22, face: 1 }, { dx: 20, dy: 22, face: 1 }],
   desk: [{ dx: 0, dy: 24, face: 1 }],
