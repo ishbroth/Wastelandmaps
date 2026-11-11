@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
 
-  const b = (await req.json().catch(() => ({}))) as { vault?: string; action?: string; type?: string; level?: number; col?: number; row?: number; room?: number; item?: string; kind?: string; at?: unknown; dir?: string; shape?: string };
+  const b = (await req.json().catch(() => ({}))) as { vault?: string; action?: string; type?: string; level?: number; col?: number; row?: number; room?: number; item?: string; kind?: string; at?: unknown; dir?: string; shape?: string; side?: string };
   const db = serviceClient();
 
   // which vault: their home (default), or one of their vacation vaults, named by its place id
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
   switch (b.action) {
     case 'visit': next = checkIn(base, now); break;
     case 'build': {
-      const r = applyBuild(checkIn(base, now), String(b.type) as never, Number(b.level ?? 0), Number(b.col), Number(b.row), now, b.dir === 'up' ? 'up' : 'down', b.shape === 'u' ? 'u' : 'straight');
+      const r = applyBuild(checkIn(base, now), String(b.type) as never, Number(b.level ?? 0), Number(b.col), Number(b.row), now, b.dir === 'up' ? 'up' : 'down', b.shape === 'u' ? 'u' : 'straight', b.side === 'l' || b.side === 'r' || b.side === 'b' || b.side === 'f' ? b.side : undefined);
       if (!r.ok) return reply(req, { ok: false, reason: r.reason });
       next = r.vault; spend = r.recipe; break;
     }

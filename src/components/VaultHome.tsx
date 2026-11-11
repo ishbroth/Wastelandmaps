@@ -7,7 +7,7 @@ import { canAfford, describeBag, lootName, type LootId } from '../lib/raid/loot'
 type Bag = Partial<Record<string, number>>;
 import {
   COLS, ENTRY_AT, isPassage, MAX_HALLWAYS_PER_LEVEL, hallwaysOn, isDoorCell, LEVELS, ROOMS_FOR_VACATION, roomCount as countRooms, ROOM_DEFS, ROWS, buildRecipe, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
-  whyNotBuild, whyNotDemolish, hasWayDown, hasWayUp, stairDir, openCell, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
+  whyNotBuild, stairOptions, stairFaces, type Face as Side, whyNotDemolish, hasWayDown, hasWayUp, stairDir, openCell, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt } from './vaultArt';
@@ -38,7 +38,7 @@ export interface VacationOffer {
   unlock: (placeId: string, icon: string, replace?: string) => Promise<string | null>;
 }
 
-type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType; /** A stairwell's shape, once chosen. */ shape?: 'straight' | 'u'; /** A stairwell's direction, once chosen. */ dir?: 'up' | 'down' } | { kind: 'room'; idx: number; item?: string; pick?: boolean } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
+type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType; /** A stairwell's shape, once chosen. */ shape?: 'straight' | 'u'; /** A stairwell's direction, once chosen. */ dir?: 'up' | 'down'; /** Which side of its cell a stairwell opens onto (which room it joins), once chosen. */ side?: Side } | { kind: 'room'; idx: number; item?: string; pick?: boolean } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
 
 // ---- the settlers' wandering ----
 
@@ -200,6 +200,11 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
   const [placing, setPlacing] = useState<Placing | null>(null);
   const placingRef = useRef<Placing | null>(null);
   placingRef.current = placing;
+  // a stairwell being turned in its cell before it is built: it floats like a piece of furniture, but it cannot be moved, only turned, and it can be set down only when its open end meets a room
+  type StairSpot = { level: number; col: number; row: number; dir: 'up' | 'down'; shape: 'straight' | 'u'; face: Side };
+  const [stairSpot, setStairSpot] = useState<StairSpot | null>(null);
+  const stairSpotRef = useRef<StairSpot | null>(null);
+  stairSpotRef.current = stairSpot;
   const placeDrag = useRef<number | null>(null);
   const hold = useRef<{ x: number; y: number; timer: number; id: number } | null>(null);
   const beginMoveRef = useRef<(idx: number, item: string, pointer: number) => void>(() => undefined);
@@ -447,14 +452,41 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     if (!p) return;
     if (p.isNew) setPanel({ kind: 'room', idx: p.room });
   };
-  /** Where the buttons under the floating piece go on the screen. */
+  const stairOk = !!stairSpot && !!vault && stairOptions(vault, stairSpot.level, stairSpot.col, stairSpot.row, stairSpot.dir, stairSpot.shape).includes(stairSpot.face);
+  const SIDES: Side[] = ['l', 'b', 'r', 'f'];
+  /** The stairwell to turn: it starts facing a room if there is one it can open onto. */
+  const startStairSpot = (p: { level: number; col: number; row: number; dir: 'up' | 'down'; shape: 'straight' | 'u' }) => {
+    if (!vault) return;
+    const face = stairOptions(vault, p.level, p.col, p.row, p.dir, p.shape)[0] ?? stairFaces(vault, p.level, p.col, p.row)[0] ?? 'l';
+    setPanel(null);
+    setStairSpot({ ...p, face });
+    say('Turn it until its open end meets a room, then tick it into place');
+  };
+  const cancelStair = () => {
+    const p = stairSpot;
+    setStairSpot(null);
+    if (p) setPanel({ kind: 'build', level: p.level, col: p.col, row: p.row, type: 'stairs', shape: p.shape });
+  };
+  const turnStair = () => { if (stairSpot) setStairSpot({ ...stairSpot, face: SIDES[(SIDES.indexOf(stairSpot.face) + 1) % 4] }); };
+  const confirmStair = () => {
+    const p = stairSpot;
+    if (!p) return;
+    if (!stairOk) { say('Its open end has to meet a room: turn it until it does'); return; }
+    setStairSpot(null);
+    setPanel({ kind: 'build', level: p.level, col: p.col, row: p.row, type: 'stairs', shape: p.shape, dir: p.dir, side: p.face });
+  };
+  /** Where the buttons under the floating piece (or stairwell) go on the screen. */
   const placeBar = (() => {
     const vb = vbRef.current;
-    const room = placing && vault ? vault.rooms[placing.room] : undefined;
-    if (!placing || !room || !size || !vb) return null;
-    const rect = roomRect(room);
-    const b = footBox(room, placing.item, rect.x + placing.u * rect.w, rect.y + placing.v * rect.d, placing.swap);
-    const corner = { x: b.x + b.w, y: b.y + b.d };
+    let corner: { x: number; y: number } | null = null;
+    if (placing) {
+      const room = vault ? vault.rooms[placing.room] : undefined;
+      if (room) { const rect = roomRect(room); const b = footBox(room, placing.item, rect.x + placing.u * rect.w, rect.y + placing.v * rect.d, placing.swap); corner = { x: b.x + b.w, y: b.y + b.d }; }
+    } else if (stairSpot) {
+      const b = cellRect(stairSpot.col, stairSpot.row);
+      corner = { x: b.x + b.w, y: b.y + b.d };
+    }
+    if (!corner || !size || !vb) return null;
     const [X, Y] = P(corner.x, corner.y, 0);
     const k = size.w / vb[2];
     return { left: Math.max(96, Math.min(size.w - 96, (X - vb[0]) * k)), top: Math.max(8, Math.min(size.h - 64, (Y - vb[1]) * k + 12)) };
@@ -522,7 +554,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
         key: `c${col}-${row}`, depth: col + row,
         el: (
           <g className="rm-vh-open" role="button" aria-label="Clear and build a room here" onClick={(e) => {
-            if (focusRef.current !== null) return;
+            if (focusRef.current !== null || stairSpotRef.current) return;
             e.stopPropagation();
             if (!hasDecon(vault)) { say(DECON_REASON); return; }
             setPanel({ kind: 'build', level, col, row });
@@ -648,17 +680,17 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
       <div className="rm-vh-viewwrap">
       <div className={`rm-vh-view${focus !== null ? ' focused' : ''}`} ref={viewRef}>
         {!vault && !error && <p className="rm-vh-wait">ENTERING THE VAULT…</p>}
-        {placing && placeBar && (
+        {(placing || stairSpot) && placeBar && (
           <div className="rm-vh-place" style={{ left: placeBar.left, top: placeBar.top }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="rm-vh-place-x" onClick={cancelPlace} disabled={busy} aria-label="Cancel: nothing is spent" title="Cancel (nothing is spent)">
+            <button type="button" className="rm-vh-place-x" onClick={placing ? cancelPlace : cancelStair} disabled={busy} aria-label="Cancel: nothing is spent" title="Cancel (nothing is spent)">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
             </button>
             {(
-              <button type="button" className="rm-vh-place-turn" onClick={() => setPlacing({ ...placing, swap: !placing.swap })} disabled={busy} aria-label="Turn it" title="Turn it">
+              <button type="button" className="rm-vh-place-turn" onClick={() => (placing ? setPlacing({ ...placing, swap: !placing.swap }) : turnStair())} disabled={busy} aria-label="Turn it" title="Turn it">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.2-5.1M19 4v4.5h-4.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
             )}
-            <button type="button" className={`rm-vh-place-ok${fitsNow() ? '' : ' blocked'}`} onClick={confirmPlace} disabled={busy} aria-label="Set it down" title="Set it down">
+            <button type="button" className={`rm-vh-place-ok${(placing ? fitsNow() : stairOk) ? '' : ' blocked'}`} onClick={placing ? confirmPlace : confirmStair} disabled={busy} aria-label="Set it down" title="Set it down">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
           </div>
@@ -725,6 +757,17 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                   <g pointerEvents="none">
                     <polygon points={outline(footBox(room, placing.item, x, y, placing.swap))} fill={fill} stroke={edge} strokeWidth={1.8} strokeDasharray="5 3" />
                     <g transform="translate(0 -9)" opacity={0.93}><PlacedPiece room={room} id={placing.item} pos={{ x, y, swap: placing.swap }} /></g>
+                  </g>
+                );
+              })()}
+              {stairSpot && (() => {
+                const cell = cellRect(stairSpot.col, stairSpot.row);
+                const edge = stairOk ? INK : '#ff5a5a';
+                const pts = [[cell.x, cell.y], [cell.x + cell.w, cell.y], [cell.x + cell.w, cell.y + cell.d], [cell.x, cell.y + cell.d]].map(([a, c]) => P(a, c, 0).map((n) => Math.round(n * 10) / 10).join(',')).join(' ');
+                return (
+                  <g pointerEvents="none">
+                    <polygon points={pts} fill={stairOk ? 'rgba(61,255,138,0.16)' : 'rgba(255,90,90,0.22)'} stroke={edge} strokeWidth={1.8} strokeDasharray="5 3" />
+                    <g opacity={0.93}><RoomShell rect={cell} name="" type="stairs" col={stairSpot.col} row={stairSpot.row} level={stairSpot.level} doorsL={[]} doorsR={[]} face={stairSpot.face} way={stairSpot.dir} shape={stairSpot.shape === 'u' ? 'u' : undefined} entry={0} /></g>
                   </g>
                 );
               })()}
@@ -883,7 +926,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                   {(['up', 'down'] as const).map((d) => {
                     const why = whyNotBuild(vault, 'stairs', panel.level, panel.col, panel.row, d, panel.shape);
                     return (
-                      <button key={d} type="button" className={!why ? 'can' : undefined} disabled={!!why} onClick={() => setPanel({ ...panel, dir: d })}>
+                      <button key={d} type="button" className={!why ? 'can' : undefined} disabled={!!why} onClick={() => startStairSpot({ level: panel.level, col: panel.col, row: panel.row, dir: d, shape: panel.shape as 'straight' | 'u' })}>
                         <b>{d === 'up' ? '▲' : '▼'}</b><span>{d === 'up' ? 'UP' : 'DOWN'}</span><i>{why ? why.toUpperCase() : `LEVEL ${panel.level + (d === 'up' ? 0 : 2)}`}</i>
                       </button>
                     );
@@ -892,11 +935,11 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                 <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel({ ...panel, shape: undefined })}>BACK</button></div>
               </div>
             )}
-            {panel.kind === 'build' && panel.type && (panel.type !== 'stairs' || panel.dir) && (
+            {panel.kind === 'build' && panel.type && (panel.type !== 'stairs' || (panel.dir && panel.side)) && (
               <RecipeCard
                 verb="BUILD" what={roomDef(panel.type).name.toUpperCase()} title={panel.type === 'stairs' ? `BUILD A ${panel.shape === 'u' ? 'U-SHAPED ' : ''}STAIRWELL ${panel.dir === 'up' ? 'UP' : 'DOWN'}` : `BUILD A ${roomDef(panel.type).name.toUpperCase()}`} recipe={buildRecipe(vault, panel.type)} have={ownLoot} busy={busy}
-                onBack={() => setPanel(panel.type === 'stairs' ? { ...panel, dir: undefined } : { kind: 'build', level: panel.level, col: panel.col, row: panel.row })}
-                onPay={() => act({ action: 'build', type: panel.type as string, level: panel.level, col: panel.col, row: panel.row, ...(panel.type === 'stairs' ? { dir: panel.dir, shape: panel.shape } : {}) }, (v) => setFresh({ room: panel.type === 'stairs' ? v.rooms.length - 2 : v.rooms.length - 1 }))}
+                onBack={() => (panel.type === 'stairs' && panel.dir && panel.shape ? startStairSpot({ level: panel.level, col: panel.col, row: panel.row, dir: panel.dir, shape: panel.shape }) : setPanel({ kind: 'build', level: panel.level, col: panel.col, row: panel.row }))}
+                onPay={() => act({ action: 'build', type: panel.type as string, level: panel.level, col: panel.col, row: panel.row, ...(panel.type === 'stairs' ? { dir: panel.dir, shape: panel.shape, ...(panel.side ? { side: panel.side } : {}) } : {}) }, (v) => setFresh({ room: panel.type === 'stairs' ? v.rooms.length - 2 : v.rooms.length - 1 }))}
               />
             )}
             {panel.kind === 'room' && room && !panel.item && !panel.pick && (

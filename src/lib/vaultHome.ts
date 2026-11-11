@@ -53,7 +53,7 @@ export const ROOM_DEFS: RoomDef[] = [
   { id: 'bedroom', name: 'Bedroom', slots: 1, max: 7, furniture: [{ id: 'bed', name: 'Bed' }, { id: 'nightstand', name: 'Nightstands' }, { id: 'dresser', name: 'Dresser' }, { id: 'lamp', name: 'Lamp' }] },
   { id: 'laundry', name: 'Laundry Room', slots: 1, max: 2, small: true, furniture: [{ id: 'washer', name: 'Washer' }, { id: 'dryer', name: 'Dryer' }, { id: 'ironingboard', name: 'Ironing Board' }] },
   { id: 'bathroom', name: 'Bathroom', slots: 1, max: 4, small: true, furniture: [{ id: 'toilet', name: 'Toilet' }, { id: 'bathsink', name: 'Sink' }, { id: 'shower', name: 'Shower' }] },
-  { id: 'entertainment', name: 'Entertainment Room', slots: 2, max: 1, furniture: [{ id: 'seating', name: 'Theatre Seating' }, { id: 'screen', name: 'Screen' }, { id: 'speakers', name: 'Speakers' }] },
+  { id: 'entertainment', name: 'Entertainment Room', slots: 2, max: 1, furniture: [{ id: 'seating', name: 'Theatre Seating' }, { id: 'screen', name: 'Screen' }, { id: 'speakers', name: 'Speakers' }, { id: 'snackbar', name: 'Snack Bar' }] },
   { id: 'game', name: 'Game Room', slots: 2, max: 1, furniture: [{ id: 'pooltable', name: 'Pool Table' }, { id: 'bar', name: 'Bar' }, { id: 'pinball', name: 'Pinball Machine' }] },
   { id: 'workshop', name: 'Workshop', slots: 2, max: 1, furniture: [{ id: 'toolchest', name: 'Tool Chest' }, { id: 'armorstand', name: 'Power Armor Stand' }, { id: 'craftingtable', name: 'Weapon Crafting Table' }] },
 ];
@@ -169,7 +169,7 @@ export const isDoorCell = (v: VaultHome, level: number, col: number, row: number
 // (it costs nothing). A level has at most two stairwells (either end of one counts). The arrows between levels only show where there is a stairwell to use, and every
 // room has to stay joined to the entryway, next door on its own level or up and down a stairwell.
 
-/** How many stairwells a level can hold, counting both ends. */
+/** How many stairwells a level can hold in each direction: up to two going down from it (built on it), and up to two coming up from the level below. */
 export const STAIRS_PER_LEVEL = 2;
 export type StairDir = 'up' | 'down';
 /** The stairwell that was made for you by building the one at the other end. */
@@ -189,83 +189,112 @@ export const stairDir = (v: VaultHome, r: VaultRoom): StairDir | null => {
 /** The rooms around a cell of a level, with the side of the cell each is on. */
 const around = (v: VaultHome, level: number, col: number, row: number): { face: Face; room: VaultRoom }[] =>
   (Object.keys(FACE_STEP) as Face[]).flatMap((face) => { const room = roomAt(v, level, col + FACE_STEP[face][0], row + FACE_STEP[face][1]); return room ? [{ face, room }] : []; });
-/** Which side the open end of a stairwell built here would be on: the side of the one room it is joined to. Null if it is not joined to exactly one room. */
+/** The sides of a cell that a stairwell built there could open onto: every side with a room on it (not a stairwell, which is a dead end). */
+export function stairFaces(v: VaultHome, level: number, col: number, row: number): Face[] {
+  return around(v, level, col, row).filter((n) => n.room.type !== 'stairs').map((n) => n.face);
+}
+/** Which side the open end of a stairwell built here would be on when there is only one choice (the one room it touches). Null if there is none or several. */
 export function stairFace(v: VaultHome, level: number, col: number, row: number): Face | null {
-  const near = around(v, level, col, row);
-  return near.length === 1 ? near[0].face : null;
+  const faces = stairFaces(v, level, col, row);
+  return faces.length === 1 ? faces[0] : null;
 }
 
 export type StairShape = 'straight' | 'u';
 
-/** What every stairwell needs, whatever its shape: a level to go to, and room for another stairwell on both levels. */
+/** How many stairwells a level has going this way (down: built on it with one under it; up: the other end of one built on the level above it). */
+const going = (v: VaultHome, level: number, dir: StairDir): number => v.rooms.filter((r) => r.type === 'stairs' && r.level === level && stairDir(v, r) === dir).length;
+
+/** What every stairwell needs, whatever its shape: a level to go to, and room for another one going that way (two down from a level, and two up to it from the one below). */
 function whyNotLevels(v: VaultHome, level: number, dir: StairDir): string | null {
   const other = dir === 'down' ? level + 1 : level - 1;
   if (other >= LEVELS) return 'There is nothing below the fifth level';
   if (other < 0) return 'There is nothing above the first level';
-  if (roomsOn(v, level).filter((r) => r.type === 'stairs').length >= STAIRS_PER_LEVEL) return `A level holds at most ${STAIRS_PER_LEVEL} stairwells`;
-  if (roomsOn(v, other).filter((r) => r.type === 'stairs').length >= STAIRS_PER_LEVEL) return `The level ${dir === 'down' ? 'below' : 'above'} already has ${STAIRS_PER_LEVEL} stairwells`;
+  if (going(v, level, dir) >= STAIRS_PER_LEVEL) return `This level already has ${STAIRS_PER_LEVEL} stairwells going ${dir}`;
+  if (going(v, other, dir === 'down' ? 'up' : 'down') >= STAIRS_PER_LEVEL) return `The level ${dir === 'down' ? 'below' : 'above'} already has ${STAIRS_PER_LEVEL} stairwells coming ${dir === 'down' ? 'up' : 'down'} to this one`;
   return null;
 }
 
-/** Can a straight stairwell going this way be built at this cell of this level? Null if yes, or the reason. */
-export function whyNotStairs(v: VaultHome, level: number, col: number, row: number, dir: StairDir): string | null {
+/** Can a straight stairwell going this way, opening onto this side, be built at this cell of this level? Null if yes, or the reason. */
+function whyNotStairsOn(v: VaultHome, level: number, col: number, row: number, dir: StairDir, face: Face): string | null {
   const other = dir === 'down' ? level + 1 : level - 1;
-  const limits = whyNotLevels(v, level, dir);
-  if (limits) return limits;
-  // a stairwell is a dead-end corridor: it joins the one room it is built onto, and nothing else can touch it
-  const near = around(v, level, col, row);
-  if (near.length === 0) return 'A stairwell has to be built onto a room or a hallway';
-  if (near.length > 1) return 'A stairwell is a dead end: it can only touch the one room it is built onto';
-  if (near[0].room.type === 'stairs') return 'A stairwell cannot be built onto another stairwell';
   // with every room slot used there is nothing to put on a level that has not been reached yet (the entryway, hallways and stairwells take no slot)
   if (roomsOn(v, other).length === 0 && settlerSlots(v) >= MAX_SLOTS) return 'Every room slot is used: you cannot go down to a new level';
   // the other end opens the opposite way, onto the cell on the far side: at the very edge of the vault there is none, and a straight flight would end in the edge with no room to turn
-  const away = FACE_STEP[OPPOSITE[near[0].face]];
+  const away = FACE_STEP[OPPOSITE[face]];
   const beyond = [col + away[0], row + away[1]];
-  if (beyond[0] < 0 || beyond[0] >= COLS || beyond[1] < 0 || beyond[1] >= ROWS) return 'At the very edge of the vault a straight stairwell would run into the edge on the other level: it has to be a U-shaped one, which turns back';
+  if (beyond[0] < 0 || beyond[0] >= COLS || beyond[1] < 0 || beyond[1] >= ROWS) return 'A straight stairwell facing this way would run into the edge of the vault on the other level: choose the U-shaped one, which turns back';
   if (roomAt(v, other, col, row)) return `There is already a room ${dir === 'down' ? 'under' : 'over'} it`;
   if (isDoorCell(v, other, col, row)) return 'That is the wall with the vault door on the level above: it stays clear';
   // at the other end the corridor picks up from the opposite side: nothing may be beside it on the other three
-  const open = OPPOSITE[near[0].face];
-  const beside = around(v, other, col, row).filter((n) => n.face !== open);
+  const beside = around(v, other, col, row).filter((n) => n.face !== OPPOSITE[face]);
   if (beside.length > 0) return `There is something in the way beside it on the level ${dir === 'down' ? 'below' : 'above'}`;
   return null;
+}
+
+/** The sides a straight stairwell going this way could open onto at this cell (empty if it cannot be built there at all). */
+export function straightFaces(v: VaultHome, level: number, col: number, row: number, dir: StairDir): Face[] {
+  if (whyNotLevels(v, level, dir)) return [];
+  return stairFaces(v, level, col, row).filter((f) => !whyNotStairsOn(v, level, col, row, dir, f));
+}
+
+/** Can a straight stairwell going this way be built at this cell of this level (opening onto this side, or any side)? Null if yes, or the reason. */
+export function whyNotStairs(v: VaultHome, level: number, col: number, row: number, dir: StairDir, face?: Face): string | null {
+  const limits = whyNotLevels(v, level, dir);
+  if (limits) return limits;
+  const faces = stairFaces(v, level, col, row);
+  if (faces.length === 0) return 'A stairwell has to be built onto a room or a hallway';
+  if (face && !faces.includes(face)) return 'There is no room on that side to open onto';
+  let why: string | null = null;
+  for (const f of face ? [face] : faces) { why = whyNotStairsOn(v, level, col, row, dir, f); if (!why) return null; }
+  return why;
 }
 
 // A U-shaped stairwell takes one cell, like a straight one, and can be built onto any side of a room (it is only DRAWN about as big as a bathroom, with two hallway-wide
 // flights side by side). You walk in at its open end, on the side of the room it is built onto, climb the first flight away from the room to a landing at the far end, turn,
 // and the second flight brings you back toward the room, out beside where you came in, on the next level. So at the edge of the vault it turns back instead of running into
 // the edge. The twin on the other level is in the same cell and opens the same way (a straight one opens the opposite way), arriving on the other lane.
+// Where a cell touches several rooms (a gap between rooms), the owner chooses which one it opens onto; the others simply have a wall against it.
 
 export type UPlan = { col: number; row: number; entry: 0 | 1; face: Face };
 
-/** The plan for a U stairwell built at this cell going this way: it opens toward the one room the cell touches. Or the reason it cannot be built. */
-export function uStairPlan(v: VaultHome, level: number, col: number, row: number, dir: StairDir): UPlan | string {
-  const limits = whyNotLevels(v, level, dir);
-  if (limits) return limits;
+function whyNotUOn(v: VaultHome, level: number, col: number, row: number, dir: StairDir, face: Face): string | null {
   const other = dir === 'down' ? level + 1 : level - 1;
-  const way = dir === 'down' ? 'below' : 'above';
-  // a stairwell is a dead-end corridor: it joins the one room it is built onto, and nothing else can touch it
-  const near = around(v, level, col, row);
-  if (near.length === 0) return 'A stairwell has to be built onto a room or a hallway';
-  if (near.length > 1) return 'A stairwell is a dead end: it can only touch the one room it is built onto';
-  if (near[0].room.type === 'stairs') return 'A stairwell cannot be built onto another stairwell';
   if (roomsOn(v, other).length === 0 && settlerSlots(v) >= MAX_SLOTS) return 'Every room slot is used: you cannot go down to a new level';
   if (roomAt(v, other, col, row)) return `There is already a room ${dir === 'down' ? 'under' : 'over'} it`;
   if (isDoorCell(v, other, col, row)) return 'That is the wall with the vault door on the level above: it stays clear';
   // at the other end it opens the same way: nothing may be beside it on the other three sides
-  const face = near[0].face;
   const beside = around(v, other, col, row).filter((nb) => nb.face !== face);
-  if (beside.length > 0) return `There is something in the way beside it on the level ${way}`;
-  return { col, row, entry: 0, face };
+  if (beside.length > 0) return `There is something in the way beside it on the level ${dir === 'down' ? 'below' : 'above'}`;
+  return null;
 }
 
+/** The sides a U stairwell going this way could open onto at this cell. */
+export function uFaces(v: VaultHome, level: number, col: number, row: number, dir: StairDir): Face[] {
+  if (whyNotLevels(v, level, dir)) return [];
+  return stairFaces(v, level, col, row).filter((f) => !whyNotUOn(v, level, col, row, dir, f));
+}
+
+/** The plan for a U stairwell built at this cell going this way, opening onto this side (or the first side that works). Or the reason it cannot be built. */
+export function uStairPlan(v: VaultHome, level: number, col: number, row: number, dir: StairDir, face?: Face): UPlan | string {
+  const limits = whyNotLevels(v, level, dir);
+  if (limits) return limits;
+  const faces = stairFaces(v, level, col, row);
+  if (faces.length === 0) return 'A stairwell has to be built onto a room or a hallway';
+  if (face && !faces.includes(face)) return 'There is no room on that side to open onto';
+  let why: string | null = null;
+  for (const f of face ? [face] : faces) { why = whyNotUOn(v, level, col, row, dir, f); if (!why) return { col, row, entry: 0, face: f }; }
+  return why ?? 'It cannot be built there';
+}
+
+/** The sides a stairwell of this shape going this way could open onto at this cell: more than one means the owner chooses (turns it). */
+export const stairOptions = (v: VaultHome, level: number, col: number, row: number, dir: StairDir, shape: StairShape): Face[] => (shape === 'u' ? uFaces(v, level, col, row, dir) : straightFaces(v, level, col, row, dir));
+
 /** Can a stairwell of this shape (none chosen yet: either) going this way be built at this cell? Null if yes, or the reason. */
-export function whyNotStairShape(v: VaultHome, level: number, col: number, row: number, dir: StairDir, shape?: StairShape): string | null {
-  const straight = shape === 'u' ? null : whyNotStairs(v, level, col, row, dir);
+export function whyNotStairShape(v: VaultHome, level: number, col: number, row: number, dir: StairDir, shape?: StairShape, face?: Face): string | null {
+  const straight = shape === 'u' ? null : whyNotStairs(v, level, col, row, dir, face);
   if (shape !== 'u' && !straight) return null;
   if (shape === 'straight') return straight;
-  const u = uStairPlan(v, level, col, row, dir);
+  const u = uStairPlan(v, level, col, row, dir, face);
   if (typeof u !== 'string') return null;
   return shape === 'u' ? u : straight;
 }
@@ -301,15 +330,15 @@ export function reachable(v: VaultHome, skip: VaultRoom[] = []): Set<VaultRoom> 
 }
 
 /** Can a room of this type be built with its left cell here? Returns null if yes, or the reason. */
-export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, dir?: StairDir, shape?: StairShape): string | null {
+export function whyNotBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, dir?: StairDir, shape?: StairShape, face?: Face): string | null {
   const def = roomDef(type);
   if (def.buildable === false) return 'There is only one entryway';
   if (!hasDecon(v)) return DECON_REASON;
   if (level < 0 || level >= LEVELS || row < 0 || row >= ROWS || col < 0 || col + def.slots > COLS) return 'There is no room for it there';
   if (type === 'stairs') {
     // no way chosen yet (the list of rooms): it can be built if it can go either way
-    const down = dir === 'up' ? null : whyNotStairShape(v, level, col, row, 'down', shape);
-    const up = dir === 'down' ? null : whyNotStairShape(v, level, col, row, 'up', shape);
+    const down = dir === 'up' ? null : whyNotStairShape(v, level, col, row, 'down', shape, face);
+    const up = dir === 'down' ? null : whyNotStairShape(v, level, col, row, 'up', shape, face);
     if (dir === 'down' && down) return down;
     if (dir === 'up' && up) return up;
     if (dir === undefined && down && up) return level + 1 < LEVELS ? down : up;
@@ -572,23 +601,24 @@ function settle(v: VaultHome, now: number): VaultHome {
 
 export type Action<T> = { ok: true; vault: VaultHome; cost: number; /** The exact mix of loot it costs. */ recipe: LootBag } & T | { ok: false; reason: string };
 
-export function applyBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, now: number, dir: StairDir = 'down', shape: StairShape = 'straight'): Action<unknown> {
+export function applyBuild(v: VaultHome, type: RoomType, level: number, col: number, row: number, now: number, dir: StairDir = 'down', shape: StairShape = 'straight', side?: Face): Action<unknown> {
   if (!ROOM_DEFS.some((d) => d.id === type)) return { ok: false, reason: 'No such room' };
   if (dir !== 'up' && dir !== 'down') return { ok: false, reason: 'Up or down?' };
   if (shape !== 'straight' && shape !== 'u') return { ok: false, reason: 'Straight or U?' };
-  const why = whyNotBuild(v, type, level, col, row, type === 'stairs' ? dir : undefined, type === 'stairs' ? shape : undefined);
+  if (side !== undefined && !(side in FACE_STEP)) return { ok: false, reason: 'Which side?' };
+  const why = whyNotBuild(v, type, level, col, row, type === 'stairs' ? dir : undefined, type === 'stairs' ? shape : undefined, type === 'stairs' ? side : undefined);
   if (why) return { ok: false, reason: why };
   const cost = buildCost(v, type);
   const recipe = buildRecipe(v, type);
   const s = settle(v, now);
   // a stairwell has its twin on the level it goes to, where you arrive
-  const u = type === 'stairs' && shape === 'u' ? uStairPlan(v, level, col, row, dir) : null;
+  const u = type === 'stairs' && shape === 'u' ? uStairPlan(v, level, col, row, dir, side) : null;
   if (typeof u === 'string') return { ok: false, reason: u };
   if (u) {
     const twin: VaultRoom = { type, level: dir === 'down' ? level + 1 : level - 1, col: u.col, row: u.row, furniture: [], twin: true, face: u.face, shape: 'u', entry: u.entry === 0 ? 1 : 0 };
     return { ok: true, cost, recipe, vault: { ...s, rooms: [...s.rooms, { type, level, col: u.col, row: u.row, furniture: [], face: u.face, shape: 'u', entry: u.entry }, twin], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)), gainAt: now } };
   }
-  const face = type === 'stairs' ? stairFace(v, level, col, row) : null;
+  const face = type === 'stairs' ? (side && straightFaces(v, level, col, row, dir).includes(side) ? side : straightFaces(v, level, col, row, dir)[0] ?? null) : null;
   const made: VaultRoom[] = type === 'stairs' && face ? [{ type, level, col, row, furniture: [], face }, { type, level: dir === 'down' ? level + 1 : level - 1, col, row, furniture: [], twin: true, face: OPPOSITE[face] }] : [{ type, level, col, row, furniture: [] }];
   return { ok: true, cost, recipe, vault: { ...s, rooms: [...s.rooms, ...made], boost: Math.min(MAX_BOOST, s.boost + boostFor(cost)), gainAt: now } };
 }
