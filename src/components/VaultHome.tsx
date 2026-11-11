@@ -7,7 +7,7 @@ import { canAfford, describeBag, lootName, type LootId } from '../lib/raid/loot'
 type Bag = Partial<Record<string, number>>;
 import {
   COLS, ENTRY_AT, isPassage, MAX_HALLWAYS_PER_LEVEL, hallwaysOn, isDoorCell, LEVELS, ROOMS_FOR_VACATION, roomCount as countRooms, ROOM_DEFS, ROWS, buildRecipe, furnishCost, furnishRecipe, furnitureOf, hasDecon, moodAt, roomAt, roomComplete, roomDef, roomsOn, settlersWaiting, slotsOf,
-  whyNotBuild, stairOptions, stairFaces, type Face as Side, whyNotDemolish, hasWayDown, hasWayUp, stairDir, openCell, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
+  whyNotBuild, stairOptions, stairFaces, type Face as Side, whyNotDemolish, settlerSlots, hasWayDown, hasWayUp, stairDir, openCell, spentOn, INSTRUMENTS, INSTRUMENT_NAMES, slotOf, DECON_REASON, MAX_VACATIONS, vacationRecipe, SETTLER_NAME_MAX, cleanSettlerName,
   type RoomType, type Settler, type SettlerKind, type VaultHome, type VaultRoom,
 } from '../lib/vaultHome';
 import { Face, SettlerArt } from './vaultArt';
@@ -776,6 +776,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
           );
         })()}
       </div>
+        {vault && <div className="rm-vh-roomcount">Room Count: {settlerSlots(vault)}</div>}
         {vault && (
           <div className="rm-vh-roster" aria-label="Settlers">
             <span>SETTLERS:</span>
@@ -804,11 +805,11 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
               <div className="rm-vh-sheet-body">
                 <h3>CHOOSE THE INSTRUMENT</h3>
                 <p>WHICH ONE DOES THE STUDY GET? A GUITAR HANGS ON THE WALL.</p>
-                <ul className="rm-vh-types">
+                <ul className="rm-vh-types rm-vh-types-two">
                   {INSTRUMENTS.map((id) => (
                     <li key={id}>
                       <button type="button" className="can" disabled={busy} onClick={() => void act({ action: 'instrument', room: panel.idx, choice: id })}>
-                        <span>{INSTRUMENT_NAMES[id].toUpperCase()}</span><i>FREE: ALREADY PAID FOR</i>
+                        <span className="rm-vh-name"><PieceIcon id={id} />{INSTRUMENT_NAMES[id].toUpperCase()}</span><i>FREE</i>
                       </button>
                     </li>
                   ))}
@@ -882,6 +883,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             {panel.kind === 'build' && !panel.type && (
               <div className="rm-vh-sheet-body">
                 <h3>CLEAR & BUILD</h3>
+                <p className="rm-vh-rule">EVERY ROOM MUST BE CONNECTED: YOU HAVE TO BE ABLE TO TRACE A ROUTE FROM THE ENTRYWAY TO IT THROUGH TOUCHING ROOMS, HALLWAYS AND STAIRWELLS (A ROUTE CAN GO DOWN ONE STAIRWELL AND COME BACK UP ANOTHER).</p>
                 <ul className="rm-vh-types rm-vh-types-window" ref={setBuildList} style={buildHeight ? { height: buildHeight } : undefined}>
                   {ROOM_DEFS.filter((d) => d.buildable !== false).map((d) => {
                     const why = whyNotBuild(vault, d.id, panel.level, panel.col, panel.row);

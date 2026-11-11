@@ -7,7 +7,7 @@ import { SettlerArt } from '../src/components/vaultArt';
 import type { RoomType, VaultRoom } from '../src/lib/vaultHome';
 
 const R = (type: RoomType, col: number, row: number, furniture: string[]): VaultRoom => ({ type, level: 0, col, row, furniture });
-const rooms: VaultRoom[] = [R('living', 1, 1, ['couch', 'tv', 'armchair']), R('dining', 3, 1, ['table']), R('bedroom', 1, 3, ['bed']), R('study', 3, 3, ['piano']), R('kitchen', 5, 1, ['stove', 'fridge']), R('entertainment', 5, 3, ['seating', 'screen', 'speakers', 'snackbar']), R('game', 1, 5, ['pooltable', 'bar'])];
+const rooms: VaultRoom[] = [R('living', 1, 1, ['couch', 'tv', 'armchair']), R('dining', 3, 1, ['table']), R('bedroom', 1, 3, ['bed']), R('study', 3, 3, ['piano']), R('kitchen', 5, 1, ['stove', 'fridge']), R('entertainment', 5, 3, ['seating', 'screen', 'speakers', 'snackbar']), R('game', 1, 5, ['pooltable', 'bar', 'pinball', 'dartboard'])];
 // who does what: room index, piece, use number, what the arms do
 const who: { r: number; id: string; i: number; kind?: 'male' | 'female' | 'dog' }[] = [
   { r: 0, id: 'couch', i: 1 }, { r: 0, id: 'tv', i: 0, kind: 'female' }, { r: 1, id: 'table', i: 0 }, { r: 1, id: 'table', i: 3, kind: 'female' }, { r: 2, id: 'bed', i: 0 }, { r: 3, id: 'piano', i: 0 },

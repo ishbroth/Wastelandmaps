@@ -1011,3 +1011,10 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-vh-icon { width: 30px; height: 30px; flex: none; overflow: visible; }
 .rm-vh-icon * { vector-effect: non-scaling-stroke; }
 .rm-vh-types button:hover:not(:disabled) .rm-vh-icon { filter: invert(1) hue-rotate(180deg); }
+
+.rm-vh-roomcount { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 2; font-size: 14px; letter-spacing: 1px; color: #13a550; white-space: nowrap; pointer-events: none; }
+.rm-vh-types-two { grid-template-columns: 1fr 1fr; }
+.rm-vh-types-two button { flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.rm-vh-types-two .rm-vh-icon { width: 44px; height: 44px; }
+.rm-vh-types-two .rm-vh-name { flex-direction: column; gap: 4px; }
+.rm-vh-rule { font-size: 15px !important; }

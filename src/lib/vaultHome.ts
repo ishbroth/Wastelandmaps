@@ -54,7 +54,7 @@ export const ROOM_DEFS: RoomDef[] = [
   { id: 'laundry', name: 'Laundry Room', slots: 1, max: 2, small: true, furniture: [{ id: 'washer', name: 'Washer' }, { id: 'dryer', name: 'Dryer' }, { id: 'ironingboard', name: 'Ironing Board' }] },
   { id: 'bathroom', name: 'Bathroom', slots: 1, max: 4, small: true, furniture: [{ id: 'toilet', name: 'Toilet' }, { id: 'bathsink', name: 'Sink' }, { id: 'shower', name: 'Shower' }] },
   { id: 'entertainment', name: 'Entertainment Room', slots: 2, max: 1, furniture: [{ id: 'seating', name: 'Theatre Seating' }, { id: 'screen', name: 'Screen' }, { id: 'speakers', name: 'Speakers' }, { id: 'snackbar', name: 'Snack Bar' }] },
-  { id: 'game', name: 'Game Room', slots: 2, max: 1, furniture: [{ id: 'pooltable', name: 'Pool Table' }, { id: 'bar', name: 'Bar' }, { id: 'pinball', name: 'Pinball Machine' }] },
+  { id: 'game', name: 'Game Room', slots: 2, max: 1, furniture: [{ id: 'pooltable', name: 'Pool Table' }, { id: 'bar', name: 'Bar' }, { id: 'pinball', name: 'Pinball Machine' }, { id: 'dartboard', name: 'Dartboard' }] },
   { id: 'workshop', name: 'Workshop', slots: 2, max: 1, furniture: [{ id: 'toolchest', name: 'Tool Chest' }, { id: 'armorstand', name: 'Power Armor Stand' }, { id: 'craftingtable', name: 'Weapon Crafting Table' }] },
 ];
 
@@ -167,7 +167,9 @@ export const isDoorCell = (v: VaultHome, level: number, col: number, row: number
 // ---- stairwells ----
 // A stairwell is built like any room, and goes up or down: it makes a second one in the same place on the level above or below, which is where the owner arrives
 // (it costs nothing). A level has at most two stairwells (either end of one counts). The arrows between levels only show where there is a stairwell to use, and every
-// room has to stay joined to the entryway, next door on its own level or up and down a stairwell.
+// room has to stay joined to the entryway: you must be able to trace a route to it from the entryway, through rooms that touch on a level, through hallways and stairwells, or up and down
+// stairwells (a route may go down one stairwell and come back up another, so two rooms on one level need not touch if the way round through other levels connects them). A room that
+// other rooms can only be reached through cannot be demolished until those are destroyed first.
 
 /** How many stairwells a level can hold in each direction: up to two going down from it (built on it), and up to two coming up from the level below. */
 export const STAIRS_PER_LEVEL = 2;
@@ -656,7 +658,7 @@ export function whyNotDemolish(v: VaultHome, idx: number): string | null {
   const gone = [room, ...twinsOf(v, room)];
   // everything left must still be joined to the entryway: next door on its level, or up and down a stairwell
   const left = v.rooms.filter((r) => !gone.includes(r));
-  if (reachable(v, gone).size < left.length) return 'Other rooms are only reachable through it: demolish those first, or join them another way';
+  if (reachable(v, gone).size < left.length) return 'Connecting rooms must be destroyed first: other rooms can only be reached from the entryway through this one';
   return null;
 }
 
