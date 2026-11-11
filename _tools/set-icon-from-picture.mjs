@@ -31,10 +31,6 @@ await sharp(back).toFile(res('icon-background.png'));
 await sharp(full).resize(192, 192).png().toFile(pub('icon-192.png'));
 await sharp(full).resize(512, 512).png().toFile(pub('icon-512.png'));
 await sharp(full).resize(180, 180).png().toFile(pub('apple-touch-icon.png'));
-await sharp(full).resize(32, 32).png().toFile(pub('favicon-32.png'));
-// the tab icon as a vector file wrapping the picture (rounded like the old one)
-const tab = (await sharp(full).resize(128, 128).png().toBuffer()).toString('base64');
-fs.writeFileSync(pub('favicon.svg'), `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 128 128" width="128" height="128"><clipPath id="r"><rect width="128" height="128" rx="24"/></clipPath><image clip-path="url(#r)" width="128" height="128" xlink:href="data:image/png;base64,${tab}"/></svg>\n`);
 console.log('icon art written: resources/icon-only.png, icon-foreground.png, icon-background.png, and the website icons in public/');
 
 // Android's adaptive layers at their real size: the layer canvas is 108 dp, so 108 / 162 / 216 / 324 / 432 px (the generator makes them 48 to 192 px and insets them, which is soft and small),
