@@ -1403,7 +1403,7 @@ export default function App() {
 
       <footer className="rm-foot">
         WastelandMaps is an unofficial fan project, not affiliated with, endorsed or sponsored by any game publisher or developer.
-        Map © Google. Places from Wikidata (CC0); city sizes from GeoNames (CC BY 4.0). Snapshots are free-licensed photos from Wikimedia Commons, adapted with credit.
+        Map © Google. Places from Wikidata (CC0); city sizes from GeoNames (CC BY 4.0); the roads running into flooded areas © OpenStreetMap contributors (ODbL). Snapshots are free-licensed photos from Wikimedia Commons, adapted with credit.
       </footer>
     </div>
   );

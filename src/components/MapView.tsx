@@ -8,7 +8,7 @@ import { pointsFor } from '../lib/points';
 import { stylesAt, type Look } from '../lib/looks';
 import type { Region } from '../lib/google';
 import type { TravelRun } from '../lib/travel';
-import { loadFlood, patchOutline, type FloodPatch } from '../lib/flood';
+import { decodeRoad, loadFlood, loadFloodRoads, patchDepth, patchOutline, type FloodPatch } from '../lib/flood';
 import { waitingLine } from '../lib/waitingLoot';
 import { VAULT_ZERO_ID } from '../lib/vaultZero';
 import { cloudOutline } from '../lib/zones';
@@ -223,6 +223,8 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
   const regionMarkers = useRef(new Map<string, HtmlMarkerHandle>());
   const lastPanned = useRef<string | null>(null);
   const floodShapes = useRef(new Map<string, google.maps.Polygon>());
+  /** The main roads running into the flooded patches: drawn fading and thinning toward the middle of the water. */
+  const roadShapes = useRef(new Map<string, google.maps.Polyline[]>());
   const mapRef = useRef<google.maps.Map | null>(null);
   const pins = useRef(new Map<string, { handle: HtmlMarkerHandle; el: HTMLElement; position: google.maps.LatLngLiteral }>());
   const extras = useRef<{ handle?: HtmlMarkerHandle; circle?: google.maps.Circle; clouds?: google.maps.Polygon[] }[]>([]);
@@ -273,6 +275,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(me);
     if (import.meta.env.DEV) (window as unknown as { __wlmap?: google.maps.Map }).__wlmap = map; // for the browser checks in _tools
     if (import.meta.env.DEV) (window as unknown as { __wlflood?: Map<string, google.maps.Polygon> }).__wlflood = floodShapes.current;
+    if (import.meta.env.DEV) (window as unknown as { __wlroads?: Map<string, google.maps.Polyline[]> }).__wlroads = roadShapes.current;
     const markClose = () => {
       const zoom = map.getZoom() ?? 0;
       const far = zoom < 12;
@@ -433,6 +436,8 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     const map = mapRef.current;
     if (!map) return;
     const shapes = floodShapes.current;
+    // while navigating they are gone: nobody driving should be confused by them
+    if (nav) { shapes.forEach((shape) => shape.setMap(null)); shapes.clear(); return; }
     const cLat = view ? (view.north + view.south) / 2 : 0;
     const cLng = view ? boundsCenterLng(view) : 0;
     const visible = allFlood.filter((p) => !view || boundsContain(view, p[0], p[1], 0.2));
@@ -462,7 +467,71 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allFlood, view, zoomNow]);
+  }, [allFlood, view, zoomNow, !!nav]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the main roads through the water: full strength where they meet the edge, thinner and fainter all the way in, hardly there in the middle
+  const [floodRoads, setFloodRoads] = useState<Record<string, number[][]>>({});
+  useEffect(() => {
+    let cancelled = false;
+    void loadFloodRoads().then((r) => { if (!cancelled) setFloodRoads(r); });
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const drawn = roadShapes.current;
+    const clearAll = () => { drawn.forEach((lines) => lines.forEach((l) => l.setMap(null))); drawn.clear(); };
+    if (nav || zoomNow < 11 || Object.keys(floodRoads).length === 0) { clearAll(); return; }
+    const colorOf = (type: string): string | undefined => {
+      const s = look.mapStyles.find((x) => x.featureType === type && x.elementType === 'geometry.fill');
+      return (s?.stylers as { color?: string }[] | undefined)?.find((x) => x.color)?.color;
+    };
+    const colors = [colorOf('road.highway') ?? look.ink, colorOf('road.arterial') ?? colorOf('road') ?? look.ink];
+    const visible = allFlood.filter((p) => floodRoads[String(p[5])] && (!view || boundsContain(view, p[0], p[1], 0.2)));
+    const onScreen = visible.filter((p) => (p[2] * Math.max(1, p[3])) / ((156543.03 * Math.cos((p[0] * Math.PI) / 180)) / 2 ** zoomNow) >= 1.2).slice(0, 120);
+    const stamp = `${Math.round(zoomNow)}:${look.id}`;
+    const wanted = new Set(onScreen.map((p) => `${p[5]}:${stamp}`));
+    drawn.forEach((lines, key) => { if (wanted.has(key)) return; lines.forEach((l) => l.setMap(null)); drawn.delete(key); });
+    const BANDS = 10;
+    const full = [Math.max(2.4, Math.min(9, 1.7 * 2 ** ((zoomNow - 12) / 1.6))), Math.max(1.7, Math.min(6, 1.15 * 2 ** ((zoomNow - 12) / 1.6)))];
+    for (const patch of onScreen) {
+      const key = `${patch[5]}:${stamp}`;
+      if (drawn.has(key)) continue;
+      const depth = patchDepth(patch);
+      const lines: google.maps.Polyline[] = [];
+      for (const raw of floodRoads[String(patch[5])]) {
+        const { cls, points } = decodeRoad(raw);
+        if (cls === 1 && zoomNow < 12) continue; // the map itself shows these roads only from city level in
+        // cut into short steps so the depth is followed smoothly along the road
+        const dense: LatLng[] = [];
+        for (let i = 0; i < points.length; i++) {
+          dense.push(points[i]);
+          const next = points[i + 1];
+          if (!next) break;
+          const steps = Math.max(1, Math.ceil((Math.hypot((next.lat - points[i].lat) * 111_320, (next.lng - points[i].lng) * 111_320 * Math.cos((points[i].lat * Math.PI) / 180))) / 14));
+          for (let k = 1; k < steps; k++) dense.push({ lat: points[i].lat + ((next.lat - points[i].lat) * k) / steps, lng: points[i].lng + ((next.lng - points[i].lng) * k) / steps });
+        }
+        const bandOf = (q: LatLng) => Math.max(0, Math.min(BANDS - 1, Math.floor(Math.min(1, depth(q.lat, q.lng)) * BANDS)));
+        let run: LatLng[] = [];
+        let band = -1;
+        const flush = () => {
+          if (run.length >= 2 && band >= 0) {
+            const d = (band + 0.5) / BANDS;
+            lines.push(new google.maps.Polyline({
+              map, path: run, clickable: false, zIndex: 3, geodesic: false,
+              strokeColor: colors[cls] ?? colors[1], strokeOpacity: 0.16 + 0.84 * d ** 1.5, strokeWeight: Math.max(0.8, full[cls] * (0.14 + 0.86 * d ** 1.3)),
+            }));
+          }
+        };
+        for (const q of dense) {
+          const b = bandOf(q);
+          if (b !== band) { if (run.length) { const last = run[run.length - 1]; flush(); run = [last]; } band = b; }
+          run.push(q);
+        }
+        flush();
+      }
+      drawn.set(key, lines);
+    }
+  }, [allFlood, view, zoomNow, look, floodRoads, !!nav]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     floodShapes.current.forEach((shape, key) => {
       const [, n, k] = key.split(':').map(Number);

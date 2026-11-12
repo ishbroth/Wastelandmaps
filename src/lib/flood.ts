@@ -51,3 +51,42 @@ export function isFlooded(point: LatLng, patches: FloodPatch[]): boolean {
     return (x / (radius * aspect)) ** 2 + (y / radius) ** 2 <= 1;
   });
 }
+
+// ---- the main roads that run into the water: they fade and thin toward the middle of each patch (made ahead of time by _tools/build-flood-roads.ts) ----
+
+let loadingRoads: Promise<Record<string, number[][]>> | null = null;
+/** The main roads (motorways to tertiary roads) inside each patch, by the patch's seed: [class, lat0, lng0, dLat, dLng, ...] in 1e-5 degrees (class 0: motorway or trunk, 1: the others). */
+export function loadFloodRoads(): Promise<Record<string, number[][]>> {
+  if (!loadingRoads) {
+    loadingRoads = fetch(`${import.meta.env.BASE_URL}data/flood-roads.json`)
+      .then((r) => (r.ok ? (r.json() as Promise<Record<string, number[][]>>) : {}))
+      .catch(() => ({}));
+  }
+  return loadingRoads;
+}
+
+/** One road of a patch, as points. */
+export function decodeRoad(road: number[]): { cls: number; points: LatLng[] } {
+  const points: LatLng[] = [];
+  let la = 0, ln = 0;
+  for (let i = 1; i + 1 < road.length; i += 2) { la += road[i]; ln += road[i + 1]; points.push({ lat: la / 1e5, lng: ln / 1e5 }); }
+  return { cls: road[0], points };
+}
+
+/** How deep a point is in a patch: 1 at its edge (the same outline patchOutline draws) down to 0 in the middle; more than 1 outside it. */
+export function patchDepth([lat, lng, radius, aspect, angle, seed]: FloodPatch): (la: number, ln: number) => number {
+  const rand = seeded(seed);
+  const turn = (angle * Math.PI) / 180;
+  const phase = [rand() * 6.283, rand() * 6.283, rand() * 6.283, rand() * 6.283];
+  const amp = [0.13 + rand() * 0.09, 0.09 + rand() * 0.07, 0.05 + rand() * 0.04, 0.025 + rand() * 0.02];
+  const mx = 111_320 * Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  return (la, ln) => {
+    const east = (ln - lng) * mx, north = (la - lat) * 111_320;
+    const x = east * Math.cos(turn) + north * Math.sin(turn);
+    const y = -east * Math.sin(turn) + north * Math.cos(turn);
+    const ux = x / (radius * aspect), uy = y / radius;
+    const t = Math.atan2(uy, ux);
+    const wobble = 0.9 + amp[0] * Math.sin(2 * t + phase[0]) + amp[1] * Math.sin(3 * t + phase[1]) + amp[2] * Math.sin(4 * t + phase[2]) + amp[3] * Math.sin(6 * t + phase[3]);
+    return Math.hypot(ux, uy) / wobble;
+  };
+}
