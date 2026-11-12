@@ -55,7 +55,7 @@ export function isFlooded(point: LatLng, patches: FloodPatch[]): boolean {
 // ---- the main roads that run into the water: they fade and thin toward the middle of each patch (made ahead of time by _tools/build-flood-roads.ts) ----
 
 let loadingRoads: Promise<Record<string, number[][]>> | null = null;
-/** The main roads (motorways to tertiary roads) inside each patch, by the patch's seed: [class, lat0, lng0, dLat, dLng, ...] in 1e-5 degrees (class 0: motorway or trunk, 1: the others). */
+/** The main roads (motorways to tertiary roads) inside each patch, by the patch's seed: [class, lat0, lng0, dLat, dLng, ...] in 1e-5 degrees (class 0: motorway or trunk, 1: primary, 2: secondary). */
 export function loadFloodRoads(): Promise<Record<string, number[][]>> {
   if (!loadingRoads) {
     loadingRoads = fetch(`${import.meta.env.BASE_URL}data/flood-roads.json`)

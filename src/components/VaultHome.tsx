@@ -38,7 +38,7 @@ export interface VacationOffer {
   unlock: (placeId: string, icon: string, replace?: string) => Promise<string | null>;
 }
 
-type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType; /** A stairwell's shape, once chosen. */ shape?: 'straight' | 'u'; /** A stairwell's direction, once chosen. */ dir?: 'up' | 'down'; /** Which side of its cell a stairwell opens onto (which room it joins), once chosen. */ side?: Side } | { kind: 'room'; idx: number; item?: string; pick?: boolean } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
+type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType; /** A stairwell's shape, once chosen. */ shape?: 'straight' | 'u'; /** A stairwell's direction, once chosen. */ dir?: 'up' | 'down'; /** Which side of its cell a stairwell opens onto (which room it joins), once chosen. */ side?: Side } | { kind: 'room'; idx: number; item?: string; pick?: boolean; /** Choosing which instrument to buy (before anything is placed). */ buy?: boolean } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
 
 // ---- the settlers' wandering ----
 
@@ -100,6 +100,7 @@ function useSettlers(vault: VaultHome | null): Sim[] {
           const speed = t2.kind === 'dog' ? 44 : t2.kind === 'cat' ? 38 : 32;
           if (dist <= speed * dt) {
             t2.x = wp.x; t2.y = wp.y; t2.path.shift();
+            if (wp.lv !== undefined) t2.level = wp.lv; // took a stairwell
             if (!t2.path.length) arrive(t2, now);
           } else {
             t2.x += (dx / dist) * speed * dt; t2.y += (dy / dist) * speed * dt;
@@ -804,17 +805,17 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             {panel.kind === 'room' && panel.pick && room && (
               <div className="rm-vh-sheet-body">
                 <h3>CHOOSE THE INSTRUMENT</h3>
-                <p>WHICH ONE DOES THE STUDY GET? A GUITAR HANGS ON THE WALL.</p>
+                <p>{panel.buy ? 'WHICH ONE DOES THE STUDY GET? YOU WILL SET THE ONE YOU CHOOSE DOWN IN THE ROOM. A GUITAR HANGS ON THE WALL.' : 'WHICH ONE DOES THE STUDY GET? A GUITAR HANGS ON THE WALL.'}</p>
                 <ul className="rm-vh-types rm-vh-types-two">
                   {INSTRUMENTS.map((id) => (
                     <li key={id}>
-                      <button type="button" className="can" disabled={busy} onClick={() => void act({ action: 'instrument', room: panel.idx, choice: id })}>
-                        <span className="rm-vh-name"><PieceIcon id={id} />{INSTRUMENT_NAMES[id].toUpperCase()}</span><i>FREE</i>
+                      <button type="button" className="can" disabled={busy} onClick={() => (panel.buy ? setPanel({ kind: 'room', idx: panel.idx, item: id }) : void act({ action: 'instrument', room: panel.idx, choice: id }))}>
+                        <span className="rm-vh-name"><PieceIcon id={id} />{INSTRUMENT_NAMES[id].toUpperCase()}</span><i>{panel.buy ? 'CHOSEN FIRST' : 'FREE'}</i>
                       </button>
                     </li>
                   ))}
                 </ul>
-                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel({ kind: 'room', idx: panel.idx })}>LATER</button></div>
+                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel({ kind: 'room', idx: panel.idx })}>{panel.buy ? 'BACK' : 'LATER'}</button></div>
               </div>
             )}
             {panel.kind === 'demolish' && vault.rooms[panel.idx] && (() => {
@@ -958,7 +959,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                     const waitingPick = f.id === 'instrument' && room.furniture.includes('instrument');
                     return (
                       <li key={f.id}>
-                        <button type="button" className={waitingPick || (!placed && canAfford(ownLoot as never, furnishRecipe(vault, panel.idx, f.id) as never)) ? 'can' : undefined} disabled={placed && !waitingPick} onClick={() => (waitingPick ? setPanel({ kind: 'room', idx: panel.idx, pick: true }) : setPanel({ ...panel, item: f.id }))}>
+                        <button type="button" className={waitingPick || (!placed && canAfford(ownLoot as never, furnishRecipe(vault, panel.idx, f.id) as never)) ? 'can' : undefined} disabled={placed && !waitingPick} onClick={() => (waitingPick ? setPanel({ kind: 'room', idx: panel.idx, pick: true }) : f.id === 'instrument' ? setPanel({ kind: 'room', idx: panel.idx, pick: true, buy: true }) : setPanel({ ...panel, item: f.id }))}>
                           <span className="rm-vh-name"><PieceIcon id={f.id} />{f.name.toUpperCase()}</span><i>{waitingPick ? 'CHOOSE WHICH' : placed ? (here ? (f.id === 'instrument' ? (INSTRUMENT_NAMES[room.furniture.find((x) => slotOf(x) === 'instrument') ?? ''] ?? 'PLACED').toUpperCase() : 'PLACED') : 'ONE PIECE ONLY') : describeBag(furnishRecipe(vault, panel.idx, f.id) as never).toUpperCase()}</i>
                         </button>
                       </li>
@@ -975,7 +976,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
             )}
             {panel.kind === 'room' && room && panel.item && (
               <RecipeCard
-                verb="PLACE IT" what={(furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()} title={`ADD ${(furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()}`} recipe={furnishRecipe(vault, panel.idx, panel.item)} have={ownLoot} busy={busy}
+                verb="PLACE IT" what={(INSTRUMENT_NAMES[panel.item] ?? furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()} title={`ADD ${(INSTRUMENT_NAMES[panel.item] ?? furnitureOf(room.type).find((f) => f.id === panel.item)?.name ?? '').toUpperCase()}`} recipe={furnishRecipe(vault, panel.idx, panel.item)} have={ownLoot} busy={busy}
                 onBack={() => setPanel({ kind: 'room', idx: panel.idx })}
                 onPay={async () => { if (room.type !== 'hallway') { startPlacingNew(panel.idx, panel.item as string); return; } await act({ action: 'furnish', room: panel.idx, item: panel.item as string }, () => { setFresh({ room: panel.idx, item: panel.item }); if (panel.item === 'instrument') setPanel({ kind: 'room', idx: panel.idx, pick: true }); }); }}
               />

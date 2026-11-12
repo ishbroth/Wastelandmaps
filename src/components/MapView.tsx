@@ -485,14 +485,15 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       const s = look.mapStyles.find((x) => x.featureType === type && x.elementType === 'geometry.fill');
       return (s?.stylers as { color?: string }[] | undefined)?.find((x) => x.color)?.color;
     };
-    const colors = [colorOf('road.highway') ?? look.ink, colorOf('road.arterial') ?? colorOf('road') ?? look.ink];
+    const arterial = colorOf('road.arterial') ?? colorOf('road') ?? look.ink;
+    const colors = [colorOf('road.highway') ?? look.ink, arterial, arterial];
     const visible = allFlood.filter((p) => floodRoads[String(p[5])] && (!view || boundsContain(view, p[0], p[1], 0.2)));
     const onScreen = visible.filter((p) => (p[2] * Math.max(1, p[3])) / ((156543.03 * Math.cos((p[0] * Math.PI) / 180)) / 2 ** zoomNow) >= 1.2).slice(0, 120);
     const stamp = `${Math.round(zoomNow)}:${look.id}`;
     const wanted = new Set(onScreen.map((p) => `${p[5]}:${stamp}`));
     drawn.forEach((lines, key) => { if (wanted.has(key)) return; lines.forEach((l) => l.setMap(null)); drawn.delete(key); });
-    const BANDS = 10;
-    const full = [Math.max(2.4, Math.min(9, 1.7 * 2 ** ((zoomNow - 12) / 1.6))), Math.max(1.7, Math.min(6, 1.15 * 2 ** ((zoomNow - 12) / 1.6)))];
+    const BANDS = 14;
+    const full = [Math.max(2.4, Math.min(9, 1.7 * 2 ** ((zoomNow - 12) / 1.6))), Math.max(1.9, Math.min(7, 1.3 * 2 ** ((zoomNow - 12) / 1.6))), Math.max(1.7, Math.min(6, 1.15 * 2 ** ((zoomNow - 12) / 1.6)))];
     for (const patch of onScreen) {
       const key = `${patch[5]}:${stamp}`;
       if (drawn.has(key)) continue;
@@ -500,7 +501,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       const lines: google.maps.Polyline[] = [];
       for (const raw of floodRoads[String(patch[5])]) {
         const { cls, points } = decodeRoad(raw);
-        if (cls === 1 && zoomNow < 12) continue; // the map itself shows these roads only from city level in
+        if (cls >= 1 && zoomNow < 12) continue; // the map itself shows these roads only from city level in
         // cut into short steps so the depth is followed smoothly along the road
         const dense: LatLng[] = [];
         for (let i = 0; i < points.length; i++) {
@@ -518,7 +519,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
             const d = (band + 0.5) / BANDS;
             lines.push(new google.maps.Polyline({
               map, path: run, clickable: false, zIndex: 3, geodesic: false,
-              strokeColor: colors[cls] ?? colors[1], strokeOpacity: 0.16 + 0.84 * d ** 1.5, strokeWeight: Math.max(0.8, full[cls] * (0.14 + 0.86 * d ** 1.3)),
+              strokeColor: colors[cls] ?? colors[1], strokeOpacity: 0.14 + 0.86 * d ** 3, strokeWeight: Math.max(0.8, full[cls] * (0.12 + 0.88 * d ** 4)), // thins fast once it is under the water, then stays hair-thin to the middle
             }));
           }
         };

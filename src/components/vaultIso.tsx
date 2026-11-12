@@ -783,23 +783,11 @@ export function RoomShell({ rect, name, type, col, row, level = 0, doorsL, doors
 }
 
 /** A room that could be built here: a faded outline of one, with a plus. */
-/** A shovel and a pickaxe, crossed: the sign of a place where a room can be dug out. */
+/** A pickaxe and a shovel, crossed: the sign of a place where a room can be dug out (traced from the supplied vector picture, as one solid shape). */
+const DIG_PATH = 'M 485 274.5 C 426.5 282.5, 359.0 321.6, 319.8 370.2 C 284.8 413.7, 262.9 468.7, 263.0 513.3 L 263.0 525.5 272.4 505 C 287.6 471.7, 297.7 454.7, 317.3 429 C 322.5 422.2, 339.9 404, 341.1 404 C 341.5 404, 345.1 406.7, 349.1 410.0 C 353.9 414.0, 357.0 415.9, 358.5 415.7 C 361.4 415.3, 395 380.8, 395 378.2 C 395 377.0, 392.7 373.5, 389.9 370.3 C 382.2 361.3, 382.2 361.2, 392.6 350.8 C 420.1 323.0, 456.3 297.4, 493.2 279.6 C 499.1 276.8, 503.9 274.1, 503.9 273.7 C 504.0 272.6, 496.0 272.9, 485 274.5 M 609 289.5 C 578.0 295.1, 561.2 305.5, 525.3 341.2 C 510.9 355.5, 498.7 367.5, 498.2 367.8 C 496.0 369.4, 494 373.7, 494 376.8 C 494 379.9, 495.6 381.9, 510.6 397.1 C 519.8 406.4, 527.7 414, 528.1 414 C 528.5 414, 532.6 410.2, 537.1 405.7 C 560.7 382.3, 593.2 368.1, 602.7 377.0 C 613.7 387.1, 600.1 421.4, 575.8 445.0 L 566.9 453.6 584.8 470.8 C 603.2 488.3, 606.3 490.6, 610.2 489.0 C 612.3 488.2, 636.3 464.3, 655.1 444.3 C 681.8 415.8, 694.1 384.7, 692.6 349.5 C 691.6 328.3, 685.1 304.9, 678.4 299.0 C 668.6 290.4, 631.7 285.3, 609 289.5 M 326.0 326.7 C 321.8 327.5, 307.2 342.8, 306.4 347.3 C 305.7 351.2, 307.1 356.0, 309.6 358.1 C 311.0 359.2, 339 333.1, 339 330.7 C 339 328.3, 330.8 325.7, 326.0 326.7 M 579.4 390.3 C 565.0 397.2, 554.9 406.3, 507.0 455.2 L 492.5 470.0 502.7 480.2 L 512.9 490.4 529.6 473.9 C 554.1 449.6, 577.2 424.6, 582.8 416.6 C 599.5 392.4, 598.1 381.4, 579.4 390.3 M 386.1 407.3 C 379.4 414.0, 374.9 419.3, 375.1 420.2 C 375.3 421.1, 406.3 453.0, 444.0 491.1 C 481.7 529.2, 519.2 567.4, 527.5 576 C 535.7 584.5, 555.1 604.3, 570.5 620 C 585.9 635.6, 602.6 652.7, 607.5 657.8 C 624.1 675.2, 629.2 676.8, 639.5 667.8 C 648.4 660.0, 651.1 651.1, 646.8 644 C 644.4 639.9, 400.1 396, 398.5 396 C 397.9 396, 392.3 401.1, 386.1 407.3 M 416.8 547.1 C 380.1 584.6, 378.2 586, 361.9 586 C 340.4 586, 311.2 602.1, 302.6 618.7 C 298.7 626.2, 299.1 626.7, 329.6 657.6 C 364.5 692.8, 364.8 692.9, 379.2 676.3 C 394.1 659.0, 398.0 649.0, 399.9 623.1 C 401.1 605.3, 400.6 606.0, 437.5 567.9 C 454.5 550.2, 468.6 535.3, 468.8 534.8 C 469.3 533.5, 451.0 515, 449.3 515 C 448.7 515, 434.0 529.4, 416.8 547.1 M 362.2 602.0 C 344.1 603.9, 323 613.6, 323 619.9 C 323 621.8, 363.9 663.2, 366.3 663.7 C 368.5 664.2, 375.0 656.1, 378.5 648.5 C 383.0 638.6, 384.3 631.6, 384.4 615.5 L 384.5 601.5 377 601.3 C 372.8 601.2, 366.2 601.5, 362.2 602.0';
 const DigTools = ({ x, y }: { x: number; y: number }): ReactElement => (
-  <g transform={`translate(${x} ${y}) scale(0.8)`} stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="none" fill="none" opacity="0.92">
-    {/* a spade, handle up and blade down, laid over to the left: a D grip, a shaft, the socket, and a flat blade with square shoulders and a rounded point */}
-    <g transform="rotate(45) translate(0 3)">
-      <path d="M-5 -13 V-18.5 Q-5 -20 -3.5 -20 H3.5 Q5 -20 5 -18.5 V-13" strokeWidth="1.7" />
-      <path d="M0 -13 V3" strokeWidth="2.2" />
-      <path d="M-2.6 3 H2.6 V6 H-2.6 Z" fill={INK} />
-      <path d="M-2.6 6 L-7 8 L-7 11.5 Q-7.4 19 -3.2 22.5 Q0 25 3.2 22.5 Q7.4 19 7 11.5 L7 8 L2.6 6 Z" fill={INK} />
-      <path d="M0 8.5 V21" stroke={BG} strokeWidth="1.1" />
-    </g>
-    {/* a pickaxe: a long straight handle, the iron collar, and a head that curves down to a point at each end */}
-    <g transform="rotate(-45) translate(2 -5)">
-      <path d="M0 -5 V19" strokeWidth="2.6" />
-      <path d="M-14.5 1 Q-11 -7.5 0 -9 Q11 -7.5 14.5 1 Q8.5 -4.8 3.2 -4.8 H-3.2 Q-8.5 -4.8 -14.5 1 Z" fill={INK} />
-      <path d="M-3.4 -10.4 H3.4 V-3.4 H-3.4 Z" fill={INK} stroke={BG} strokeWidth="0.8" />
-    </g>
+  <g transform={`translate(${x} ${y}) scale(0.092) translate(-484 -481)`} fill={INK} fillRule="evenodd" stroke="none" strokeDasharray="none" opacity="0.92">
+    <path d={DIG_PATH} />
   </g>
 );
 
@@ -819,8 +807,8 @@ export function RoomOutline({ rect, label: _label, plain = false, near }: { rect
         <defs>
           <linearGradient id={id} gradientUnits="userSpaceOnUse" x1={from[0]} y1={from[1]} x2={to[0]} y2={to[1]}>
             <stop offset="0" stopColor="#fff" stopOpacity="1" />
-            <stop offset="0.34" stopColor="#fff" stopOpacity="0.04" />
-            <stop offset="1" stopColor="#fff" stopOpacity="0" />
+            <stop offset="0.34" stopColor="#fff" stopOpacity="0.4" />
+            <stop offset="1" stopColor="#fff" stopOpacity="0.28" />
           </linearGradient>
           <mask id={id + 'm'} maskUnits="userSpaceOnUse" x={cx - 400} y={cy - 400} width="800" height="800">
             <rect x={cx - 400} y={cy - 400} width="800" height="800" fill={`url(#${id})`} />

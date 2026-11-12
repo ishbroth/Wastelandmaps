@@ -474,7 +474,7 @@ export const vacationRecipe = (v: VaultHome, placeId: string): LootBag => recipe
 /** What the next piece of furniture in a room costs, as a mix of loot (each piece has its own). */
 export const furnishRecipe = (v: VaultHome, roomIndex: number, item: string): LootBag => {
   const room = v.rooms[roomIndex];
-  return room ? recipeFor(v.seed ?? 0, `item:${roomIndex}:${room.type}:${item}:${room.furniture.length}`, furnishCost(room)) : {};
+  return room ? recipeFor(v.seed ?? 0, `item:${roomIndex}:${room.type}:${slotOf(item)}:${room.furniture.length}`, furnishCost(room)) : {};
 };
 
 // ---- settlers ----
@@ -699,7 +699,8 @@ export function applyInstrument(v: VaultHome, roomIndex: number, choice: string)
 export function applyFurnish(v: VaultHome, roomIndex: number, item: string, now: number, at?: unknown): Action<unknown> {
   const room = v.rooms[roomIndex];
   if (!room) return { ok: false, reason: 'No such room' };
-  if (!furnitureOf(room.type).some((f) => f.id === item)) return { ok: false, reason: 'That does not belong in this room' };
+  // an instrument is chosen first and bought as the study's instrument slot: the guitar, piano, harp or drum set itself is what is placed
+  if (!furnitureOf(room.type).some((f) => f.id === slotOf(item))) return { ok: false, reason: 'That does not belong in this room' };
   if (room.furniture.some((x) => slotOf(x) === slotOf(item))) return { ok: false, reason: 'Already there' };
   if (room.type === 'hallway' && room.furniture.length >= 1) return { ok: false, reason: 'A hallway holds one piece' };
   const cost = furnishCost(room);

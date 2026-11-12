@@ -2,11 +2,12 @@
 // on, lies on a bed, plays an instrument, cooks at the stove...), walks to the open side of it AROUND everything else in the room (never through furniture), does it for
 // a while facing the right way, then stands up and goes on. All of it is plain functions on the vault and the settlers, so it can be checked without a screen.
 
-import { COLS, ROWS, roomAt, roomsOn, type SettlerKind, type VaultHome, type VaultRoom } from '../lib/vaultHome';
+import { COLS, ROWS, openCell, roomAt, roomsOn, type SettlerKind, type VaultHome, type VaultRoom } from '../lib/vaultHome';
 import { CELL, USES, floorPoint, footprints, holeRect, layoutOf, roomRect, shapeOf, useAt, type Rect, type UseSpot } from './vaultIso';
 import type { Pose } from './vaultArt';
 
-export interface Pt { x: number; y: number }
+/** A point on the way; with `lv`, the settler is on that level from here on (a stairwell was taken). */
+export interface Pt { x: number; y: number; lv?: number }
 
 /** What a settler's doing changes in the room: the television or screen is on, or a dining chair is pulled out. */
 export interface Fx { room: number; piece: string; kind: 'screen' | 'chair'; chair?: number }
@@ -102,43 +103,90 @@ export function avoid(a: Arena, from: Pt, to: Pt): Pt[] {
 }
 
 // ---- getting from room to room ----
+// A settler walks only where there is a way: through the doorways between rooms that touch on a level, and up or down a stairwell to the level it joins. Two areas on one level that
+// do not touch are not joined by walking across the empty ground between them: the way between them is down one stairwell and back up another (if there is one).
 
-/** The points to walk through to get from one cell to another on a level (world positions): through the doorways between joined rooms. */
-function route(v: VaultHome, level: number, from: [number, number], to: [number, number], end: Pt): Pt[] {
-  const key = (c: number, r: number) => `${c},${r}`;
-  const prev = new Map<string, [number, number] | null>([[key(...from), null]]);
-  const queue: [number, number][] = [from];
-  while (queue.length) {
-    const [c, r] = queue.shift() as [number, number];
-    if (c === to[0] && r === to[1]) break;
-    for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-      const n: [number, number] = [c + dc, r + dr];
-      if (!roomAt(v, level, n[0], n[1]) || roomAt(v, level, n[0], n[1])?.type === 'stairs' || prev.has(key(...n))) continue;
-      prev.set(key(...n), [c, r]);
-      queue.push(n);
+interface Cell { level: number; c: number; r: number }
+const DIRS: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+const cellKey = (n: Cell): string => `${n.level}:${n.c},${n.r}`;
+
+/** Where a settler can step from a cell: into a touching room (a stairwell only at its open end), or up or down a stairwell. */
+function stepsFrom(v: VaultHome, n: Cell): Cell[] {
+  const room = roomAt(v, n.level, n.c, n.r);
+  if (!room) return [];
+  const out: Cell[] = [];
+  if (room.type === 'stairs') {
+    const oc = openCell(room);
+    for (const [dc, dr] of DIRS) {
+      const c = n.c + dc, r = n.r + dr;
+      if (oc && (oc[0] !== c || oc[1] !== r)) continue; // the other three sides are wall
+      if (roomAt(v, n.level, c, r)) out.push({ level: n.level, c, r });
     }
+    for (const dl of [-1, 1]) if (roomAt(v, n.level + dl, n.c, n.r)) out.push({ level: n.level + dl, c: n.c, r: n.r });
+    return out;
   }
-  if (!prev.has(key(...to))) return [end];
-  const cells: [number, number][] = [];
-  for (let at: [number, number] | null = to; at; at = prev.get(key(...at)) ?? null) cells.unshift(at);
+  for (const [dc, dr] of DIRS) {
+    const c = n.c + dc, r = n.r + dr;
+    const o = roomAt(v, n.level, c, r);
+    if (!o) continue;
+    if (o.type === 'stairs') { const oc = openCell(o); if (oc && (oc[0] !== n.c || oc[1] !== n.r)) continue; }
+    out.push({ level: n.level, c, r });
+  }
+  // a room that has a stairwell's other end in the same place (an old stairwell dug under a room) is joined to it
+  for (const dl of [-1, 1]) { const o = roomAt(v, n.level + dl, n.c, n.r); if (o?.type === 'stairs') out.push({ level: n.level + dl, c: n.c, r: n.r }); }
+  return out;
+}
+
+/** Every cell a settler can get to from a cell, with how it got there. */
+function spread(v: VaultHome, from: Cell, goal?: Cell): Map<string, Cell | null> {
+  const prev = new Map<string, Cell | null>([[cellKey(from), null]]);
+  const queue: Cell[] = [from];
+  for (let i = 0; i < queue.length; i++) {
+    const n = queue[i];
+    if (goal && n.level === goal.level && n.c === goal.c && n.r === goal.r) break;
+    for (const m of stepsFrom(v, n)) { const k = cellKey(m); if (prev.has(k)) continue; prev.set(k, n); queue.push(m); }
+  }
+  return prev;
+}
+
+/** The rooms a settler can walk to from where they stand (on any level, by way of the stairwells). */
+function reachableRooms(v: VaultHome, from: Cell): VaultRoom[] {
+  const seen = new Set<VaultRoom>();
+  for (const k of spread(v, from).keys()) {
+    const [lv, rest] = k.split(':');
+    const [c, r] = rest.split(',').map(Number);
+    const room = roomAt(v, Number(lv), c, r);
+    if (room && room.type !== 'stairs') seen.add(room);
+  }
+  return [...seen];
+}
+
+/** The doorway points to pass through, and the stairwells to take, to get along a chain of cells. */
+function waypoints(v: VaultHome, cells: Cell[], end: Pt): Pt[] {
   const path: Pt[] = [];
   for (let i = 1; i < cells.length; i++) {
-    const [c, r] = cells[i];
-    const [pc, pr] = cells[i - 1];
-    const ra = roomAt(v, level, pc, pr);
-    const rb = roomAt(v, level, c, r);
+    const a = cells[i - 1], b = cells[i];
+    const ra = roomAt(v, a.level, a.c, a.r);
+    if (a.level !== b.level) {
+      // up or down: into the middle of the stairwell, and from there the settler is on the other level
+      if (!ra) continue;
+      const R = roomRect(ra);
+      path.push({ x: R.xc ?? R.x + R.w / 2, y: R.yc ?? R.y + R.d / 2, lv: b.level });
+      continue;
+    }
+    const rb = roomAt(v, b.level, b.c, b.r);
     if (!ra || !rb || ra === rb) continue; // inside one wide room there is no door
     const A = roomRect(ra);
     const B = roomRect(rb);
-    if (r === pr) {
+    if (b.r === a.r) {
       // along x, through the doorway in the right room's left wall
-      const dir = c > pc ? 1 : -1;
+      const dir = b.c > a.c ? 1 : -1;
       const y = A.yc ?? B.yc ?? (Math.max(A.y, B.y) + Math.min(A.y + A.d, B.y + B.d)) / 2;
       path.push({ x: dir > 0 ? A.x + A.w - 9 : A.x + 9, y }, { x: dir > 0 ? B.x + 9 : B.x + B.w - 9, y });
     } else {
       // along y, through the doorway in the front room's right wall
-      const dir = r > pr ? 1 : -1;
-      const x = A.xc ?? B.xc ?? (Math.max(A.x, B.x, c * CELL) + Math.min(A.x + A.w, B.x + B.w, (c + 1) * CELL)) / 2;
+      const dir = b.r > a.r ? 1 : -1;
+      const x = A.xc ?? B.xc ?? (Math.max(A.x, B.x, b.c * CELL) + Math.min(A.x + A.w, B.x + B.w, (b.c + 1) * CELL)) / 2;
       path.push({ x, y: dir > 0 ? A.y + A.d - 9 : A.y + 9 }, { x, y: dir > 0 ? B.y + 9 : B.y + B.d - 9 });
     }
   }
@@ -146,19 +194,30 @@ function route(v: VaultHome, level: number, from: [number, number], to: [number,
   return path;
 }
 
-/** The whole way from one spot to another on a level: through the doorways, and around the furniture inside every room on the way. */
-export function walkTo(v: VaultHome, level: number, from: Pt, to: Pt): Pt[] {
+/** The whole way from one spot to another (on the same level or another): through the doorways and up and down the stairwells, and around the furniture inside every room on the way. Null if there is no way. */
+export function walkTo(v: VaultHome, fromLevel: number, from: Pt, toLevel: number, to: Pt): Pt[] | null {
+  const [fc, fr] = cellOf(from.x, from.y);
+  const [tc, tr] = cellOf(to.x, to.y);
+  const start: Cell = { level: fromLevel, c: fc, r: fr };
+  const goal: Cell = { level: toLevel, c: tc, r: tr };
+  if (!roomAt(v, start.level, start.c, start.r) || !roomAt(v, goal.level, goal.c, goal.r)) return null;
+  const prev = spread(v, start, goal);
+  if (!prev.has(cellKey(goal))) return null;
+  const chain: Cell[] = [];
+  for (let at: Cell | null = goal; at; at = prev.get(cellKey(at)) ?? null) chain.unshift(at);
+  const rough = waypoints(v, chain, to);
   const arenas = new Map<VaultRoom, Arena>();
   const arena = (r: VaultRoom) => { let a = arenas.get(r); if (!a) { a = arenaOf(v, r); arenas.set(r, a); } return a; };
-  const rough = route(v, level, cellOf(from.x, from.y), cellOf(to.x, to.y), to);
   const out: Pt[] = [];
-  let prev = from;
+  let prevPt: Pt = from;
+  let level = fromLevel;
   for (const q of rough) {
-    const rp = roomAt(v, level, ...cellOf(prev.x, prev.y));
+    const rp = roomAt(v, level, ...cellOf(prevPt.x, prevPt.y));
     const rq = roomAt(v, level, ...cellOf(q.x, q.y));
-    if (rp && rp === rq && rp.type !== 'hallway' && rp.type !== 'stairs') out.push(...avoid(arena(rp), prev, q));
+    if (rp && rp === rq && rp.type !== 'hallway' && rp.type !== 'stairs') out.push(...avoid(arena(rp), prevPt, q));
     else out.push(q);
-    prev = q;
+    if (q.lv !== undefined) { out[out.length - 1] = { ...out[out.length - 1], lv: q.lv }; level = q.lv; }
+    prevPt = q;
   }
   return out;
 }
@@ -226,7 +285,10 @@ export function takenSeats(sims: Sim[]): Set<string> {
 
 /** Gives a settler something to do next: use a piece of furniture in a room on their level, or just wander to an open spot. */
 export function plan(s: Sim, v: VaultHome, sims: Sim[]): void {
-  const rooms = roomsOn(v, s.level).filter((r) => r.type !== 'stairs');
+  // only rooms there is a way to from where they stand (through doorways, hallways and stairwells): never across the empty ground between two separate areas
+  const [hc, hr] = cellOf(s.x, s.y);
+  const here = roomAt(v, s.level, hc, hr);
+  const rooms = here ? reachableRooms(v, { level: s.level, c: hc, r: hr }) : roomsOn(v, s.level).filter((r) => r.type !== 'stairs');
   if (!rooms.length) return;
   const room = pick(rooms);
   const roomIdx = v.rooms.indexOf(room);
@@ -265,7 +327,9 @@ export function plan(s: Sim, v: VaultHome, sims: Sim[]): void {
 /** Starts a step: the way there (from where they stand, or stood up from), around everything. */
 export function begin(s: Sim, step: Step, v: VaultHome): void {
   const from = s.exit ?? { x: s.x, y: s.y };
-  const path = walkTo(v, s.level, from, step.from);
+  const target = v.rooms[step.room];
+  const path = walkTo(v, s.level, from, target ? target.level : s.level, step.from);
+  if (!path) { s.path = []; s.exit = null; s.cur = null; s.queue = []; return; } // there is no way there: they stay where they are and think again
   s.path = [...(s.exit ? [s.exit] : []), ...path, ...(step.x !== step.from.x || step.y !== step.from.y ? [{ x: step.x, y: step.y }] : [])];
   s.exit = null;
   s.cur = step;
