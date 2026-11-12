@@ -17,7 +17,8 @@ import BuyCaps from './BuyCaps';
 import { METRO_COST, caps, tradeStimpak, tradeTime, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag, type LootBag } from '../lib/raid/loot';
-import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt, type WeaponClass } from '../lib/raid/weapons';
+import { WEAPON_CLASS_IDS, WEAPON_CLASSES, magazineOf, nextWeapon, weaponAt, type Weapon, type WeaponClass } from '../lib/raid/weapons';
+import { loadEquipped, saveEquipped, type Equipped } from '../lib/raid/equipped';
 
 import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
 import { iconHtmlFor } from '../lib/landmarkIcons';
@@ -192,6 +193,11 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
   const [sort, setSort] = useState<'dist' | 'time'>('dist');
   /** The "spend this loot?" question that is open, if any. */
   const [ask, setAsk] = useState<{ kind: 'stimpak' | 'time'; id: string } | { kind: 'gun'; id: WeaponClass } | null>(null);
+  // the tier of each class of gun to take into battle (chosen by scrolling the gun's bubble)
+  const who = account.session?.user.id;
+  const [equipped, setEquipped] = useState<Equipped>(() => loadEquipped(who));
+  useEffect(() => { setEquipped(loadEquipped(who)); }, [who]);
+  const equip = (cls: WeaponClass, tier: 1 | 2 | 3 | 4) => { const next = { ...equipped, [cls]: tier }; setEquipped(next); saveEquipped(who, next); };
   // every place found, in the order found, starting with home
   const homeId = account.home?.placeId ? personalId(account.home.placeId) : null;
   const recent = useMemo(() => {
@@ -290,27 +296,12 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
       </ul>
       <h3>GUNS</h3>
       <ul className="rm-arsenal">
-        {WEAPON_CLASS_IDS.map((cls) => {
-          const tier = account.arsenal[cls];
-          const next = nextWeapon(account.arsenal, cls);
-          const owned = tier > 0 ? weaponAt(cls, tier as 1 | 2 | 3 | 4) : null;
-          return (
-            <li key={cls}>
-              <div className="rm-arsenal-head"><span>{WEAPON_CLASSES[cls].label.toUpperCase()}</span><b>{owned ? `${owned.name} (TIER ${tier})` : 'NONE'}</b></div>
-              {next && (
-                <button
-                  type="button"
-                  className="rm-btn rm-btn-ghost rm-arsenal-buy"
-                  disabled={!canAfford(account.loot, next.recipe)}
-                  onClick={() => setAsk({ kind: 'gun', id: cls })}
-                  title={next.real}
-                >
-                  {tier === 0 ? 'UNLOCK' : 'UPGRADE TO'} {next.name.toUpperCase()}: {describeBag(next.recipe)}
-                </button>
-              )}
-            </li>
-          );
-        })}
+        {WEAPON_CLASS_IDS.map((cls) => (
+          <li key={cls}>
+            <div className="rm-arsenal-head"><span>{WEAPON_CLASSES[cls].label.toUpperCase()}</span></div>
+            <GunPicker cls={cls} owned={account.arsenal[cls]} chosen={equipped[cls]} loot={account.loot} onEquip={(t) => equip(cls, t)} onUnlock={() => setAsk({ kind: 'gun', id: cls })} />
+          </li>
+        ))}
       </ul>
 
       <h3>HOME</h3>
@@ -328,7 +319,7 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
             <ConfirmSpend
               title={account.arsenal[ask.id] === 0 ? 'UNLOCK A GUN' : 'UPGRADE A GUN'} what={next.name.toUpperCase()} cost={next.recipe} have={account.loot} verb={account.arsenal[ask.id] === 0 ? 'UNLOCK' : 'UPGRADE'}
               onClose={() => setAsk(null)}
-              onConfirm={async () => { const r = await craftWeapon(ask.id); await account.refresh(); return r.ok ? null : failed(r.reason); }}
+              onConfirm={async () => { const r = await craftWeapon(ask.id); if (r.ok && r.tier) equip(ask.id, r.tier as 1 | 2 | 3 | 4); await account.refresh(); return r.ok ? null : failed(r.reason); }}
             />
           );
         }
@@ -554,6 +545,58 @@ function Packs({ onBought }: { onBought: () => void }) {
     <div>
       <button type="button" className="rm-btn rm-btn-ghost rm-trade-money" onClick={() => setOpen(true)}>TRADE PRE-WAR MONEY</button>
       {open && <BuyCaps title="TRADE PRE-WAR MONEY" onClose={() => setOpen(false)} onBought={onBought} />}
+    </div>
+  );
+}
+
+/** What a gun's number says in the bubble: how hard it hits, and how many rounds before it has to be reloaded (or its whole supply, for the launchers). */
+const ammoOf = (w: Weapon): number => magazineOf(w) || w.ammo || 0;
+
+/**
+ * One class of gun, as a single bubble with an up and a down arrow beside it. The gun in it is the one that goes into the next battle; arrow up brings up the next
+ * better gun in the class and arrow down the one before it. A gun that is owned is chosen as soon as it is shown; one that is not shows what it costs (bright if
+ * there is enough loot, dim if not) with a button to unlock it. A gun cannot be unlocked before the one under it.
+ */
+function GunPicker({ cls, owned, chosen, loot, onEquip, onUnlock }: { cls: WeaponClass; owned: number; chosen?: number; loot: Account['loot']; onEquip: (tier: 1 | 2 | 3 | 4) => void; onUnlock: () => void }) {
+  const best = Math.max(1, owned);
+  const [shown, setShown] = useState<number>(Math.max(1, Math.min(chosen ?? best, best)));
+  // a gun that has just been unlocked is shown
+  const lastOwned = useRef(owned);
+  useEffect(() => { if (owned > lastOwned.current) setShown(owned); lastOwned.current = owned; }, [owned]);
+  const w = weaponAt(cls, shown as 1 | 2 | 3 | 4);
+  const have = shown <= owned;
+  const go = (to: number) => {
+    const t = Math.max(1, Math.min(4, to));
+    if (t === shown) return;
+    setShown(t);
+    if (t <= owned) onEquip(t as 1 | 2 | 3 | 4);
+  };
+  const next = shown === owned + 1;
+  const affordable = canAfford(loot, w.recipe);
+  const swipe = useRef<number | null>(null);
+  return (
+    <div className="rm-gun" role="group" aria-label={`${WEAPON_CLASSES[cls].label}: ${w.name}`}>
+      <div
+        className={`rm-gun-card${have ? ' have' : affordable && next ? ' can' : ' dim'}`}
+        onPointerDown={(e) => { swipe.current = e.clientY; }}
+        onPointerUp={(e) => { const y0 = swipe.current; swipe.current = null; if (y0 === null) return; const d = e.clientY - y0; if (Math.abs(d) > 28) go(shown + (d < 0 ? 1 : -1)); }}
+        title={w.real}
+      >
+        <div className="rm-gun-name"><b>{w.name.toUpperCase()}</b>{have && shown === (chosen ?? best) ? <span>EQUIPPED</span> : null}</div>
+        <div className="rm-gun-stats"><span>DAM <b>{w.damage}</b></span><span>AMMO <b>{ammoOf(w)}</b></span><span>TIER <b>{shown}</b></span></div>
+        {!have && (
+          <div className="rm-gun-cost">
+            <span>{describeBag(w.recipe).toUpperCase()}</span>
+            {next
+              ? <button type="button" className="rm-btn rm-btn-ghost rm-arsenal-buy" disabled={!affordable} onClick={onUnlock}>{owned === 0 ? 'UNLOCK' : 'UPGRADE'}</button>
+              : <small>UNLOCK {weaponAt(cls, (shown - 1) as 1 | 2 | 3).name.toUpperCase()} FIRST</small>}
+          </div>
+        )}
+      </div>
+      <div className="rm-gun-arrows">
+        <button type="button" aria-label="Next gun up" disabled={shown >= 4} onClick={() => go(shown + 1)}>▲</button>
+        <button type="button" aria-label="Gun below" disabled={shown <= 1} onClick={() => go(shown - 1)}>▼</button>
+      </div>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import type { RaidPlan } from '../lib/raid/raid';
 import { WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
 import { levelInfo } from '../lib/points';
 import { analyzeSpawns } from '../lib/raid/analyze';
+import { battleArsenal, loadEquipped } from '../lib/raid/equipped';
 import { spawnsAreMarked } from '../lib/raid/spawnData';
 
 interface Hud {
@@ -119,7 +120,9 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   const [xp, setXp] = useState(0);
   const finished = useRef(false);
 
-  const ownedGuns = useMemo(() => WEAPON_CLASS_IDS.filter((c) => account.arsenal[c] > 0).map((c) => weaponAt(c, account.arsenal[c] as 1 | 2 | 3 | 4).id), [account.arsenal]);
+  // the guns taken into this battle: the tier chosen in each class on the Data tab (never above what is owned)
+  const arsenal = useMemo(() => battleArsenal(account.arsenal, loadEquipped(account.session?.user.id)), [account.arsenal, account.session?.user.id]);
+  const ownedGuns = useMemo(() => WEAPON_CLASS_IDS.filter((c) => arsenal[c] > 0).map((c) => weaponAt(c, arsenal[c] as 1 | 2 | 3 | 4).id), [arsenal]);
 
   const end = useCallback(async (won: boolean) => {
     if (finished.current) return;
@@ -167,7 +170,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       run.current = started.runId;
       // a place nobody marked by hand: the picture is looked at for sensible places to come from (not in the sky), and how far down the horizon is
       const looked = spawnsAreMarked(placeId) ? null : analyzeSpawns(picture, spawns);
-      game.current = new Game({ plan, spawns: looked ?? spawns, arsenal: account.arsenal, level: levelInfo(account.points).level });
+      game.current = new Game({ plan, spawns: looked ?? spawns, arsenal, level: levelInfo(account.points).level });
       if (import.meta.env.DEV) (window as unknown as { __game?: Game }).__game = game.current; // for trying things out in development
       setPhase('fighting');
       last = performance.now();
@@ -727,7 +730,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
             <div className="rm-wheel-overlay" onClick={closeWheel}>
             <div className="rm-raid-wheel" role="group" aria-label="Weapons" onClick={(e) => e.stopPropagation()}>
               {WEAPON_CLASS_IDS.map((cls) => {
-                const tier = account.arsenal[cls];
+                const tier = arsenal[cls];
                 const w = tier > 0 ? weaponAt(cls, tier as 1 | 2 | 3 | 4) : null;
                 return (
                   <button
