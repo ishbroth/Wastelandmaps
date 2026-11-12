@@ -89,6 +89,8 @@ interface Props {
   onSelect: (id: string | null) => void;
   /** The map came to rest somewhere: where, and how far in. */
   onViewport: (center: LatLng, zoom: number) => void;
+  /** A tap and hold on the map, close in enough that the buildings' outlines show: the point under the finger. */
+  onLongPress?: (position: LatLng) => void;
   /** Names of continents, countries and states, shown when the map is zoomed out. */
   regionLabels: RegionLabel[];
   /** Flooded patches near the coast. */
@@ -209,7 +211,10 @@ function morphLabel(el: HTMLElement, from: string, to: string) {
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 /** The Google map, drawn in the chosen look, with the wasteland on top: locations, the vault, the radiation zones, and you. */
-export default function MapView({ onLocate, locateDisabled, look, region, wasteland, locations, hiddenCategories, selectedId, visited, cleared, waiting, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, startView }: Props) {
+/** From this zoom in the map draws the buildings' outlines, and a tap and hold on one asks for its address. */
+const LONG_PRESS_ZOOM = 17;
+
+export default function MapView({ onLongPress, onLocate, locateDisabled, look, region, wasteland, locations, hiddenCategories, selectedId, visited, cleared, waiting, player, travel, onArrive, nav, onSelect, onViewport, regionLabels, startView }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const locateRef = useRef(onLocate);
   const meButton = useRef<HTMLButtonElement | null>(null);
@@ -235,6 +240,7 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
   const onSelectRef = useRef(onSelect);
   const onArriveRef = useRef(onArrive);
   const onViewportRef = useRef(onViewport);
+  const onLongPressRef = useRef(onLongPress);
   const visitedRef = useRef(visited);
   const clearedRef = useRef(cleared);
   const waitingRef = useRef(waiting);
@@ -243,10 +249,11 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
     onSelectRef.current = onSelect;
     onArriveRef.current = onArrive;
     onViewportRef.current = onViewport;
+    onLongPressRef.current = onLongPress;
     visitedRef.current = visited;
     clearedRef.current = cleared;
     waitingRef.current = waiting;
-  }, [onSelect, onArrive, onViewport, visited, cleared, waiting]);
+  }, [onSelect, onArrive, onViewport, onLongPress, visited, cleared, waiting]);
 
   // the map itself, once
   useEffect(() => {
@@ -286,6 +293,42 @@ export default function MapView({ onLocate, locateDisabled, look, region, wastel
       holder.current?.style.setProperty('--pin-size', `${Math.round(Math.min(36, Math.max(18, 18 + (zoom - 11) * 6)))}px`);
     };
     map.addListener('zoom_changed', markClose);
+    // tap and hold on the map (from the zoom where the buildings' outlines show): the address of what is under the finger
+    const host = holder.current;
+    if (host) {
+      let press: { x: number; y: number; id: number; timer: number } | null = null;
+      const touches = new Set<number>();
+      const cancel = () => { if (press) window.clearTimeout(press.timer); press = null; };
+      const pointAt = (clientX: number, clientY: number): google.maps.LatLng | null => {
+        const bounds = map.getBounds(), proj = map.getProjection();
+        if (!bounds || !proj) return null;
+        const rect = host.getBoundingClientRect();
+        const ne = proj.fromLatLngToPoint(bounds.getNorthEast()), sw = proj.fromLatLngToPoint(bounds.getSouthWest());
+        if (!ne || !sw) return null;
+        const scale = 2 ** (map.getZoom() ?? 0);
+        return proj.fromPointToLatLng(new google.maps.Point((clientX - rect.left) / scale + sw.x, (clientY - rect.top) / scale + ne.y));
+      };
+      host.addEventListener('pointerdown', (e) => {
+        touches.add(e.pointerId);
+        cancel();
+        if (touches.size > 1 || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        if ((e.target as HTMLElement).closest('.rm-pin, button, a, .gmnoprint, .gm-control-active, .rm-poster-title')) return;
+        if ((map.getZoom() ?? 0) < LONG_PRESS_ZOOM || !onLongPressRef.current) return;
+        const x = e.clientX, y = e.clientY;
+        press = { x, y, id: e.pointerId, timer: window.setTimeout(() => {
+          press = null;
+          const at = pointAt(x, y);
+          if (!at) return;
+          lastPressAt = Date.now(); // the lift of the finger is not a tap on empty map
+          onLongPressRef.current?.({ lat: at.lat(), lng: at.lng() });
+        }, 550) };
+      });
+      host.addEventListener('pointermove', (e) => { if (press && (e.pointerId !== press.id || Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10)) cancel(); });
+      const lifted = (e: PointerEvent) => { touches.delete(e.pointerId); cancel(); };
+      host.addEventListener('pointerup', lifted);
+      host.addEventListener('pointercancel', lifted);
+      host.addEventListener('contextmenu', (e) => { if ((map.getZoom() ?? 0) >= LONG_PRESS_ZOOM && onLongPressRef.current) e.preventDefault(); }); // no callout over the address bubble
+    }
     // moving the map by hand pauses the navigation's following for a few seconds
     map.addListener('dragstart', () => { lastDrag.current = Date.now(); });
     // a click on empty map clears the choice, but not the same moment a marker was pressed

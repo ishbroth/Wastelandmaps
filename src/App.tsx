@@ -12,7 +12,7 @@ import { startPurchases } from './lib/iap';
 import { keepScreenOn } from './lib/awake';
 import { askForLocation, getFix, locationState, openLocationSettings, watchFixes, type GeoError } from './lib/geo';
 import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
-import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
+import { addressAt, resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
 import { iconHtmlFor, landmarkIcon } from './lib/landmarkIcons';
 import type { MapPosterInput } from './lib/poster';
 import { placeIcon } from './lib/placeIcons';
@@ -806,6 +806,15 @@ export default function App() {
     setTarget({ placeId: place.placeId, name: place.name, address: place.address, lat: place.position.lat, lng: place.position.lng, kind: place.kind });
     setSelectedId(personalId(place.placeId));
   }, [show, search]);
+  /** A tap and hold on a building's outline, close in: its address, as a destination with the card (FAST TRAVEL and VIEW) ready, as if it had been typed in. */
+  const onMapHold = useCallback(async (position: { lat: number; lng: number }) => {
+    if (navRef.current) return;
+    sound('select');
+    const place = await addressAt(position);
+    if (!place) { say('NO ADDRESS THERE', true); return; }
+    setTarget({ placeId: place.placeId, name: place.name, address: place.address, lat: place.position.lat, lng: place.position.lng, kind: place.kind });
+    setSelectedId(personalId(place.placeId));
+  }, [sound]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Home chosen (here or typed): remembered, shown as a place of their own named Home, and the map goes there. */
   const [moving, setMoving] = useState(false);
   const chooseHome = useCallback(async (place: PickedPlace, vaultNumber: number): Promise<string | null> => {
@@ -1316,7 +1325,7 @@ export default function App() {
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={mapLocations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} waiting={account.waiting} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { if (navRef.current) return; setSelectedId(id); if (id) sound('tick'); }} onViewport={onViewport} regionLabels={regionLabels} flood={flood} startView={startView}
+              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} waiting={account.waiting} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { if (navRef.current) return; setSelectedId(id); if (id) sound('tick'); }} onViewport={onViewport} onLongPress={onMapHold} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />

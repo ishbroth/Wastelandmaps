@@ -114,3 +114,19 @@ export async function reverseGeocode(position: LatLng): Promise<PickedPlace | nu
     return null;
   }
 }
+
+/** The address of the building at a point of the map (a tap and hold on its outline): the street line names it. Null if there is no building or address there. */
+export async function addressAt(position: LatLng): Promise<PickedPlace | null> {
+  try {
+    const { Geocoder } = (await google.maps.importLibrary('geocoding')) as google.maps.GeocodingLibrary;
+    const { results } = await new Geocoder().geocode({ location: position });
+    const hit = results?.find((r) => r.types.some((t) => ['street_address', 'premise', 'subpremise', 'establishment', 'point_of_interest'].includes(t)));
+    if (!hit) return null;
+    const address = hit.formatted_address;
+    const streetLine = address.split(',')[0];
+    const loc = hit.geometry.location;
+    return { placeId: hit.place_id, name: streetLine, address, position: { lat: loc.lat(), lng: loc.lng() }, kind: kindFromTypes(hit.types, streetLine) };
+  } catch {
+    return null;
+  }
+}
