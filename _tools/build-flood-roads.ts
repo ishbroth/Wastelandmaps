@@ -1,8 +1,8 @@
 // Fetches the main roads that run through each flooded patch (from OpenStreetMap, once, ahead of time) so the app can draw them fading and thinning toward the middle of the water.
-// Only the roads the map itself draws (motorways and trunk roads, and the primary, secondary and tertiary roads: the side streets are hidden on the map).
+// Only the major routes (motorways and trunk roads, primary roads, secondary roads): the map hides the rest, and so must the water.
 //   npx esbuild _tools/build-flood-roads.ts --bundle --platform=node --format=esm --outfile=_data/build-flood-roads.mjs && node _data/build-flood-roads.mjs [metro-id ...]
 // With metro ids it only does those (to try it); with none it does every metro and writes public/data/flood-roads.json (a few minutes, a polite pause between requests).
-// Output: { "<patch seed>": [[class, lat0, lng0, dLat, dLng, dLat, dLng ...], ...] } with coordinates in 1e-5 degrees (class 0: motorway/trunk, 1: the others).
+// Output: { "<patch seed>": [[class, lat0, lng0, dLat, dLng, dLat, dLng ...], ...] } with coordinates in 1e-5 degrees (class 0: motorway/trunk, 1: primary, 2: secondary).
 import fs from 'node:fs';
 import { patchOutline, type FloodPatch } from '../src/lib/flood';
 
@@ -51,7 +51,7 @@ const BATCH = 25;
 const failed: number[] = [];
 const runBatch = async (i: number): Promise<boolean> => {
   const batch = all.slice(i, i + BATCH);
-  const around = batch.map((p) => `way(around:${Math.round(p[2] * Math.max(1, p[3]) * 1.2)},${p[0]},${p[1]})["highway"~"^(motorway|trunk|primary|secondary|tertiary)(_link)?$"];`).join('');
+  const around = batch.map((p) => `way(around:${Math.round(p[2] * Math.max(1, p[3]) * 1.2)},${p[0]},${p[1]})["highway"~"^(motorway|trunk|primary|secondary)(_link)?$"];`).join('');
   let ways: Way[];
   try { ways = await overpass(`[out:json][timeout:120];(${around});out geom;`); } catch { return false; }
   for (const p of batch) {
@@ -64,7 +64,8 @@ const runBatch = async (i: number): Promise<boolean> => {
       let run: { lat: number; lng: number }[] = [];
       const flush = () => {
         if (run.length >= 2) {
-          const cls = /^(motorway|trunk)/.test(w.tags?.highway ?? '') ? 0 : 1;
+          const hw = w.tags?.highway ?? '';
+          const cls = /^(motorway|trunk)/.test(hw) ? 0 : /^primary/.test(hw) ? 1 : 2;
           const out: number[] = [cls];
           let pl = 0, pn = 0;
           run.forEach((q, k) => { const la = Math.round(q.lat * 1e5), ln = Math.round(q.lng * 1e5); out.push(k === 0 ? la : la - pl, k === 0 ? ln : ln - pn); pl = la; pn = ln; });
