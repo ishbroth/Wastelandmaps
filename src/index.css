@@ -266,7 +266,9 @@ html[data-look='parchment'] .rm-player { color: #a3401f; }
 .rm-pin-visited .rm-pin-icon svg .d { stroke: var(--on-ink); stroke-width: 1.5; }
 .rm-pin-visited .rm-pin-icon svg .s { stroke: currentColor; }
 .rm-track { font: inherit; font-size: 12px; letter-spacing: 1px; padding: 2px 8px; background: transparent; color: var(--ink-dim); border: 1px dashed var(--line); cursor: pointer; }
-.rm-track.on { color: var(--ink); border-style: solid; border-color: currentColor; }
+/* ON is a solid fill and OFF is hollow, always: it does not depend on the finger or mouse being over it (a touch screen keeps "hover" only until the page is scrolled) */
+.rm-quick .rm-track.on, .rm-quick .rm-track.on:hover:not(:disabled) { background: var(--ink); color: var(--on-ink); border: 1px solid var(--ink); }
+.rm-quick .rm-track:not(.on), .rm-quick .rm-track:not(.on):hover:not(:disabled) { background: transparent; color: var(--ink-dim); border: 1px dashed var(--line); }
 
 /* ---- location card, travel bar and toast on the screen ---- */
 .rm-card {
