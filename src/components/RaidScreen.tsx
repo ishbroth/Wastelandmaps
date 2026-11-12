@@ -11,6 +11,8 @@ import { LOOT_CAP, describeBag, lootName, type LootBag, type LootId } from '../l
 import type { RaidPlan } from '../lib/raid/raid';
 import { WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
 import { levelInfo } from '../lib/points';
+import { analyzeSpawns } from '../lib/raid/analyze';
+import { spawnsAreMarked } from '../lib/raid/spawnData';
 
 interface Hud {
   hits: number;
@@ -154,7 +156,9 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       bg.current = picture;
       assets.current = art;
       run.current = started.runId;
-      game.current = new Game({ plan, spawns, arsenal: account.arsenal, level: levelInfo(account.points).level });
+      // a place nobody marked by hand: the picture is looked at for sensible places to come from (not in the sky), and how far down the horizon is
+      const looked = spawnsAreMarked(placeId) ? null : analyzeSpawns(picture, spawns);
+      game.current = new Game({ plan, spawns: looked ?? spawns, arsenal: account.arsenal, level: levelInfo(account.points).level });
       if (import.meta.env.DEV) (window as unknown as { __game?: Game }).__game = game.current; // for trying things out in development
       setPhase('fighting');
       last = performance.now();

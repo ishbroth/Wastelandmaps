@@ -14,6 +14,9 @@ export interface Spawns {
   points: { u: number; v: number }[];
   /** How big enemies look when they start, against the usual (1): a picture taken from far away (a big landmark) makes them small, a close one (a house) bigger. */
   scale?: number;
+  /** Spots high on a building or a ruin (an enemy starting here climbs down), and spots at the edges of the picture on the ground (it walks in from the side). Only pictures that were looked at have them. */
+  high?: { u: number; v: number }[];
+  edges?: { u: number; v: number }[];
 }
 
 /** For a picture nobody has marked: the ground band across the lower half. */
@@ -108,6 +111,8 @@ export interface Enemy {
   phase: number;
   /** Which way it goes when it leaves the screen. */
   exit: number;
+  /** How it arrives: stepping out of the ground or the rubble (the usual), climbing down from somewhere high, or walking in from the side of the picture. */
+  entry: 'ground' | 'climb' | 'side';
 }
 
 export interface Effect {
@@ -276,15 +281,22 @@ export class Game {
 
   private spawn(type: EnemyType, boss: boolean) {
     const pts = this.spawns.points;
-    const point = pts[Math.floor(this.random() * pts.length)] ?? { u: 0.5, v: 0.64 };
-    const v0 = Math.max(this.spawns.horizon + 0.02, point.v);
-    // the farther away it starts (the smaller it looks), the more steps it takes to arrive: eight at the farthest, six at the nearest
-    const steps = 6 + Math.round(2 * (1 - this.depthAt(v0)));
+    let point = pts[Math.floor(this.random() * pts.length)] ?? { u: 0.5, v: 0.64 };
+    // a picture that was looked at can send some of them down from high up, or in from the side of the picture, to keep the survivor guessing (flyers always come the usual way)
+    let entry: 'ground' | 'climb' | 'side' = 'ground';
+    const roll = this.random();
+    if (!type.flying && !boss) {
+      if (roll < 0.2 && this.spawns.high?.length) { entry = 'climb'; point = this.spawns.high[Math.floor(this.random() * this.spawns.high.length)]; }
+      else if (roll < 0.4 && this.spawns.edges?.length) { entry = 'side'; point = this.spawns.edges[Math.floor(this.random() * this.spawns.edges.length)]; }
+    }
+    const v0 = entry === 'climb' ? point.v : Math.max(this.spawns.horizon + 0.02, point.v);
+    // the farther away it starts (the smaller it looks), the more steps it takes to arrive: eight at the farthest, six at the nearest (a climb or a walk in from the side takes a few more)
+    const steps = 6 + Math.round(2 * (1 - this.depthAt(v0))) + (entry === 'climb' ? 3 : entry === 'side' ? 2 : 0);
     // later waves come faster; faster creatures take their steps sooner (see stepGapFor)
     const stepGap = stepGapFor(type, this.wave, boss) * (0.85 + this.random() * 0.3);
     this.enemies.push({
       id: this.nextId++, type, boss, u0: point.u, v0, toU: 0.15 + this.random() * 0.7, u: point.u, v: v0, step: 0, steps, stepGap, stepT: stepGap * (0.6 + this.random() * 0.5), p: 0, gait: 0, lift: 0,
-      hp: type.hp, maxHp: type.hp, state: 'walking', t: 0, hurt: 0, phase: this.random() * 6.28, exit: this.random() < 0.5 ? -1 : 1,
+      hp: type.hp, maxHp: type.hp, state: 'walking', t: 0, hurt: 0, phase: this.random() * 6.28, exit: this.random() < 0.5 ? -1 : 1, entry,
     });
   }
 
@@ -305,8 +317,19 @@ export class Game {
   /** Where an enemy is drawn: its feet, from how far along it is, with the wander of its path and the sway and bob of its step. */
   private place(e: Enemy) {
     const q = Math.min(1, Math.max(0, e.p));
-    e.v = e.v0 + (STRIKE_V - e.v0) * q;
-    e.u = e.u0 + (e.toU - e.u0) * q * 0.7;
+    if (e.entry === 'climb') {
+      // down the face of the building first (straight down, a little sideways), then across the ground
+      e.v = e.v0 + (STRIKE_V - e.v0) * (1 - Math.pow(1 - q, 1.8));
+      e.u = e.u0 + (e.toU - e.u0) * Math.pow(q, 1.5) * 0.7;
+    } else if (e.entry === 'side') {
+      // in from the edge along the ground (across first, then toward the survivor)
+      const across = Math.min(1, q * 1.7);
+      e.v = e.v0 + (STRIKE_V - e.v0) * Math.pow(q, 1.4);
+      e.u = e.u0 + (e.toU - e.u0) * (1 - Math.pow(1 - across, 2)) * 0.95;
+    } else {
+      e.v = e.v0 + (STRIKE_V - e.v0) * q;
+      e.u = e.u0 + (e.toU - e.u0) * q * 0.7;
+    }
     // a small wander across the path that dies away as it arrives, so the blow still lands where the enemy is
     e.u += Math.sin(e.phase + q * 6.5) * 0.018 * (1 - q);
     // each step sways it a little to one side and the next step to the other, and lifts it a little between footfalls

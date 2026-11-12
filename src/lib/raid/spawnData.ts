@@ -70,3 +70,6 @@ export function sceneScale(spot: { id: string; icon: string; personal?: { kind?:
 
 /** Where the enemies come from in a place's picture, and how big they start. */
 export const spawnsForSpot = (spot: { id: string; icon: string; personal?: { kind?: string; home?: boolean } }, fromRender?: Spawns | null): Spawns => ({ ...spawnsFor(spot.id, fromRender), scale: sceneScale(spot) });
+
+/** Were the spots for this place made by hand (the permanent landmarks, Vault 0)? Those are kept as they are; every other place has its picture looked at. */
+export const spawnsAreMarked = (placeId: string): boolean => placeId === VAULT_ZERO_ID || (placeId.startsWith('wd:') && !!LANDMARK_SPAWNS[placeId.slice(3)]);
