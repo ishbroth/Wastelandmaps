@@ -33,6 +33,12 @@ interface Hud {
   slow: number;
 }
 
+/** How far each gun's picture leans to the left of straight up (degrees): they were drawn held across the body, and are turned back toward the screen. */
+const GUN_LEAN: Record<string, number> = {
+  sw29: 44, m1911: 15, deagle: 45, sw500: 38, uzi: 50, mp5: 33, ak47: -12, m249: 28,
+  model70: 50, rem700: 35, svd: 38, m82: 60, flamethrower: 20, m79: 30, missile: 8, fatman: 25,
+};
+
 /** Placeholder colors for an enemy whose art is missing. */
 const COLORS: Record<string, string> = { raider: '#5a4a3a', ghoul: '#6a7048', radroach: '#4a3220', molerat: '#7a5a4a', bloatfly: '#6a7a3a', radscorpion: '#8a7a5a', mirelurk: '#4a5a3a', supermutant: '#5a6a5a', robot: '#7a6a5a', deathclaw: '#6a4a3a' };
 
@@ -422,12 +428,16 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       const gw = gunArt ? gh * (gunArt.image.naturalWidth / gunArt.image.naturalHeight) : gh * 0.5;
       // anchored to the bottom right with its edges off screen (the pictures are cut off at their edges), turning a little toward where the survivor aims
       const pivotX = Math.max(gw * 0.5, cssW - gw * 0.44), pivotY = cssH + gh * 0.64;
-      const aim = Math.max(-0.12, Math.min(0.12, Math.atan2(pointer.current.x - pivotX, pivotY - pointer.current.y) * 0.3));
+      // held out toward the screen with a little lean so it can be told what it is: it swings from leaning left, through straight, to leaning right as the aim goes from the left of the screen to the right
+      const across = Math.max(-1, Math.min(1, (pointer.current.x - cssW / 2) / (cssW / 2)));
+      const lean = ((GUN_LEAN[weapon?.id ?? ''] ?? 30) * Math.PI) / 180;
+      const aim = lean * 0.92 + across * 0.4;
       ctx.save();
       // reloading: the gun tips up and away while the magazine (or fuel tank) is swapped by a hand coming up from below the screen
       const reload = g.reloadProgress;
       const tip = reload === null ? 0 : Math.sin(Math.min(1, reload) * Math.PI);
-      ctx.translate(pivotX, pivotY + g.recoil * 22 - tip * gh * 0.1);
+      // the gun turns about a point below the screen; its base is kept where it was, so turning it does not slide it off the side of the screen
+      ctx.translate(pivotX - (pivotY - cssH) * Math.sin(aim - tip * 0.16), pivotY + g.recoil * 22 - tip * gh * 0.1);
       ctx.rotate(aim - tip * 0.16);
       if (gunArt) {
         ctx.drawImage(gunArt.image, -gw / 2, -gh, gw, gh);
