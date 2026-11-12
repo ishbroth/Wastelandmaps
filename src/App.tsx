@@ -13,7 +13,8 @@ import { keepScreenOn } from './lib/awake';
 import { askForLocation, getFix, locationState, openLocationSettings, watchFixes, type GeoError } from './lib/geo';
 import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
 import { resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
-import { iconHtmlFor } from './lib/landmarkIcons';
+import { iconHtmlFor, landmarkIcon } from './lib/landmarkIcons';
+import type { MapPosterInput } from './lib/poster';
 import { placeIcon } from './lib/placeIcons';
 import { personalId, personalLocation, type PersonalPlace } from './lib/personal';
 import { enableNotifications, onNoticeTapped, pushNotice } from './lib/notify';
@@ -547,6 +548,12 @@ export default function App() {
     const loc = mapLocations.find((l) => l.id === id);
     return loc ? spotFromLocation(loc) : null;
   }, [wasteland, mapLocations]);
+  // a link to one place opens its card once the map has it
+  const sharedPlaceDone = useRef(false);
+  useEffect(() => {
+    if (sharedPlaceDone.current || !initial.place) return;
+    if (mapLocations.some((l) => l.id === initial.place)) { sharedPlaceDone.current = true; setSelectedId(initial.place); }
+  }, [mapLocations, initial.place]);
   const selectedSpot = useMemo(() => spotFor(selectedId), [spotFor, selectedId]);
   const sceneSpot = useMemo(() => spotFor(sceneId), [spotFor, sceneId]);
   // the page's title and description follow what is on the screen (search engines that run the page, and anyone sharing or bookmarking it, see where they are)
@@ -682,6 +689,22 @@ export default function App() {
   }, [show]);
 
   const viewNow = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
+  const mapPosterRef = useRef<() => MapPosterInput | null>(() => null);
+  const mapPoster = useCallback(() => mapPosterRef.current(), []);
+  mapPosterRef.current = () => {
+    const v = viewNow.current;
+    const el = document.querySelector('.rm-screen');
+    if (!v || !el) return null;
+    const box = el.getBoundingClientRect();
+    const lngPerPx = 360 / (256 * 2 ** v.zoom);
+    const latPerPx = lngPerPx * Math.cos((v.lat * Math.PI) / 180);
+    const dLng = (box.width / 2) * lngPerPx * 1.15, dLat = (box.height / 2) * latPerPx * 1.15;
+    const pins = mapLocations
+      .filter((l) => Math.abs(l.position.lat - v.lat) <= dLat && Math.abs(l.position.lng - v.lng) <= dLng)
+      .slice(0, 400)
+      .map((l) => ({ lat: l.position.lat, lng: l.position.lng, svg: (freeRenderFor(l.id) && landmarkIcon(l.id.slice(3))) || placeIcon(l.icon), found: shownVisited.has(l.id) }));
+    return { look: LOOKS[look], lat: v.lat, lng: v.lng, zoom: v.zoom, width: box.width, height: box.height, title: zoomName ?? (liveName || wasteland?.regionName) ?? '', pins };
+  };
   const onViewport = useCallback((center: LatLng, zoom: number) => {
     viewNow.current = { lat: center.lat, lng: center.lng, zoom };
     window.clearTimeout(viewTimer.current);
@@ -1396,7 +1419,7 @@ export default function App() {
               />
             )}
             {tab === 'data' && <AccountPanel locationOf={locationOf} vacation={vacationOffer} onVacation={setVacationAsk} account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
-            {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} account={account} />}
+            {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} account={account} mapPoster={mapPoster} />}
           </section>
         </aside>
       </main>

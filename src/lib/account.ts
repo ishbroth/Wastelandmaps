@@ -598,3 +598,20 @@ export async function vacationPicture(placeId: string): Promise<string | null> {
   const { data } = await db().functions.invoke('vacation-vault', { body: { action: 'url', placeId } });
   return (data as { url?: string } | null)?.url ?? null;
 }
+
+// ---- the gallery: the finished pictures this person has unlocked ----
+
+export interface GalleryItem { id: string; name: string; city: string | null; lat: number | null; lng: number | null; at: string; kind: 'place' | 'address' | 'home' }
+
+/** Everything this person has unlocked that has a finished picture (with a name and a position for each), or null if it could not be read. */
+export async function loadGallery(): Promise<GalleryItem[] | null> {
+  const { data, error } = await db().functions.invoke('gallery', { body: {} });
+  if (error || !data || !Array.isArray((data as { items?: unknown }).items)) return null;
+  return (data as { items: GalleryItem[] }).items;
+}
+
+/** A link (good for an hour) to the finished picture of one they have unlocked. Reading only: it never makes a picture or charges anything. */
+export async function galleryUrl(id: string): Promise<string | null> {
+  const { data, error } = await db().functions.invoke('gallery', { body: { action: 'url', id } });
+  return error || !data || typeof (data as { url?: unknown }).url !== 'string' ? null : (data as { url: string }).url;
+}

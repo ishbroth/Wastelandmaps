@@ -72,5 +72,5 @@ export function describePersonal(name: string, address: string, kind: PersonalKi
   for (const c of `${name}|${address}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
   h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13;
   const pick = options[(h >>> 0) % options.length];
-  return [`${name}, ${regionName}. ${address}.`, pick, 'Yours: a place you walked to yourself, and the map remembers it for you.'];
+  return [`${name}, ${regionName}. ${address}.`, pick];
 }

@@ -239,7 +239,7 @@ html[data-look='parchment'] .rm-foot { color: #b99e62; }
 
 /* ---- printing a poster: just the title and the map ---- */
 @media print {
-  @page { size: landscape; margin: 10mm; }
+  @page { size: auto; margin: 8mm; }
   body { background: #fff !important; background-image: none !important; }
   .rm-head, .rm-side, .rm-foot, .rm-status, .rm-map .gmnoprint { display: none !important; }
   .rm-app { padding: 0; max-width: none; }
@@ -1022,3 +1022,34 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-vh-types-two .rm-vh-icon { width: 44px; height: 44px; }
 .rm-vh-types-two .rm-vh-name { flex-direction: column; gap: 4px; }
 .rm-vh-rule { font-size: 15px !important; }
+
+/* ---- the Share tab's gallery ---- */
+.rm-gallery { margin-top: 12px; border-top: 1px solid var(--line); }
+.rm-gallery-head { width: 100%; display: flex; justify-content: space-between; align-items: center; background: transparent; color: var(--ink); border: 0; padding: 8px 0 4px; font: inherit; cursor: pointer; }
+.rm-gallery-head h3 { margin: 0; }
+.rm-gallery-head span { font-size: 14px; color: var(--ink-dim); }
+.rm-gallery-body { padding-bottom: 6px; }
+.rm-gallery-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; margin-top: 8px; }
+.rm-gallery-track::-webkit-scrollbar { display: none; }
+.rm-gallery-slide { flex: 0 0 100%; scroll-snap-align: center; margin: 0; padding: 0 2px; box-sizing: border-box; }
+.rm-gallery-frame { position: relative; border: 1px solid var(--line); background: #000; min-height: 180px; display: grid; place-items: center; }
+.rm-gallery-frame img { display: block; width: 100%; max-height: 60vh; object-fit: contain; user-select: none; -webkit-user-drag: none; }
+.rm-gallery-wait { padding: 40px 12px; text-align: center; color: var(--ink-dim); letter-spacing: 2px; font-size: 14px; }
+.rm-gallery-share { position: absolute; right: 8px; bottom: 8px; width: 38px; height: 38px; padding: 7px; display: grid; place-items: center; background: rgba(2, 26, 12, 0.78); color: #3dff8a; border: 1px solid #3dff8a; cursor: pointer; }
+.rm-gallery-share svg { width: 100%; height: 100%; }
+.rm-gallery-share:hover { background: #3dff8a; color: #021a0c; }
+.rm-gallery-slide figcaption { margin-top: 6px; text-align: center; display: grid; gap: 1px; }
+.rm-gallery-slide figcaption b { font-weight: 400; font-size: 20px; letter-spacing: 2px; color: var(--ink); }
+.rm-gallery-slide figcaption i { font-style: normal; font-size: 14px; letter-spacing: 2px; color: var(--ink-dim); }
+.rm-gallery-count { margin: 6px 0 0; text-align: center; font-size: 12px; letter-spacing: 2px; color: var(--ink-dim); }
+.rm-row-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.rm-row-buttons .rm-btn { flex: 1 1 0; min-width: 0; }
+
+/* ---- printing from the Share tab: one Pip-Boy window and nothing else of the page ---- */
+#rm-print-sheet { display: none; }
+@media print {
+  body.rm-printing-sheet > *:not(#rm-print-sheet) { display: none !important; }
+  body.rm-printing-sheet { background: #fff !important; background-image: none !important; margin: 0; padding: 0; }
+  body.rm-printing-sheet #rm-print-sheet { display: block; }
+  #rm-print-sheet img { display: block; margin: 0 auto; max-width: 100%; max-height: calc(100vh - 2px); width: auto; height: auto; object-fit: contain; }
+}

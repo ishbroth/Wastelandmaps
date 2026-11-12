@@ -22,7 +22,9 @@ import { WEAPON_CLASS_IDS, WEAPON_CLASSES, nextWeapon, weaponAt, type WeaponClas
 import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
 import { iconHtmlFor } from '../lib/landmarkIcons';
 import { buildShareUrl } from '../lib/share';
-import type { LookId } from '../lib/looks';
+import { LOOKS, type LookId } from '../lib/looks';
+import Gallery, { type GalleryNow } from './Gallery';
+import { printImage, renderMapPoster, renderPicturePoster, saveImage, type MapPosterInput } from '../lib/poster';
 import type { Region } from '../lib/google';
 
 /** Is this place's snapshot unlocked? The same test the snapshot button uses: a free landmark, a place unlocked with a credit, or your home (unlocked under its vault key). */
@@ -417,9 +419,33 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
   );
 }
 
-export function SharePanel({ query, look, account }: { query: string; look: LookId; account: Account }) {
+export function SharePanel({ query, look, account, mapPoster }: { query: string; look: LookId; account: Account; mapPoster: () => MapPosterInput | null }) {
   const [copied, setCopied] = useState(false);
-  const link = query ? buildShareUrl({ query, look }) : '';
+  // the picture on show in the gallery (when it is open): the link, copy, print and save then belong to it; otherwise to the map
+  const [now, setNow] = useState<GalleryNow | null>(null);
+  const [working, setWorking] = useState(false);
+  const [note, setNote] = useState('');
+  const mapLink = query ? buildShareUrl({ query, look }) : '';
+  const picLink = now ? buildShareUrl({ query: '', look, ...(now.item.lat !== null && now.item.lng !== null ? { view: { lat: now.item.lat, lng: now.item.lng, zoom: now.item.kind === 'place' ? 17 : 18 } } : {}), ...(now.item.kind === 'place' ? { place: now.item.id } : {}) }) : '';
+  const link = now ? picLink : mapLink;
+  const say = (text: string) => { setNote(text); window.setTimeout(() => setNote(''), 3000); };
+  /** The finished picture on show, as a file. */
+  const picture = async (): Promise<Blob | null> => { if (!now?.url) return null; try { return await (await fetch(now.url)).blob(); } catch { return null; } };
+  const fileName = now ? `${now.item.name.replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png` : `${(query || 'wasteland').split(',')[0].replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
+  const save = async () => {
+    setWorking(true);
+    try {
+      if (now) { const blob = await picture(); if (!blob) { say('That picture is not ready yet'); return; } await saveImage(blob, fileName, now.item.name); }
+      else { const input = mapPoster(); if (!input) { say('Move the map a little first'); return; } await saveImage(await renderMapPoster(input), fileName, query); }
+    } catch { say('That could not be saved'); } finally { setWorking(false); }
+  };
+  const print = async () => {
+    setWorking(true);
+    try {
+      if (now) { const blob = await picture(); if (!blob) { say('That picture is not ready yet'); return; } await printImage(await renderPicturePoster(blob, LOOKS[look])); }
+      else { const input = mapPoster(); if (!input) { say('Move the map a little first'); return; } await printImage(await renderMapPoster(input)); }
+    } catch { say('That could not be printed'); } finally { setWorking(false); }
+  };
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(link);
@@ -431,15 +457,16 @@ export function SharePanel({ query, look, account }: { query: string; look: Look
   };
   return (
     <div className="rm-share">
-      <p>Anyone who opens the link sees the same wasteland in the same look.</p>
       <input className="rm-link" readOnly value={link || 'Pick a place first'} onFocus={(e) => e.currentTarget.select()} aria-label="Share link" />
       <div className="rm-row-buttons">
-        <button type="button" className="rm-btn" disabled={!link} onClick={copy}>{copied ? 'COPIED' : 'COPY LINK'}</button>
-        <button type="button" className="rm-btn" disabled={!link} onClick={() => window.print()}>PRINT POSTER</button>
+        <button type="button" className="rm-btn" disabled={!link} onClick={copy}>{copied ? 'COPIED' : 'COPY'}</button>
+        <button type="button" className="rm-btn" disabled={!link || working} onClick={() => void print()}>PRINT</button>
+        <button type="button" className="rm-btn" disabled={!link || working} onClick={() => void save()}>{working ? 'WORKING…' : 'SAVE'}</button>
       </div>
+      {note && <p className="rm-fine" role="status">{note}</p>}
+      <Gallery account={account} onNow={setNow} />
       <p className="rm-fine">
-        The poster prints exactly what is on screen (use "Save as PDF" in the print window). Map imagery belongs to Google and is for your own
-        use; WastelandMaps is an unofficial fan project and is not affiliated with any game publisher or developer.
+        Map imagery belongs to Google and is for your own use; WastelandMaps is an unofficial fan project and is not affiliated with any game publisher or developer.
       </p>
       <Leaderboard account={account} />
     </div>
