@@ -45,7 +45,7 @@ export default function LocationCard({ waiting, spot, from, here, visited, clear
   return (
     <div className="rm-card" role="region" aria-label={spot.name}>
       <div className="rm-card-top">
-        <span className={`rm-card-icon${spot.kind === 'vault' || spot.vault || spot.icon === 'vault' || spot.icon === 'homevault' || String(spot.icon).startsWith('vacation:') ? ' rm-card-icon-bare' : ''}`} dangerouslySetInnerHTML={{ __html: iconHtmlFor(spot.id, placeIcon(spot.icon)) }} />
+        <span className={`rm-card-icon${visited ? ' rm-visited' : ''}${spot.kind === 'vault' || spot.vault || spot.icon === 'vault' || spot.icon === 'homevault' || String(spot.icon).startsWith('vacation:') ? ' rm-card-icon-bare' : ''}`} dangerouslySetInnerHTML={{ __html: iconHtmlFor(spot.id, placeIcon(spot.icon)) }} />
         <div className="rm-card-title">
           {editing !== null ? (
             <input

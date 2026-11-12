@@ -24,14 +24,18 @@ export interface Weapon {
   pierce?: boolean;
   /** Shots per fight, for the weapons that cannot fire forever. */
   ammo?: number;
+  /** Rounds before it has to be reloaded (the pistols, the automatics and the sniper rifles; the flamethrower's tank is the default magazine). */
+  mag?: number;
   /** What it costs to build or upgrade to (nothing for the starting pistol). */
   recipe: LootBag;
 }
 
-/** Rounds in a magazine (or a tank of fuel): the automatic guns and the flamethrower reload by themselves every this many rounds. */
+/** Rounds in a magazine (or a tank of fuel) when a weapon does not say: the flamethrower's tank. */
 export const MAGAZINE = 100;
-/** Does this weapon work from a magazine? The ones you hold the trigger down for: the automatics and the flamethrower. */
-export const usesMagazine = (w: Weapon): boolean => !!w.auto;
+/** Rounds before a weapon must be reloaded (0 for the ones that never are: the launchers). */
+export const magazineOf = (w: Weapon): number => w.mag ?? (w.auto ? MAGAZINE : 0);
+/** Does this weapon work from a magazine? */
+export const usesMagazine = (w: Weapon): boolean => magazineOf(w) > 0;
 
 /** Cost of each tier in pieces of loot: 4, then 7, 10 and 15 more. */
 export const TIER_COST: Record<1 | 2 | 3 | 4, number> = { 1: 4, 2: 7, 3: 10, 4: 15 };
@@ -41,30 +45,30 @@ export const WEAPON_CLASSES: Record<WeaponClass, { label: string; /** Where it s
     label: 'Pistols',
     slot: 'left',
     tiers: [
-      { id: 'm1911', name: 'Colt M1911', real: 'Colt M1911, .45 ACP semi-automatic pistol', tier: 1, damage: 14, rate: 3, recipe: {} },
-      { id: 'sw29', name: 'Smith & Wesson Model 29', real: 'Smith & Wesson Model 29, .44 Magnum revolver', tier: 2, damage: 26, rate: 2.2, recipe: { steel: 3, springs: 2, screws: 2 } },
-      { id: 'deagle', name: 'Desert Eagle', real: 'IMI Desert Eagle, .50 Action Express pistol', tier: 3, damage: 40, rate: 2, recipe: { steel: 4, springs: 3, screws: 2, adhesive: 1 } },
-      { id: 'sw500', name: 'Smith & Wesson Model 500', real: 'Smith & Wesson Model 500, .500 S&W Magnum revolver', tier: 4, damage: 65, rate: 1.5, recipe: { steel: 5, springs: 3, gears: 3, screws: 2, oil: 2 } },
+      { id: 'sw29', name: 'Smith & Wesson Model 29', real: 'Smith & Wesson Model 29, .44 Magnum revolver', tier: 1, damage: 14, rate: 3, mag: 6, recipe: {} },
+      { id: 'm1911', name: 'Colt M1911', real: 'Colt M1911, .45 ACP semi-automatic pistol', tier: 2, damage: 26, rate: 2.2, mag: 16, recipe: { steel: 3, springs: 2, screws: 2 } },
+      { id: 'deagle', name: 'Desert Eagle', real: 'IMI Desert Eagle, .50 Action Express pistol', tier: 3, damage: 40, rate: 2, mag: 16, recipe: { steel: 4, springs: 3, screws: 2, adhesive: 1 } },
+      { id: 'sw500', name: 'Smith & Wesson Model 500', real: 'Smith & Wesson Model 500, .500 S&W Magnum revolver', tier: 4, damage: 65, rate: 1.5, mag: 6, recipe: { steel: 5, springs: 3, gears: 3, screws: 2, oil: 2 } },
     ],
   },
   automatic: {
     label: 'Automatics',
     slot: 'right',
     tiers: [
-      { id: 'uzi', name: 'Uzi', real: 'IMI Uzi, 9mm submachine gun', tier: 1, damage: 7, rate: 10, auto: true, recipe: { steel: 2, springs: 1, plastic: 1 } },
-      { id: 'mp5', name: 'Heckler & Koch MP5', real: 'Heckler & Koch MP5, 9mm submachine gun', tier: 2, damage: 10, rate: 11, auto: true, recipe: { steel: 3, springs: 2, gears: 1, plastic: 1 } },
-      { id: 'ak47', name: 'AK-47', real: 'Kalashnikov AK-47, 7.62mm assault rifle', tier: 3, damage: 16, rate: 9, auto: true, recipe: { steel: 4, gears: 2, springs: 2, plastic: 1, oil: 1 } },
-      { id: 'm249', name: 'M249 SAW', real: 'FN M249 SAW, 5.56mm light machine gun', tier: 4, damage: 20, rate: 12, auto: true, recipe: { steel: 5, gears: 3, springs: 2, plastic: 2, oil: 2, screws: 1 } },
+      { id: 'uzi', name: 'Uzi', real: 'IMI Uzi, 9mm submachine gun', tier: 1, damage: 7, rate: 10, auto: true, mag: 60, recipe: { steel: 2, springs: 1, plastic: 1 } },
+      { id: 'mp5', name: 'Heckler & Koch MP5', real: 'Heckler & Koch MP5, 9mm submachine gun', tier: 2, damage: 10, rate: 11, auto: true, mag: 80, recipe: { steel: 3, springs: 2, gears: 1, plastic: 1 } },
+      { id: 'ak47', name: 'AK-47', real: 'Kalashnikov AK-47, 7.62mm assault rifle', tier: 3, damage: 16, rate: 9, auto: true, mag: 80, recipe: { steel: 4, gears: 2, springs: 2, plastic: 1, oil: 1 } },
+      { id: 'm249', name: 'M249 SAW', real: 'FN M249 SAW, 5.56mm light machine gun', tier: 4, damage: 20, rate: 12, auto: true, mag: 100, recipe: { steel: 5, gears: 3, springs: 2, plastic: 2, oil: 2, screws: 1 } },
     ],
   },
   sniper: {
     label: 'Sniper Rifles',
     slot: 'bottom',
     tiers: [
-      { id: 'model70', name: 'Winchester Model 70', real: 'Winchester Model 70, .30-06 bolt-action hunting rifle', tier: 1, damage: 70, rate: 0.9, recipe: { wood: 2, steel: 1, glass: 1 } },
-      { id: 'rem700', name: 'Remington 700', real: 'Remington 700, .308 bolt-action sniper rifle', tier: 2, damage: 110, rate: 0.8, recipe: { wood: 2, steel: 2, glass: 2, screws: 1 } },
-      { id: 'svd', name: 'Dragunov SVD', real: 'Dragunov SVD, 7.62x54mmR semi-automatic sniper rifle', tier: 3, damage: 150, rate: 1.4, recipe: { steel: 3, glass: 3, concrete: 1, screws: 2, wood: 1 } },
-      { id: 'm82', name: 'Barrett M82', real: 'Barrett M82, .50 BMG anti-materiel rifle', tier: 4, damage: 300, rate: 0.7, pierce: true, recipe: { steel: 4, glass: 3, concrete: 3, circuitry: 2, screws: 2, oil: 1 } },
+      { id: 'model70', name: 'Winchester Model 70', real: 'Winchester Model 70, .30-06 bolt-action hunting rifle', tier: 1, damage: 70, rate: 0.9, mag: 12, recipe: { wood: 2, steel: 1, glass: 1 } },
+      { id: 'rem700', name: 'Remington 700', real: 'Remington 700, .308 bolt-action sniper rifle', tier: 2, damage: 110, rate: 0.8, mag: 12, recipe: { wood: 2, steel: 2, glass: 2, screws: 1 } },
+      { id: 'svd', name: 'Dragunov SVD', real: 'Dragunov SVD, 7.62x54mmR semi-automatic sniper rifle', tier: 3, damage: 150, rate: 1.4, mag: 12, recipe: { steel: 3, glass: 3, concrete: 1, screws: 2, wood: 1 } },
+      { id: 'm82', name: 'Barrett M82', real: 'Barrett M82, .50 BMG anti-materiel rifle', tier: 4, damage: 300, rate: 0.7, pierce: true, mag: 12, recipe: { steel: 4, glass: 3, concrete: 3, circuitry: 2, screws: 2, oil: 1 } },
     ],
   },
   explosive: {

@@ -68,6 +68,6 @@ check('it no longer comes to a standstill between steps (far fewer almost-stoppe
 const plan: RaidPlan = { worth: 10, enemies: ['ghoul'], boss: null, waves: [3], total: 3, lootTypes: ['steel'], lootRange: [2, 3] };
 const g = new Game({ plan, spawns: DEFAULT_SPAWNS, arsenal: { pistol: 1, automatic: 0, sniper: 0, explosive: 0 }, random: seeded(7) });
 let t = 0; while (g.outcome === 'fighting' && t < 120) { g.update(DT); t += DT; }
-check('left alone, three enemies still strike three times and the survivor is lost', g.outcome === 'lost' && g.hits === 3, `${g.outcome} ${g.hits}`);
+check('left alone, three enemies strike three times and take about three blows off the bar', g.hits === 3 && g.health <= g.maxHealth - 75 && g.health >= g.maxHealth - 99, `${g.outcome} ${g.hits} ${g.health.toFixed(1)}`);
 
 process.exit(bad ? 1 : 0);

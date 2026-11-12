@@ -1,7 +1,7 @@
 // Checks on the reload system: the automatic guns and the flamethrower reload by themselves every 100 rounds, in about a step and a half of an enemy's walk;
 // nothing fires during a reload; the other weapons are untouched. Run: npx tsx _tools/reload.check.ts
-import { AVERAGE_STEP_SECONDS, DEFAULT_SPAWNS, Game, RELOAD_SECONDS, RELOAD_STEPS, stepGapFor } from '../src/lib/raid/engine.ts';
-import { ENEMIES } from '../src/lib/raid/enemies.ts';
+import { AVERAGE_STEP_SECONDS, DEFAULT_SPAWNS, Game, RELOAD_SECONDS, RELOAD_STEPS, healthForLevel, stepGapFor } from '../src/lib/raid/engine.ts';
+import { ENEMIES, STRIKE_DAMAGE } from '../src/lib/raid/enemies.ts';
 import { MAGAZINE, WEAPON_CLASSES, usesMagazine, type Arsenal } from '../src/lib/raid/weapons.ts';
 import type { RaidPlan } from '../src/lib/raid/raid.ts';
 
@@ -19,7 +19,7 @@ check('the quick waves and quick creatures really step faster than the slow ones
 
 // ---- which weapons have a magazine
 const mags = Object.entries(WEAPON_CLASSES).flatMap(([cls, c]) => c.tiers.filter(usesMagazine).map((w) => `${cls}:${w.id}`));
-check('only the automatics and the flamethrower use a magazine', mags.join() === 'automatic:uzi,automatic:mp5,automatic:ak47,automatic:m249,explosive:flamethrower', mags.join());
+check('the pistols, the automatics, the sniper rifles and the flamethrower use a magazine (the other heavy weapons do not)', mags.join() === 'pistol:sw29,pistol:m1911,pistol:deagle,pistol:sw500,automatic:uzi,automatic:mp5,automatic:ak47,automatic:m249,sniper:model70,sniper:rem700,sniper:svd,sniper:m82,explosive:flamethrower', mags.join());
 check('the magazine is 100 rounds', MAGAZINE === 100);
 
 // ---- a game with nothing coming (so nothing strikes) to shoot into
@@ -51,15 +51,15 @@ check('a reload does not tick while the game is paused (weapon wheel, downed)', 
 
 // ---- switching weapons during a reload
 const c = game({ automatic: 2 }); c.select('automatic');
-let m = 0; while (m < 100) { c.update(1 / 60); if (shoot(c)) m++; }
+let m = 0; while (m < c.capacity('automatic')) { c.update(1 / 60); if (shoot(c)) m++; }
 const before = c.reloadLeft.automatic as number;
 c.select('pistol'); c.update(0.3);
 check('switching to the pistol: it can fire at once, and the reload carries on in the background', shoot(c) && (c.reloadLeft.automatic as number) < before - 0.25 && c.reloadLeft.automatic! > 0, `${before} -> ${c.reloadLeft.automatic}`);
 c.select('automatic');
 check('switching back during the reload: still reloading, not restarted and not cancelled', c.reloading && (c.reloadLeft.automatic as number) < before, `${c.reloadLeft.automatic}`);
 for (let t = 0; t < RELOAD_SECONDS; t += 1 / 60) c.update(1 / 60);
-check('and it finishes while the pistol was in hand (the magazine is full when you come back)', !c.reloading && c.mag.automatic === 100);
-check('each magazine is its own: the pistol has none', c.mag.pistol === undefined);
+check('and it finishes while the pistol was in hand (the magazine is full when you come back)', !c.reloading && c.mag.automatic === c.capacity('automatic'));
+check('each magazine is its own: the pistol has fired one of its six, the automatic is full', c.mag.pistol === 5 && c.mag.automatic === 80);
 
 // ---- the flamethrower: 600 rounds in all, as before, six magazines
 const f = game({ explosive: 1 }); f.select('explosive');
@@ -72,10 +72,18 @@ check('out of fuel it does not start a reload and fires nothing more', !shoot(f)
 // ---- the other weapons are untouched
 const o = game({ sniper: 1, explosive: 2 });
 o.select('sniper'); let s1 = 0; for (let t = 0; t < 30; t += 1 / 60) { o.update(1 / 60); if (shoot(o)) s1++; }
-check('the sniper rifle has no magazine and never reloads', o.mag.sniper === undefined && !o.reloading && s1 >= 25, `${s1}`);
+check('the sniper rifle holds 12 rounds and then reloads', o.capacity('sniper') === 12 && o.mag.sniper !== undefined && s1 >= 12, `${s1}`);
 o.select('explosive'); let s2 = 0; for (let t = 0; t < 60; t += 1 / 60) { o.update(1 / 60); if (shoot(o)) s2++; }
 check('the grenade launcher keeps its 20 shots a fight, with no magazine', o.mag.explosive === undefined && !o.reloading && s2 === 20 && o.ammo.explosive === 0, `${s2}`);
 const p = game({}); let s3 = 0; for (let t = 0; t < 20; t += 1 / 60) { p.update(1 / 60); if (shoot(p)) s3++; }
-check('the pistol fires without limit', s3 >= 55 && p.mag.pistol === undefined);
+check('the first pistol is the Smith & Wesson six-shooter: six rounds, then a reload', p.weapon?.id === 'sw29' && p.capacity('pistol') === 6 && s3 >= 6 && s3 < 55, `${s3}`);
+const colt = game({ pistol: 2 });
+check('the Colt, the next pistol, holds 16', colt.weapon?.id === 'm1911' && colt.capacity('pistol') === 16);
+const autos = [1, 2, 3, 4].map((t) => game({ automatic: t as 1 | 2 | 3 | 4 }).capacity('automatic'));
+check('the automatics hold 60, 80, 80 and 100', autos.join() === '60,80,80,100', autos.join());
 
+// ---- the health bar: three of the weakest enemy's hardest blows end a level-0 survivor, and cannot by about level 10
+check('at the start the weakest enemy can end the bar in three blows at its hardest', STRIKE_DAMAGE.weak[1] * 3 >= healthForLevel(0));
+check('by about level 10 it cannot (the bar has grown by about a tenth)', STRIKE_DAMAGE.weak[1] * 3 < healthForLevel(10) && Math.abs(healthForLevel(10) / healthForLevel(0) - 1.1) < 0.011);
+check('the middling and strong enemies still end it in three at their harder blows even at level 10', STRIKE_DAMAGE.medium[1] * 3 > healthForLevel(10) && STRIKE_DAMAGE.strong[1] * 3 > healthForLevel(10));
 process.exit(bad ? 1 : 0);

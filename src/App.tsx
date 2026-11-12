@@ -1068,6 +1068,18 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [nav?.route, nav?.step, nav?.toTurn, nav?.remaining, nav?.spot, fix, mapLocations]);
 
+  // the line under the map: what an action says (NAVIGATING TO..., ARRIVED AT..., an error) goes back to the normal line once it is over
+  const restLine = useMemo(() => {
+    if (!wasteland) return 'AWAITING COORDINATES';
+    const name = (liveName || wasteland.regionName).toUpperCase();
+    return locations.length > 0 ? `${name}: ${locations.length} LOCATIONS MARKED. PICK ONE TO FAST TRAVEL` : `${name}: NO SURVIVORS ON RECORD HERE. TRY A BIGGER CITY NEARBY`;
+  }, [wasteland, liveName, locations.length]);
+  useEffect(() => {
+    if (/^NAVIGATING TO /.test(message)) { if (!nav) setMessage(restLine); return; }
+    if (!/^(ARRIVED AT |YOU EMERGE INTO |\d+ NEW LOCATIONS|NO SUCH PLACE|ERROR: |LOOKING FOR YOU)/.test(message)) return;
+    const t = window.setTimeout(() => setMessage(restLine), /^ERROR: /.test(message) ? 9000 : 6500);
+    return () => window.clearTimeout(t);
+  }, [message, nav, restLine]);
   const endNavigation = useCallback(() => {
     if (navRef.current) speak('Navigation terminated.');
     setNav(null);

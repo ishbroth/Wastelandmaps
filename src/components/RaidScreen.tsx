@@ -6,13 +6,18 @@ import { playSound } from '../lib/raid/audio';
 import { enemyFiles, hasVoice, playEnemy, preloadSfx } from '../lib/sfx';
 import { buzz } from '../lib/haptics';
 import { enemyById } from '../lib/raid/enemies';
-import { Game, MAX_HITS, SLOW_SECONDS, type Enemy, type Spawns } from '../lib/raid/engine';
+import { Game, SLOW_SECONDS, type Enemy, type Spawns } from '../lib/raid/engine';
 import { LOOT_CAP, describeBag, lootName, type LootBag, type LootId } from '../lib/raid/loot';
 import type { RaidPlan } from '../lib/raid/raid';
-import { MAGAZINE, WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
+import { WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
+import { levelInfo } from '../lib/points';
 
 interface Hud {
   hits: number;
+  /** The survivor's health as a share of the bar (1 is full). */
+  hp: number;
+  /** Rounds in one magazine of the weapon in hand. */
+  magSize: number;
   ammo: number | null;
   /** Rounds in the magazine of the weapon in hand (null for a weapon without one), what is left in reserve after it, and how far through a reload it is. */
   mag: number | null;
@@ -64,6 +69,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   const run = useRef<string | null>(null);
   const view = useRef({ x: 0, y: 0, w: 1, h: 1 });
   const pointer = useRef({ down: false, x: -1, y: -1 });
+  /** Looking through the sniper scope: how far zoomed in (1 to 1.5, eased), and which point of the picture (as a share of its width and height) is in the middle of the scope. */
+  const scope = useRef({ zoom: 1, pu: 0.5, pv: 0.62, drag: null as null | { x: number; y: number; pu: number; pv: number; moved: boolean } });
   const [phase, setPhase] = useState<'loading' | 'fighting' | 'won' | 'lost' | 'error'>('loading');
   // the size of the screen right now: turning the phone gives the new size a moment late (the viewport units lag behind on some phones), so it is read again a few times after every turn
   const [screenBox, setScreenBox] = useState({ w: window.innerWidth, h: window.innerHeight });
@@ -147,7 +154,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       bg.current = picture;
       assets.current = art;
       run.current = started.runId;
-      game.current = new Game({ plan, spawns, arsenal: account.arsenal });
+      game.current = new Game({ plan, spawns, arsenal: account.arsenal, level: levelInfo(account.points).level });
       if (import.meta.env.DEV) (window as unknown as { __game?: Game }).__game = game.current; // for trying things out in development
       setPhase('fighting');
       last = performance.now();
@@ -165,6 +172,10 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       if (!g || !c || cancelled) return;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+      // the scope eases in and out as the sniper rifle is taken up and put down
+      const wantZoom = g.selected === 'sniper' && !!g.weapon && !g.paused ? 1.5 : 1;
+      scope.current.zoom += (wantZoom - scope.current.zoom) * Math.min(1, dt * 9);
+      if (Math.abs(wantZoom - scope.current.zoom) < 0.002) scope.current.zoom = wantZoom;
       const before = g.killed;
       const hitsBefore = g.hits;
       g.update(dt);
@@ -195,7 +206,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         lastHud = now;
         const boss = g.enemies.find((e) => e.boss && e.state !== 'dying');
         setHud({
-          hits: g.hits, ammo: g.ammo[g.selected] ?? null, mag: g.mag[g.selected] ?? null, reload: g.reloadProgress,
+          hits: g.hits, hp: g.health / g.maxHealth, magSize: g.capacity(g.selected), ammo: g.ammo[g.selected] ?? null, mag: g.mag[g.selected] ?? null, reload: g.reloadProgress,
           reserve: g.mag[g.selected] !== undefined && g.ammo[g.selected] !== undefined ? Math.max(0, (g.ammo[g.selected] as number) - (g.mag[g.selected] as number)) : null,
           selected: g.selected, remaining: g.remaining,
           banner: g.bannerT > 0 ? g.banner : '', bossHp: boss ? boss.hp / boss.maxHp : null, bossName: boss?.type.name ?? '', slow: g.slowLeft,
@@ -242,12 +253,24 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       const contain = Math.min(cssW / picture.naturalWidth, cssH / picture.naturalHeight);
       const fitted = cover / contain > 1.5;
       const scale = fitted ? contain : cover;
-      const vw = picture.naturalWidth * scale, vh = picture.naturalHeight * scale;
-      const vx = (cssW - vw) / 2;
-      const vy = fitted ? (cssH - vh) / 2 : cssH - vh;
+      const baseW = picture.naturalWidth * scale, baseH = picture.naturalHeight * scale;
+      const baseX = (cssW - baseW) / 2;
+      const baseY = fitted ? (cssH - baseH) / 2 : cssH - baseH;
+      // through the scope the picture is bigger (1.5 times) and can be scrolled: the point of it that is in the middle of the scope is kept as a share of the picture, so
+      // turning the phone (a different size and shape of screen) keeps the same place in the middle
+      const Z = scope.current.zoom;
+      const through = (Z - 1) / 0.5; // 0 to 1: how much of the way into the scope
+      const vw = baseW * Z, vh = baseH * Z;
+      const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+      const zoomX = vw >= cssW ? clamp(cssW / 2 - scope.current.pu * vw, cssW - vw, 0) : (cssW - vw) / 2;
+      const zoomY = vh >= cssH ? clamp(cssH / 2 - scope.current.pv * vh, cssH - vh, 0) : (cssH - vh) / 2;
+      const vx = baseX + (zoomX - baseX) * through;
+      const vy = baseY + (zoomY - baseY) * through;
       view.current = { x: vx, y: vy, w: vw, h: vh };
 
       if (pointer.current.x < 0) { pointer.current.x = cssW * 0.5; pointer.current.y = cssH * 0.55; }
+      // looking through the scope the shot goes where the crosshair is: the middle of the screen
+      if (through > 0.5) { pointer.current.x = cssW / 2; pointer.current.y = cssH / 2; }
       const shake = g.shake * 8;
       ctx.save();
       ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
@@ -421,8 +444,28 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         ctx.fillRect(0, 0, cssW, cssH);
       }
 
+      // looking through a sniper scope: dark all round the lens, and a fine crosshair with a mark on each arm
+      if (through > 0.02) {
+        const sx = cssW / 2, sy = cssH / 2, R = Math.min(cssW, cssH) * 0.46;
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, through * 1.4);
+        ctx.fillStyle = 'rgba(0,0,0,0.93)';
+        ctx.beginPath(); ctx.rect(-20, -20, cssW + 40, cssH + 40); ctx.arc(sx, sy, R, 0, Math.PI * 2, true); ctx.fill('evenodd');
+        ctx.strokeStyle = 'rgba(0,0,0,0.95)'; ctx.lineWidth = Math.max(6, R * 0.03);
+        ctx.beginPath(); ctx.arc(sx, sy, R, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(8,8,8,0.9)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(sx - R, sy); ctx.lineTo(sx + R, sy); ctx.moveTo(sx, sy - R); ctx.lineTo(sx, sy + R); ctx.stroke();
+        ctx.strokeStyle = 'rgba(0,0,0,0.95)'; ctx.lineWidth = Math.max(3, R * 0.016);
+        const gapC = R * 0.07;
+        ctx.beginPath(); ctx.moveTo(sx - R * 0.5, sy); ctx.lineTo(sx - gapC, sy); ctx.moveTo(sx + gapC, sy); ctx.lineTo(sx + R * 0.5, sy); ctx.moveTo(sx, sy - R * 0.5); ctx.lineTo(sx, sy - gapC); ctx.moveTo(sx, sy + gapC); ctx.lineTo(sx, sy + R * 0.5); ctx.stroke();
+        ctx.fillStyle = 'rgba(0,0,0,0.95)';
+        for (const k of [0.15, 0.25, 0.35, 0.45]) for (const [dx, dy] of [[k, 0], [-k, 0], [0, k], [0, -k]]) { ctx.beginPath(); ctx.arc(sx + dx * R, sy + dy * R, Math.max(2, R * 0.009), 0, Math.PI * 2); ctx.fill(); }
+        ctx.fillStyle = 'rgba(255,60,40,0.95)'; ctx.beginPath(); ctx.arc(sx, sy, 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
       // the crosshair, where the survivor is aiming (it moves to wherever they tap)
       const cx = pointer.current.x, cy = pointer.current.y, cr = Math.max(16, unit * 0.034) * (1 + g.recoil * 0.25);
+      if (through > 0.5) return;
       ctx.save();
       ctx.lineCap = 'round';
       for (const [color, width] of [['rgba(0,0,0,0.75)', 5], ['rgba(255,236,150,0.95)', 2]] as [string, number][]) {
@@ -477,7 +520,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       g.downed = false;
       g.paused = false;
       setStims(result.qty ?? Math.max(0, stims - 1));
-      setHud((h) => (h ? { ...h, hits: 0 } : h));
+      setHud((h) => (h ? { ...h, hits: 0, hp: 1 } : h));
       setDowned(false);
       void account.refresh();
     } else {
@@ -521,7 +564,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   };
   const heal = async () => {
     const g = game.current;
-    if (!g || healing || stims <= 0 || g.hits <= 0) return;
+    if (!g || healing || stims <= 0 || g.health >= g.maxHealth) return;
     setHealing(true);
     const result = await useStimpak();
     if (result.ok) {
@@ -538,10 +581,26 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       <canvas
         ref={canvas}
         className="rm-raid-canvas"
-        onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); aimAt(e); pointer.current.down = true; (e.currentTarget as HTMLCanvasElement & { __shoot?: () => void }).__shoot?.(); }}
-        onPointerMove={aimAt}
-        onPointerUp={() => { pointer.current.down = false; }}
-        onPointerCancel={() => { pointer.current.down = false; }}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          if (scope.current.zoom > 1.25) { scope.current.drag = { x: e.clientX, y: e.clientY, pu: scope.current.pu, pv: scope.current.pv, moved: false }; return; }
+          aimAt(e); pointer.current.down = true; (e.currentTarget as HTMLCanvasElement & { __shoot?: () => void }).__shoot?.();
+        }}
+        onPointerMove={(e) => {
+          const d = scope.current.drag;
+          if (!d) { aimAt(e); return; }
+          const dx = e.clientX - d.x, dy = e.clientY - d.y;
+          if (!d.moved && Math.hypot(dx, dy) > 8) d.moved = true;
+          if (d.moved) { scope.current.pu = Math.max(0, Math.min(1, d.pu - dx / view.current.w)); scope.current.pv = Math.max(0, Math.min(1, d.pv - dy / view.current.h)); }
+        }}
+        onPointerUp={(e) => {
+          const d = scope.current.drag;
+          scope.current.drag = null;
+          pointer.current.down = false;
+          // a tap (not a scroll) through the scope fires at the crosshair, in the middle
+          if (d && !d.moved) (e.currentTarget as HTMLCanvasElement & { __shoot?: () => void }).__shoot?.();
+        }}
+        onPointerCancel={() => { pointer.current.down = false; scope.current.drag = null; }}
       />
       {phase === 'loading' && <div className="rm-raid-center">GETTING READY…</div>}
       {phase === 'error' && (
@@ -555,10 +614,10 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       {phase === 'fighting' && hud && (
         <>
           <div className="rm-raid-top">
-            <div className="rm-raid-strikes" aria-label={`Strikes taken: ${hud.hits} of ${MAX_HITS}`}>
-              {Array.from({ length: MAX_HITS }, (_, i) => <i key={i} className={i < hud.hits ? 'hit' : ''} />)}
+            <div className="rm-raid-hp" role="progressbar" aria-label="Health" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(hud.hp * 100)}>
+              <div className="rm-raid-hp-ghost" style={{ width: `${Math.round(hud.hp * 100)}%` }} />
+              <div className="rm-raid-hp-fill" style={{ width: `${Math.round(hud.hp * 100)}%` }} />
             </div>
-            <span className="rm-raid-left">{hud.remaining} LEFT</span>
             <button type="button" className="rm-btn rm-btn-ghost" onClick={onExit}>RETREAT</button>
           </div>
           {hud.bossHp !== null && (
@@ -566,11 +625,11 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           )}
           {hud.banner && <div className="rm-raid-banner" key={hud.banner}>{hud.banner}</div>}
           {hud.mag !== null
-            ? <div className={`rm-raid-ammo${hud.reload !== null ? ' rm-raid-reloading' : ''}`}>{hud.reload !== null ? 'RELOADING…' : `AMMO ${hud.mag}/${MAGAZINE}`}{hud.reserve !== null && hud.reserve > 0 && <small> +{hud.reserve}</small>}{hud.reload !== null && <span className="rm-raid-reload-bar"><span style={{ width: `${Math.round(hud.reload * 100)}%` }} /></span>}</div>
+            ? <button type="button" className={`rm-raid-ammo${hud.reload !== null ? ' rm-raid-reloading' : ''}`} onClick={() => game.current?.reload()} disabled={wheelOpen || downed} aria-label="Ammo: tap to reload" title="Tap to reload">{hud.reload !== null ? 'RELOADING…' : `AMMO ${hud.mag}/${hud.magSize}`}{hud.reserve !== null && hud.reserve > 0 && <small> +{hud.reserve}</small>}{hud.reload !== null && <span className="rm-raid-reload-bar"><span style={{ width: `${Math.round(hud.reload * 100)}%` }} /></span>}</button>
             : hud.ammo !== null && <div className="rm-raid-ammo">AMMO {hud.ammo}</div>}
           <div className="rm-raid-bar">
             <button type="button" className="rm-btn rm-raid-btn" onClick={openWheel} disabled={wheelOpen || downed}>WEAPONS</button>
-            <button type="button" className="rm-btn rm-raid-btn" onClick={() => void heal()} disabled={wheelOpen || downed || healing || stims <= 0 || hud.hits <= 0} title="Take back all your strikes">STIMPAK ×{stims}</button>
+            <button type="button" className="rm-btn rm-raid-btn" onClick={() => void heal()} disabled={wheelOpen || downed || healing || stims <= 0 || hud.hp >= 0.999} title="Take back all your health">STIMPAK ×{stims}</button>
             <button
               type="button" className={`rm-btn rm-raid-btn rm-raid-time${hud.slow > 0 ? ' running' : ''}`} onClick={() => void slowTime()}
               disabled={wheelOpen || downed || timing || hud.slow > 0 || times <= 0} title="Legendary Time: slow the enemies for four seconds" aria-label={`Legendary Time, ${times} left`}

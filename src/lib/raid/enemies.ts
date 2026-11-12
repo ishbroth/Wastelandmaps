@@ -53,3 +53,10 @@ export const BOSSES: Record<BossId, EnemyType> = {
 export const ENEMY_IDS = Object.keys(ENEMIES) as EnemyId[];
 export const BOSS_IDS = Object.keys(BOSSES) as BossId[];
 export const enemyById = (id: EnemyId | BossId): EnemyType => (ENEMIES as Record<string, EnemyType>)[id] ?? (BOSSES as Record<string, EnemyType>)[id];
+
+/** How dangerous an enemy is to the survivor: the weak (raiders, flies, roaches, mole rats, ghouls), the middling (robots, radscorpions, mirelurks), the strong (super mutants, deathclaws and every boss). */
+export type Threat = 'weak' | 'medium' | 'strong';
+export const threatOf = (t: EnemyType): Threat =>
+  t.id in BOSSES || t.id === 'supermutant' || t.id === 'deathclaw' ? 'strong' : t.id === 'robot' || t.id === 'radscorpion' || t.id === 'mirelurk' ? 'medium' : 'weak';
+/** The health the survivor loses to one blow, out of a bar of 100: a bit more or less than a third, so three blows are close to the end at the start and not enough later (the bar grows with the level). */
+export const STRIKE_DAMAGE: Record<Threat, [number, number]> = { weak: [25, 33], medium: [30, 38], strong: [33, 40] };

@@ -102,8 +102,8 @@ interface Props {
 /** The most markers on the map at once. */
 const MAX_PINS = 450;
 const WORLD_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 };
-/** From this zoom in every name tag shows on its own (the icons' and the radiation zones' too); it was 16, one level later. */
-const LABEL_ZOOM = 15;
+/** From this zoom in (nearly street level: where the side streets and the buildings' outlines show) every name tag stays on its own. Before that only the brief tags show (a place picked up on the radio, or one that appears as the map is zoomed in, its name unscrambling for a moment), and they do not come back as the map is zoomed in. */
+const LABEL_ZOOM = 17;
 /** Picking a place from the list zooms the map in to at least this far. */
 const PICK_ZOOM = 16;
 /** The picked place's name tag stays while you zoom out as far as this (about where the ordinary places drop off the map, leaving the famous landmarks), and goes below it. */
@@ -741,11 +741,13 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !nav || nav.path.length < 2) return;
-    const halo = new google.maps.Polyline({ map, path: nav.path, strokeColor: '#000000', strokeOpacity: 0.5, strokeWeight: 8, zIndex: 20 });
-    const thin = new google.maps.Polyline({ map, path: nav.path, strokeColor: look.ink, strokeOpacity: 0.55, strokeWeight: 3, zIndex: 21 });
-    const aheadHalo = new google.maps.Polyline({ map, path: [], strokeColor: '#000000', strokeOpacity: 0.7, strokeWeight: 14, zIndex: 22 });
+    // the route is drawn brighter than the map's own ink while navigating, and its pulse only ever goes between bright and brighter
+    const routeColor = look.id === 'pipboy' ? '#b8ffd6' : look.ink;
+    const halo = new google.maps.Polyline({ map, path: nav.path, strokeColor: '#000000', strokeOpacity: 0.3, strokeWeight: 8, zIndex: 20 });
+    const thin = new google.maps.Polyline({ map, path: nav.path, strokeColor: routeColor, strokeOpacity: 0.85, strokeWeight: 3, zIndex: 21 });
+    const aheadHalo = new google.maps.Polyline({ map, path: [], strokeColor: '#000000', strokeOpacity: 0.3, strokeWeight: 14, zIndex: 22 });
     const aheadLine = new google.maps.Polyline({
-      map, path: [], strokeColor: look.ink, strokeOpacity: 1, strokeWeight: 7, zIndex: 23,
+      map, path: [], strokeColor: routeColor, strokeOpacity: 1, strokeWeight: 7, zIndex: 23,
       icons: [{ icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.6, strokeColor: '#000000', strokeWeight: 1, fillColor: '#ffffff', fillOpacity: 0.95 }, offset: '0px', repeat: '46px' }],
     });
     ahead.current = { halo: aheadHalo, line: aheadLine };
@@ -770,10 +772,10 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
       const t = (now - started) / 1000;
       const k = 0.5 + 0.5 * Math.sin(t * 4.2);
       aheadLine.setOptions({
-        strokeOpacity: 0.62 + 0.38 * k, strokeWeight: 6 + 3 * k,
+        strokeOpacity: 0.9 + 0.1 * k, strokeWeight: 6 + 3 * k,
         icons: [{ icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.4 + 0.6 * k, strokeColor: '#000000', strokeWeight: 1, fillColor: '#ffffff', fillOpacity: 0.95 }, offset: `${Math.floor((t * 34) % 46)}px`, repeat: '46px' }],
       });
-      aheadHalo.setOptions({ strokeOpacity: 0.45 + 0.3 * k });
+      aheadHalo.setOptions({ strokeOpacity: 0.26 + 0.1 * k });
       raf = requestAnimationFrame(pulse);
     };
     raf = requestAnimationFrame(pulse);
@@ -811,6 +813,63 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     live.line.setPath(route);
     live.halo.setPath(route);
   }, [nav?.step, nav?.steps, player]);
+
+  // heading up, as the navigation apps do: the map turns around you so the way ahead is always straight up the screen. The map's own tiles cannot be rotated, so the
+  // whole map layer is turned (made larger than the screen so its corners never show) and the icons are turned back to stand upright.
+  const heading = useRef(0);
+  const navigatingNow = !!nav;
+  useEffect(() => {
+    const map = mapRef.current;
+    const host = holder.current;
+    const screenBox = host?.parentElement;
+    if (!map || !host || !screenBox || !navigatingNow) return;
+    const size = () => {
+      const w = screenBox.clientWidth, h = screenBox.clientHeight;
+      const shift = Math.round(h * 0.18); // you stand lower than the middle of the screen, so the way ahead shows
+      const d = Math.ceil(Math.hypot(w, h) + 2 * shift); // big enough that the turned layer covers every corner even after the shift
+      host.style.setProperty('--nav-d', `${d}px`);
+      host.style.setProperty('--nav-shift', `${shift}px`);
+    };
+    size();
+    host.classList.add('rm-nav-rot');
+    map.setOptions({ gestureHandling: 'none' }); // a finger would move the turned map the wrong way: the map follows you, and a tap on the screen's buttons still works
+    window.addEventListener('resize', size);
+    return () => {
+      window.removeEventListener('resize', size);
+      host.classList.remove('rm-nav-rot');
+      host.style.removeProperty('--nav-d'); host.style.removeProperty('--nav-shift'); host.style.removeProperty('--nav-rot');
+      map.setOptions({ gestureHandling: 'greedy' });
+      heading.current = 0;
+    };
+  }, [navigatingNow]);
+  useEffect(() => {
+    const host = holder.current;
+    if (!host || !nav || !player) return;
+    // the way ahead: toward the first point of the route that is a little way off (a few turns of the road are ignored, so the map does not shake)
+    let target: LatLng | null = null;
+    let walked = 0;
+    let last = player;
+    outer: for (let i = nav.step; i < nav.steps.length; i++) {
+      const st = nav.steps[i];
+      const pts = st.path.length ? st.path : [st.start, st.end];
+      for (const q of pts) {
+        const seg = distanceMeters(last, q);
+        walked += seg; last = q;
+        if (walked >= 35 && distanceMeters(player, q) >= 25) { target = q; break outer; }
+      }
+    }
+    if (!target) return;
+    const r = Math.PI / 180;
+    const y = Math.sin((target.lng - player.lng) * r) * Math.cos(target.lat * r);
+    const x = Math.cos(player.lat * r) * Math.sin(target.lat * r) - Math.sin(player.lat * r) * Math.cos(target.lat * r) * Math.cos((target.lng - player.lng) * r);
+    const bearing = (Math.atan2(y, x) / r + 360) % 360;
+    // the shortest way round from where the map is turned to now, and a gentle approach so it swings rather than jumps
+    let delta = ((bearing - (heading.current % 360)) % 360 + 540) % 360 - 180;
+    if (Math.abs(delta) < 1.5) delta = 0;
+    heading.current += delta * 0.6;
+    host.style.setProperty('--nav-rot', `${(-heading.current).toFixed(1)}deg`);
+    host.style.setProperty('--nav-unrot', `${heading.current.toFixed(1)}deg`);
+  }, [nav?.step, nav?.steps, player]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const map = mapRef.current;

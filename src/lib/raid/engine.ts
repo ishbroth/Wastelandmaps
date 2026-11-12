@@ -4,9 +4,9 @@
 // backs off three steps and comes again until the survivor has taken three in all. Everything is in the picture's own coordinates (u across, v down,
 // both 0 to 1) and the screen maps them (see RaidScreen).
 
-import { ENEMIES, enemyById, type BossId, type EnemyType } from './enemies';
+import { ENEMIES, STRIKE_DAMAGE, enemyById, threatOf, type BossId, type EnemyType } from './enemies';
 import type { RaidPlan } from './raid';
-import { MAGAZINE, WEAPON_CLASS_IDS, usesMagazine, weaponAt, type Arsenal, type Weapon, type WeaponClass } from './weapons';
+import { magazineOf, WEAPON_CLASS_IDS, usesMagazine, weaponAt, type Arsenal, type Weapon, type WeaponClass } from './weapons';
 
 /** Where enemies come from: the line of the horizon (v), and the spots on the ground (u, v) they step out of. */
 export interface Spawns {
@@ -28,6 +28,9 @@ export const PERSON_HEIGHT = 0.3;
 const STRIKE_V = 0.98;
 /** How many strikes the survivor can take. */
 export const MAX_HITS = 3;
+/** The survivor's health bar at level 0 (a blow takes 25 to 40 of it, so about three blows end it), and how much more it holds at each level: one per cent. The weakest enemy cannot take three blows' worth (99) once the bar passes it, around level 10. */
+export const BASE_HEALTH = 91;
+export const healthForLevel = (level: number): number => BASE_HEALTH * (1 + 0.01 * Math.max(0, level));
 /** How fast the enemies move while Legendary Time lasts, as a share of their usual speed, and how long it lasts in seconds. */
 export const SLOW_FACTOR = 0.3;
 export const SLOW_SECONDS = 4;
@@ -134,14 +137,19 @@ export interface GameOptions {
   spawns: Spawns;
   arsenal: Arsenal;
   random?: () => number;
+  /** The survivor's level: it sets how much health the bar holds. */
+  level?: number;
 }
 
 export class Game {
   readonly plan: RaidPlan;
   readonly spawns: Spawns;
   readonly arsenal: Arsenal;
-  /** Strikes taken so far (three is death). */
+  /** Strikes taken so far. */
   hits = 0;
+  /** The survivor's health, and the most the bar holds at their level (a blow takes a share of it by how strong the enemy is; none left is death). */
+  maxHealth: number;
+  health: number;
   /** The action is stopped (the weapon wheel is open). */
   paused = false;
   /** Seconds of Legendary Time left: the enemies walk, wait and strike at a fraction of their speed (the survivor's own gun, reloads and strikes are not slowed). */
@@ -187,12 +195,14 @@ export class Game {
     this.spawns = opts.spawns;
     this.arsenal = opts.arsenal;
     this.random = opts.random ?? Math.random;
+    this.maxHealth = healthForLevel(opts.level ?? 0);
+    this.health = this.maxHealth;
     for (const cls of WEAPON_CLASS_IDS) {
       const tier = opts.arsenal[cls];
       if (tier > 0) {
         const w = weaponAt(cls, tier as 1 | 2 | 3 | 4);
         if (w.ammo) this.ammo[cls] = w.ammo;
-        if (usesMagazine(w)) this.mag[cls] = Math.min(MAGAZINE, w.ammo ?? MAGAZINE);
+        if (usesMagazine(w)) this.mag[cls] = Math.min(magazineOf(w), w.ammo ?? magazineOf(w));
       }
     }
     // who comes in each wave: the kinds of enemy this place has, mixed, with the boss last
@@ -219,11 +229,22 @@ export class Game {
     return left === undefined || left <= 0 ? null : 1 - left / RELOAD_SECONDS;
   }
 
+  /** Rounds one magazine of this class holds (0 if the class has none). */
+  capacity(cls: WeaponClass): number {
+    const tier = this.arsenal[cls];
+    return tier === 0 ? 0 : magazineOf(weaponAt(cls, tier as 1 | 2 | 3 | 4));
+  }
+
+  /** Reloads the weapon in hand now (tapping the ammo): when its magazine is not full and it is not being reloaded already. */
+  reload() {
+    if (this.outcome === 'fighting' && !this.paused) this.startReload(this.selected);
+  }
+
   /** Starts a reload of this class's magazine, if it has a magazine and anything left to load. */
   private startReload(cls: WeaponClass) {
     const tier = this.arsenal[cls];
     if (tier === 0 || !usesMagazine(weaponAt(cls, tier as 1 | 2 | 3 | 4))) return;
-    if ((this.mag[cls] ?? 0) >= MAGAZINE || (this.reloadLeft[cls] ?? 0) > 0) return;
+    if ((this.mag[cls] ?? 0) >= this.capacity(cls) || (this.reloadLeft[cls] ?? 0) > 0) return;
     if (this.ammo[cls] !== undefined && (this.ammo[cls] ?? 0) <= 0) return; // the flamethrower's last fuel is gone: nothing to load
     this.reloadLeft[cls] = RELOAD_SECONDS;
   }
@@ -321,7 +342,7 @@ export class Game {
       if (left === undefined) continue;
       if (left - dt > 0) { this.reloadLeft[cls] = left - dt; continue; }
       delete this.reloadLeft[cls];
-      this.mag[cls] = Math.min(MAGAZINE, this.ammo[cls] ?? MAGAZINE);
+      this.mag[cls] = Math.min(this.capacity(cls), this.ammo[cls] ?? this.capacity(cls));
     }
     this.recoil = Math.max(0, this.recoil - dt * 6);
     this.shake = Math.max(0, this.shake - dt * 3);
@@ -414,9 +435,10 @@ export class Game {
     this.slowLeft = Math.max(this.slowLeft, seconds);
   }
 
-  /** A stimpak: the survivor has all their strikes back. */
+  /** A stimpak: the survivor has all their health back. */
   heal() {
     this.hits = 0;
+    this.health = this.maxHealth;
     this.hitFlash = 0;
   }
 
@@ -427,9 +449,12 @@ export class Game {
     const v = 0.3 + this.random() * 0.4;
     this.strikes.push({ kind, u, v, t: 0, life: kind === 'blast' ? 0.7 : 1.1, seed: Math.floor(this.random() * 1e6) });
     this.hits++;
+    // how hard it hits: by how strong the enemy is, a share of the bar that is a bit more or less than a third
+    const [lo, hi] = STRIKE_DAMAGE[threatOf(e.type)];
+    this.health = Math.max(0, this.health - (lo + this.random() * (hi - lo)));
     this.hitFlash = 1;
     this.shake = Math.max(this.shake, kind === 'blast' ? 1 : 0.6);
-    if (this.hits >= MAX_HITS) {
+    if (this.health <= 0) {
       if (this.canRevive) { this.downed = true; this.paused = true; } else this.outcome = 'lost';
     }
   }
