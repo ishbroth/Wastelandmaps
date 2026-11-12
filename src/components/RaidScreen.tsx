@@ -5,7 +5,6 @@ import { loadRaidAssets, type RaidAssets } from '../lib/raid/assets';
 import { playSound } from '../lib/raid/audio';
 import { enemyFiles, hasVoice, playEnemy, preloadSfx } from '../lib/sfx';
 import { buzz } from '../lib/haptics';
-import { enemyById } from '../lib/raid/enemies';
 import { Game, SLOW_SECONDS, type Enemy, type Spawns } from '../lib/raid/engine';
 import { LOOT_CAP, describeBag, lootName, type LootBag, type LootId } from '../lib/raid/loot';
 import type { RaidPlan } from '../lib/raid/raid';
@@ -217,6 +216,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         });
       }
       if (g.outcome !== 'fighting') {
+        if (g.strikes.length) { g.strikes = []; g.hitFlash = 0; try { draw(c, g, now / 1000); } catch { /* keep the last frame */ } }
         void end(g.outcome === 'won');
         return;
       }
@@ -702,7 +702,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
                 {xp > 0 && <li><b>+{xp}</b> XP</li>}
               </ul>
             )
-          ) : <p>{plan.bossOnly ? 'The guardians of Vault 0 won this time. Come back with better guns and more stimpaks.' : <>The {plan.boss ? enemyById(plan.boss).name.toLowerCase() : enemyById(plan.enemies[0]).plural} won this time. Go back and try again.</>}</p>}
+          ) : <p>The Wasteland is cruel and unforgiving. Buy weapons and stimpaks and try again.</p>}
           <button type="button" className="rm-btn" onClick={onExit}>{phase === 'won' ? 'CONTINUE' : 'BACK'}</button>
         </div>
       )}

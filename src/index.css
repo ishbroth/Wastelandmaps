@@ -1094,3 +1094,6 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-card-icon, .rm-card-icon-bare { border: none; border-radius: 0; padding: 2px; }
 .rm-card-icon-bare:not(.rm-visited) svg { stroke-width: 1.1; }
 .rm-card-icon-bare:not(.rm-visited) svg .hub { display: none; }
+
+/* a boss's name and health bar sit under the survivor's own health bar, at the left */
+.rm-raid-boss { left: max(10px, env(safe-area-inset-left)); top: calc(max(10px, env(safe-area-inset-top)) + 30px); transform: none; width: min(220px, 46vw); text-align: left; }
