@@ -285,11 +285,17 @@ export class Game {
     // a picture that was looked at can send some of them down from high up, or in from the side of the picture, to keep the survivor guessing (flyers always come the usual way)
     let entry: 'ground' | 'climb' | 'side' = 'ground';
     const roll = this.random();
+    let airborne = false;
+    if (type.flying && this.spawns.high?.length && roll < 0.55) {
+      // a flyer does not have to start on the ground: it can come from up among the buildings
+      point = this.spawns.high[Math.floor(this.random() * this.spawns.high.length)];
+      airborne = true;
+    }
     if (!type.flying && !boss) {
       if (roll < 0.2 && this.spawns.high?.length) { entry = 'climb'; point = this.spawns.high[Math.floor(this.random() * this.spawns.high.length)]; }
       else if (roll < 0.4 && this.spawns.edges?.length) { entry = 'side'; point = this.spawns.edges[Math.floor(this.random() * this.spawns.edges.length)]; }
     }
-    const v0 = entry === 'climb' ? point.v : Math.max(this.spawns.horizon + 0.02, point.v);
+    const v0 = entry === 'climb' || airborne ? point.v : Math.max(this.spawns.horizon + 0.02, point.v);
     // the farther away it starts (the smaller it looks), the more steps it takes to arrive: eight at the farthest, six at the nearest (a climb or a walk in from the side takes a few more)
     const steps = 6 + Math.round(2 * (1 - this.depthAt(v0))) + (entry === 'climb' ? 3 : entry === 'side' ? 2 : 0);
     // later waves come faster; faster creatures take their steps sooner (see stepGapFor)

@@ -1089,3 +1089,8 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-card-icon.rm-visited svg .f { fill: currentColor; }
 .rm-card-icon.rm-visited svg .d { stroke: var(--on-ink); stroke-width: 1.5; }
 .rm-card-icon.rm-visited svg .s { stroke: currentColor; }
+
+/* the info bubble's icon: no extra ring round it; a vault entrance that is not found yet is the outline of the cog, as on the map */
+.rm-card-icon, .rm-card-icon-bare { border: none; border-radius: 0; padding: 2px; }
+.rm-card-icon-bare:not(.rm-visited) svg { stroke-width: 1.1; }
+.rm-card-icon-bare:not(.rm-visited) svg .hub { display: none; }
