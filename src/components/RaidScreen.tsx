@@ -65,6 +65,24 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   const view = useRef({ x: 0, y: 0, w: 1, h: 1 });
   const pointer = useRef({ down: false, x: -1, y: -1 });
   const [phase, setPhase] = useState<'loading' | 'fighting' | 'won' | 'lost' | 'error'>('loading');
+  // the size of the screen right now: turning the phone gives the new size a moment late (the viewport units lag behind on some phones), so it is read again a few times after every turn
+  const [screenBox, setScreenBox] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const timers: number[] = [];
+    const read = () => setScreenBox((b) => { const w = window.visualViewport?.width ?? window.innerWidth, h = window.visualViewport?.height ?? window.innerHeight; return Math.round(b.w) === Math.round(w) && Math.round(b.h) === Math.round(h) ? b : { w, h }; });
+    const turned = () => { read(); timers.splice(0).forEach((t) => window.clearTimeout(t)); for (const ms of [60, 200, 450, 900, 1600]) timers.push(window.setTimeout(read, ms)); };
+    window.addEventListener('resize', read);
+    window.addEventListener('orientationchange', turned);
+    window.visualViewport?.addEventListener('resize', read);
+    screen.orientation?.addEventListener?.('change', turned);
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+      window.removeEventListener('resize', read);
+      window.removeEventListener('orientationchange', turned);
+      window.visualViewport?.removeEventListener('resize', read);
+      screen.orientation?.removeEventListener?.('change', turned);
+    };
+  }, []);
   const [message, setMessage] = useState('');
   const [needsSignIn, setNeedsSignIn] = useState(false);
   const [hud, setHud] = useState<Hud | null>(null);
@@ -516,7 +534,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   };
 
   return createPortal(
-    <div className="rm-raid" role="dialog" aria-label="Looting" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+    <div className="rm-raid" style={{ width: screenBox.w, height: screenBox.h }} role="dialog" aria-label="Looting" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
       <canvas
         ref={canvas}
         className="rm-raid-canvas"
