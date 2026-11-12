@@ -135,6 +135,15 @@ export interface Strike {
   seed: number;
 }
 
+/** A grenade lobbed in an arc, or a missile flying straight, on its way to where it will go off. */
+export interface Projectile {
+  kind: 'grenade' | 'missile';
+  /** Where it leaves the gun, and where it lands (the picture's coordinates). */
+  u0: number; v0: number; u: number; v: number;
+  t: number; life: number;
+  damage: number; splash: number; aspect: number; ratio: (e: Enemy) => number;
+}
+
 export type Outcome = 'fighting' | 'won' | 'lost';
 
 export interface GameOptions {
@@ -165,6 +174,9 @@ export class Game {
   downed = false;
   enemies: Enemy[] = [];
   effects: Effect[] = [];
+  projectiles: Projectile[] = [];
+  /** How many times something has gone off (the screen plays the boom for each). */
+  boomed = 0;
   strikes: Strike[] = [];
   outcome: Outcome = 'fighting';
   /** The weapon class in hand. */
@@ -453,10 +465,27 @@ export class Game {
       }
     }
     this.enemies = this.enemies.filter((e) => (e.state === 'dying' ? e.t < 1.2 : e.state === 'leaving' ? e.t < 0.9 : true));
+    for (const p of [...this.projectiles]) { p.t += dt; if (p.t >= p.life) { this.projectiles.splice(this.projectiles.indexOf(p), 1); this.detonate(p); } }
     for (const fx of this.effects) fx.t += dt;
     this.effects = this.effects.filter((fx) => fx.t < fx.life);
     for (const s of this.strikes) s.t += dt;
     this.strikes = this.strikes.filter((s) => s.t < s.life);
+  }
+
+  /** A grenade or missile goes off: a big blast, and everything near it is hurt, whether or not it was aimed at one (the rubble will do). */
+  private detonate(p: Projectile) {
+    const radius = p.splash * 1.3;
+    this.boomed++;
+    this.effects.push({ kind: 'explosion', u: p.u, v: p.v, size: radius * 1.25, t: 0, life: 0.9 });
+    this.effects.push({ kind: 'explosion', u: p.u, v: p.v, size: radius * 0.7, t: 0, life: 0.5 });
+    this.shake = Math.max(this.shake, 1);
+    for (const e of this.alive) {
+      const [l, t, r, b] = this.box(e, p.aspect, p.ratio(e));
+      const cx = (l + r) / 2, cy = (t + b) / 2;
+      const d = Math.hypot((cx - p.u) * p.aspect, cy - p.v);
+      const reach = radius * p.aspect + Math.max(r - l, 0) * p.aspect * 0.4;
+      if (d <= reach) this.damage(e, p.damage * (1 - 0.5 * (d / reach)));
+    }
   }
 
   /** Legendary Time: the enemies slow down for this many seconds. */
@@ -538,6 +567,12 @@ export class Game {
       const pad = 0.012; // a little forgiveness for a fingertip
       return u >= l - pad && u <= r + pad && v >= t - pad && v <= b + pad;
     };
+    if (w.splash && !w.auto) {
+      // a grenade is lobbed and a missile flies: each goes off where it lands, some moments after the shot (see detonate)
+      const grenade = w.id === 'm79';
+      this.projectiles.push({ kind: grenade ? 'grenade' : 'missile', u0: 0.68, v0: 1.06, u, v, t: 0, life: grenade ? 0.95 : w.id === 'fatman' ? 0.7 : 0.42, damage: w.damage, splash: w.splash, aspect, ratio });
+      return true;
+    }
     if (w.splash) {
       const radius = w.splash;
       const flame = w.auto;

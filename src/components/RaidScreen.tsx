@@ -70,6 +70,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   const run = useRef<string | null>(null);
   const view = useRef({ x: 0, y: 0, w: 1, h: 1 });
   const pointer = useRef({ down: false, x: -1, y: -1 });
+  /** Holding the screen to aim a grenade (the arc shows); letting go lobs it. */
+  const aiming = useRef(false);
   /** Looking through the sniper scope: how far zoomed in (1 to 1.5, eased), and which point of the picture (as a share of its width and height) is in the middle of the scope. */
   const scope = useRef({ zoom: 1, pu: 0.5, pv: 0.62, drag: null as null | { x: number; y: number; pu: number; pv: number; moved: boolean } });
   const [phase, setPhase] = useState<'loading' | 'fighting' | 'won' | 'lost' | 'error'>('loading');
@@ -130,6 +132,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
     let raf = 0;
     let cancelled = false;
     let lastHud = 0;
+    let lastBoom = 0;
+    let finishing = -1;
     let last = performance.now();
 
     const start = async () => {
@@ -200,6 +204,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           if (cls === g.selected) playSound(now ? 'reloadOut' : 'reloadIn', sound);
         }
       }
+      if (g.boomed > lastBoom) { lastBoom = g.boomed; playSound('boom', sound); buzz('boom'); }
       if (g.killed > before) { if (!voicedDeath) playSound('kill', sound); buzz('kill'); }
       if (g.hits > hitsBefore) { playSound('hurt', sound); buzz('hurt'); }
       if (pointer.current.down) shoot();
@@ -216,7 +221,14 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         });
       }
       if (g.outcome !== 'fighting') {
-        if (g.strikes.length) { g.strikes = []; g.hitFlash = 0; try { draw(c, g, now / 1000); } catch { /* keep the last frame */ } }
+        // the blow that ends the fight is allowed to finish (the claw marks, the flash) before the screen says YOU DIED
+        if (finishing < 0) finishing = g.outcome === 'lost' ? 1.5 : 0;
+        for (const s of g.strikes) s.t += dt;
+        g.strikes = g.strikes.filter((s) => s.t < s.life);
+        g.hitFlash = Math.max(0, g.hitFlash - dt * 2.5);
+        g.shake = Math.max(0, g.shake - dt * 3);
+        finishing -= dt;
+        if (finishing > 0) { raf = requestAnimationFrame(loop); return; }
         void end(g.outcome === 'won');
         return;
       }
@@ -234,7 +246,6 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       if (g.fire(u, w, picture.naturalWidth / picture.naturalHeight, ratioOf)) {
         if (weapon) playSound(weapon.splash && !weapon.auto ? 'explosive' : weapon.auto && weapon.splash ? 'flame' : (g.selected as 'pistol' | 'automatic' | 'sniper'), sound);
         if (weapon) buzz(weapon.splash && !weapon.auto ? 'explosive' : weapon.auto && weapon.splash ? 'flame' : (g.selected as 'pistol' | 'automatic' | 'sniper'));
-        if (weapon?.splash && !weapon.auto) window.setTimeout(() => { playSound('boom', sound); buzz('boom'); }, 120);
       }
     };
     (canvas.current as HTMLCanvasElement & { __shoot?: () => void }).__shoot = shoot;
@@ -266,8 +277,9 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       const through = (Z - 1) / 0.5; // 0 to 1: how much of the way into the scope
       const vw = baseW * Z, vh = baseH * Z;
       const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
-      const zoomX = vw >= cssW ? clamp(cssW / 2 - scope.current.pu * vw, cssW - vw, 0) : (cssW - vw) / 2;
-      const zoomY = vh >= cssH ? clamp(cssH / 2 - scope.current.pv * vh, cssH - vh, 0) : (cssH - vh) / 2;
+      // (a picture that is smaller than the screen one way can still be moved that way: the middle of the scope can go to any part of the picture)
+      const zoomX = vw >= cssW ? clamp(cssW / 2 - scope.current.pu * vw, cssW - vw, 0) : cssW / 2 - scope.current.pu * vw;
+      const zoomY = vh >= cssH ? clamp(cssH / 2 - scope.current.pv * vh, cssH - vh, 0) : cssH / 2 - scope.current.pv * vh;
       const vx = baseX + (zoomX - baseX) * through;
       const vy = baseY + (zoomY - baseY) * through;
       view.current = { x: vx, y: vy, w: vw, h: vh };
@@ -355,6 +367,51 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           ctx.fillStyle = `rgba(255,230,150,${1 - p})`;
           ctx.beginPath(); ctx.arc(fxx, fxy, Math.max(2, fx.size * vw * (1 - p * 0.5)), 0, Math.PI * 2); ctx.fill();
         }
+      }
+      // grenades in the air, and missiles with a smoke trail behind them
+      for (const pr of g.projectiles) {
+        const k = Math.min(1, pr.t / pr.life);
+        const sx0 = vx + pr.u0 * vw, sy0 = vy + pr.v0 * vh, tx = vx + pr.u * vw, ty = vy + pr.v * vh;
+        const arc = Math.min(cssH * 0.4, vh * 0.45);
+        const at = (kk: number): [number, number] => [sx0 + (tx - sx0) * kk, sy0 + (ty - sy0) * kk - (pr.kind === 'grenade' ? Math.sin(Math.PI * kk) * arc : 0)];
+        const [px, py] = at(k);
+        const small = 1 - 0.55 * k; // it gets smaller as it goes away from you
+        const uu = Math.min(cssW, cssH);
+        if (pr.kind === 'missile') {
+          for (let i = 14; i >= 1; i--) {
+            const kk = k - i * 0.03;
+            if (kk < 0) continue;
+            const [qx, qy] = at(kk);
+            ctx.fillStyle = `rgba(215,215,205,${0.5 * (1 - i / 15)})`;
+            ctx.beginPath(); ctx.arc(qx + Math.sin(i * 2.1) * 2, qy + Math.cos(i * 1.7) * 2, uu * (0.008 + i * 0.0012) * (0.6 + small * 0.4), 0, Math.PI * 2); ctx.fill();
+          }
+          const [bx, by] = at(Math.max(0, k - 0.03));
+          const ang = Math.atan2(py - by, px - bx);
+          ctx.save(); ctx.translate(px, py); ctx.rotate(ang);
+          const len = uu * 0.05 * small;
+          ctx.fillStyle = 'rgba(255,180,60,0.95)'; ctx.beginPath(); ctx.arc(-len * 0.55, 0, len * 0.3, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#3a3d38'; ctx.fillRect(-len * 0.5, -len * 0.12, len, len * 0.24);
+          ctx.fillStyle = '#b8b0a0'; ctx.beginPath(); ctx.moveTo(len * 0.5, -len * 0.12); ctx.lineTo(len * 0.8, 0); ctx.lineTo(len * 0.5, len * 0.12); ctx.fill();
+          ctx.restore();
+        } else {
+          const r = uu * 0.024 * small;
+          ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(sx0 + (tx - sx0) * k, sy0 + (ty - sy0) * k, r, r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#4a5238'; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,230,0.55)'; ctx.beginPath(); ctx.arc(px - r * 0.3, py - r * 0.3, r * 0.35, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      // aiming a grenade: the arc it will fly and a ring where it will land
+      if (aiming.current && g.weapon?.id === 'm79') {
+        const sx0 = vx + 0.68 * vw, sy0 = vy + 1.06 * vh, tx = pointer.current.x, ty = pointer.current.y;
+        const arc = Math.min(cssH * 0.4, vh * 0.45);
+        ctx.save();
+        ctx.setLineDash([8, 9]); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,236,150,0.9)';
+        ctx.beginPath();
+        for (let i = 0; i <= 24; i++) { const kk = i / 24; const x = sx0 + (tx - sx0) * kk, y = sy0 + (ty - sy0) * kk - Math.sin(Math.PI * kk) * arc; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+        ctx.stroke();
+        ctx.setLineDash([]); ctx.strokeStyle = 'rgba(255,120,60,0.9)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(tx, ty, (g.weapon?.splash ?? 0.09) * 1.3 * vw, (g.weapon?.splash ?? 0.09) * 1.3 * vw * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
       }
       ctx.restore();
 
@@ -588,7 +645,9 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           if (scope.current.zoom > 1.25) { scope.current.drag = { x: e.clientX, y: e.clientY, pu: scope.current.pu, pv: scope.current.pv, moved: false }; return; }
-          aimAt(e); pointer.current.down = true; (e.currentTarget as HTMLCanvasElement & { __shoot?: () => void }).__shoot?.();
+          aimAt(e);
+          if (game.current?.weapon?.id === 'm79') { aiming.current = true; return; }
+          pointer.current.down = true; (e.currentTarget as HTMLCanvasElement & { __shoot?: () => void }).__shoot?.();
         }}
         onPointerMove={(e) => {
           const d = scope.current.drag;
@@ -601,10 +660,11 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           const d = scope.current.drag;
           scope.current.drag = null;
           pointer.current.down = false;
+          if (aiming.current) { aiming.current = false; aimAt(e); (e.currentTarget as HTMLCanvasElement & { __shoot?: () => void }).__shoot?.(); return; }
           // a tap (not a scroll) through the scope fires at the crosshair, in the middle
           if (d && !d.moved) (e.currentTarget as HTMLCanvasElement & { __shoot?: () => void }).__shoot?.();
         }}
-        onPointerCancel={() => { pointer.current.down = false; scope.current.drag = null; }}
+        onPointerCancel={() => { pointer.current.down = false; aiming.current = false; scope.current.drag = null; }}
       />
       {phase === 'loading' && <div className="rm-raid-center">GETTING READY…</div>}
       {phase === 'error' && (
