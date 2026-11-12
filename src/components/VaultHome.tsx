@@ -550,12 +550,22 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
         ),
       });
     });
+    // zoomed all the way out the places for more rooms are not drawn: only once a room is tapped (and the view has moved in on it) do the places beside it show
+    const focused = focus !== null ? vault.rooms[focus] : undefined;
+    const besideFocused = (col: number, row: number): boolean => {
+      if (!focused || focused.level !== level) return false;
+      for (let c = focused.col; c < focused.col + roomDef(focused.type).slots; c++) {
+        if ((c - 1 === col && focused.row === row) || (c + 1 === col && focused.row === row) || (c === col && focused.row - 1 === row) || (c === col && focused.row + 1 === row)) return true;
+      }
+      return false;
+    };
     for (const [col, row] of openCells) {
+      if (!besideFocused(col, row)) continue;
       layers.push({
         key: `c${col}-${row}`, depth: col + row,
         el: (
           <g className="rm-vh-open" role="button" aria-label="Clear and build a room here" onClick={(e) => {
-            if (focusRef.current !== null || stairSpotRef.current) return;
+            if (stairSpotRef.current) return;
             e.stopPropagation();
             if (!hasDecon(vault)) { say(DECON_REASON); return; }
             setPanel({ kind: 'build', level, col, row });
@@ -570,7 +580,7 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
     const ghosts = level > 0 ? vault.rooms.filter((r) => r.level === level - 1).map((r, i) => <RoomOutline key={`g${i}`} rect={roomRect(r)} label="" plain />) : [];
     const entry = vault.rooms.find((r) => r.type === 'entry' && r.level === level);
     return { layers, ghosts, entry, tapRoom };
-  }, [vault, fresh, level, say, openCells]);
+  }, [vault, fresh, level, say, openCells, focus]);
 
   // the furniture of each room, with where it stands (so it can be painted among the settlers, back to front); the piece being moved is drawn floating instead
   const movingKey = placing && placing.what === 'piece' && !placing.isNew ? `${placing.room}:${placing.item}` : '';

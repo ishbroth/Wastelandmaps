@@ -1053,3 +1053,16 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
   body.rm-printing-sheet #rm-print-sheet { display: block; }
   #rm-print-sheet img { display: block; margin: 0 auto; max-width: 100%; max-height: calc(100vh - 2px); width: auto; height: auto; object-fit: contain; }
 }
+
+/* the furniture window of a room: smaller (15% less tall), with smaller buttons, so the words, the pieces and DEMOLISH / CLOSE all fit with no scrolling inside it */
+.rm-vh-sheet.dock { height: 39%; }
+.rm-vh-sheet.dock .rm-vh-sheet-body { padding: 8px 12px 10px; }
+.rm-vh-sheet.dock .rm-vh-sheet-body h3 { font-size: 22px; margin: 0 0 2px; }
+.rm-vh-sheet.dock .rm-vh-sheet-body p { font-size: 14px; margin: 0 0 6px; line-height: 1.1; }
+.rm-vh-sheet.dock .rm-vh-types { gap: 5px; }
+.rm-vh-sheet.dock .rm-vh-types button { padding: 6px 8px; font-size: 18px; letter-spacing: 1.5px; }
+.rm-vh-sheet.dock .rm-vh-types button i { font-size: 13px; }
+.rm-vh-sheet.dock .rm-vh-types:not(.rm-vh-types-two) .rm-vh-icon { width: 26px; height: 26px; }
+.rm-vh-sheet.dock .rm-vh-row { margin-top: 6px; }
+.rm-vh-sheet.dock .rm-vh-row .rm-btn { font-size: 16px; padding: 2px 12px; }
+.rm-vh-sheet.dock .rm-vh-x { top: 4px; }
