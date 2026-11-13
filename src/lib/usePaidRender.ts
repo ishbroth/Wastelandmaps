@@ -23,7 +23,7 @@ const MESSAGES: Record<string, string> = {
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function usePaidRender(spotId: string, name: string, account: Account, enabled: boolean, extra?: { category?: string; kind?: string; metroId?: string | null; home?: boolean; flooded?: boolean; irradiated?: boolean; vault?: number }, alsoOwned = false) {
+export function usePaidRender(spotId: string, name: string, account: Account, enabled: boolean, extra?: { category?: string; kind?: string; metroId?: string | null; home?: boolean; flooded?: boolean; irradiated?: boolean; vault?: number; streetView?: boolean; lat?: number; lng?: number }, alsoOwned = false) {
   const [state, setState] = useState<PaidState>({ kind: 'idle' });
   const alive = useRef(true);
   const running = useRef(false);
