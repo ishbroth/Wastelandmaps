@@ -15,5 +15,6 @@ try {
   await b.clickText('sign in', { tag: 'button[type=submit]' });
   await sleep(12000);
   await b.shot(process.env.TEMP + '/signin-after.png');
+  await sleep(4000);
   console.log('after sign-in the page says:', (await b.ev('document.body.innerText.slice(0, 300)')).split(String.fromCharCode(10)).join(' | '));
 } finally { b.close(); }

@@ -36,6 +36,14 @@ const PROMPTS = {
   car2: SPRITE('a rusted burnt-out pickup truck wreck, doors open, tires gone, on its rims', 'a three-quarter front angle'),
   pole1: SPRITE('a leaning wooden utility pole with snapped dangling wires and a crossbar', 'the front'),
   lamp1: SPRITE('a bent rusted street lamp post with a broken lamp head hanging', 'the side'),
+  // flatter debris and things strewn about, to fill bare ground between the piles
+  flat1: SPRITE('a flat, wide spread of broken concrete slabs, shattered bricks and gravel lying low on the ground, no tall parts, no more than half a metre high, very wide and low', 'a low eye-level front view'),
+  flat2: SPRITE('a wide, low scatter of burnt planks, torn insulation, plaster chunks and crumpled sheet metal lying flat on the ground, nothing taller than half a metre', 'a low eye-level front view'),
+  flat3: SPRITE('a low flat patch of asphalt chunks, rubble and dead dry weeds, spread wide and flat on the ground, under half a metre high', 'a low eye-level front view'),
+  scatter1: SPRITE('a dozen separate small rocks, pebbles and a few random pieces of junk (a bent pipe, a broken brick, a rusty can) lying spaced apart with gaps between them, each one cut out as its own object, no ground underneath, spread out wide, very low', 'a low eye-level front view'),
+  scatter2: SPRITE('small stones, bits of glass, rusty cans and a few scraps of wood scattered sparsely across a patch of dusty ground, spread out with gaps between them, very low', 'a low eye-level front view'),
+  scatter3: SPRITE('a few dry dead weed tufts with small rocks and broken tile fragments scattered around, sparse and low', 'a low eye-level front view'),
+  tree4: SPRITE('a crooked dead tree with a few dry twisted branches and a hollow split trunk, medium height', 'the front'),
   // generic buildings: fronts straight on, sides straight on (flat elevations so they can be turned into boxes)
   housefront1: SPRITE('the front of a ruined single-storey suburban house: a collapsed roof, broken walls with charred siding, empty window holes and a ruined porch, drawn as a flat straight-on front elevation, the whole width of the house', 'straight on, orthographic, no perspective'),
   housefront2: SPRITE('the front of a ruined two-storey suburban house: a partly collapsed upper floor, torn stucco walls, empty windows, a sagging roof, drawn as a flat straight-on front elevation', 'straight on, orthographic, no perspective'),

@@ -19,7 +19,7 @@ const ROAD_W: Record<string, number> = { motorway: 14, trunk: 12, primary: 11, s
 interface Place { id: string; lat: number; lng: number; name: string }
 type V = { x: number; y: number };
 interface Road { id: number; hw: string; w: number; pts: V[] }
-interface Building extends NeighborItem { x: number; y: number; n: V; img: HTMLCanvasElement | null; ratio: number; width: number; depth: number; side: number }
+interface Building extends NeighborItem { x: number; y: number; n: V; img: HTMLCanvasElement | null; ratio: number; width: number; depth: number; side: number; /** the building as re-rendered: its own front and side, and its size in metres */ vf?: HTMLCanvasElement; vs?: HTMLCanvasElement; fw?: number; fh?: number; sd?: number }
 interface Tex { data: Uint8ClampedArray; mean: [number, number, number] }
 interface Assets { tex: Record<string, Tex>; sprites: Record<string, HTMLImageElement> }
 
@@ -27,10 +27,10 @@ const mPerDegLat = 111_320;
 const toMeters = (o: { lat: number; lng: number }, p: { lat: number; lng: number }): V => ({ x: (p.lng - o.lng) * mPerDegLat * Math.cos((o.lat * Math.PI) / 180), y: (p.lat - o.lat) * mPerDegLat });
 const hash = (n: number): number => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const BASE = import.meta.env.BASE_URL;
-const SPRITE_NAMES = ['rubble1', 'rubble2', 'rubble3', 'rubble4', 'tree1', 'tree2', 'tree3', 'car1', 'car2', 'pole1', 'lamp1', 'houseside1', 'houseside2', 'houseside3', 'shopside1'];
+const SPRITE_NAMES = ['rubble1', 'rubble2', 'rubble3', 'rubble4', 'tree1', 'tree2', 'tree3', 'car1', 'car2', 'pole1', 'lamp1', 'houseside1', 'houseside2', 'houseside3', 'shopside1', 'flat1', 'flat2', 'flat3', 'scatter2', 'scatter3', 'tree4'];
 const TEX_NAMES = ['asphalt', 'asphalt2', 'dirt', 'dirt2', 'dirt3', 'sidewalk'];
 /** How tall each stock piece stands, in metres (its width follows its picture). */
-const SPRITE_H: Record<string, number> = { rubble1: 2.2, rubble2: 2.2, rubble3: 1.1, rubble4: 2.4, tree1: 6.5, tree2: 4.5, tree3: 1.4, car1: 1.6, car2: 1.9, pole1: 8, lamp1: 6.5 };
+const SPRITE_H: Record<string, number> = { rubble1: 2.2, rubble2: 2.2, rubble3: 1.1, rubble4: 2.4, tree1: 6.5, tree2: 4.5, tree3: 1.4, tree4: 5, flat1: 0.55, flat2: 0.5, flat3: 0.5, scatter2: 0.4, scatter3: 0.7, car1: 1.6, car2: 1.9, pole1: 8, lamp1: 6.5 };
 
 const loadImg = (src: string): Promise<HTMLImageElement | null> => new Promise((res) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
 
@@ -94,6 +94,41 @@ function cutOut(img: HTMLImageElement): { canvas: HTMLCanvasElement; ratio: numb
   return { canvas: c, ratio: c.height / c.width };
 }
 
+/** A re-rendered building view (on flat magenta): the magenta cut out and the margin trimmed, so the canvas is the building alone. */
+function keyView(img: HTMLImageElement): { canvas: HTMLCanvasElement; aspect: number } | null {
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
+  x.drawImage(img, 0, 0);
+  const d = x.getImageData(0, 0, w, h), p = d.data;
+  let x0 = w, y0 = h, x1 = 0, y1 = 0;
+  for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) {
+    const i = (y * w + xx) * 4, r = p[i], g = p[i + 1], b = p[i + 2], m = Math.min(r, b) - g;
+    if (m > 70) p[i + 3] = 0;
+    else if (m > 35) { const k = 1 - (m - 35) / 35; p[i + 3] = Math.round(255 * k); p[i] = Math.round(r * k + g * (1 - k)); p[i + 2] = Math.round(b * k + g * (1 - k)); }
+    if (p[i + 3] > 40) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 - x0 < 40 || y1 - y0 < 40) return null;
+  x.putImageData(d, 0, 0);
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, scale = Math.min(1, 640 / Math.max(bw, bh));
+  const out = document.createElement('canvas'); out.width = Math.round(bw * scale); out.height = Math.round(bh * scale);
+  (out.getContext('2d') as CanvasRenderingContext2D).drawImage(c, x0, y0, bw, bh, 0, 0, out.width, out.height);
+  return { canvas: out, aspect: bw / bh };
+}
+/** How tall a building of this kind stands, in metres (the width follows from its picture). */
+const HEIGHT_OF: Record<string, number> = { house: 6.5, home: 6.5, address: 6.5, medical: 9, office: 10, church: 12, gov: 12, park: 5, place: 14 };
+/** The re-rendered pieces of a building loaded and sized: its front and its side, and how big it is. */
+async function loadViews(it: NeighborItem): Promise<{ vf: HTMLCanvasElement; vs: HTMLCanvasElement; fw: number; fh: number; sd: number } | null> {
+  if (!it.front || !it.side) return null;
+  const [fi, si] = await Promise.all([loadImg(it.front), loadImg(it.side)]);
+  const fr = fi ? keyView(fi) : null, sd = si ? keyView(si) : null;
+  if (!fr || !sd) return null;
+  const fh = HEIGHT_OF[it.kind] ?? 8;
+  const fw = Math.max(7, Math.min(42, fh * fr.aspect));
+  const depth = Math.max(6, Math.min(28, fh * sd.aspect));
+  return { vf: fr.canvas, vs: sd.canvas, fw, fh, sd: depth };
+}
+
 /** The lie of the land: heights (metres) on a grid round a point, from the free open elevation service (coarse, but it has the real hills). Null if it cannot be had. */
 interface Elev { cx: number; cy: number; step: number; n: number; h: Float32Array }
 async function fetchElev(origin: { lat: number; lng: number }, at: V): Promise<Elev | null> {
@@ -138,7 +173,7 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
   const [state, setState] = useState<'loading' | 'ready' | 'none' | 'error'>('loading');
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState('');
-  const world = useRef<{ origin: { lat: number; lng: number }; b: Building[]; roads: Map<number, Road>; loading: Set<string>; assets: Assets | null; elev: Elev | null; elevBusy: boolean; surface: { x: number; y: number; data: Uint8ClampedArray } | null; roadsVersion: number; builtVersion: number }>({ origin: center, b: [], roads: new Map(), loading: new Set(), assets: null, elev: null, elevBusy: false, surface: null, roadsVersion: 0, builtVersion: -1 });
+  const world = useRef<{ viewsPending: boolean; origin: { lat: number; lng: number }; b: Building[]; roads: Map<number, Road>; loading: Set<string>; assets: Assets | null; elev: Elev | null; elevBusy: boolean; surface: { x: number; y: number; data: Uint8ClampedArray } | null; roadsVersion: number; builtVersion: number }>({ viewsPending: false, origin: center, b: [], roads: new Map(), loading: new Set(), assets: null, elev: null, elevBusy: false, surface: null, roadsVersion: 0, builtVersion: -1 });
   const cam = useRef({ x: 0, y: 0, psi: 0, vel: 0, bob: 0, look: 0, g: 0 });
   const keys = useRef({ fwd: false, back: false });
   const dragLook = useRef<{ x: number; look: number } | null>(null);
@@ -167,7 +202,17 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
     if (!w.elevBusy && (!w.elev || Math.hypot(here.x - w.elev.cx, here.y - w.elev.cy) > 90)) { w.elevBusy = true; void fetchElev(w.origin, here).then((e) => { if (e) w.elev = e; w.elevBusy = false; }); }
     const roads = [...w.roads.values()];
     for (const it of got.items) {
-      if (w.b.some((b) => b.id === it.id) || w.loading.has(it.id)) continue;
+      const have = w.b.find((b) => b.id === it.id);
+      if (have) { // the building has since been re-rendered into its own pieces: it is rebuilt in the street with them
+        if (!have.vf && it.front && it.side && !w.loading.has(it.id + '#v')) {
+          w.loading.add(it.id + '#v');
+          const v = await loadViews(it);
+          if (v) { have.vf = v.vf; have.vs = v.vs; have.fw = v.fw; have.fh = v.fh; have.sd = v.sd; have.width = v.fw; have.depth = v.sd; }
+          w.loading.delete(it.id + '#v');
+        }
+        continue;
+      }
+      if (w.loading.has(it.id)) continue;
       w.loading.add(it.id);
       const m = toMeters(w.origin, it);
       const img = await loadImg(it.url);
@@ -177,18 +222,21 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       let n: V = { x: 0, y: -1 };
       if (nr) { const dx = nr.at.x - m.x, dy = nr.at.y - m.y, l = Math.hypot(dx, dy) || 1; n = { x: dx / l, y: dy / l }; }
       const homey = it.kind === 'house' || it.kind === 'home' || it.kind === 'address';
-      const width = homey ? 21 : 28; // the facade (the whole picture); the body of the building is the middle of it
-      const depth = homey ? 9 : 13;
+      let width = homey ? 21 : 28; // the facade (the whole picture); the body of the building is the middle of it
+      let depth = homey ? 9 : 13;
       // the front stands back from the sidewalk: if the place is closer to the street than that, it is set back
       if (nr) { const need = nr.road.w / 2 + 4.5 + depth / 2; if (nr.d < need) { m.x -= n.x * (need - nr.d); m.y -= n.y * (need - nr.d); } }
-      w.b.push({ ...it, x: m.x, y: m.y, n, img: cut?.canvas ?? null, ratio: Math.min(1.1, Math.max(0.5, cut?.ratio ?? 0.75)), width, depth, side: Math.floor(hash(m.x * 3 + m.y) * 3) });
+      const v = await loadViews(it);
+      if (v) { width = v.fw; depth = v.sd; }
+      w.b.push({ ...it, ...(v ? { vf: v.vf, vs: v.vs, fw: v.fw, fh: v.fh, sd: v.sd } : {}), x: m.x, y: m.y, n, img: cut?.canvas ?? null, ratio: Math.min(1.1, Math.max(0.5, cut?.ratio ?? 0.75)), width, depth, side: Math.floor(hash(m.x * 3 + m.y) * 3) });
     }
+    w.viewsPending = !!got.viewsPending;
     setBusy(false);
     return !!got.pending;
   }, [places]);
 
   useEffect(() => {
-    let cancelled = false;
+    let cancelled = false, timer = 0;
     void (async () => {
       const [assets, waiting] = await Promise.all([loadAssets(), gather(center, true)]);
       // the streets are still being fetched from the map: ask again for a little while, since each try saves what has come
@@ -196,6 +244,9 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       for (let i = 0; i < 8 && more && !cancelled; i++) { await new Promise((r) => setTimeout(r, 6000)); more = await gather(center, false); }
       if (cancelled) return;
       const w = world.current;
+      // buildings are being re-rendered into their own pieces in the background: look again now and then, and rebuild the street with them when they come
+      let tries = 0;
+      timer = window.setInterval(() => { if (w.viewsPending && tries++ < 16) { const k = cam.current, o = w.origin; void gather({ lat: o.lat + k.y / mPerDegLat, lng: o.lng + k.x / (mPerDegLat * Math.cos((o.lat * Math.PI) / 180)) }, false); } }, 20000);
       w.assets = assets;
       if (!w.b.length) { setState('none'); return; }
       const c = toMeters(w.origin, center);
@@ -209,7 +260,7 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       if (import.meta.env.DEV) { (window as unknown as { __sw?: unknown }).__sw = w; (window as unknown as { __swcam?: unknown }).__swcam = cam.current; }
       setState('ready');
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [center, gather]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -343,7 +394,7 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       const fogAlpha = (z: number) => Math.max(0.28, Math.min(1, 1.35 - z / FAR));
 
       // the buildings, as boxes: the picture on the front, generic ruined walls on the sides (each wall in strips, so it has perspective)
-      const strips = (src: CanvasImageSource, sw: number, sh: number, A: V, B: V, hM: number, sink = 0) => {
+      const strips = (src: CanvasImageSource, sw: number, sh: number, A: V, B: V, hM: number, sink = 0, flip = false) => {
         const N = 36;
         for (let i = 0; i < N; i++) {
           const t0 = i / N, t1 = (i + 1) / N;
@@ -355,63 +406,85 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
           if (xb - xa < 0.2 || xb < 0 || xa > W) continue;
           const zm = (z0c + z1c) / 2, hp = (hM * f) / zm, base = hy + ((CAM_H + sink) * f) / zm;
           ctx.globalAlpha = fogAlpha(zm);
-          ctx.drawImage(src, (i * sw) / N, 0, sw / N + 0.6, sh, xa, base - hp, xb - xa + 0.7, hp);
+          ctx.drawImage(src, ((flip ? N - 1 - i : i) * sw) / N, 0, sw / N + 0.6, sh, xa, base - hp, xb - xa + 0.7, hp);
         }
         ctx.globalAlpha = 1;
       };
       for (const b of w0.b) {
         const t: V = { x: -b.n.y, y: b.n.x };
-        const body = b.width * 0.55, hw = body / 2, hd = b.depth / 2, fw = b.width / 2; // the body of the building is the middle of the facade
+        const own = !!(b.vf && b.vs); // re-rendered into its own front and side: a real box of its own size
+        const body = own ? (b.fw as number) : b.width * 0.55, hw = body / 2, hd = b.depth / 2, fw = own ? hw : b.width / 2;
         const FL = { x: b.x + b.n.x * hd - t.x * hw, y: b.y + b.n.y * hd - t.y * hw }, FR = { x: b.x + b.n.x * hd + t.x * hw, y: b.y + b.n.y * hd + t.y * hw };
         const BL = { x: b.x - b.n.x * hd - t.x * hw, y: b.y - b.n.y * hd - t.y * hw }, BR = { x: b.x - b.n.x * hd + t.x * hw, y: b.y - b.n.y * hd + t.y * hw };
-        // the facade: the whole picture, across the front of the lot
+        // the front: its own front view, or (until it is re-rendered) the whole picture across the front of the lot
         const PL = { x: b.x + b.n.x * hd - t.x * fw, y: b.y + b.n.y * hd - t.y * fw }, PR = { x: b.x + b.n.x * hd + t.x * fw, y: b.y + b.n.y * hd + t.y * fw };
         const [bx, bz] = cam3({ x: b.x, y: b.y });
         if (bz < -b.width || bz > FAR + b.width || Math.abs(bx) > bz + b.width * 2 + 20) continue;
-        const hM = b.width * b.ratio, sideH = Math.min(hM * 0.5, b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? 6.5 : 7.5);
-        const sink = hM * 0.05;
-        const sideImg = assets.sprites[b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? `houseside${b.side + 1}` : 'shopside1'] ?? null;
+        const hM = own ? (b.fh as number) : b.width * b.ratio, sideH = own ? hM : Math.min(hM * 0.5, b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? 6.5 : 7.5);
+        const sink = own ? 0.12 : hM * 0.05;
+        const generic = assets.sprites[b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? `houseside${b.side + 1}` : 'shopside1'] ?? null;
+        const sideImg: CanvasImageSource | null = own ? (b.vs as HTMLCanvasElement) : generic;
+        const sideW = own ? (b.vs as HTMLCanvasElement).width : generic?.naturalWidth ?? 1, sideHpx = own ? (b.vs as HTMLCanvasElement).height : generic?.naturalHeight ?? 1;
+        const frontImg: CanvasImageSource | null = own ? (b.vf as HTMLCanvasElement) : b.img;
         things.push({ z: Math.max(bz, 0.1) + hd, draw: () => {
-          const faces: { A: V; B: V; out: V; img: CanvasImageSource | null; sw: number; sh: number; front: boolean }[] = [
-            { A: BL, B: FL, out: { x: -t.x, y: -t.y }, img: sideImg, sw: sideImg?.naturalWidth ?? 1, sh: sideImg?.naturalHeight ?? 1, front: false },
-            { A: FR, B: BR, out: t, img: sideImg, sw: sideImg?.naturalWidth ?? 1, sh: sideImg?.naturalHeight ?? 1, front: false },
-            { A: PL, B: PR, out: b.n, img: b.img, sw: b.img?.width ?? 1, sh: b.img?.height ?? 1, front: true },
+          const faces: { A: V; B: V; out: V; img: CanvasImageSource | null; sw: number; sh: number; front: boolean; flip: boolean }[] = [
+            { A: BL, B: FL, out: { x: -t.x, y: -t.y }, img: sideImg, sw: sideW, sh: sideHpx, front: false, flip: false },
+            { A: FR, B: BR, out: t, img: sideImg, sw: sideW, sh: sideHpx, front: false, flip: own },
+            { A: PL, B: PR, out: b.n, img: frontImg, sw: own ? (b.vf as HTMLCanvasElement).width : b.img?.width ?? 1, sh: own ? (b.vf as HTMLCanvasElement).height : b.img?.height ?? 1, front: true, flip: false },
           ];
           for (const fc of faces) {
             const mid = { x: (fc.A.x + fc.B.x) / 2, y: (fc.A.y + fc.B.y) / 2 };
             if ((k.x - mid.x) * fc.out.x + (k.y - mid.y) * fc.out.y <= 0) continue; // turned away from the walker
-            if (fc.img) strips(fc.img, fc.sw, fc.sh, fc.A, fc.B, fc.front ? hM : sideH, fc.front ? sink : 0.15);
+            if (fc.img) strips(fc.img, fc.sw, fc.sh, fc.A, fc.B, fc.front ? hM : sideH, fc.front ? sink : own ? sink : 0.15, fc.flip);
             else { const [xa, da] = cam3(fc.A), [xb, db] = cam3(fc.B); if (da > NEAR && db > NEAR) { const x0 = cx + (xa / da) * f, x1 = cx + (xb / db) * f, zz = (da + db) / 2, hp = (sideH * f) / zz; ctx.fillStyle = '#4a4338'; ctx.fillRect(Math.min(x0, x1), hy + (CAM_H * f) / zz - hp, Math.abs(x1 - x0), hp); } }
           }
         } });
       }
 
-      // empty lots: seeded pieces from the stock, never on the road or on a building
-      const cell = 9;
+      // empty lots: patches of debris, bare ground and dead trees, scattered at random (clumps that run up against each other, then bare stretches), never on the road or in a building.
+      // Where things go comes from smooth noise (so the density and the kind of thing change slowly over the ground) and from random positions inside small cells (so nothing is in rows).
+      const vnoise = (x: number, y: number, sc: number, seed: number): number => {
+        const gx = Math.floor(x / sc), gy = Math.floor(y / sc), fx = x / sc - gx, fy = y / sc - gy;
+        const sm = (t: number) => t * t * (3 - 2 * t), h = (i: number, j: number) => hash(i * 57.3 + j * 113.9 + seed);
+        const u = sm(fx), v = sm(fy);
+        return (h(gx, gy) * (1 - u) + h(gx + 1, gy) * u) * (1 - v) + (h(gx, gy + 1) * (1 - u) + h(gx + 1, gy + 1) * u) * v;
+      };
+      const cell = 4.5;
       const gx0 = Math.floor((k.x - FAR) / cell), gx1 = Math.floor((k.x + FAR) / cell), gy0 = Math.floor((k.y - FAR) / cell), gy1 = Math.floor((k.y + FAR) / cell);
       const surfaceAt = (p: V): number => { if (!S) return 0; const mx = Math.floor((p.x - S.x) * MAP_PX_PER_M + MAP_SIZE / 2), my = Math.floor((S.y - p.y) * MAP_PX_PER_M + MAP_SIZE / 2); return mx < 0 || my < 0 || mx >= MAP_SIZE || my >= MAP_SIZE ? 0 : S.data[(my * MAP_SIZE + mx) * 4]; };
+      const BIG = ['rubble1', 'rubble2', 'rubble3', 'rubble4'], FLAT = ['flat1', 'flat2', 'flat3'], STREW = ['scatter2', 'scatter3', 'scatter2', 'flat3'], TREES = ['tree1', 'tree2', 'tree3', 'tree4', 'tree1'];
       for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
-        const seed = gx * 73.1 + gy * 191.7;
-        if (hash(seed) > 0.62) continue;
-        const p: V = { x: (gx + hash(seed + 1)) * cell, y: (gy + hash(seed + 2)) * cell };
-        const [px, pz] = cam3(p);
-        if (pz < NEAR + 0.5 || pz > FAR || Math.abs(px) > pz * 1.5 + 6) continue;
-        if (w0.b.some((b) => Math.hypot(b.x - p.x, b.y - p.y) < b.width * 0.8 + 2)) continue;
-        const R = surfaceAt(p), r = hash(seed + 3);
-        let name: string;
-        if (R > 150) { if (r > 0.1) continue; name = r > 0.05 ? 'car1' : 'car2'; }
-        else if (R > 50) { if (r > 0.3) continue; name = r > 0.15 ? 'lamp1' : 'pole1'; }
-        else name = r < 0.34 ? `rubble${1 + Math.floor(hash(seed + 4) * 4)}` : r < 0.6 ? `tree${1 + Math.floor(hash(seed + 5) * 3)}` : r < 0.78 ? 'rubble3' : `rubble${1 + Math.floor(hash(seed + 6) * 4)}`;
-        const sp = assets.sprites[name];
-        if (!sp) continue;
-        things.push({ z: pz, draw: () => {
-          const hM = (SPRITE_H[name] ?? 2) * (0.8 + hash(seed + 7) * 0.5);
-          const hp = (hM * f) / pz, wp = hp * (sp.naturalWidth / sp.naturalHeight);
-          const sx = cx + (px / pz) * f, base = hy + (CAM_H * f) / pz;
-          ctx.globalAlpha = fogAlpha(pz);
-          ctx.drawImage(sp, sx - wp / 2, base - hp, wp, hp);
-          ctx.globalAlpha = 1;
-        } });
+        const cxm = (gx + 0.5) * cell, cym = (gy + 0.5) * cell;
+        const dens = vnoise(cxm, cym, 38, 1) * 0.65 + vnoise(cxm, cym, 11, 2) * 0.35; // clumps, with bare gaps between
+        if (dens < 0.36) continue;
+        const count = dens < 0.5 ? 1 : dens < 0.62 ? 2 : dens < 0.74 ? 3 : 5;
+        const zone = vnoise(cxm, cym, 90, 3); // what kind of ground: rubbly, treed, or strewn
+        for (let q = 0; q < count; q++) {
+          const seed = gx * 73.1 + gy * 191.7 + q * 17.3;
+          const p: V = { x: (gx + hash(seed + 1)) * cell, y: (gy + hash(seed + 2)) * cell };
+          const [px, pz] = cam3(p);
+          if (pz < NEAR + 0.5 || pz > FAR || Math.abs(px) > pz * 1.5 + 6) continue;
+          if (w0.b.some((b) => Math.hypot(b.x - p.x, b.y - p.y) < Math.max(b.width, b.depth) * 0.6 + 2)) continue;
+          const R = surfaceAt(p), r = hash(seed + 3);
+          let name: string;
+          if (R > 150) { if (r > 0.07) continue; name = r > 0.035 ? 'car1' : 'car2'; }
+          else if (R > 50) { if (r > 0.12) continue; name = r > 0.06 ? 'lamp1' : 'pole1'; }
+          else if (zone < 0.33) name = r < 0.12 ? TREES[Math.floor(hash(seed + 4) * TREES.length)] : r < 0.5 ? STREW[Math.floor(hash(seed + 5) * STREW.length)] : r < 0.82 ? FLAT[Math.floor(hash(seed + 6) * FLAT.length)] : BIG[Math.floor(hash(seed + 7) * BIG.length)];
+          else if (zone < 0.66) name = r < 0.5 ? BIG[Math.floor(hash(seed + 4) * BIG.length)] : r < 0.8 ? FLAT[Math.floor(hash(seed + 5) * FLAT.length)] : r < 0.92 ? STREW[Math.floor(hash(seed + 6) * STREW.length)] : TREES[Math.floor(hash(seed + 7) * TREES.length)];
+          else name = r < 0.45 ? TREES[Math.floor(hash(seed + 4) * TREES.length)] : r < 0.7 ? STREW[Math.floor(hash(seed + 5) * STREW.length)] : r < 0.88 ? FLAT[Math.floor(hash(seed + 6) * FLAT.length)] : BIG[Math.floor(hash(seed + 7) * BIG.length)];
+          const sp = assets.sprites[name];
+          if (!sp) continue;
+          const hM = (SPRITE_H[name] ?? 2) * (0.55 + hash(seed + 8) * 0.95), flip = hash(seed + 9) > 0.5;
+          const hp = (hM * f) / pz;
+          if (hp < 1.2) continue;
+          things.push({ z: pz, draw: () => {
+            const wp = hp * (sp.naturalWidth / sp.naturalHeight);
+            const sx = cx + (px / pz) * f, base = hy + (CAM_H * f) / pz;
+            ctx.globalAlpha = fogAlpha(pz);
+            if (flip) { ctx.save(); ctx.translate(sx, 0); ctx.scale(-1, 1); ctx.drawImage(sp, -wp / 2, base - hp, wp, hp); ctx.restore(); } else ctx.drawImage(sp, sx - wp / 2, base - hp, wp, hp);
+            ctx.globalAlpha = 1;
+          } });
+        }
       }
       things.sort((a, b) => b.z - a.z).forEach((t) => t.draw());
       // the haze at the far end of the street

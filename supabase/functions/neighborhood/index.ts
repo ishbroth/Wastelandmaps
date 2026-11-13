@@ -12,6 +12,27 @@
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
 
 const RADIUS_M = 125; // 400 feet
+
+// The building views: each finished picture is re-rendered once into the pieces the walk builds its 3D building from (a straight-on front, and a side, both cut out on magenta),
+// kept for good in storage and used by everyone who walks past. They are made in the background the first time someone with the atlas walks there.
+const VIEW_FRONT = 'This is a post-apocalyptic video game render of one ruined building. Re-draw THIS SAME building as a clean, flat, straight-on orthographic FRONT ELEVATION (no perspective, as if photographed square-on from far away with a long lens): the whole building only, from the ground line to the top of its roof or highest broken part, keeping its exact shape, proportions, materials, colors, damage, and ALL of its signage, lettering, posters and details copied faithfully. No ground, no sky, no neighbouring buildings, no fences in front, no cast shadows, no people, no vehicles. Place it centered on a perfectly flat solid magenta (#FF00FF) background, with nothing else in the picture, with a little magenta margin all round.';
+const VIEW_SIDE = 'This is a post-apocalyptic video game render of one ruined building (its front). Draw the SIDE of THIS SAME building, imagined from the front: a clean, flat, straight-on orthographic SIDE ELEVATION (the left side wall, no perspective, as if photographed square-on from far away with a long lens): the whole side from the ground line to the top of the roof or highest broken part, using exactly the same materials, colors, roof type, height, weathering and kind of damage as the front, with plausible windows or doors, and any fallen roof or wall edges matching. No ground, no sky, no neighbouring buildings, no cast shadows, no people, no vehicles. Place it centered on a perfectly flat solid magenta (#FF00FF) background, with nothing else in the picture, with a little magenta margin all round.';
+const b64 = (bytes: Uint8Array): string => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(t); };
+const viewKey = (id: string) => id.replace(/[^A-Za-z0-9_-]/g, '_');
+async function drawView(prompt: string, src: Uint8Array): Promise<Uint8Array | null> {
+  const key = Deno.env.get('GEMINI_API_KEY');
+  if (!key) return null;
+  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/png', data: b64(src) } }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: '1:1' } } }),
+  });
+  if (!res.ok) return null;
+  const body = await res.json();
+  const part = (body.candidates?.[0]?.content?.parts ?? []).find((p: { inlineData?: { data?: string }; inline_data?: { data?: string } }) => p.inlineData?.data || p.inline_data?.data);
+  const data: string | undefined = part?.inlineData?.data ?? part?.inline_data?.data;
+  return data ? Uint8Array.from(atob(data), (c) => c.charCodeAt(0)) : null;
+}
 const dist = (a: { lat: number; lng: number }, b: { lat: number; lng: number }): number => {
   const r = Math.PI / 180;
   const dx = (b.lng - a.lng) * r * Math.cos(((a.lat + b.lat) / 2) * r) * 6371000, dy = (b.lat - a.lat) * r * 6371000;
@@ -69,7 +90,8 @@ Deno.serve(async (req) => {
     const s = await db.storage.from('renders').createSignedUrl(path, 3600);
     return s.error || !s.data ? null : s.data.signedUrl;
   };
-  const items: { id: string; name: string; kind: string; lat: number; lng: number; url: string }[] = [];
+  const items: { id: string; name: string; kind: string; lat: number; lng: number; url: string; front?: string; side?: string }[] = [];
+  const paths = new Map<string, string>();
 
   // addresses other people rendered in the metros whose atlas they bought
   const dLat = 0.0013, dLng = 0.0013 / Math.max(0.2, Math.cos((here.lat * Math.PI) / 180));
@@ -78,14 +100,14 @@ Deno.serve(async (req) => {
   for (const a of addrs ?? []) {
     if (!a.storage_path || dist(here, { lat: a.lat as number, lng: a.lng as number }) > RADIUS_M) continue;
     const url = await sign(a.storage_path as string);
-    if (url) items.push({ id: `me:${a.place_id}`, name: String((a.address as string | null)?.split(',')[0] ?? a.name ?? 'Address'), kind: String(a.kind ?? 'house'), lat: a.lat as number, lng: a.lng as number, url });
+    if (url) { items.push({ id: `me:${a.place_id}`, name: String((a.address as string | null)?.split(',')[0] ?? a.name ?? 'Address'), kind: String(a.kind ?? 'house'), lat: a.lat as number, lng: a.lng as number, url }); paths.set(`me:${a.place_id}`, a.storage_path as string); }
   }
   // their own home
   const { data: home } = await db.from('user_home').select('place_id,lat,lng,address').eq('user_id', user).maybeSingle();
   if (home?.lat !== undefined && home.lat !== null && dist(here, { lat: home.lat as number, lng: home.lng as number }) <= RADIUS_M && !items.some((i) => i.id === `me:${home.place_id}`)) {
     const { data: hr } = await db.from('home_renders').select('storage_path,status').eq('user_id', user).eq('google_id', home.place_id).maybeSingle();
     const url = hr?.status === 'ready' && hr.storage_path ? await sign(hr.storage_path as string) : null;
-    if (url) items.push({ id: `me:${home.place_id}`, name: String((home.address as string | null)?.split(',')[0] ?? 'Home'), kind: 'home', lat: home.lat as number, lng: home.lng as number, url });
+    if (url) { items.push({ id: `me:${home.place_id}`, name: String((home.address as string | null)?.split(',')[0] ?? 'Home'), kind: 'home', lat: home.lat as number, lng: home.lng as number, url }); paths.set(`me:${home.place_id}`, hr?.storage_path as string); }
   }
   // the places of the map whose snapshot they unlocked (the browser says which are near; what is theirs is checked here)
   const wd = (b.places ?? []).filter((p) => typeof p.id === 'string' && /^wd:Q[0-9]+$/.test(p.id) && typeof p.lat === 'number' && typeof p.lng === 'number' && dist(here, { lat: p.lat as number, lng: p.lng as number }) <= RADIUS_M).slice(0, 30);
@@ -100,9 +122,50 @@ Deno.serve(async (req) => {
       const p = wd.find((x) => x.id === r.place_id);
       if (!p || r.status !== 'ready' || !r.storage_path || !yours.has(String(r.place_id))) continue;
       const url = await sign(r.storage_path as string);
-      if (url) items.push({ id: String(p.id), name: String(p.name ?? 'Place').slice(0, 80), kind: 'place', lat: p.lat as number, lng: p.lng as number, url });
+      if (url) { items.push({ id: String(p.id), name: String(p.name ?? 'Place').slice(0, 80), kind: 'place', lat: p.lat as number, lng: p.lng as number, url }); paths.set(String(p.id), r.storage_path as string); }
     }
   }
+
+  // the building views: the ones made are sent along; the ones not made yet are started (a couple at a time, nearest first) and the answer says they are on their way
+  const views = new Map<string, { front: string; side: string }>();
+  const lacking = new Set<string>();
+  const near = [...items].sort((x, y) => dist(here, x) - dist(here, y)).slice(0, 14);
+  await Promise.all(near.map(async (it) => {
+    const k = viewKey(it.id);
+    const [fr, sd] = await Promise.all([sign(`walk/${k}-front.png`), sign(`walk/${k}-side.png`)]);
+    if (fr && sd) views.set(it.id, { front: fr, side: sd }); else lacking.add(it.id);
+  }));
+  const toMake = near.filter((it) => lacking.has(it.id) && paths.has(it.id)).slice(0, 2);
+  const viewsPending = lacking.size > 0;
+  const makeViews = async (it: { id: string }) => {
+    const k = viewKey(it.id), lock = `walk/${k}.lock`;
+    const got = await db.storage.from('renders').upload(lock, new Uint8Array([1]), { contentType: 'text/plain', upsert: false });
+    if (got.error) { // someone is making them: unless that was long ago
+      const { data: l } = await db.storage.from('renders').list('walk', { search: `${k}.lock` });
+      const age = l?.[0]?.created_at ? Date.now() - new Date(l[0].created_at).getTime() : 0;
+      if (age < 300_000) return;
+      await db.storage.from('renders').remove([lock]);
+      const again = await db.storage.from('renders').upload(lock, new Uint8Array([1]), { contentType: 'text/plain', upsert: false });
+      if (again.error) return;
+    }
+    try {
+      const dl = await db.storage.from('renders').download(paths.get(it.id) as string);
+      if (dl.error || !dl.data) return;
+      const src = new Uint8Array(await dl.data.arrayBuffer());
+      const [front, side] = await Promise.all([drawView(VIEW_FRONT, src), drawView(VIEW_SIDE, src)]);
+      if (front && side) {
+        await db.storage.from('renders').upload(`walk/${k}-front.png`, front, { contentType: 'image/png', upsert: true });
+        await db.storage.from('renders').upload(`walk/${k}-side.png`, side, { contentType: 'image/png', upsert: true });
+      }
+    } catch { /* tried again at the next walk */ }
+    await db.storage.from('renders').remove([lock]);
+  };
+  if (toMake.length) {
+    const work = Promise.all(toMake.map(makeViews));
+    // @ts-ignore the edge runtime lets work finish after the answer is sent
+    if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(work); else void work;
+  }
+  for (const it of items) { const v = views.get(it.id); if (v) Object.assign(it, v); }
 
   // which way the street runs: from the point on the street nearest the closest picture, the street is square to the line from there to the building
   let street: { lat: number; lng: number; bearing: number } | null = null;
@@ -143,5 +206,5 @@ Deno.serve(async (req) => {
     // @ts-ignore the edge runtime lets work finish after the answer is sent
     if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(background); else void background;
   }
-  return reply(req, { items, street, roads: [...merged.values()], pending });
+  return reply(req, { items, street, roads: [...merged.values()], pending, viewsPending });
 });

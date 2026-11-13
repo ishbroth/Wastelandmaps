@@ -15,7 +15,11 @@ for (const name of fs.readdirSync(IN).filter((f) => f.endsWith('.png')).map((f) 
   const src = path.join(IN, name + '.png');
   if (TEXTURES.includes(name)) {
     const S = 512;
-    const { data } = await sharp(src).resize(S, S, { fit: 'cover' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    // the road is lightened and warmed to match the roads in the rendered photographs (a dusty tan grey, not near black)
+    let base = sharp(src).resize(S, S, { fit: 'cover' }).removeAlpha();
+    if (name === 'asphalt') base = base.linear([1.28, 1.27, 1.22], [6, 6, 4]);
+    if (name === 'asphalt2') base = base.linear([0.9, 0.92, 0.92], [0, 0, 0]);
+    const { data } = await base.raw().toBuffer({ resolveWithObject: true });
     // seamless: blend each pixel with the pixel half a tile away, weighted so the seams (the edges) come entirely from the shifted copy
     const out = Buffer.alloc(data.length);
     for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {

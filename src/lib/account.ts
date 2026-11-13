@@ -624,12 +624,12 @@ export async function loadTradesBought(windowNo: number): Promise<Set<string>> {
 
 // ---- our own street view: the rendered pictures around a point (only for a metro whose atlas was bought) ----
 
-export interface NeighborItem { id: string; name: string; kind: string; lat: number; lng: number; url: string }
+export interface NeighborItem { id: string; name: string; kind: string; lat: number; lng: number; url: string; /** the building re-rendered as a straight-on front and a side (cut out on magenta), once made */ front?: string; side?: string }
 
-export async function loadNeighborhood(lat: number, lng: number, places: { id: string; lat: number; lng: number; name: string }[]): Promise<{ items: NeighborItem[]; street: { lat: number; lng: number; bearing: number } | null; roads?: StreetRoad[]; pending?: boolean } | null> {
+export async function loadNeighborhood(lat: number, lng: number, places: { id: string; lat: number; lng: number; name: string }[]): Promise<{ items: NeighborItem[]; street: { lat: number; lng: number; bearing: number } | null; roads?: StreetRoad[]; pending?: boolean; viewsPending?: boolean } | null> {
   const { data, error } = await db().functions.invoke('neighborhood', { body: { lat, lng, places } });
   if (error || !data || !Array.isArray((data as { items?: unknown }).items)) return null;
-  return data as { items: NeighborItem[]; street: { lat: number; lng: number; bearing: number } | null; roads?: StreetRoad[]; pending?: boolean };
+  return data as { items: NeighborItem[]; street: { lat: number; lng: number; bearing: number } | null; roads?: StreetRoad[]; pending?: boolean; viewsPending?: boolean };
 }
 
 export interface StreetRoad { id: number; hw: string; pts: [number, number][] }
