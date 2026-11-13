@@ -2,7 +2,8 @@
 // the metros whose atlas they bought (a building in another metro is not part of the walk unless they bought that one too).
 //
 // POST { lat, lng, places?: [{ id, lat, lng, name }] }
-//   ->  { items: [{ id, name, kind, lat, lng, url }], street: { lat, lng, bearing } | null }
+//   ->  { items: [{ id, name, kind, lat, lng, url }], street: { lat, lng, bearing } | null, roads: [{ id, hw, pts: [[lat, lng], ...] }] }
+// roads: the streets within about 250 metres, as they are on the real map (from OpenStreetMap, saved per 250 m square in street_scenes and reused by everyone).
 // items: every finished picture near the point (about 400 feet) that is theirs to see: addresses rendered in their metros, their own home, and the places of the map
 //   (the ones named in `places`) whose snapshot they unlocked. street: a point on the street in front of the nearest one and the way the street runs (a bearing), from
 //   Google's free Street View coverage check, so the road can be drawn the way it lies.
@@ -22,6 +23,33 @@ const bearing = (from: { lat: number; lng: number }, to: { lat: number; lng: num
   const x = Math.cos(from.lat * r) * Math.sin(to.lat * r) - Math.sin(from.lat * r) * Math.cos(to.lat * r) * Math.cos((to.lng - from.lng) * r);
   return (Math.atan2(y, x) / r + 360) % 360;
 };
+
+/** The streets of one square of the map (about 275 m): the saved copy, or asked of OpenStreetMap (both of its servers at once) and saved. Null while the answer is not in yet. */
+type Road = { id: number; hw: string; pts: [number, number][] };
+const SQ = 0.0025;
+const cellOf = (lat: number, lng: number) => ({ gy: Math.floor(lat / SQ), gx: Math.floor(lng / SQ) });
+const STREETS = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'living_street', 'service', 'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link']);
+async function fetchSquare(db: ReturnType<typeof serviceClient>, gy: number, gx: number, ms: number): Promise<Road[] | null> {
+  // OpenStreetMap's own map API, for the square and a little round it (its streets as they are drawn, nodes and ways)
+  const pad = 0.0012;
+  const bbox = `${((gx * SQ - pad)).toFixed(5)},${((gy * SQ - pad)).toFixed(5)},${(((gx + 1) * SQ + pad)).toFixed(5)},${(((gy + 1) * SQ + pad)).toFixed(5)}`;
+  try {
+    const res = await fetch(`https://api.openstreetmap.org/api/0.6/map?bbox=${bbox}`, { headers: { 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' }, signal: AbortSignal.timeout(ms) });
+    if (!res.ok) return null;
+    const xml = await res.text();
+    const nodes = new Map<string, [number, number]>();
+    for (const m of xml.matchAll(/<node id="([0-9]+)"[^>]*?lat="([-0-9.]+)"[^>]*?lon="([-0-9.]+)"/g)) nodes.set(m[1], [Math.round(Number(m[2]) * 1e6) / 1e6, Math.round(Number(m[3]) * 1e6) / 1e6]);
+    const roads: Road[] = [];
+    for (const m of xml.matchAll(/<way id="([0-9]+)"[^>]*>([^]*?)<[/]way>/g)) {
+      const hw = /<tag k="highway" v="([^"]+)"/.exec(m[2])?.[1];
+      if (!hw || !STREETS.has(hw)) continue;
+      const pts = [...m[2].matchAll(/<nd ref="([0-9]+)"/g)].map((n) => nodes.get(n[1])).filter((p): p is [number, number] => !!p);
+      if (pts.length >= 2) roads.push({ id: Number(m[1]), hw, pts });
+    }
+    await db.from('street_scenes').upsert({ cell: `${gy}:${gx}`, roads }, { onConflict: 'cell' });
+    return roads;
+  } catch { return null; }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
@@ -89,5 +117,31 @@ Deno.serve(async (req) => {
       }
     } catch { /* the line through the buildings is used instead */ }
   }
-  return reply(req, { items, street });
+  // the streets: the saved squares round here answer at once; the ones not saved yet are asked for (the one under the point first, with a little patience, and the rest in the
+  // background so they are saved for the next walk), and the answer says if streets are still on their way
+  const merged = new Map<number, Road>();
+  const { gy, gx } = cellOf(here.lat, here.lng);
+  let pending = false;
+  const wanted: [number, number][] = [[0, 0], [0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [-1, -1], [1, -1], [-1, 1]].map(([dy, dx]) => [gy + dy, gx + dx] as [number, number])
+    .filter(([y, x]) => dist(here, { lat: (y + 0.5) * SQ, lng: (x + 0.5) * SQ }) < 330);
+  const missing: [number, number][] = [];
+  for (const [y, x] of wanted) {
+    const { data: saved } = await db.from('street_scenes').select('roads').eq('cell', `${y}:${x}`).maybeSingle();
+    if (saved?.roads) for (const r of saved.roads as Road[]) merged.set(r.id, r); else missing.push([y, x]);
+  }
+  if (missing.length) {
+    const first = missing.find(([y, x]) => y === gy && x === gx);
+    // the square under the point is asked for with up to 45 s; if it is not in within about 9 s the answer goes without it (and says so), and the asking carries on in the background
+    let background: Promise<unknown> = Promise.resolve();
+    if (first) {
+      const ask = fetchSquare(db, first[0], first[1], 25000);
+      const got = await Promise.race([ask, new Promise<null | 'late'>((r) => setTimeout(() => r('late'), 20000))]);
+      if (got && got !== 'late') for (const r of got) merged.set(r.id, r); else { pending = true; background = ask; }
+    }
+    const rest = missing.filter((m) => m !== first).slice(0, 4);
+    background = background.then(async () => { for (const [y, x] of rest) await fetchSquare(db, y, x, 25000); });
+    // @ts-ignore the edge runtime lets work finish after the answer is sent
+    if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(background); else void background;
+  }
+  return reply(req, { items, street, roads: [...merged.values()], pending });
 });
