@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
         const photo = useStreet ? await streetPhoto(lat as number, lng as number).catch(() => null) : await fetchPhoto(entity, placeName).catch(() => null);
         if (!photo) {
           if (stale) await keepOld();
-          else { await db.from('renders').delete().eq('place_id', placeId); await giveBack(); return reply(req, { error: 'no_photo' }, 404); }
+          else { await db.from('renders').delete().eq('place_id', placeId); await giveBack(); return reply(req, { error: useStreet ? 'no_streetview' : 'no_photo' }, 404); }
         } else {
           try {
             const png = useStreet ? await generateFromStreet(photo, placeName, kindOf, flooded === true, irradiated === true) : await generate(photo, placeName, entity, flooded === true, irradiated === true, vaultNum ?? undefined, kindOf);

@@ -13,7 +13,7 @@ export type PaidState =
 
 const MESSAGES: Record<string, string> = {
   no_credits: 'You do not have enough caps.',
-  no_streetview: 'There is no Street View picture of this address to make a snapshot from. Nothing was charged.',
+  no_streetview: 'There is no usable Street View picture of this place to make a snapshot from. Nothing was charged.',
   unknown_place: 'That place could not be found. Nothing was charged.',
   no_photo: 'There is no free photo of this place to render from. Nothing was charged.',
   busy: 'Rendering is paused for today. Nothing was charged; try again tomorrow.',
@@ -68,7 +68,7 @@ export function usePaidRender(spotId: string, name: string, account: Account, en
     }
     if (alive.current) setState({ kind: 'error', message: 'This one is taking a long time. Open it again in a minute; you will not be charged twice.' });
     running.current = false;
-  }, [spotId, name, account, extra?.kind, extra?.metroId, extra?.home, extra?.flooded, extra?.irradiated, extra?.vault, extra?.category]);
+  }, [spotId, name, account, extra?.kind, extra?.metroId, extra?.home, extra?.flooded, extra?.irradiated, extra?.vault, extra?.category, extra?.streetView, extra?.lat, extra?.lng]);
 
   // already unlocked: show it without being asked (and without charge)
   const owned = account.unlocked.has(spotId) || alsoOwned;
