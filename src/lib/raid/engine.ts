@@ -509,13 +509,25 @@ export class Game {
       this.effects.push({ kind: 'explosion', u: p.u, v: p.v, size: radius * 0.7, t: 0, life: 0.5 });
     }
     this.shake = Math.max(this.shake, 1);
+    // who is caught: the blast is flat on the picture, but the enemies are at different distances from the survivor, so it only reaches the ones about as far away as the one it
+    // landed on (a grenade within 3 steps of it, a missile 4, the Fat Man 5 for anything but the weak, and every weak enemy on the screen). One that has only just appeared far back
+    // is not hit by a blast that went off near the front.
+    const caught: { e: Enemy; d: number; reach: number }[] = [];
     for (const e of this.alive) {
       const [l, t, r, b] = this.box(e, p.aspect, p.ratio(e));
       const cx = (l + r) / 2, cy = (t + b) / 2;
       const d = Math.hypot((cx - p.u) * p.aspect, cy - p.v);
       const reach = radius * p.aspect + Math.max(r - l, 0) * p.aspect * 0.4;
-      // the Fat Man tapers down to this: dead centre it takes about 80% of the weakest boss's health, so it can never kill any boss in one hit
-      if (d <= reach) this.damage(e, Math.min(p.damage, p.nuke ? Math.floor(0.8 * Math.min(...Object.values(BOSSES).map((b) => b.hp))) : p.damage) * (1 - 0.5 * (d / reach)));
+      caught.push({ e, d, reach });
+    }
+    const inReach = caught.filter((c) => c.d <= c.reach);
+    const centre = inReach.sort((x, y) => x.d - y.d)[0]; // the one it landed on (the nearest to the blast)
+    const nukeCap = p.nuke ? Math.min(p.damage, Math.floor(0.8 * Math.min(...Object.values(BOSSES).map((b) => b.hp)))) : p.damage; // the Fat Man never takes a boss in one hit
+    const span = p.nuke ? 5 : p.kind === 'grenade' ? 3 : 4;
+    for (const c of caught) {
+      if (p.nuke && threatOf(c.e.type) === 'weak') { this.damage(c.e, p.damage * 4); continue; } // every weak enemy on the screen goes
+      if (c.d > c.reach || !centre || Math.abs(c.e.step - centre.e.step) > span) continue;
+      this.damage(c.e, nukeCap * (1 - 0.5 * (c.d / c.reach)));
     }
   }
 

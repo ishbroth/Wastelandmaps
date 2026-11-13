@@ -373,7 +373,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           ctx.beginPath(); ctx.arc(fxx, fxy, r, 0, Math.PI * 2); ctx.fill();
         } else if (fx.kind === 'nuke') {
           // a small mushroom cloud where it landed (the same cloud as the bomb that blows up a picture, but small and short), a ring of dust on the ground, and pieces thrown up that fall back
-          const tt = 0.265 + p * (0.76 - 0.265), small = fx.size * vw * 2.72;
+          const tt = 0.265 + p * (0.76 - 0.265), small = fx.size * vw * 2.0;
           mushroom(ctx, tt, fxx, fxy, small, small, Math.floor(fx.u * 1000));
           const ring = fx.size * vw * (0.4 + 2.2 * Math.min(1, p * 2.2));
           ctx.save(); ctx.globalAlpha = Math.max(0, 0.55 * (1 - p * 1.6)); ctx.strokeStyle = 'rgb(205,170,125)'; ctx.lineWidth = Math.max(2, ring * 0.06);
