@@ -19,7 +19,7 @@ const ROAD_W: Record<string, number> = { motorway: 14, trunk: 12, primary: 11, s
 interface Place { id: string; lat: number; lng: number; name: string }
 type V = { x: number; y: number };
 interface Road { id: number; hw: string; w: number; pts: V[] }
-interface Building extends NeighborItem { x: number; y: number; n: V; img: HTMLCanvasElement | null; ratio: number; width: number; depth: number; sideIdx: number; /** the building as re-rendered: its own front and side, and its size in metres */ vf?: HTMLCanvasElement; vs?: HTMLCanvasElement; fw?: number; fh?: number; sd?: number; /** the views of it from different angles (0 front, 35, 65, 90 side; seen from the left), for drawing it as it is seen from where the walker is */ imp?: { ang: number; c: HTMLCanvasElement; asp: number }[] }
+interface Building extends NeighborItem { x: number; y: number; n: V; img: HTMLCanvasElement | null; ratio: number; width: number; depth: number; sideIdx: number; /** the building as re-rendered: its own front and side, and its size in metres */ vf?: HTMLCanvasElement; vs?: HTMLCanvasElement; fw?: number; fh?: number; sd?: number; /** the colour of the ground at the foot of its picture (street, sidewalk, yard), which the ground in front of it is eased toward */ gc?: [number, number, number]; /** the views of it from different angles (0 front, 35, 65, 90 side; seen from the left), for drawing it as it is seen from where the walker is */ imp?: { ang: number; c: HTMLCanvasElement; asp: number }[] }
 interface Tex { data: Uint8ClampedArray; mean: [number, number, number] }
 interface Assets { tex: Record<string, Tex>; sprites: Record<string, HTMLImageElement>; /** small copies, for far-off drawing (much cheaper than shrinking the big ones every frame), and the same turned the other way */ small: Record<string, HTMLCanvasElement>; smallFlip: Record<string, HTMLCanvasElement>; sky: HTMLImageElement | null }
 
@@ -144,6 +144,16 @@ async function loadViews(it: NeighborItem): Promise<{ vf: HTMLCanvasElement; vs:
   return { vf: fr.canvas, vs: sd.canvas, fw, fh, sd: depth, imp };
 }
 
+/** The average colour of the ground at the foot of a building picture (its street, sidewalk and yard), so the real ground can be eased toward it. */
+function footColour(c: HTMLCanvasElement): [number, number, number] {
+  const x = c.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
+  const y0 = Math.floor(c.height * 0.86), h = c.height - y0, x0 = Math.floor(c.width * 0.15), w = Math.floor(c.width * 0.7);
+  const d = x.getImageData(x0, y0, w, h).data;
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4 * 5) if (d[i + 3] > 128) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+  return n > 20 ? [r / n, g / n, b / n] : [120, 110, 90];
+}
+
 /** The lie of the land: heights (metres) on a grid round a point, from the free open elevation service (coarse, but it has the real hills). Null if it cannot be had. */
 interface Elev { cx: number; cy: number; step: number; n: number; h: Float32Array }
 async function fetchElev(origin: { lat: number; lng: number }, at: V): Promise<Elev | null> {
@@ -176,7 +186,7 @@ function vnoise(x: number, y: number, sc: number, seed: number): number {
   return (h(gx, gy) * (1 - u) + h(gx + 1, gy) * u) * (1 - v) + (h(gx, gy + 1) * (1 - u) + h(gx + 1, gy + 1) * u) * v;
 }
 const HM_CELL = 2, HM_N = 256; // the land is kept every 2 metres over 512 metres
-interface Land { x: number; y: number; h: Float32Array; pile: Uint8Array; zone: Uint8Array }
+interface Land { x: number; y: number; h: Float32Array; pile: Uint8Array; zone: Uint8Array; /** how much of the way to a building's own ground colour (weight, and the colour) */ ap: Uint8Array; ac: Uint8Array }
 
 /** The nearest point on any street to a point: where, how far, and which way the street runs there. */
 function nearestRoad(roads: Road[], p: V): { at: V; d: number; tan: V; road: Road } | null {
@@ -254,7 +264,8 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
       if (nr) { const need = nr.road.w / 2 + 4.5 + depth / 2; if (nr.d < need) { m.x -= n.x * (need - nr.d); m.y -= n.y * (need - nr.d); } }
       const v = await loadViews(it);
       if (v) { width = v.fw; depth = v.sd; }
-      w.b.push({ ...it, ...(v ? { vf: v.vf, vs: v.vs, fw: v.fw, fh: v.fh, sd: v.sd, imp: v.imp } : {}), x: m.x, y: m.y, n, img: cut?.canvas ?? null, ratio: Math.min(1.1, Math.max(0.5, cut?.ratio ?? 0.75)), width, depth, sideIdx: Math.floor(hash(m.x * 3 + m.y) * 3) });
+      const gc = cut ? footColour(cut.canvas) : undefined;
+      w.b.push({ ...it, gc, ...(v ? { vf: v.vf, vs: v.vs, fw: v.fw, fh: v.fh, sd: v.sd, imp: v.imp } : {}), x: m.x, y: m.y, n, img: cut?.canvas ?? null, ratio: Math.min(1.1, Math.max(0.5, cut?.ratio ?? 0.75)), width, depth, sideIdx: Math.floor(hash(m.x * 3 + m.y) * 3) });
     }
     w.viewsPending = !!got.viewsPending;
     setBusy(false);
@@ -360,7 +371,7 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
 
     /** The lie of the land round a point: the real heights of the place (coarse), plus rolling ground and big mounds of debris, all flattened along the streets and under the buildings. */
     const buildLand = (anchor: V) => {
-      const N = HM_N, h = new Float32Array(N * N), pile = new Uint8Array(N * N), zone = new Uint8Array(N * N), flat = new Float32Array(N * N);
+      const N = HM_N, h = new Float32Array(N * N), pile = new Uint8Array(N * N), zone = new Uint8Array(N * N), flat = new Float32Array(N * N), ap = new Uint8Array(N * N), ac = new Uint8Array(N * N * 3);
       const e0h = elevAt(w0.elev, anchor);
       const pos = (i: number, j: number): V => ({ x: anchor.x + (i - N / 2 + 0.5) * HM_CELL, y: anchor.y + (j - N / 2 + 0.5) * HM_CELL });
       for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { if (surfaceR(pos(i, j)) > 50) flat[j * N + i] = 1; }
@@ -387,7 +398,21 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
         pile[idx] = Math.round(P * (1 - fl) * 255);
         zone[idx] = Math.round(vnoise(p.x, p.y, 80, 14) * 255);
       }
-      land = { x: anchor.x, y: anchor.y, h, pile, zone };
+      // in front of and round each building the ground takes the colour of the foot of its picture (the sidewalk and yard of the render), fading out into the ground of the street
+      for (const b of w0.b) {
+        if (!b.gc) continue;
+        const t: V = { x: -b.n.y, y: b.n.x }, hw = (b.fw ?? b.width * 0.55) / 2 + 3, hd = b.depth / 2;
+        const rad = Math.hypot(hw, hd + 3) + 2;
+        const i0 = Math.max(0, Math.floor((b.x - rad - anchor.x) / HM_CELL + N / 2)), i1 = Math.min(N - 1, Math.ceil((b.x + rad - anchor.x) / HM_CELL + N / 2));
+        const j0 = Math.max(0, Math.floor((b.y - rad - anchor.y) / HM_CELL + N / 2)), j1 = Math.min(N - 1, Math.ceil((b.y + rad - anchor.y) / HM_CELL + N / 2));
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+          const p = pos(i, j), dx = p.x - b.x, dy = p.y - b.y, u = Math.abs(dx * t.x + dy * t.y), v = dx * b.n.x + dy * b.n.y; // across the front, and toward the street
+          const wu = Math.max(0, Math.min(1, (hw - u) / 4)), wv = v < -hd ? Math.max(0, 1 + (v + hd) / 3) : Math.max(0, Math.min(1, (hd + 2.5 - v) / 3));
+          const wgt = Math.round(255 * wu * wv * 0.6);
+          if (wgt > ap[j * N + i]) { ap[j * N + i] = wgt; ac[(j * N + i) * 3] = b.gc[0]; ac[(j * N + i) * 3 + 1] = b.gc[1]; ac[(j * N + i) * 3 + 2] = b.gc[2]; }
+        }
+      }
+      land = { x: anchor.x, y: anchor.y, h, pile, zone, ap, ac };
     };
     const heightAt = (p: V): number => {
       const L = land;
@@ -481,12 +506,12 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
             while (binDone <= bi) { occ[ci * BINS + binDone] = ytop * rowH; binDone++; }
             const wx = k.x + dxr * z, wy = k.y + dyr * z;
             const gx = (wx - L.x) / HM_CELL + HM_N / 2 - 0.5, gy = (wy - L.y) / HM_CELL + HM_N / 2 - 0.5;
-            let hh: number, pileV = 0, zoneV = 0.4;
+            let hh: number, pileV = 0, zoneV = 0.4, apV = 0, apI = 0;
             if (gx < 0 || gy < 0 || gx >= HM_N - 1 || gy >= HM_N - 1) hh = elevAt(w0.elev, { x: wx, y: wy }) - elevAt(w0.elev, { x: L.x, y: L.y });
             else {
               const x0 = Math.floor(gx), y0 = Math.floor(gy), tx = gx - x0, ty = gy - y0, ii = y0 * HM_N + x0;
               hh = (L.h[ii] * (1 - tx) + L.h[ii + 1] * tx) * (1 - ty) + (L.h[ii + HM_N] * (1 - tx) + L.h[ii + HM_N + 1] * tx) * ty;
-              pileV = L.pile[ii] / 255; zoneV = L.zone[ii] / 255;
+              pileV = L.pile[ii] / 255; zoneV = L.zone[ii] / 255; apV = L.ap[ii] / 255; apI = ii * 3;
             }
             const sy = hy + ((camZ - hh) * f) / z;
             const j = Math.floor(sy / rowH);
@@ -509,6 +534,10 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
                   const dk = DEBRIS[Math.min(2, Math.floor(((zoneV * 7.3) % 1) * 3))]; sample(T[dk] ?? T.dirt2, wx, wy, 3.2, z, SC2); const cd = SC2, pk = Math.min(1, pileV * 1.6);
                   r = r * (1 - pk) + cd[0] * pk; g = g * (1 - pk) + cd[1] * pk; b = b * (1 - pk) + cd[2] * pk;
                 }
+              }
+              if (R <= 150 && apV > 0.02) { // eased toward the colour of the ground in the building's own picture (it keeps some of its own detail)
+                const lum = (r + g + b) / 3, keep = 0.55 + 0.45 * Math.min(1.6, lum / 110);
+                r = r * (1 - apV) + L.ac[apI] * keep * apV; g = g * (1 - apV) + L.ac[apI + 1] * keep * apV; b = b * (1 - apV) + L.ac[apI + 2] * keep * apV;
               }
               const fogK = Math.min(1, Math.max(0, (z - 12) / (FAR - 12)));
               r = r * (1 - fogK) + fog[0] * fogK; g = g * (1 - fogK) + fog[1] * fogK; b = b * (1 - fogK) + fog[2] * fogK;

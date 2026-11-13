@@ -32,8 +32,7 @@ for (const name of fs.readdirSync(IN).filter((f) => f.endsWith('.png')).map((f) 
     const S = 512;
     // the road is lightened and warmed to match the roads in the rendered photographs (a dusty tan grey, not near black)
     let base = sharp(src).resize(S, S, { fit: 'cover' }).removeAlpha();
-    if (name === 'asphalt') base = base.linear([1.28, 1.27, 1.22], [6, 6, 4]);
-    if (name === 'asphalt2') base = base.linear([0.9, 0.92, 0.92], [0, 0, 0]);
+    if (name.startsWith('asphalt')) base = base.modulate({ saturation: 0.55, brightness: 0.9 }); // the street's grey-brown, less yellow
     const { data } = await base.raw().toBuffer({ resolveWithObject: true });
     // seamless: blend each pixel with the pixel half a tile away, weighted so the seams (the edges) come entirely from the shifted copy
     const out = Buffer.alloc(data.length);
