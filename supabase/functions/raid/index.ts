@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     let enemies = Math.round(Number(b.enemies));
     let types = Array.isArray(b.lootTypes) ? [...new Set(b.lootTypes.map(String))] : [];
     if (vault) { worth = 75; enemies = VAULT_ZERO_BOSSES; types = [...VAULT_ZERO_LOOT]; } // never the browser's numbers
-    if (!WORTHS.includes(worth) || !(enemies >= 1 && enemies <= 80) || types.length < 1 || types.length > 3 || types.some((t) => !LOOT.includes(t))) return reply(req, { error: 'bad_raid' }, 400);
+    if (!WORTHS.includes(worth) || !(enemies >= 1 && enemies <= 2000) || types.length < 1 || types.length > 3 || types.some((t) => !LOOT.includes(t))) return reply(req, { error: 'bad_raid' }, 400);
 
     // their own home: looted as soon as its snapshot is unlocked, and already discovered
     let isHome = false;

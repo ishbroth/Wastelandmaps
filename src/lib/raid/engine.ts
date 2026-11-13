@@ -33,6 +33,20 @@ const STRIKE_V = 0.98;
 export const MAX_HITS = 3;
 /** The survivor's health bar at level 0 (a blow takes 25 to 40 of it, so about three blows end it), and how much more it holds at each level: one per cent. The weakest enemy cannot take three blows' worth (99) once the bar passes it, around level 10. */
 export const BASE_HEALTH = 91;
+/**
+ * How the fights grow with the survivor's level. Each wave sends 10% more enemies per level (counted from the wave's own starting number and rounded down: a wave of 5 sends a sixth
+ * at level 2, a wave of one needs level 10 for its second), every enemy is half of one per cent stronger per level (health and the blows it lands), and every 20 levels one more
+ * full wave (as big as the last) is sent before the boss. Vault 0, all bosses, is left as it is.
+ */
+export function scaledWaves(plan: RaidPlan, level: number): number[] {
+  if (plan.bossOnly || level <= 0) return plan.waves;
+  const waves = plan.waves.map((size) => Math.max(size, Math.floor(size * (1 + 0.1 * level) + 1e-9)));
+  for (let i = 0; i < Math.floor(level / 20); i++) waves.push(waves[waves.length - 1]);
+  return waves;
+}
+export const strengthForLevel = (level: number): number => 1 + 0.005 * Math.max(0, level);
+export const scaledTotal = (plan: RaidPlan, level: number): number => scaledWaves(plan, level).reduce((a, b) => a + b, 0) + (plan.boss ? 1 : 0);
+
 export const healthForLevel = (level: number): number => BASE_HEALTH * (1 + 0.01 * Math.max(0, level));
 /** How fast the enemies move while Legendary Time lasts, as a share of their usual speed, and how long it lasts in seconds. */
 export const SLOW_FACTOR = 0.3;
@@ -210,6 +224,9 @@ export class Game {
   private bossDone = false;
   private cooldown = 0;
   private order: { type: EnemyType; boss: boolean }[][];
+  /** The waves as sent at this level, how many enemies that is in all, and how much stronger each is than at level 0. */
+  private waves: number[] = [];
+  private strength = 1;
 
   constructor(opts: GameOptions) {
     this.plan = opts.plan;
@@ -228,7 +245,9 @@ export class Game {
     }
     // who comes in each wave: the kinds of enemy this place has, mixed, with the boss last
     // (a boss-only raid, Vault 0, sends bosses in every wave: each one is a boss, with the boss's behavior and health bar)
-    this.order = this.plan.waves.map((size) => Array.from({ length: size }, () => ({ type: enemyById(this.plan.enemies[Math.floor(this.random() * this.plan.enemies.length)]), boss: !!this.plan.bossOnly })));
+    this.waves = scaledWaves(this.plan, opts.level ?? 0);
+    this.strength = strengthForLevel(opts.level ?? 0);
+    this.order = this.waves.map((size) => Array.from({ length: size }, () => ({ type: enemyById(this.plan.enemies[Math.floor(this.random() * this.plan.enemies.length)]), boss: !!this.plan.bossOnly })));
     this.banner = 'WAVE 1';
     this.bannerT = 2.2;
   }
@@ -283,7 +302,7 @@ export class Game {
 
   /** Total enemies this raid will send, bosses included. */
   get totalEnemies(): number {
-    return this.plan.total + (this.plan.boss ? 1 : 0);
+    return this.waves.reduce((a, b) => a + b, 0) + (this.plan.boss ? 1 : 0);
   }
 
   /** How many are left to deal with: still to come, or on the screen. */
@@ -318,7 +337,7 @@ export class Game {
     const stepGap = stepGapFor(type, this.wave, boss) * (0.85 + this.random() * 0.3);
     this.enemies.push({
       id: this.nextId++, type, boss, u0: point.u, v0, toU: 0.15 + this.random() * 0.7, u: point.u, v: v0, step: 0, steps, stepGap, stepT: stepGap * (0.6 + this.random() * 0.5), p: 0, gait: 0, lift: 0,
-      hp: type.hp, maxHp: type.hp, state: 'walking', t: 0, hurt: 0, phase: this.random() * 6.28, exit: this.random() < 0.5 ? -1 : 1, entry,
+      hp: Math.round(type.hp * this.strength), maxHp: Math.round(type.hp * this.strength), state: 'walking', t: 0, hurt: 0, phase: this.random() * 6.28, exit: this.random() < 0.5 ? -1 : 1, entry,
     });
   }
 
@@ -521,7 +540,7 @@ export class Game {
     this.hits++;
     // how hard it hits: by how strong the enemy is, a share of the bar that is a bit more or less than a third
     const [lo, hi] = STRIKE_DAMAGE[threatOf(e.type)];
-    this.health = Math.max(0, this.health - (lo + this.random() * (hi - lo)));
+    this.health = Math.max(0, this.health - (lo + this.random() * (hi - lo)) * this.strength);
     this.hitFlash = 1;
     this.shake = Math.max(this.shake, kind === 'blast' ? 1 : 0.6);
     if (this.health <= 0) {

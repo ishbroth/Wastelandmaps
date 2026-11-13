@@ -1207,3 +1207,7 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
   .rm-share p { margin-bottom: 6px; }
   .rm-link { padding: 5px; margin-bottom: 6px; }
 }
+
+/* a place that has been cleared: its CLEARED tab is quiet (no pulse, dim lettering) unless there is loot waiting */
+.rm-tab-loot.rm-tab-loot-done { animation: none; color: var(--ink-dim); border-color: var(--line); opacity: 0.6; cursor: default; }
+.rm-tab-loot.rm-tab-loot-done:hover { background: transparent; color: var(--ink-dim); }

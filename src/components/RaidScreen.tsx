@@ -7,7 +7,7 @@ import { blastFiles, enemyFiles, hasVoice, nextBlast, playBlast, playEnemy, prel
 import { mushroom } from './BlowApart';
 import { StimpakIcon } from './ItemIcons';
 import { buzz } from '../lib/haptics';
-import { Game, SLOW_SECONDS, type Enemy, type Spawns } from '../lib/raid/engine';
+import { Game, SLOW_SECONDS, scaledTotal, type Enemy, type Spawns } from '../lib/raid/engine';
 import { LOOT_CAP, describeBag, lootName, type LootBag, type LootId } from '../lib/raid/loot';
 import type { RaidPlan } from '../lib/raid/raid';
 import { WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponAt, type WeaponClass } from '../lib/raid/weapons';
@@ -153,7 +153,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       const [picture, art, started] = await Promise.all([
         loadImage(imageUrl),
         loadRaidAssets(ids, ownedGuns),
-        startRaid(placeId, plan.worth, plan.total + (plan.boss ? 1 : 0), plan.lootTypes, metroId),
+        startRaid(placeId, plan.worth, scaledTotal(plan, levelInfo(account.points).level), plan.lootTypes, metroId),
       ]);
       if (cancelled) return;
       if ('error' in started) {
