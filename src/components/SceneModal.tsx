@@ -89,7 +89,8 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   const homeOwned = !!spot.personal?.home && [...account.unlocked].some((k) => k.startsWith(`vault:${spot.id.slice(3)}:`));
   const streetState = !personal ? null : street?.id === spot.id ? (street.ok ? 'yes' : 'no') : 'checking';
   const searching = personal ? streetState === 'checking' : snapshot === 'searching';
-  const cost = personal ? 4 : 1;
+  // an address of a bought atlas costs nothing to open for the first time (and is then kept as theirs, in their gallery)
+  const cost = personal ? (atlasOwned && !account.unlocked.has(spot.id) ? 0 : 4) : 1;
   const home = !!spot.personal?.home;
   const seed = useMemo(() => hashString(spot.id), [spot.id]);
   const journal = useMemo(() => describeSpot(spot, regionName, plan), [spot, regionName, plan]);
@@ -107,7 +108,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   const irradiated = isIrradiated(spot.position, zones);
   const supplied = manualBefore(spot.id);
   const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || !!supplied || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned || atlasOwned || (streetState === 'no' && !spot.personal?.home))));
-  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated, vault: spot.vault?.number, category: spot.kind }, !!rendered?.owned || homeOwned || atlasOwned || account.cleared.has(spot.id)); // a cleared place was unlocked: its picture opens by itself
+  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated, vault: spot.vault?.number, category: spot.kind }, !!rendered?.owned || homeOwned || account.cleared.has(spot.id)); // a cleared place was unlocked: its picture opens by itself
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
   // a vacation vault: its picture is the place with a vault door in it (made when it was unlocked)
@@ -122,7 +123,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   const vacationReveal = vacationPlace && vacationUrl?.id === spot.id ? { before: vacationUrl.url, after: vacationUrl.url, name: spot.name, file: `${spot.name.replace(/[^A-Za-z0-9]+/g, '-')}-vault-wastelandmaps.png`, pristine: true, credit: null } : null;
   const locked = canPay && !paidReady && !vacationPlace;
   // unlocked before: opening it again only fetches the picture, so there is no sealed notice, just the cog and the message
-  const ownedAlready = !!rendered?.owned || homeOwned || atlasOwned || account.unlocked.has(spot.id) || account.cleared.has(spot.id);
+  const ownedAlready = !!rendered?.owned || homeOwned || account.unlocked.has(spot.id) || account.cleared.has(spot.id);
   // whether it is theirs is not known until the account's unlocks have loaded and (for an address) the check of it has answered: until then nothing says SEALED or offers to unlock
   // (it used to flash up for a snapshot that was paid for already, and then turn into the film being fetched)
   const ownershipKnown = !account.session || (account.credits !== null && (!personal || rendered !== null));

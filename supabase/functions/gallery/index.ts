@@ -77,7 +77,6 @@ Deno.serve(async (req) => {
 
   const wd = unlocks.filter((u) => /^wd:Q\d+$/.test(u.place_id));
   const wdIds = wd.map((u) => u.place_id);
-  const { data: metrosOwned } = await db.from('metro_unlocks').select('metro_id').eq('user_id', user);
   const [{ data: renders }, { data: found }, { data: home }, { data: addrs }] = await Promise.all([
     wdIds.length ? db.from('renders').select('place_id,place_name,status').in('place_id', wdIds) : Promise.resolve({ data: [] as { place_id: string; place_name: string | null; status: string }[] }),
     wdIds.length ? db.from('found_places').select('place_id,name,city,lat,lng').eq('user_id', user).in('place_id', wdIds) : Promise.resolve({ data: [] as { place_id: string; name: string; city: string | null; lat: number; lng: number }[] }),
@@ -110,18 +109,6 @@ Deno.serve(async (req) => {
       if (!r || r.status !== 'ready') continue;
       const a = splitAddress(r.address);
       items.push({ id: u.place_id, name: a.street || r.name || 'Address', city: a.city, lat: r.lat ?? null, lng: r.lng ?? null, at: u.created_at, kind: 'address', pkind: r.kind ?? 'house' });
-    }
-  }
-  // the addresses of a metro whose atlas they bought are theirs to see too
-  const metroIds = (metrosOwned ?? []).map((m) => String(m.metro_id));
-  if (metroIds.length) {
-    const have = new Set(items.map((i) => i.id));
-    const { data: atlas } = await db.from('address_renders').select('place_id,name,address,lat,lng,kind,created_at').in('metro_id', metroIds).eq('status', 'ready').order('created_at', { ascending: false }).limit(300);
-    for (const r of atlas ?? []) {
-      const id = `me:${r.place_id}`;
-      if (have.has(id)) continue;
-      const a = splitAddress(r.address as string | null);
-      items.push({ id, name: a.street || (r.name as string | null) || 'Address', city: a.city, lat: (r.lat as number) ?? null, lng: (r.lng as number) ?? null, at: String(r.created_at), kind: 'address', pkind: (r.kind as string | null) ?? 'house' });
     }
   }
   return reply(req, { items });

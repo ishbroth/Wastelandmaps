@@ -240,6 +240,8 @@ Deno.serve(async (req) => {
       if (spent === 'no_credits') return reply(req, { error: 'no_credits' }, 402);
       charged = spent === 'spent';
     }
+    // opened through a bought atlas: it costs nothing, and from now on it is theirs (it is kept, so it shows in their gallery)
+    if (owned && !unlocked) await db.from('unlocks').upsert({ user_id: user, place_id: placeId }, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
     const url = await signed(existing!.storage_path as string);
     if (!url) {
       if (charged) await db.rpc('refund_personal', { p_user: user, p_place: placeId, p_cost: existing!.rubble === true ? RUBBLE_COST : COST });
