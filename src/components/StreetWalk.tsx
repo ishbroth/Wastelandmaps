@@ -51,23 +51,71 @@ async function loadAssets(): Promise<Assets> {
   return { tex, sprites };
 }
 
-/** A picture cut to its middle (where the building is), with its sides and its foot faded so it sits on the ground. */
+/** The whole picture, as it was rendered: it is the facade, so from the road it looks like the render (fence, curb and sidewalk included). It melts into the sky at the top and
+ *  softly at the sides (where the neighbours would be); its foot stays solid so it stands on the ground. */
 function cutOut(img: HTMLImageElement): { canvas: HTMLCanvasElement; ratio: number } {
   const w = img.naturalWidth, h = img.naturalHeight;
-  const sx = w * 0.16, sw = w * 0.68;
   const c = document.createElement('canvas');
-  c.width = 512; c.height = Math.max(64, Math.round(512 * (h / sw)));
+  c.width = 640; c.height = Math.max(64, Math.round(640 * (h / w)));
   const x = c.getContext('2d') as CanvasRenderingContext2D;
-  x.drawImage(img, sx, 0, sw, h, 0, 0, c.width, c.height);
+  x.drawImage(img, 0, 0, w, h, 0, 0, c.width, c.height);
+  // the sky is taken out (so ours shows): from the top edge, the smooth bright areas, stopping at anything dark or sharp (the building and its debris)
+  const sw = 160, sh = Math.max(20, Math.round(160 * (h / w)));
+  const sm = document.createElement('canvas'); sm.width = sw; sm.height = sh;
+  const sx = sm.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
+  sx.drawImage(c, 0, 0, sw, sh);
+  const px = sx.getImageData(0, 0, sw, sh).data, seen = new Uint8Array(sw * sh), stack: number[] = [];
+  const lum = (i: number) => px[i * 4] * 0.3 + px[i * 4 + 1] * 0.59 + px[i * 4 + 2] * 0.11;
+  for (let i = 0; i < sw; i++) { seen[i] = 1; stack.push(i); }
+  while (stack.length) {
+    const p = stack.pop() as number, py = Math.floor(p / sw), pxx = p % sw;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = pxx + dx, ny = py + dy;
+      if (nx < 0 || ny < 0 || nx >= sw || ny >= sh * 0.62) continue;
+      const q = ny * sw + nx;
+      if (seen[q]) continue;
+      const d = Math.abs(px[q * 4] - px[p * 4]) + Math.abs(px[q * 4 + 1] - px[p * 4 + 1]) + Math.abs(px[q * 4 + 2] - px[p * 4 + 2]);
+      if (d < 30 && lum(q) > 75) { seen[q] = 1; stack.push(q); }
+    }
+  }
+  const mask = document.createElement('canvas'); mask.width = sw; mask.height = sh;
+  const mx = mask.getContext('2d') as CanvasRenderingContext2D, md = mx.createImageData(sw, sh);
+  for (let i = 0; i < sw * sh; i++) { md.data[i * 4 + 3] = seen[i] ? 0 : 255; }
+  mx.putImageData(md, 0, 0);
+  x.globalCompositeOperation = 'destination-in';
+  x.filter = 'blur(3px)'; x.drawImage(mask, 0, 0, c.width, c.height); x.filter = 'none';
   x.globalCompositeOperation = 'destination-in';
   const gh = x.createLinearGradient(0, 0, c.width, 0);
-  gh.addColorStop(0, 'rgba(0,0,0,0)'); gh.addColorStop(0.08, 'rgba(0,0,0,1)'); gh.addColorStop(0.92, 'rgba(0,0,0,1)'); gh.addColorStop(1, 'rgba(0,0,0,0)');
+  gh.addColorStop(0, 'rgba(0,0,0,0)'); gh.addColorStop(0.1, 'rgba(0,0,0,1)'); gh.addColorStop(0.9, 'rgba(0,0,0,1)'); gh.addColorStop(1, 'rgba(0,0,0,0)');
   x.fillStyle = gh; x.fillRect(0, 0, c.width, c.height);
   const gv = x.createLinearGradient(0, 0, 0, c.height);
-  gv.addColorStop(0, 'rgba(0,0,0,0)'); gv.addColorStop(0.06, 'rgba(0,0,0,1)'); gv.addColorStop(0.93, 'rgba(0,0,0,1)'); gv.addColorStop(1, 'rgba(0,0,0,0)');
+  gv.addColorStop(0, 'rgba(0,0,0,0)'); gv.addColorStop(0.22, 'rgba(0,0,0,1)'); gv.addColorStop(1, 'rgba(0,0,0,1)');
   x.fillStyle = gv; x.fillRect(0, 0, c.width, c.height);
   return { canvas: c, ratio: c.height / c.width };
 }
+
+/** The lie of the land: heights (metres) on a grid round a point, from the free open elevation service (coarse, but it has the real hills). Null if it cannot be had. */
+interface Elev { cx: number; cy: number; step: number; n: number; h: Float32Array }
+async function fetchElev(origin: { lat: number; lng: number }, at: V): Promise<Elev | null> {
+  const n = 9, step = 40, lats: number[] = [], lngs: number[] = [];
+  const mLng = mPerDegLat * Math.cos((origin.lat * Math.PI) / 180);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { lats.push(origin.lat + (at.y + (j - 4) * step) / mPerDegLat); lngs.push(origin.lng + (at.x + (i - 4) * step) / mLng); }
+  try {
+    const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats.map((v) => v.toFixed(5)).join(',')}&longitude=${lngs.map((v) => v.toFixed(5)).join(',')}`);
+    if (!res.ok) return null;
+    const body = (await res.json()) as { elevation?: number[] };
+    if (!body.elevation || body.elevation.length !== n * n) return null;
+    return { cx: at.x, cy: at.y, step, n, h: Float32Array.from(body.elevation) };
+  } catch { return null; }
+}
+const elevAt = (e: Elev | null, p: V): number => {
+  if (!e) return 0;
+  const fx = (p.x - e.cx) / e.step + (e.n - 1) / 2, fy = (p.y - e.cy) / e.step + (e.n - 1) / 2;
+  const cx = Math.max(0, Math.min(e.n - 1.001, fx)), cy = Math.max(0, Math.min(e.n - 1.001, fy));
+  const x0 = Math.floor(cx), y0 = Math.floor(cy), tx = cx - x0, ty = cy - y0;
+  const g = (i: number, j: number) => e.h[j * e.n + i];
+  return (g(x0, y0) * (1 - tx) + g(x0 + 1, y0) * tx) * (1 - ty) + (g(x0, y0 + 1) * (1 - tx) + g(x0 + 1, y0 + 1) * tx) * ty;
+};
 
 /** The nearest point on any street to a point: where, how far, and which way the street runs there. */
 function nearestRoad(roads: Road[], p: V): { at: V; d: number; tan: V; road: Road } | null {
@@ -90,8 +138,8 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
   const [state, setState] = useState<'loading' | 'ready' | 'none' | 'error'>('loading');
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState('');
-  const world = useRef<{ origin: { lat: number; lng: number }; b: Building[]; roads: Map<number, Road>; loading: Set<string>; assets: Assets | null; surface: { x: number; y: number; data: Uint8ClampedArray } | null; roadsVersion: number; builtVersion: number }>({ origin: center, b: [], roads: new Map(), loading: new Set(), assets: null, surface: null, roadsVersion: 0, builtVersion: -1 });
-  const cam = useRef({ x: 0, y: 0, psi: 0, vel: 0, bob: 0, look: 0 });
+  const world = useRef<{ origin: { lat: number; lng: number }; b: Building[]; roads: Map<number, Road>; loading: Set<string>; assets: Assets | null; elev: Elev | null; elevBusy: boolean; surface: { x: number; y: number; data: Uint8ClampedArray } | null; roadsVersion: number; builtVersion: number }>({ origin: center, b: [], roads: new Map(), loading: new Set(), assets: null, elev: null, elevBusy: false, surface: null, roadsVersion: 0, builtVersion: -1 });
+  const cam = useRef({ x: 0, y: 0, psi: 0, vel: 0, bob: 0, look: 0, g: 0 });
   const keys = useRef({ fwd: false, back: false });
   const dragLook = useRef<{ x: number; look: number } | null>(null);
   const say = useCallback((t: string) => { setFlash(t); window.setTimeout(() => setFlash((f) => (f === t ? '' : f)), 2600); }, []);
@@ -114,6 +162,9 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       w.roads.set(-1, { id: -1, hw: 'residential', w: 7.5, pts: [{ x: P.x - Math.sin(a) * 200, y: P.y - Math.cos(a) * 200 }, { x: P.x + Math.sin(a) * 200, y: P.y + Math.cos(a) * 200 }] });
       w.roadsVersion++;
     }
+    // the land: where the walk is, the heights round it (the first time, and again when the walk has gone out of the last grid)
+    const here = toMeters(w.origin, at);
+    if (!w.elevBusy && (!w.elev || Math.hypot(here.x - w.elev.cx, here.y - w.elev.cy) > 90)) { w.elevBusy = true; void fetchElev(w.origin, here).then((e) => { if (e) w.elev = e; w.elevBusy = false; }); }
     const roads = [...w.roads.values()];
     for (const it of got.items) {
       if (w.b.some((b) => b.id === it.id) || w.loading.has(it.id)) continue;
@@ -125,8 +176,12 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       const nr = nearestRoad(roads, m);
       let n: V = { x: 0, y: -1 };
       if (nr) { const dx = nr.at.x - m.x, dy = nr.at.y - m.y, l = Math.hypot(dx, dy) || 1; n = { x: dx / l, y: dy / l }; }
-      const width = it.kind === 'house' || it.kind === 'home' ? 15 : 22;
-      w.b.push({ ...it, x: m.x, y: m.y, n, img: cut?.canvas ?? null, ratio: Math.min(0.62, Math.max(0.3, cut?.ratio ?? 0.5)), width, depth: width * 0.75, side: Math.floor(hash(m.x * 3 + m.y) * 3) });
+      const homey = it.kind === 'house' || it.kind === 'home' || it.kind === 'address';
+      const width = homey ? 21 : 28; // the facade (the whole picture); the body of the building is the middle of it
+      const depth = homey ? 9 : 13;
+      // the front stands back from the sidewalk: if the place is closer to the street than that, it is set back
+      if (nr) { const need = nr.road.w / 2 + 4.5 + depth / 2; if (nr.d < need) { m.x -= n.x * (need - nr.d); m.y -= n.y * (need - nr.d); } }
+      w.b.push({ ...it, x: m.x, y: m.y, n, img: cut?.canvas ?? null, ratio: Math.min(1.1, Math.max(0.5, cut?.ratio ?? 0.75)), width, depth, side: Math.floor(hash(m.x * 3 + m.y) * 3) });
     }
     setBusy(false);
     return !!got.pending;
@@ -218,7 +273,7 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
         else { k.x = nx; k.y = ny; k.bob += dt * 9; }
       }
       // the next stretch: when the walk has gone a way from where the pictures were last asked for, ask for what is round here
-      if (Math.hypot(k.x - lastFetch.x, k.y - lastFetch.y) > 45) {
+      if (Math.hypot(k.x - lastFetch.x, k.y - lastFetch.y) > 20) {
         lastFetch = { x: k.x, y: k.y };
         const o = w0.origin;
         void gather({ lat: o.lat + k.y / mPerDegLat, lng: o.lng + k.x / (mPerDegLat * Math.cos((o.lat * Math.PI) / 180)) }, false);
@@ -226,7 +281,12 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       // the ground map is redrawn when the streets change, or the walk has gone a way from its middle
       if (!w0.surface || w0.builtVersion !== w0.roadsVersion || Math.hypot(k.x - w0.surface.x, k.y - w0.surface.y) > 110) buildSurface({ x: k.x, y: k.y });
 
-      const f = Math.min(W * 0.85, H * 0.62), cx = W / 2 + k.look, hy = H * 0.46 + Math.sin(k.bob) * 1.2;
+      const f = Math.min(W * 0.85, H * 0.62), cx = W / 2 + k.look;
+      // hills: the lie of the land along the way the walker looks tilts the horizon (up a rise the street climbs the screen, down a slope it falls away)
+      const fw0 = { x: Math.sin(k.psi), y: Math.cos(k.psi) };
+      const gNow = Math.max(-0.22, Math.min(0.22, (elevAt(w0.elev, { x: k.x + fw0.x * 26, y: k.y + fw0.y * 26 }) - elevAt(w0.elev, { x: k.x, y: k.y })) / 26));
+      k.g += (gNow - k.g) * Math.min(1, dt * 2);
+      const hy = H * 0.46 + Math.sin(k.bob) * 1.2 - k.g * f * 0.9;
       const fwd = { x: Math.sin(k.psi), y: Math.cos(k.psi) }, right = { x: fwd.y, y: -fwd.x };
       const cam3 = (p: V): [number, number] => { const dx = p.x - k.x, dy = p.y - k.y; return [dx * right.x + dy * right.y, dx * fwd.x + dy * fwd.y]; }; // [sideways, ahead]
 
@@ -283,7 +343,7 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       const fogAlpha = (z: number) => Math.max(0.28, Math.min(1, 1.35 - z / FAR));
 
       // the buildings, as boxes: the picture on the front, generic ruined walls on the sides (each wall in strips, so it has perspective)
-      const strips = (src: CanvasImageSource, sw: number, sh: number, A: V, B: V, hM: number) => {
+      const strips = (src: CanvasImageSource, sw: number, sh: number, A: V, B: V, hM: number, sink = 0) => {
         const N = 36;
         for (let i = 0; i < N; i++) {
           const t0 = i / N, t1 = (i + 1) / N;
@@ -293,7 +353,7 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
           const z0c = Math.max(NEAR, d0), z1c = Math.max(NEAR, d1);
           const xa = cx + (x0 / z0c) * f, xb = cx + (x1 / z1c) * f;
           if (xb - xa < 0.2 || xb < 0 || xa > W) continue;
-          const zm = (z0c + z1c) / 2, hp = (hM * f) / zm, base = hy + (CAM_H * f) / zm;
+          const zm = (z0c + z1c) / 2, hp = (hM * f) / zm, base = hy + ((CAM_H + sink) * f) / zm;
           ctx.globalAlpha = fogAlpha(zm);
           ctx.drawImage(src, (i * sw) / N, 0, sw / N + 0.6, sh, xa, base - hp, xb - xa + 0.7, hp);
         }
@@ -301,24 +361,27 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       };
       for (const b of w0.b) {
         const t: V = { x: -b.n.y, y: b.n.x };
-        const hw = b.width / 2, hd = b.depth / 2;
+        const body = b.width * 0.55, hw = body / 2, hd = b.depth / 2, fw = b.width / 2; // the body of the building is the middle of the facade
         const FL = { x: b.x + b.n.x * hd - t.x * hw, y: b.y + b.n.y * hd - t.y * hw }, FR = { x: b.x + b.n.x * hd + t.x * hw, y: b.y + b.n.y * hd + t.y * hw };
         const BL = { x: b.x - b.n.x * hd - t.x * hw, y: b.y - b.n.y * hd - t.y * hw }, BR = { x: b.x - b.n.x * hd + t.x * hw, y: b.y - b.n.y * hd + t.y * hw };
+        // the facade: the whole picture, across the front of the lot
+        const PL = { x: b.x + b.n.x * hd - t.x * fw, y: b.y + b.n.y * hd - t.y * fw }, PR = { x: b.x + b.n.x * hd + t.x * fw, y: b.y + b.n.y * hd + t.y * fw };
         const [bx, bz] = cam3({ x: b.x, y: b.y });
         if (bz < -b.width || bz > FAR + b.width || Math.abs(bx) > bz + b.width * 2 + 20) continue;
-        const hM = b.width * b.ratio;
+        const hM = b.width * b.ratio, sideH = Math.min(hM * 0.5, b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? 6.5 : 7.5);
+        const sink = hM * 0.05;
         const sideImg = assets.sprites[b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? `houseside${b.side + 1}` : 'shopside1'] ?? null;
         things.push({ z: Math.max(bz, 0.1) + hd, draw: () => {
           const faces: { A: V; B: V; out: V; img: CanvasImageSource | null; sw: number; sh: number; front: boolean }[] = [
             { A: BL, B: FL, out: { x: -t.x, y: -t.y }, img: sideImg, sw: sideImg?.naturalWidth ?? 1, sh: sideImg?.naturalHeight ?? 1, front: false },
             { A: FR, B: BR, out: t, img: sideImg, sw: sideImg?.naturalWidth ?? 1, sh: sideImg?.naturalHeight ?? 1, front: false },
-            { A: FL, B: FR, out: b.n, img: b.img, sw: b.img?.width ?? 1, sh: b.img?.height ?? 1, front: true },
+            { A: PL, B: PR, out: b.n, img: b.img, sw: b.img?.width ?? 1, sh: b.img?.height ?? 1, front: true },
           ];
           for (const fc of faces) {
             const mid = { x: (fc.A.x + fc.B.x) / 2, y: (fc.A.y + fc.B.y) / 2 };
             if ((k.x - mid.x) * fc.out.x + (k.y - mid.y) * fc.out.y <= 0) continue; // turned away from the walker
-            if (fc.img) strips(fc.img, fc.sw, fc.sh, fc.A, fc.B, fc.front ? hM : hM * 0.92);
-            else { const [xa, da] = cam3(fc.A), [xb, db] = cam3(fc.B); if (da > NEAR && db > NEAR) { const x0 = cx + (xa / da) * f, x1 = cx + (xb / db) * f, zz = (da + db) / 2, hp = (hM * f) / zz; ctx.fillStyle = '#4a4338'; ctx.fillRect(Math.min(x0, x1), hy + (CAM_H * f) / zz - hp, Math.abs(x1 - x0), hp); } }
+            if (fc.img) strips(fc.img, fc.sw, fc.sh, fc.A, fc.B, fc.front ? hM : sideH, fc.front ? sink : 0.15);
+            else { const [xa, da] = cam3(fc.A), [xb, db] = cam3(fc.B); if (da > NEAR && db > NEAR) { const x0 = cx + (xa / da) * f, x1 = cx + (xb / db) * f, zz = (da + db) / 2, hp = (sideH * f) / zz; ctx.fillStyle = '#4a4338'; ctx.fillRect(Math.min(x0, x1), hy + (CAM_H * f) / zz - hp, Math.abs(x1 - x0), hp); } }
           }
         } });
       }
