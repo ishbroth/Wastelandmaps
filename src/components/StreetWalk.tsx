@@ -21,20 +21,21 @@ type V = { x: number; y: number };
 interface Road { id: number; hw: string; w: number; pts: V[] }
 interface Building extends NeighborItem { x: number; y: number; n: V; img: HTMLCanvasElement | null; ratio: number; width: number; depth: number; side: number; /** the building as re-rendered: its own front and side, and its size in metres */ vf?: HTMLCanvasElement; vs?: HTMLCanvasElement; fw?: number; fh?: number; sd?: number }
 interface Tex { data: Uint8ClampedArray; mean: [number, number, number] }
-interface Assets { tex: Record<string, Tex>; sprites: Record<string, HTMLImageElement> }
+interface Assets { tex: Record<string, Tex>; sprites: Record<string, HTMLImageElement>; /** small copies, for far-off drawing (much cheaper than shrinking the big ones every frame) */ small: Record<string, HTMLCanvasElement>; sky: HTMLImageElement | null }
 
 const mPerDegLat = 111_320;
 const toMeters = (o: { lat: number; lng: number }, p: { lat: number; lng: number }): V => ({ x: (p.lng - o.lng) * mPerDegLat * Math.cos((o.lat * Math.PI) / 180), y: (p.lat - o.lat) * mPerDegLat });
 const hash = (n: number): number => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const BASE = import.meta.env.BASE_URL;
-const SPRITE_NAMES = ['rubble1', 'rubble2', 'rubble3', 'rubble4', 'tree1', 'tree2', 'tree3', 'car1', 'car2', 'pole1', 'lamp1', 'houseside1', 'houseside2', 'houseside3', 'shopside1', 'flat1', 'flat2', 'flat3', 'scatter2', 'scatter3', 'tree4'];
-const TEX_NAMES = ['asphalt', 'asphalt2', 'dirt', 'dirt2', 'dirt3', 'sidewalk'];
+const SPRITE_NAMES = ['rubble1', 'rubble2', 'rubble3', 'rubble4', 'tree1', 'tree2', 'tree3', 'car1', 'car2', 'pole1', 'lamp1', 'houseside1', 'houseside2', 'houseside3', 'shopside1', 'flat1', 'flat2', 'flat3', 'scatter2', 'scatter3', 'tree4', 'tree5', 'tree6', 'tree7', 'tree8', 'tree9', 'tree10',
+  'swingset1', 'bench1', 'mailbox1', 'carparts1', 'junk1', 'shopcart1', 'hydrant1', 'stopsign1', 'fence1', 'fence2', 'tires1', 'bigpile1', 'bigpile2', 'bigpile3', 'shrub1', 'shrub2', 'shrub3', 'grass1', 'grass2s', 'grass3'];
+const TEX_NAMES = ['asphalt', 'asphalt2', 'dirt', 'dirt2', 'dirt3', 'dirt4', 'grass', 'grass2', 'debris1', 'debris2', 'debris3', 'sidewalk'];
 /** How tall each stock piece stands, in metres (its width follows its picture). */
-const SPRITE_H: Record<string, number> = { rubble1: 2.2, rubble2: 2.2, rubble3: 1.1, rubble4: 2.4, tree1: 6.5, tree2: 4.5, tree3: 1.4, tree4: 5, flat1: 0.55, flat2: 0.5, flat3: 0.5, scatter2: 0.4, scatter3: 0.7, car1: 1.6, car2: 1.9, pole1: 8, lamp1: 6.5 };
+const SPRITE_H: Record<string, number> = { rubble1: 2.2, rubble2: 2.2, rubble3: 1.1, rubble4: 2.4, tree1: 6.5, tree2: 4.5, tree3: 1.4, tree4: 5, tree5: 9, tree6: 7, tree7: 8, tree8: 4.5, tree9: 6.5, tree10: 3, swingset1: 3, bench1: 1, mailbox1: 1.3, trashcan1: 1.1, carparts1: 1.2, junk1: 1.4, shopcart1: 1, hydrant1: 0.9, stopsign1: 2.8, fence1: 1.8, fence2: 1.2, tires1: 0.8, bigpile1: 1.8, bigpile2: 1.8, bigpile3: 1.8, shrub1: 1.1, shrub2: 1.3, shrub3: 0.9, grass1: 0.9, grass2s: 0.7, grass3: 0.8, flat1: 0.55, flat2: 0.5, flat3: 0.5, scatter2: 0.4, scatter3: 0.7, car1: 1.6, car2: 1.9, pole1: 8, lamp1: 6.5 };
 
 const loadImg = (src: string): Promise<HTMLImageElement | null> => new Promise((res) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
 
-async function loadAssets(): Promise<Assets> {
+async function loadAssets(skyName: string): Promise<Assets> {
   const tex: Record<string, Tex> = {};
   await Promise.all(TEX_NAMES.map(async (n) => {
     const img = await loadImg(`${BASE}street/tex-${n}.webp`);
@@ -48,7 +49,15 @@ async function loadAssets(): Promise<Assets> {
   }));
   const sprites: Record<string, HTMLImageElement> = {};
   await Promise.all(SPRITE_NAMES.map(async (n) => { const i = await loadImg(`${BASE}street/${n}.webp`); if (i) sprites[n] = i; }));
-  return { tex, sprites };
+  const small: Record<string, HTMLCanvasElement> = {};
+  for (const [n, im] of Object.entries(sprites)) {
+    const sc = Math.min(1, 96 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
+    c.width = Math.max(2, Math.round(im.naturalWidth * sc)); c.height = Math.max(2, Math.round(im.naturalHeight * sc));
+    const x = c.getContext('2d') as CanvasRenderingContext2D; x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, c.width, c.height);
+    small[n] = c;
+  }
+  const sky = await loadImg(`${BASE}street/${skyName}.webp`);
+  return { tex, sprites, small, sky };
 }
 
 /** The whole picture, as it was rendered: it is the facade, so from the road it looks like the render (fence, curb and sidewalk included). It melts into the sky at the top and
@@ -152,6 +161,16 @@ const elevAt = (e: Elev | null, p: V): number => {
   return (g(x0, y0) * (1 - tx) + g(x0 + 1, y0) * tx) * (1 - ty) + (g(x0, y0 + 1) * (1 - tx) + g(x0 + 1, y0 + 1) * tx) * ty;
 };
 
+/** Smooth value noise at a scale in metres (the same everywhere in the world, so the land is the same on every walk). */
+function vnoise(x: number, y: number, sc: number, seed: number): number {
+  const gx = Math.floor(x / sc), gy = Math.floor(y / sc), fx = x / sc - gx, fy = y / sc - gy;
+  const sm = (t: number) => t * t * (3 - 2 * t), h = (i: number, j: number) => hash(i * 57.3 + j * 113.9 + seed);
+  const u = sm(fx), v = sm(fy);
+  return (h(gx, gy) * (1 - u) + h(gx + 1, gy) * u) * (1 - v) + (h(gx, gy + 1) * (1 - u) + h(gx + 1, gy + 1) * u) * v;
+}
+const HM_CELL = 2, HM_N = 256; // the land is kept every 2 metres over 512 metres
+interface Land { x: number; y: number; h: Float32Array; pile: Uint8Array; zone: Uint8Array }
+
 /** The nearest point on any street to a point: where, how far, and which way the street runs there. */
 function nearestRoad(roads: Road[], p: V): { at: V; d: number; tan: V; road: Road } | null {
   let best: { at: V; d: number; tan: V; road: Road } | null = null;
@@ -168,7 +187,7 @@ function nearestRoad(roads: Road[], p: V): { at: V; d: number; tan: V; road: Roa
   return best;
 }
 
-export default function StreetWalk({ center, places, onClose }: { center: { lat: number; lng: number }; places: Place[]; onClose: () => void }) {
+export default function StreetWalk({ center, places, radiated = false, onClose }: { center: { lat: number; lng: number }; places: Place[]; /** the place is under a radiation cloud: the sky is the sickly green one */ radiated?: boolean; onClose: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'none' | 'error'>('loading');
   const [busy, setBusy] = useState(false);
@@ -238,7 +257,7 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
   useEffect(() => {
     let cancelled = false, timer = 0;
     void (async () => {
-      const [assets, waiting] = await Promise.all([loadAssets(), gather(center, true)]);
+      const [assets, waiting] = await Promise.all([loadAssets(`sky-${radiated ? 'fallout' : hash(center.lat * 91 + center.lng * 37) > 0.5 ? 'sunset' : 'overcast'}${1 + Math.floor(hash(center.lng * 53 + center.lat * 17) * 3)}`), gather(center, true)]);
       // the streets are still being fetched from the map: ask again for a little while, since each try saves what has come
       let more = waiting;
       for (let i = 0; i < 8 && more && !cancelled; i++) { await new Promise((r) => setTimeout(r, 6000)); more = await gather(center, false); }
@@ -268,20 +287,22 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
     const c = canvas.current as HTMLCanvasElement;
     const ctx = c.getContext('2d') as CanvasRenderingContext2D;
     const w0 = world.current, assets = w0.assets as Assets;
+    let builtBuildings = -1;
     let raf = 0, last = performance.now(), blocked = 0, lastFetch = { x: cam.current.x, y: cam.current.y };
-    // the ground is worked out per pixel at a lower size, then stretched
+    // the ground is worked out per column at a lower size (a heightfield: hills hide what is behind them), then stretched
     const low = document.createElement('canvas');
     const lowCtx = low.getContext('2d') as CanvasRenderingContext2D;
+    let lowImg: ImageData | null = null;
     const surf = document.createElement('canvas'); surf.width = MAP_SIZE; surf.height = MAP_SIZE;
     const sctx = surf.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
+    let land: Land | null = null;
+    let hCamS = 0;
+    const BINS = 48;
+    let occ = new Float32Array(0);
 
-    /** The map of what the ground is made of (road, sidewalk, earth, and which earth), drawn from the real streets round a point. */
+    /** The map of what the ground is made of (road, sidewalk, broken road, earth), drawn from the real streets round a point. R: 0 earth, 100 sidewalk or foundation, 200 road (G which one, B lane mark), 215 crack, 230 missing chunk. */
     const buildSurface = (anchor: V) => {
-      sctx.fillStyle = 'rgb(0,128,0)'; sctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
-      for (let i = 0; i < 260; i++) { // patches of different earth
-        const px = hash(i * 1.3 + Math.floor(anchor.x / 64)) * MAP_SIZE, py = hash(i * 2.7 + Math.floor(anchor.y / 64)) * MAP_SIZE, rr = (8 + hash(i * 5.1) * 34) * MAP_PX_PER_M;
-        sctx.fillStyle = `rgb(0,${Math.floor(hash(i * 9.3) * 255)},0)`; sctx.beginPath(); sctx.arc(px, py, rr, 0, Math.PI * 2); sctx.fill();
-      }
+      sctx.fillStyle = 'rgb(0,0,0)'; sctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
       const roads = [...w0.roads.values()];
       const toPx = (p: V): [number, number] => [(p.x - anchor.x) * MAP_PX_PER_M + MAP_SIZE / 2, (anchor.y - p.y) * MAP_PX_PER_M + MAP_SIZE / 2];
       const stroke = (r: Road, widthM: number, color: string, dash?: number[]) => {
@@ -292,9 +313,85 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       for (const r of roads) stroke(r, r.w, `rgb(200,${Math.floor(hash(r.id) * 255)},0)`);
       for (const r of roads) if (r.w >= 7) stroke(r, 0.35, 'rgb(200,0,255)', [6, 8]);
       sctx.setLineDash([]);
+      // the road is broken here and there: big missing chunks and long cracks, at places that come from the street itself (so they are always in the same spot)
+      for (const r of roads) {
+        for (let i = 0; i + 1 < r.pts.length; i++) {
+          const a = r.pts[i], b = r.pts[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
+          if (len < 0.5) continue;
+          const tx = (b.x - a.x) / len, ty = (b.y - a.y) / len, nx = -ty, ny = tx;
+          for (let d = 0; d < len; d += 5) {
+            const sd = r.id * 13.7 + i * 7.1 + Math.floor(d / 5) * 3.3, q = hash(sd);
+            const lat = (hash(sd + 1) - 0.5) * r.w * 0.9, cxm = a.x + tx * d + nx * lat, cym = a.y + ty * d + ny * lat;
+            if (q < 0.07) { // a missing chunk: ragged, bigger near the edge
+              const rad = 0.9 + hash(sd + 2) * 2.0, nv = 8;
+              sctx.fillStyle = 'rgb(230,0,0)'; sctx.beginPath();
+              for (let v = 0; v < nv; v++) { const an = (v / nv) * Math.PI * 2, rr = rad * (0.55 + hash(sd + v * 3.1) * 0.7); const [px, py] = toPx({ x: cxm + Math.cos(an) * rr * 1.3, y: cym + Math.sin(an) * rr }); if (v === 0) sctx.moveTo(px, py); else sctx.lineTo(px, py); }
+              sctx.closePath(); sctx.fill();
+            } else if (q < 0.2) { // a crack, jagged, long
+              sctx.strokeStyle = 'rgb(215,0,0)'; sctx.lineWidth = 1.4; sctx.beginPath();
+              let px = cxm, py = cym, an = hash(sd + 3) * Math.PI * 2;
+              const [sx0, sy0] = toPx({ x: px, y: py }); sctx.moveTo(sx0, sy0);
+              for (let v = 0; v < 8; v++) { an += (hash(sd + v * 5.3) - 0.5) * 1.6; px += Math.cos(an) * 1.3; py += Math.sin(an) * 1.3; const [qx, qy] = toPx({ x: px, y: py }); sctx.lineTo(qx, qy); }
+              sctx.stroke();
+            }
+          }
+        }
+      }
+      // under each building a concrete foundation, so it stands on something
+      sctx.fillStyle = 'rgb(100,0,0)';
+      for (const b of w0.b) {
+        const t: V = { x: -b.n.y, y: b.n.x }, hw = (b.fw ?? b.width * 0.55) / 2 + 1, hd = b.depth / 2 + 1;
+        sctx.beginPath();
+        for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const [px, py] = toPx({ x: b.x + t.x * hw * sx + b.n.x * hd * sy, y: b.y + t.y * hw * sx + b.n.y * hd * sy }); if (sx === -1 && sy === -1) sctx.moveTo(px, py); else sctx.lineTo(px, py); }
+        sctx.closePath(); sctx.fill();
+      }
       w0.surface = { x: anchor.x, y: anchor.y, data: sctx.getImageData(0, 0, MAP_SIZE, MAP_SIZE).data };
       w0.builtVersion = w0.roadsVersion;
+      buildLand(anchor);
     };
+    const surfaceR = (p: V): number => { const S = w0.surface; if (!S) return 0; const mx = Math.floor((p.x - S.x) * MAP_PX_PER_M + MAP_SIZE / 2), my = Math.floor((S.y - p.y) * MAP_PX_PER_M + MAP_SIZE / 2); return mx < 0 || my < 0 || mx >= MAP_SIZE || my >= MAP_SIZE ? 0 : S.data[(my * MAP_SIZE + mx) * 4]; };
+
+    /** The lie of the land round a point: the real heights of the place (coarse), plus rolling ground and big mounds of debris, all flattened along the streets and under the buildings. */
+    const buildLand = (anchor: V) => {
+      const N = HM_N, h = new Float32Array(N * N), pile = new Uint8Array(N * N), zone = new Uint8Array(N * N), flat = new Float32Array(N * N);
+      const e0h = elevAt(w0.elev, anchor);
+      const pos = (i: number, j: number): V => ({ x: anchor.x + (i - N / 2 + 0.5) * HM_CELL, y: anchor.y + (j - N / 2 + 0.5) * HM_CELL });
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { if (surfaceR(pos(i, j)) > 50) flat[j * N + i] = 1; }
+      for (const b of w0.b) { // flat under and round each building
+        const rad = Math.max(b.width, b.depth) * 0.75 + 3;
+        const i0 = Math.max(0, Math.floor((b.x - rad - anchor.x) / HM_CELL + N / 2)), i1 = Math.min(N - 1, Math.ceil((b.x + rad - anchor.x) / HM_CELL + N / 2));
+        const j0 = Math.max(0, Math.floor((b.y - rad - anchor.y) / HM_CELL + N / 2)), j1 = Math.min(N - 1, Math.ceil((b.y + rad - anchor.y) / HM_CELL + N / 2));
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const p = pos(i, j); if (Math.hypot(p.x - b.x, p.y - b.y) < rad) flat[j * N + i] = 1; }
+      }
+      // soften the flat areas outward (a box blur, twice) so the ground eases from the street into the rolling land
+      const tmp = new Float32Array(N * N), R = 3;
+      for (let pass = 0; pass < 2; pass++) {
+        for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { let a = 0; for (let d = -R; d <= R; d++) a += flat[j * N + Math.min(N - 1, Math.max(0, i + d))]; tmp[j * N + i] = a / (2 * R + 1); }
+        for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { let a = 0; for (let d = -R; d <= R; d++) a += tmp[Math.min(N - 1, Math.max(0, j + d)) * N + i]; flat[j * N + i] = a / (2 * R + 1); }
+      }
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const p = pos(i, j), idx = j * N + i;
+        const fl = Math.min(1, flat[idx] * 1.6);
+        const roll = (vnoise(p.x, p.y, 70, 21) - 0.5) * 3.4 + (vnoise(p.x, p.y, 26, 22) - 0.5) * 1.4 + (vnoise(p.x, p.y, 9, 23) - 0.5) * 0.45;
+        const pv = vnoise(p.x, p.y, 55, 11) * 0.7 + vnoise(p.x, p.y, 17, 12) * 0.3;
+        let P = Math.max(0, Math.min(1, (pv - 0.5) / 0.2)); P = P * P * (3 - 2 * P);
+        const mound = P * (0.35 + vnoise(p.x, p.y, 8, 13) * 1.15);
+        h[idx] = elevAt(w0.elev, p) - e0h + (1 - fl) * (roll + mound);
+        pile[idx] = Math.round(P * (1 - fl) * 255);
+        zone[idx] = Math.round(vnoise(p.x, p.y, 80, 14) * 255);
+      }
+      land = { x: anchor.x, y: anchor.y, h, pile, zone };
+    };
+    const heightAt = (p: V): number => {
+      const L = land;
+      if (!L) return 0;
+      const gx = (p.x - L.x) / HM_CELL + HM_N / 2 - 0.5, gy = (p.y - L.y) / HM_CELL + HM_N / 2 - 0.5;
+      if (gx < 0 || gy < 0 || gx >= HM_N - 1 || gy >= HM_N - 1) return elevAt(w0.elev, p) - elevAt(w0.elev, { x: L.x, y: L.y });
+      const x0 = Math.floor(gx), y0 = Math.floor(gy), tx = gx - x0, ty = gy - y0, i = y0 * HM_N + x0;
+      return (L.h[i] * (1 - tx) + L.h[i + 1] * tx) * (1 - ty) + (L.h[i + HM_N] * (1 - tx) + L.h[i + HM_N + 1] * tx) * ty;
+    };
+    const GROUND = ['dirt2', 'dirt', 'dirt4', 'dirt3', 'grass', 'grass2'];
+    const DEBRIS = ['debris2', 'debris1', 'debris3'];
 
     const draw = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
@@ -330,63 +427,104 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
         void gather({ lat: o.lat + k.y / mPerDegLat, lng: o.lng + k.x / (mPerDegLat * Math.cos((o.lat * Math.PI) / 180)) }, false);
       }
       // the ground map is redrawn when the streets change, or the walk has gone a way from its middle
-      if (!w0.surface || w0.builtVersion !== w0.roadsVersion || Math.hypot(k.x - w0.surface.x, k.y - w0.surface.y) > 110) buildSurface({ x: k.x, y: k.y });
+      if (!w0.surface || !land || w0.builtVersion !== w0.roadsVersion || w0.b.length !== builtBuildings || Math.hypot(k.x - w0.surface.x, k.y - w0.surface.y) > 110) { buildSurface({ x: k.x, y: k.y }); builtBuildings = w0.b.length; }
+      const hCam = heightAt({ x: k.x, y: k.y });
+      hCamS += (hCam - hCamS) * Math.min(1, dt * 8);
+      const camZ = hCamS + CAM_H;
 
       const f = Math.min(W * 0.85, H * 0.62), cx = W / 2 + k.look;
-      // hills: the lie of the land along the way the walker looks tilts the horizon (up a rise the street climbs the screen, down a slope it falls away)
-      const fw0 = { x: Math.sin(k.psi), y: Math.cos(k.psi) };
-      const gNow = Math.max(-0.22, Math.min(0.22, (elevAt(w0.elev, { x: k.x + fw0.x * 26, y: k.y + fw0.y * 26 }) - elevAt(w0.elev, { x: k.x, y: k.y })) / 26));
-      k.g += (gNow - k.g) * Math.min(1, dt * 2);
-      const hy = H * 0.46 + Math.sin(k.bob) * 1.2 - k.g * f * 0.9;
+      const hy = H * 0.46 + Math.sin(k.bob) * 1.2;
       const fwd = { x: Math.sin(k.psi), y: Math.cos(k.psi) }, right = { x: fwd.y, y: -fwd.x };
       const cam3 = (p: V): [number, number] => { const dx = p.x - k.x, dy = p.y - k.y; return [dx * right.x + dy * right.y, dx * fwd.x + dy * fwd.y]; }; // [sideways, ahead]
 
-      // the sky
+      // the sky: a rendered one that stays put as the walker turns (it is wrapped round the walker, half a turn to the picture), then the haze of the horizon over its foot
       const sky = ctx.createLinearGradient(0, 0, 0, hy);
       sky.addColorStop(0, '#4a463c'); sky.addColorStop(0.55, '#8e7f5e'); sky.addColorStop(1, '#c9a46a');
       ctx.fillStyle = sky; ctx.fillRect(0, 0, W, hy + 2);
-      for (let i = 0; i < 6; i++) { const cxx = ((hash(i * 7.1) * 1.4 - 0.2 + k.psi * 0.15) % 1.4) * W; ctx.fillStyle = 'rgba(60,54,44,0.22)'; ctx.beginPath(); ctx.ellipse(cxx, hy * (0.2 + hash(i) * 0.5), W * 0.28, hy * 0.07, 0, 0, Math.PI * 2); ctx.fill(); }
-
-      // the ground: for each pixel below the horizon, where on the map it is and which piece it is
-      const RS = 0.5;
-      const lw = Math.max(40, Math.floor(W * RS)), lh = Math.max(20, Math.floor((H - hy) * RS));
-      if (low.width !== lw || low.height !== lh) { low.width = lw; low.height = lh; }
-      const img = lowCtx.createImageData(lw, lh), out = img.data;
-      const S = w0.surface, T = assets.tex;
-      const fog = [201, 164, 106];
-      if (S) {
-        const rowH = (H - hy) / lh, colW = W / lw;
-        for (let j = 0; j < lh; j++) {
-          const sy = hy + (j + 0.5) * rowH;
-          const z = (CAM_H * f) / (sy - hy);
-          const fogK = Math.min(1, Math.max(0, (z - 12) / (FAR - 12)));
-          for (let i = 0; i < lw; i++) {
-            const sx = (i + 0.5) * colW;
-            const lat = ((sx - cx) / f) * z;
-            const wx = k.x + fwd.x * z + right.x * lat, wy = k.y + fwd.y * z + right.y * lat;
-            const mx = Math.floor((wx - S.x) * MAP_PX_PER_M + MAP_SIZE / 2), my = Math.floor((S.y - wy) * MAP_PX_PER_M + MAP_SIZE / 2);
-            let name = 'dirt', scale = 6, mark = false;
-            if (mx >= 0 && my >= 0 && mx < MAP_SIZE && my < MAP_SIZE) {
-              const mi = (my * MAP_SIZE + mx) * 4, R = S.data[mi], G = S.data[mi + 1], B = S.data[mi + 2];
-              if (R > 150) { name = G > 150 ? 'asphalt2' : 'asphalt'; scale = 5; mark = B > 140; }
-              else if (R > 50) { name = 'sidewalk'; scale = 3; }
-              else name = G < 85 ? 'dirt2' : G < 170 ? 'dirt' : 'dirt3';
-            }
-            const tx = T[name]; const o = (j * lw + i) * 4;
-            if (!tx) { out[o] = 90; out[o + 1] = 80; out[o + 2] = 60; out[o + 3] = 255; continue; }
-            const u = (((wx / scale) % 1) + 1) % 1, v = (((wy / scale) % 1) + 1) % 1;
-            const ti = ((Math.floor(v * 512) * 512) + Math.floor(u * 512)) * 4;
-            // far away the texture's fine detail would shimmer: it fades to its average
-            const mixK = Math.min(1, Math.max(0, (z - 9) / 22));
-            let r = tx.data[ti] * (1 - mixK) + tx.mean[0] * mixK, g = tx.data[ti + 1] * (1 - mixK) + tx.mean[1] * mixK, bb = tx.data[ti + 2] * (1 - mixK) + tx.mean[2] * mixK;
-            if (mark) { r = r * 0.35 + 215 * 0.65; g = g * 0.35 + 190 * 0.65; bb = bb * 0.35 + 90 * 0.65; }
-            out[o] = r * (1 - fogK) + fog[0] * fogK; out[o + 1] = g * (1 - fogK) + fog[1] * fogK; out[o + 2] = bb * (1 - fogK) + fog[2] * fogK; out[o + 3] = 255;
-          }
-        }
-        lowCtx.putImageData(img, 0, 0);
-        ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(low, 0, hy, W, H - hy);
+      if (assets.sky) {
+        const sw = Math.PI * f, sh = Math.max(hy + 30, sw * (assets.sky.naturalHeight / assets.sky.naturalWidth));
+        let x0 = cx - ((k.psi * f) % sw); x0 -= Math.ceil((x0 + sw) / sw) * sw; // start left of the screen
+        for (let x = x0; x < W + sw; x += sw) ctx.drawImage(assets.sky, x, hy + 6 - sh, sw + 1, sh);
       }
+
+      // the ground: a heightfield, worked out column by column from the walker outward (what is nearer hides what is behind it: hills do hide things)
+      const RS = W > 900 ? 0.4 : 0.5;
+      const lw = Math.max(40, Math.floor(W * RS)), lh = Math.max(40, Math.floor(H * RS));
+      if (low.width !== lw || low.height !== lh) { low.width = lw; low.height = lh; lowImg = null; }
+      if (!lowImg) lowImg = lowCtx.createImageData(lw, lh);
+      const out = lowImg.data; out.fill(0);
+      if (occ.length < lw * BINS) occ = new Float32Array(lw * BINS);
+      const S = w0.surface, T = assets.tex, L = land;
+      const fog = [201, 164, 106];
+      const colW = W / lw, rowH = H / lh;
+      const SC0 = new Float64Array(3), SC1 = new Float64Array(3), SC2 = new Float64Array(3);
+      const sample = (tx: Tex | undefined, wx: number, wy: number, scale: number, z: number, o: Float64Array): void => {
+        if (!tx) { o[0] = 100; o[1] = 90; o[2] = 70; return; }
+        const u = (((wx / scale) % 1) + 1) % 1, v = (((wy / scale) % 1) + 1) % 1;
+        const ti = ((Math.floor(v * 512) * 512) + Math.floor(u * 512)) * 4;
+        const mixK = Math.min(1, Math.max(0, (z - 9) / 22)); // far away the texture's fine detail would shimmer: it fades to its average
+        o[0] = tx.data[ti] * (1 - mixK) + tx.mean[0] * mixK; o[1] = tx.data[ti + 1] * (1 - mixK) + tx.mean[1] * mixK; o[2] = tx.data[ti + 2] * (1 - mixK) + tx.mean[2] * mixK;
+      };
+      if (S && L) {
+        for (let ci = 0; ci < lw; ci++) {
+          const u = ((ci + 0.5) * colW - cx) / f, dxr = fwd.x + right.x * u, dyr = fwd.y + right.y * u;
+          let ytop = lh, z = 0.4, binDone = 0;
+          while (z < FAR) {
+            const bi = Math.min(BINS - 1, Math.floor(z / 2));
+            while (binDone <= bi) { occ[ci * BINS + binDone] = ytop * rowH; binDone++; }
+            const wx = k.x + dxr * z, wy = k.y + dyr * z;
+            const gx = (wx - L.x) / HM_CELL + HM_N / 2 - 0.5, gy = (wy - L.y) / HM_CELL + HM_N / 2 - 0.5;
+            let hh: number, pileV = 0, zoneV = 0.4;
+            if (gx < 0 || gy < 0 || gx >= HM_N - 1 || gy >= HM_N - 1) hh = elevAt(w0.elev, { x: wx, y: wy }) - elevAt(w0.elev, { x: L.x, y: L.y });
+            else {
+              const x0 = Math.floor(gx), y0 = Math.floor(gy), tx = gx - x0, ty = gy - y0, ii = y0 * HM_N + x0;
+              hh = (L.h[ii] * (1 - tx) + L.h[ii + 1] * tx) * (1 - ty) + (L.h[ii + HM_N] * (1 - tx) + L.h[ii + HM_N + 1] * tx) * ty;
+              pileV = L.pile[ii] / 255; zoneV = L.zone[ii] / 255;
+            }
+            const sy = hy + ((camZ - hh) * f) / z;
+            const j = Math.floor(sy / rowH);
+            if (j < ytop) {
+              // which piece of ground it is
+              const mx = Math.floor((wx - S.x) * MAP_PX_PER_M + MAP_SIZE / 2), my = Math.floor((S.y - wy) * MAP_PX_PER_M + MAP_SIZE / 2);
+              let r = 100, g = 90, b = 70;
+              let R = 0, B = 0, G = 0;
+              if (mx >= 0 && my >= 0 && mx < MAP_SIZE && my < MAP_SIZE) { const mi = (my * MAP_SIZE + mx) * 4; R = S.data[mi]; G = S.data[mi + 1]; B = S.data[mi + 2]; }
+              if (R >= 225) { sample(T.dirt2 ?? T.dirt, wx, wy, 4, z, SC0); r = SC0[0] * 0.7; g = SC0[1] * 0.68; b = SC0[2] * 0.66; }
+              else if (R >= 210) { sample(T.asphalt, wx, wy, 5, z, SC0); r = SC0[0] * 0.4; g = SC0[1] * 0.4; b = SC0[2] * 0.4; }
+              else if (R > 150) { sample(G > 150 ? T.asphalt2 : T.asphalt, wx, wy, 5, z, SC0); r = SC0[0]; g = SC0[1]; b = SC0[2]; if (B > 140) { r = r * 0.35 + 215 * 0.65; g = g * 0.35 + 190 * 0.65; b = b * 0.35 + 90 * 0.65; } }
+              else if (R > 50) { sample(T.sidewalk, wx, wy, 3, z, SC0); r = SC0[0]; g = SC0[1]; b = SC0[2]; }
+              else {
+                // earth: the kind changes over the land (dust, red clay, scorched, grass, overgrowth), blended where they meet
+                const pos = zoneV * (GROUND.length - 1), i0 = Math.min(GROUND.length - 2, Math.floor(pos)), ft = pos - i0, sm = ft * ft * (3 - 2 * ft);
+                sample(T[GROUND[i0]] ?? T.dirt, wx, wy, GROUND[i0].startsWith('grass') ? 4 : 6, z, SC0); sample(T[GROUND[i0 + 1]] ?? T.dirt, wx, wy, GROUND[i0 + 1].startsWith('grass') ? 4 : 6, z, SC1); const c0 = SC0, c1 = SC1;
+                r = c0[0] * (1 - sm) + c1[0] * sm; g = c0[1] * (1 - sm) + c1[1] * sm; b = c0[2] * (1 - sm) + c1[2] * sm;
+                if (pileV > 0.08) { // a mound of debris
+                  const dk = DEBRIS[Math.min(2, Math.floor(((zoneV * 7.3) % 1) * 3))]; sample(T[dk] ?? T.dirt2, wx, wy, 3.2, z, SC2); const cd = SC2, pk = Math.min(1, pileV * 1.6);
+                  r = r * (1 - pk) + cd[0] * pk; g = g * (1 - pk) + cd[1] * pk; b = b * (1 - pk) + cd[2] * pk;
+                }
+              }
+              const fogK = Math.min(1, Math.max(0, (z - 12) / (FAR - 12)));
+              r = r * (1 - fogK) + fog[0] * fogK; g = g * (1 - fogK) + fog[1] * fogK; b = b * (1 - fogK) + fog[2] * fogK;
+              const jj = Math.max(0, j);
+              for (let rr = jj; rr < ytop; rr++) { const o = (rr * lw + ci) * 4; out[o] = r; out[o + 1] = g; out[o + 2] = b; out[o + 3] = 255; }
+              ytop = jj;
+              if (ytop === 0) break;
+            }
+            z += z < 8 ? Math.max(0.015, z * 0.012) : z * 0.017;
+          }
+          while (binDone < BINS) { occ[ci * BINS + binDone] = ytop * rowH; binDone++; }
+        }
+        lowCtx.putImageData(lowImg, 0, 0);
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(low, 0, 0, W, H);
+      }
+      /** The screen row below which the ground in front hides things at this distance and sideways position (so a hill hides what is behind it). */
+      const occAt = (px: number, pz: number): number => { const ci = Math.max(0, Math.min(lw - 1, Math.floor((cx + (px / pz) * f) / colW))); return occ[ci * BINS + Math.min(BINS - 1, Math.floor(pz / 2))] ?? H; };
+
+      // the haze at the far end of the street (behind the standing things, so what is near stays clear)
+      const hz = ctx.createLinearGradient(0, hy - H * 0.07, 0, hy + H * 0.08);
+      hz.addColorStop(0, 'rgba(201,164,106,0)'); hz.addColorStop(0.5, 'rgba(201,164,106,0.5)'); hz.addColorStop(1, 'rgba(201,164,106,0)');
+      ctx.fillStyle = hz; ctx.fillRect(0, hy - H * 0.07, W, H * 0.15);
 
       // standing things, far to near: the stock pieces on the empty lots, and the buildings
       type Thing = { z: number; draw: () => void };
@@ -394,8 +532,8 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
       const fogAlpha = (z: number) => Math.max(0.28, Math.min(1, 1.35 - z / FAR));
 
       // the buildings, as boxes: the picture on the front, generic ruined walls on the sides (each wall in strips, so it has perspective)
-      const strips = (src: CanvasImageSource, sw: number, sh: number, A: V, B: V, hM: number, sink = 0, flip = false) => {
-        const N = 36;
+      const strips = (src: CanvasImageSource, sw: number, sh: number, A: V, B: V, hM: number, sink = 0, flip = false, drop = CAM_H) => {
+        const N = 64;
         for (let i = 0; i < N; i++) {
           const t0 = i / N, t1 = (i + 1) / N;
           const P0 = { x: A.x + (B.x - A.x) * t0, y: A.y + (B.y - A.y) * t0 }, P1 = { x: A.x + (B.x - A.x) * t1, y: A.y + (B.y - A.y) * t1 };
@@ -404,12 +542,18 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
           const z0c = Math.max(NEAR, d0), z1c = Math.max(NEAR, d1);
           const xa = cx + (x0 / z0c) * f, xb = cx + (x1 / z1c) * f;
           if (xb - xa < 0.2 || xb < 0 || xa > W) continue;
-          const zm = (z0c + z1c) / 2, hp = (hM * f) / zm, base = hy + ((CAM_H + sink) * f) / zm;
-          ctx.globalAlpha = fogAlpha(zm);
-          ctx.drawImage(src, ((flip ? N - 1 - i : i) * sw) / N, 0, sw / N + 0.6, sh, xa, base - hp, xb - xa + 0.7, hp);
+          // each strip is a narrow slanted piece of the picture: its top and foot follow the perspective along the wall (no steps)
+          const hp0 = (hM * f) / z0c, hp1 = (hM * f) / z1c, b0 = hy + ((drop + sink) * f) / z0c, b1 = hy + ((drop + sink) * f) / z1c;
+          const topL = b0 - hp0, topR = b1 - hp1, dx = xb - xa + 0.7, srcX = ((flip ? N - 1 - i : i) * sw) / N, srcW = sw / N + 0.6;
+          ctx.globalAlpha = fogAlpha((z0c + z1c) / 2);
+          ctx.save();
+          ctx.transform(dx / srcW, (topR - topL) / Math.max(0.5, xb - xa), 0, (hp0 + hp1) / 2 / sh, xa, topL);
+          ctx.drawImage(src, srcX, 0, srcW, sh, 0, 0, srcW, sh);
+          ctx.restore();
         }
         ctx.globalAlpha = 1;
       };
+
       for (const b of w0.b) {
         const t: V = { x: -b.n.y, y: b.n.x };
         const own = !!(b.vf && b.vs); // re-rendered into its own front and side: a real box of its own size
@@ -422,6 +566,7 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
         if (bz < -b.width || bz > FAR + b.width || Math.abs(bx) > bz + b.width * 2 + 20) continue;
         const hM = own ? (b.fh as number) : b.width * b.ratio, sideH = own ? hM : Math.min(hM * 0.5, b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? 6.5 : 7.5);
         const sink = own ? 0.12 : hM * 0.05;
+        const drop = camZ - heightAt({ x: b.x + b.n.x * hd, y: b.y + b.n.y * hd });
         const generic = assets.sprites[b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? `houseside${b.side + 1}` : 'shopside1'] ?? null;
         const sideImg: CanvasImageSource | null = own ? (b.vs as HTMLCanvasElement) : generic;
         const sideW = own ? (b.vs as HTMLCanvasElement).width : generic?.naturalWidth ?? 1, sideHpx = own ? (b.vs as HTMLCanvasElement).height : generic?.naturalHeight ?? 1;
@@ -435,62 +580,63 @@ export default function StreetWalk({ center, places, onClose }: { center: { lat:
           for (const fc of faces) {
             const mid = { x: (fc.A.x + fc.B.x) / 2, y: (fc.A.y + fc.B.y) / 2 };
             if ((k.x - mid.x) * fc.out.x + (k.y - mid.y) * fc.out.y <= 0) continue; // turned away from the walker
-            if (fc.img) strips(fc.img, fc.sw, fc.sh, fc.A, fc.B, fc.front ? hM : sideH, fc.front ? sink : own ? sink : 0.15, fc.flip);
-            else { const [xa, da] = cam3(fc.A), [xb, db] = cam3(fc.B); if (da > NEAR && db > NEAR) { const x0 = cx + (xa / da) * f, x1 = cx + (xb / db) * f, zz = (da + db) / 2, hp = (sideH * f) / zz; ctx.fillStyle = '#4a4338'; ctx.fillRect(Math.min(x0, x1), hy + (CAM_H * f) / zz - hp, Math.abs(x1 - x0), hp); } }
+            if (fc.img) strips(fc.img, fc.sw, fc.sh, fc.A, fc.B, fc.front ? hM : sideH, fc.front ? sink : own ? sink : 0.15, fc.flip, drop);
+            else { const [xa, da] = cam3(fc.A), [xb, db] = cam3(fc.B); if (da > NEAR && db > NEAR) { const x0 = cx + (xa / da) * f, x1 = cx + (xb / db) * f, zz = (da + db) / 2, hp = (sideH * f) / zz; ctx.fillStyle = '#4a4338'; ctx.fillRect(Math.min(x0, x1), hy + (drop * f) / zz - hp, Math.abs(x1 - x0), hp); } }
           }
         } });
       }
 
-      // empty lots: patches of debris, bare ground and dead trees, scattered at random (clumps that run up against each other, then bare stretches), never on the road or in a building.
-      // Where things go comes from smooth noise (so the density and the kind of thing change slowly over the ground) and from random positions inside small cells (so nothing is in rows).
-      const vnoise = (x: number, y: number, sc: number, seed: number): number => {
-        const gx = Math.floor(x / sc), gy = Math.floor(y / sc), fx = x / sc - gx, fy = y / sc - gy;
-        const sm = (t: number) => t * t * (3 - 2 * t), h = (i: number, j: number) => hash(i * 57.3 + j * 113.9 + seed);
-        const u = sm(fx), v = sm(fy);
-        return (h(gx, gy) * (1 - u) + h(gx + 1, gy) * u) * (1 - v) + (h(gx, gy + 1) * (1 - u) + h(gx + 1, gy + 1) * u) * v;
-      };
+      // empty lots: scattered at random, in clumps that run up against each other with bare stretches between, never on the road or in a building. Where things go comes from smooth
+      // noise over the whole world (so the density and the kind of ground change slowly, and the same walk always sees the same land) and random positions inside small cells (so nothing is in rows).
       const cell = 4.5;
       const gx0 = Math.floor((k.x - FAR) / cell), gx1 = Math.floor((k.x + FAR) / cell), gy0 = Math.floor((k.y - FAR) / cell), gy1 = Math.floor((k.y + FAR) / cell);
-      const surfaceAt = (p: V): number => { if (!S) return 0; const mx = Math.floor((p.x - S.x) * MAP_PX_PER_M + MAP_SIZE / 2), my = Math.floor((S.y - p.y) * MAP_PX_PER_M + MAP_SIZE / 2); return mx < 0 || my < 0 || mx >= MAP_SIZE || my >= MAP_SIZE ? 0 : S.data[(my * MAP_SIZE + mx) * 4]; };
-      const BIG = ['rubble1', 'rubble2', 'rubble3', 'rubble4'], FLAT = ['flat1', 'flat2', 'flat3'], STREW = ['scatter2', 'scatter3', 'scatter2', 'flat3'], TREES = ['tree1', 'tree2', 'tree3', 'tree4', 'tree1'];
+      const have = (names: string[]) => names.filter((n) => assets.sprites[n]);
+      const TREES = have(['tree1', 'tree2', 'tree3', 'tree4', 'tree5', 'tree6', 'tree7', 'tree8', 'tree9', 'tree10']), SHRUBS = have(['shrub1', 'shrub2', 'shrub3']), GRASS = have(['grass2s', 'grass3', 'grass2s']);
+      const BIG = have(['rubble1', 'rubble2', 'rubble3', 'rubble4']), PILES = have(['bigpile1', 'bigpile2', 'bigpile3']), FLAT = have(['flat1', 'flat2', 'flat3']), STREW = have(['scatter2', 'scatter3', 'scatter2', 'flat3']);
+      const JUNK = have(['swingset1', 'bench1', 'mailbox1', 'trashcan1', 'carparts1', 'junk1', 'shopcart1', 'tires1', 'fence1', 'fence2', 'junk1', 'carparts1']);
+      const pick = (a: string[], q: number): string => (a.length ? a[Math.floor(q * a.length) % a.length] : '');
       for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
         const cxm = (gx + 0.5) * cell, cym = (gy + 0.5) * cell;
-        const dens = vnoise(cxm, cym, 38, 1) * 0.65 + vnoise(cxm, cym, 11, 2) * 0.35; // clumps, with bare gaps between
-        if (dens < 0.36) continue;
+        const pv = vnoise(cxm, cym, 55, 11) * 0.7 + vnoise(cxm, cym, 17, 12) * 0.3; // the same noise as the mounds of the land
+        const dens = vnoise(cxm, cym, 38, 1) * 0.65 + vnoise(cxm, cym, 11, 2) * 0.35 + (pv > 0.5 ? 0.25 : 0);
+        if (dens < 0.34) continue;
         const count = dens < 0.5 ? 1 : dens < 0.62 ? 2 : dens < 0.74 ? 3 : 5;
-        const zone = vnoise(cxm, cym, 90, 3); // what kind of ground: rubbly, treed, or strewn
+        const zone = vnoise(cxm, cym, 90, 3);
         for (let q = 0; q < count; q++) {
           const seed = gx * 73.1 + gy * 191.7 + q * 17.3;
           const p: V = { x: (gx + hash(seed + 1)) * cell, y: (gy + hash(seed + 2)) * cell };
           const [px, pz] = cam3(p);
           if (pz < NEAR + 0.5 || pz > FAR || Math.abs(px) > pz * 1.5 + 6) continue;
           if (w0.b.some((b) => Math.hypot(b.x - p.x, b.y - p.y) < Math.max(b.width, b.depth) * 0.6 + 2)) continue;
-          const R = surfaceAt(p), r = hash(seed + 3);
-          let name: string;
-          if (R > 150) { if (r > 0.07) continue; name = r > 0.035 ? 'car1' : 'car2'; }
-          else if (R > 50) { if (r > 0.12) continue; name = r > 0.06 ? 'lamp1' : 'pole1'; }
-          else if (zone < 0.33) name = r < 0.12 ? TREES[Math.floor(hash(seed + 4) * TREES.length)] : r < 0.5 ? STREW[Math.floor(hash(seed + 5) * STREW.length)] : r < 0.82 ? FLAT[Math.floor(hash(seed + 6) * FLAT.length)] : BIG[Math.floor(hash(seed + 7) * BIG.length)];
-          else if (zone < 0.66) name = r < 0.5 ? BIG[Math.floor(hash(seed + 4) * BIG.length)] : r < 0.8 ? FLAT[Math.floor(hash(seed + 5) * FLAT.length)] : r < 0.92 ? STREW[Math.floor(hash(seed + 6) * STREW.length)] : TREES[Math.floor(hash(seed + 7) * TREES.length)];
-          else name = r < 0.45 ? TREES[Math.floor(hash(seed + 4) * TREES.length)] : r < 0.7 ? STREW[Math.floor(hash(seed + 5) * STREW.length)] : r < 0.88 ? FLAT[Math.floor(hash(seed + 6) * FLAT.length)] : BIG[Math.floor(hash(seed + 7) * BIG.length)];
-          const sp = assets.sprites[name];
+          const R = surfaceR(p), r = hash(seed + 3), q2 = hash(seed + 4);
+          let name = '';
+          if (R > 150) { if (r > 0.08) continue; name = r > 0.05 ? pick(['car1'], 0) : r > 0.03 ? pick(['car2'], 0) : pick(['tires1', 'carparts1'], q2); }
+          else if (R > 50) { if (r > 0.14) continue; name = r > 0.1 ? pick(['lamp1', 'pole1'], q2) : pick(['hydrant1', 'mailbox1', 'bench1', 'trashcan1', 'stopsign1'], q2); }
+          else if (pv > 0.5 && r < 0.4) name = pick(r < 0.15 ? PILES : r < 0.3 ? BIG : JUNK, q2); // on a mound: heaps and junk
+          else if (zone < 0.33) name = r < 0.1 ? pick(TREES, q2) : r < 0.3 ? pick(SHRUBS, q2) : r < 0.5 ? pick(GRASS, q2) : r < 0.72 ? pick(STREW, q2) : r < 0.9 ? pick(FLAT, q2) : pick(BIG, q2);
+          else if (zone < 0.66) name = r < 0.28 ? pick(BIG, q2) : r < 0.42 ? pick(PILES, q2) : r < 0.58 ? pick(JUNK, q2) : r < 0.74 ? pick(FLAT, q2) : r < 0.86 ? pick(STREW, q2) : r < 0.93 ? pick(GRASS, q2) : pick(TREES, q2);
+          else name = r < 0.32 ? pick(TREES, q2) : r < 0.55 ? pick(SHRUBS, q2) : r < 0.78 ? pick(GRASS, q2) : r < 0.88 ? pick(STREW, q2) : r < 0.95 ? pick(FLAT, q2) : pick(JUNK, q2);
+          const sp = name ? assets.sprites[name] : null;
           if (!sp) continue;
           const hM = (SPRITE_H[name] ?? 2) * (0.55 + hash(seed + 8) * 0.95), flip = hash(seed + 9) > 0.5;
           const hp = (hM * f) / pz;
-          if (hp < 1.2) continue;
+          if (hp < 2.5) continue;
+          const gH = heightAt(p), base = hy + ((camZ - gH) * f) / pz, oy = occAt(px, pz);
+          if (base - hp > oy + 2) continue; // behind a hill
           things.push({ z: pz, draw: () => {
             const wp = hp * (sp.naturalWidth / sp.naturalHeight);
-            const sx = cx + (px / pz) * f, base = hy + (CAM_H * f) / pz;
+            const sx = cx + (px / pz) * f;
+            const far = hp * dpr < 110, img = far ? assets.small[name] ?? sp : sp;
+            const clipped = base > oy;
+            if (clipped || (flip && !far)) ctx.save();
+            if (clipped) { ctx.beginPath(); ctx.rect(0, 0, W, oy); ctx.clip(); }
             ctx.globalAlpha = fogAlpha(pz);
-            if (flip) { ctx.save(); ctx.translate(sx, 0); ctx.scale(-1, 1); ctx.drawImage(sp, -wp / 2, base - hp, wp, hp); ctx.restore(); } else ctx.drawImage(sp, sx - wp / 2, base - hp, wp, hp);
-            ctx.globalAlpha = 1;
+            if (flip && !far) { ctx.translate(sx, 0); ctx.scale(-1, 1); ctx.drawImage(img, -wp / 2, base - hp, wp, hp); } else ctx.drawImage(img, sx - wp / 2, base - hp, wp, hp);
+            if (clipped || (flip && !far)) ctx.restore(); else ctx.globalAlpha = 1;
           } });
         }
       }
       things.sort((a, b) => b.z - a.z).forEach((t) => t.draw());
-      // the haze at the far end of the street
-      const hz = ctx.createLinearGradient(0, hy - H * 0.07, 0, hy + H * 0.08);
-      hz.addColorStop(0, 'rgba(201,164,106,0)'); hz.addColorStop(0.5, 'rgba(201,164,106,0.5)'); hz.addColorStop(1, 'rgba(201,164,106,0)');
-      ctx.fillStyle = hz; ctx.fillRect(0, hy - H * 0.07, W, H * 0.15);
       ctx.fillStyle = 'rgba(0,0,0,0.1)'; for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 1.5);
       const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);

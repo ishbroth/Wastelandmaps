@@ -8,11 +8,26 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const IN = path.join(ROOT, '_data', 'street');
 const OUT = path.join(ROOT, 'public', 'street');
 fs.mkdirSync(OUT, { recursive: true });
-const TEXTURES = ['asphalt', 'asphalt2', 'dirt', 'dirt2', 'dirt3', 'sidewalk'];
+const TEXTURES = ['asphalt', 'asphalt2', 'dirt', 'dirt2', 'dirt3', 'dirt4', 'grass', 'grass2', 'debris1', 'debris2', 'debris3', 'sidewalk'];
 const manifest = { textures: [], sprites: {} };
 
 for (const name of fs.readdirSync(IN).filter((f) => f.endsWith('.png')).map((f) => f.replace('.png', ''))) {
   const src = path.join(IN, name + '.png');
+  if (name.startsWith('sky-')) {
+    // a sky: 2048 wide, its left and right edges blended so it wraps round without a seam (the last fifth fades into the first)
+    const W = 2048;
+    const meta = await sharp(src).metadata();
+    const Hh = Math.round(W * (meta.height / meta.width));
+    const { data } = await sharp(src).resize(W, Hh, { fit: 'fill' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const B = Math.round(W * 0.2), Wc = W - B, out = Buffer.alloc(Wc * Hh * 3);
+    for (let y = 0; y < Hh; y++) for (let x = 0; x < Wc; x++) {
+      const o = (y * Wc + x) * 3, i = (y * W + x) * 3;
+      if (x < B) { const w = x / B, j = (y * W + Wc + x) * 3; for (let c = 0; c < 3; c++) out[o + c] = Math.round(data[i + c] * w + data[j + c] * (1 - w)); } // the start continues from the cut-off end
+      else for (let c = 0; c < 3; c++) out[o + c] = data[i + c];
+    }
+    await sharp(out, { raw: { width: Wc, height: Hh, channels: 3 } }).webp({ quality: 78 }).toFile(path.join(OUT, name + '.webp'));
+    continue;
+  }
   if (TEXTURES.includes(name)) {
     const S = 512;
     // the road is lightened and warmed to match the roads in the rendered photographs (a dusty tan grey, not near black)
@@ -39,6 +54,7 @@ for (const name of fs.readdirSync(IN).filter((f) => f.endsWith('.png')).map((f) 
     const r = data[i], g = data[i + 1], b = data[i + 2];
     // how magenta: red and blue well above green
     const m = Math.min(r, b) - g;
+    if (m > 6 && m <= 70) { const sub = m * 0.85; data[i] = Math.max(0, data[i] - sub); data[i + 2] = Math.max(0, data[i + 2] - sub); } // no pink left on the edges
     if (m > 70) data[i + 3] = 0;
     else if (m > 35) data[i + 3] = Math.round(255 * (1 - (m - 35) / 35));
     if (m > 35 && m <= 70) { const k = 1 - (m - 35) / 35; data[i] = Math.round(r * k + g * (1 - k)); data[i + 2] = Math.round(b * k + g * (1 - k)); } // no pink fringe

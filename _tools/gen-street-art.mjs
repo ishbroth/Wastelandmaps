@@ -16,6 +16,10 @@ const STYLE = 'Photorealistic video game asset in the visual style of Fallout 4 
 const TEX = (what) => `${STYLE} A seamless tileable ground texture seen from DIRECTLY ABOVE (a perfectly flat top-down orthographic view, no perspective, no horizon, no sky, no shadows from tall objects, flat even overcast lighting), filling the whole square image edge to edge: ${what}. Nothing tall, no vehicles, no people. It must look the same at every edge so copies tile without a visible seam.`;
 const SPRITE = (what, view) => `${STYLE} A game sprite of ${what}, seen at eye level from ${view}, the whole object fully inside the picture with space round it, centered, on a perfectly flat solid magenta (#FF00FF) background with no shadow on the background, no ground plane, no other objects. Soft overcast light.`;
 
+const SKY = (what) => `${STYLE} A wide panoramic picture of ONLY the sky, as seen from the ground looking at the horizon: ${what}. Volumetric clouds with real depth and soft light. Absolutely no ground, no buildings, no trees, no power lines, no birds, no sun disc cut by edges: only sky, with the bottom edge fading into a dusty brownish-orange haze where the horizon would be. It must read as a real photographic game sky, not a cartoon.`;
+const ASPECT = {};
+for (const t of ['overcast', 'sunset', 'fallout']) for (let i = 1; i <= 3; i++) ASPECT[`sky-${t}${i}`] = '16:9';
+const VARIANT = ['with a large cloud bank on the left and a clearer patch to the right', 'with long streaky clouds stretched across the whole width', 'with towering clouds in the middle and thinner haze at both sides'];
 const PROMPTS = {
   // ground, from above
   asphalt: TEX('a cracked, broken old asphalt road surface, faded and dusty, with a network of cracks, small potholes, patches of weeds and gravel, no lane markings'),
@@ -36,6 +40,52 @@ const PROMPTS = {
   car2: SPRITE('a rusted burnt-out pickup truck wreck, doors open, tires gone, on its rims', 'a three-quarter front angle'),
   pole1: SPRITE('a leaning wooden utility pole with snapped dangling wires and a crossbar', 'the front'),
   lamp1: SPRITE('a bent rusted street lamp post with a broken lamp head hanging', 'the side'),
+  // skies, three each
+  'sky-overcast1': SKY('a heavy overcast post-apocalyptic sky: thick layered storm clouds in grey, sickly yellow and warm orange, soft diffuse light, ' + VARIANT[0]),
+  'sky-overcast2': SKY('a heavy overcast post-apocalyptic sky: thick layered storm clouds in grey, sickly yellow and warm orange, soft diffuse light, ' + VARIANT[1]),
+  'sky-overcast3': SKY('a heavy overcast post-apocalyptic sky: thick layered storm clouds in grey, sickly yellow and warm orange, soft diffuse light, ' + VARIANT[2]),
+  'sky-sunset1': SKY('a low sun glowing through dusty haze and big volumetric clouds, orange, gold and teal, like the Commonwealth sky of Fallout 4, ' + VARIANT[0]),
+  'sky-sunset2': SKY('a low sun glowing through dusty haze and big volumetric clouds, orange, gold and teal, like the Commonwealth sky of Fallout 4, ' + VARIANT[1]),
+  'sky-sunset3': SKY('a low sun glowing through dusty haze and big volumetric clouds, orange, gold and teal, like the Commonwealth sky of Fallout 4, ' + VARIANT[2]),
+  'sky-fallout1': SKY('a sickly green-yellow radioactive sky with roiling toxic clouds and glowing green fallout haze drifting through, ' + VARIANT[0]),
+  'sky-fallout2': SKY('a sickly green-yellow radioactive sky with roiling toxic clouds and glowing green fallout haze drifting through, ' + VARIANT[1]),
+  'sky-fallout3': SKY('a sickly green-yellow radioactive sky with roiling toxic clouds and glowing green fallout haze drifting through, ' + VARIANT[2]),
+  // more ground
+  grass: TEX('wild overgrown wasteland grass: patches of dead yellow grass mixed with living green and olive grass, clover, small weeds and a little bare earth, natural and varied colors'),
+  grass2: TEX('lush, rampant overgrowth: vivid green and yellow-green weeds, ivy, moss and small wildflowers growing through cracked dirt, brighter and more colorful than dead ground'),
+  dirt4: TEX('reddish-orange clay earth with rust-colored patches, pale dust, streaks of dried mud and a few green moss patches, warm and colorful'),
+  debris1: TEX('a dense layer of mixed street trash and junk lying on the ground: broken plastic, colorful scraps of cloth, bottles, cans, paper, bits of blue, red, orange and white among grey rubble and dust, like a heap of garbage seen from above'),
+  debris2: TEX('a dense bed of broken concrete, brick fragments, gravel, shattered glass and rusty rebar pieces, grey and red-brown with occasional colorful bits'),
+  debris3: TEX('a dense bed of burnt wooden planks, splinters, rusted sheet metal scraps, plaster chunks and ash, dark brown, charcoal and rust-orange'),
+  // street junk and shrubs
+  swingset1: SPRITE('the broken remains of a playground swing set: a bent rusted A-frame, one swing seat hanging by a single chain, the other fallen on the ground, with weeds around the base', 'the front'),
+  bench1: SPRITE('a smashed park bench with broken wooden slats and a bent rusted frame, half collapsed', 'a three-quarter front angle'),
+  mailbox1: SPRITE('a rusted leaning roadside mailbox on a bent wooden post, door hanging open', 'the front'),
+  trashcan1: SPRITE('a dented overturned metal garbage can with trash spilled out of it, and a second smaller can lying beside it', 'the front'),
+  carparts1: SPRITE('a heap of scavenged car parts: a car hood, a door, bumpers, a bare engine block and two worn tires, rusted and scattered', 'the front'),
+  junk1: SPRITE('a low heap of assorted city street junk: a bent traffic cone, a broken street sign, a bicycle frame, a shopping cart on its side, bags and boxes of trash', 'the front'),
+  shopcart1: SPRITE('a rusted abandoned shopping cart tipped on its side, tangled with weeds', 'the side'),
+  hydrant1: SPRITE('a rusted fire hydrant, leaning and chipped, with its top cap missing', 'the front'),
+  stopsign1: SPRITE('a bent rusted stop sign on a leaning pole, faded and dented', 'the front'),
+  fence1: SPRITE('a section of broken chain-link fence, leaning and torn, two posts bent, with weeds growing through', 'straight on from the front'),
+  fence2: SPRITE('a section of broken white wooden picket fence, weathered and grey, half the pickets missing and the rest leaning', 'straight on from the front'),
+  tires1: SPRITE('a stack and a scatter of old rotten car tires lying on the ground', 'the front'),
+  bigpile1: SPRITE('a very wide, low, sprawling mound of mixed debris and trash: colorful bits of plastic, cloth, bottles and paper mixed with grey rubble, broken furniture and a car door sticking out, like a garbage heap, no taller than two metres but spreading very wide', 'a low eye-level front view'),
+  bigpile2: SPRITE('a very wide, low, sprawling mound of broken concrete, bricks, charred timber and scrap metal with weeds growing on it, spreading wide and rolling, no taller than two metres', 'a low eye-level front view'),
+  bigpile3: SPRITE('a very wide, low, sprawling mound of burnt household junk: a mattress, springs, a refrigerator door, chairs, pots, tires and ash, spreading wide', 'a low eye-level front view'),
+  shrub1: SPRITE('a scraggly dry shrub with thin twisted branches, a few patches of living green leaves and dead brown leaves, knee to waist high', 'the front'),
+  shrub2: SPRITE('a wild overgrown bush, tangled, part green and part dead and orange, with a few small flowers, waist high', 'the front'),
+  shrub3: SPRITE('a spiky desert-like weed shrub, grey-green with yellow tips, scraggly', 'the front'),
+  grass1: SPRITE('a clump of tall wild wasteland grass, yellow-green and olive, blades leaning in the wind, with a few seed heads', 'the front'),
+  grass2s: SPRITE('a big patch of tall dry grass and weeds in several colors, green, gold and rust, spread wide and fairly low', 'the front'),
+  grass3: SPRITE('a patch of scraggly weeds and thistles with purple and yellow wildflowers amid yellowing grass', 'the front'),
+  // more trees
+  tree5: SPRITE('a tall dead pine tree, bare of needles except a few brown clumps, thin straight trunk with short dead branches', 'the front'),
+  tree6: SPRITE('a gnarled old oak with half its limbs snapped off and a few clusters of sickly yellow-green leaves, thick trunk', 'the front'),
+  tree7: SPRITE('a tall dead palm tree with drooping brown fronds, a ragged trunk and a few fronds hanging down', 'the front'),
+  tree8: SPRITE('a half-fallen leaning dead tree with a split trunk and tangled roots in the air, a few living green shoots growing from it', 'the front'),
+  tree9: SPRITE('a scorched, leafless birch-like tree with pale peeling bark and thin twisting branches', 'the front'),
+  tree10: SPRITE('a small scrawny young tree with a few bright green leaves growing out of the cracks, spindly and crooked', 'the front'),
   // flatter debris and things strewn about, to fill bare ground between the piles
   flat1: SPRITE('a flat, wide spread of broken concrete slabs, shattered bricks and gravel lying low on the ground, no tall parts, no more than half a metre high, very wide and low', 'a low eye-level front view'),
   flat2: SPRITE('a wide, low scatter of burnt planks, torn insulation, plaster chunks and crumpled sheet metal lying flat on the ground, nothing taller than half a metre', 'a low eye-level front view'),
@@ -68,7 +118,7 @@ for (const name of names) {
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST', headers: { 'x-goog-api-key': KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: '1:1' } } }),
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: ASPECT[name] ?? '1:1' } } }),
       });
       if (!res.ok) { console.log(name, 'FAILED', res.status, (await res.text()).slice(0, 120)); await new Promise((r) => setTimeout(r, 4000)); continue; }
       const body = await res.json();
