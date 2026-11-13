@@ -7,6 +7,7 @@ import FaceIdOffer from './components/FaceIdOffer';
 import { savedFaceIds } from './lib/faceid';
 import SceneModal from './components/SceneModal';
 import StreetWalk from './components/StreetWalk';
+import BinocButton from './components/BinocButton';
 import { accountsEnabled, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { startPurchases } from './lib/iap';
@@ -1351,6 +1352,20 @@ export default function App() {
           ) : (
             <div className="rm-setup"><h2>BOOTING…</h2></div>
           )}
+          {(() => {
+            // our own street view: for a person who bought this metro's atlas. With no place open it is at the bottom left of the map (lit when a place with a picture is close to the middle of
+            // the map); with a place open it moves to that place's card
+            const owned = !!account.session && !!metroInfo && account.metros.has(metroInfo.id);
+            if (!owned || !mapAt || mapAt.zoom < 16 || nav || (selectedSpot && wasteland && !sceneSpot)) return null;
+            const here = { lat: mapAt.lat, lng: mapAt.lng };
+            const plotted = [
+              ...atlas.map((a) => ({ lat: a.lat, lng: a.lng })),
+              ...locations.filter((l) => l.id.startsWith('wd:') && account.unlocked.has(l.id)).map((l) => ({ lat: l.position.lat, lng: l.position.lng })),
+              ...(account.home?.lat !== undefined && account.home.lng !== undefined ? [{ lat: account.home.lat, lng: account.home.lng }] : []),
+            ];
+            const near = plotted.some((p) => distanceMeters(here, p) <= 60);
+            return <BinocButton className="rm-binoc-map" on={near} onClick={() => { sound('select'); setWalking(here); }} />;
+          })()}
           <div className="rm-crt" aria-hidden="true" />
 
           {xpFlash && <div className="rm-xp" key={xpFlash.id} role="status">{xpFlash.text}</div>}
@@ -1394,7 +1409,7 @@ export default function App() {
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard waiting={waitingLine(account.waiting.get(selectedSpot.id))}
               spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
-              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onWalk={account.session && metroInfo && account.metros.has(metroInfo.id) ? () => { sound('select'); setWalking({ lat: selectedSpot.position.lat, lng: selectedSpot.position.lng }); } : undefined} walkOn={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id) || selectedSpot.personal?.home === true || selectedSpot.personal?.atlas === true} onClose={() => setSelectedId(null)}
+              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onWalk={account.session && metroInfo && account.metros.has(metroInfo.id) ? () => { sound('select'); setWalking({ lat: selectedSpot.position.lat, lng: selectedSpot.position.lng }); } : undefined} walkOn={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || selectedSpot.personal?.home === true || selectedSpot.personal?.atlas === true} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
