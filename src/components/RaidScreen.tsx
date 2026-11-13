@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { finishRaid, startRaid, useStimpak, useTime, type Account } from '../lib/account';
 import { loadRaidAssets, type RaidAssets } from '../lib/raid/assets';
 import { playSound } from '../lib/raid/audio';
-import { enemyFiles, hasVoice, playEnemy, preloadSfx } from '../lib/sfx';
+import { blastFiles, enemyFiles, hasVoice, nextBlast, playBlast, playEnemy, preloadSfx } from '../lib/sfx';
+import { mushroom } from './BlowApart';
 import { buzz } from '../lib/haptics';
 import { Game, SLOW_SECONDS, type Enemy, type Spawns } from '../lib/raid/engine';
 import { LOOT_CAP, describeBag, lootName, type LootBag, type LootId } from '../lib/raid/loot';
@@ -141,12 +142,12 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
     let raf = 0;
     let cancelled = false;
     let lastHud = 0;
-    let lastBoom = 0;
+    let lastBoom = 0, lastNuke = 0;
     let finishing = -1;
     let last = performance.now();
 
     const start = async () => {
-      preloadSfx(enemyFiles());
+      preloadSfx(enemyFiles()); preloadSfx(blastFiles());
       const ids = [...plan.enemies, ...(plan.boss ? [plan.boss] : [])];
       const [picture, art, started] = await Promise.all([
         loadImage(imageUrl),
@@ -214,6 +215,10 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         }
       }
       if (g.boomed > lastBoom) { lastBoom = g.boomed; playSound('boom', sound); buzz('boom'); }
+      if (g.nuked > lastNuke) { // the Fat Man: the same blast and falling debris as the bomb that destroys a picture, started at once
+        lastNuke = g.nuked; buzz('boom');
+        if (sound) { const vs = [0, 1, 3]; playBlast(vs[nextBlast(g.nuked) % 3], { lead: 0.04, volume: 0.85 }); }
+      }
       if (g.killed > before) { if (!voicedDeath) playSound('kill', sound); buzz('kill'); }
       if (g.hits > hitsBefore) { playSound('hurt', sound); buzz('hurt'); }
       if (pointer.current.down) shoot();
@@ -365,6 +370,23 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           grad.addColorStop(1, 'rgba(120,30,0,0)');
           ctx.fillStyle = grad;
           ctx.beginPath(); ctx.arc(fxx, fxy, r, 0, Math.PI * 2); ctx.fill();
+        } else if (fx.kind === 'nuke') {
+          // a small mushroom cloud where it landed (the same cloud as the bomb that blows up a picture, but small and short), a ring of dust on the ground, and pieces thrown up that fall back
+          const tt = 0.265 + p * (0.76 - 0.265), small = fx.size * vw * 3.2;
+          mushroom(ctx, tt, fxx, fxy, small, small, Math.floor(fx.u * 1000));
+          const ring = fx.size * vw * (0.4 + 2.2 * Math.min(1, p * 2.2));
+          ctx.save(); ctx.globalAlpha = Math.max(0, 0.55 * (1 - p * 1.6)); ctx.strokeStyle = 'rgb(205,170,125)'; ctx.lineWidth = Math.max(2, ring * 0.06);
+          ctx.beginPath(); ctx.ellipse(fxx, fxy + ring * 0.05, ring, ring * 0.22, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+          const gr = vw * 0.95, tm = fx.t;
+          for (let i = 0; i < 34; i++) {
+            const h1 = Math.abs(Math.sin(i * 12.9898 + fx.u * 78.233) * 43758.5453) % 1, h2 = Math.abs(Math.sin(i * 7.13 + fx.v * 33.1) * 24634.6345) % 1, h3 = Math.abs(Math.sin(i * 3.77 + 9.1) * 9123.7) % 1;
+            const ang = -Math.PI * (0.12 + 0.76 * h1), sp = vw * (0.12 + 0.34 * h2);
+            const x = fxx + Math.cos(ang) * sp * tm * 1.1, y = fxy + Math.sin(ang) * sp * tm + 0.5 * gr * tm * tm;
+            if (y > fxy + vw * 0.03) continue; // it lands in the dust
+            ctx.fillStyle = h3 < 0.25 ? 'rgba(255,170,70,' + (0.9 * (1 - p)) + ')' : h3 < 0.65 ? 'rgba(70,58,50,' + (0.95 * (1 - p)) + ')' : 'rgba(150,130,115,' + (0.9 * (1 - p)) + ')';
+            const sz = Math.max(2, vw * (0.006 + 0.012 * h2));
+            ctx.save(); ctx.translate(x, y); ctx.rotate(tm * (2 + h3 * 6) + i); ctx.fillRect(-sz / 2, -sz / 3, sz, sz * 0.66); ctx.restore();
+          }
         } else if (fx.kind === 'flame') {
           for (let i = 0; i < 5; i++) {
             const a = time * 20 + i * 1.7;

@@ -116,7 +116,7 @@ export interface Enemy {
 }
 
 export interface Effect {
-  kind: 'explosion' | 'spark' | 'flame' | 'muzzle';
+  kind: 'explosion' | 'spark' | 'flame' | 'muzzle' | 'nuke';
   u: number;
   v: number;
   /** Radius in the picture's widths (explosions, flames). */
@@ -138,6 +138,8 @@ export interface Strike {
 /** A grenade lobbed in an arc, or a missile flying straight, on its way to where it will go off. */
 export interface Projectile {
   kind: 'grenade' | 'missile';
+  /** The Fat Man's: it goes off as a small mushroom cloud with falling debris. */
+  nuke?: boolean;
   /** Where it leaves the gun, and where it lands (the picture's coordinates). */
   u0: number; v0: number; u: number; v: number;
   t: number; life: number;
@@ -177,6 +179,8 @@ export class Game {
   projectiles: Projectile[] = [];
   /** How many times something has gone off (the screen plays the boom for each). */
   boomed = 0;
+  /** How many Fat Man blasts have gone off (the screen plays the blast and the falling debris for each). */
+  nuked = 0;
   strikes: Strike[] = [];
   outcome: Outcome = 'fighting';
   /** The weapon class in hand. */
@@ -475,9 +479,16 @@ export class Game {
   /** A grenade or missile goes off: a big blast, and everything near it is hurt, whether or not it was aimed at one (the rubble will do). */
   private detonate(p: Projectile) {
     const radius = p.splash * 1.3;
-    this.boomed++;
-    this.effects.push({ kind: 'explosion', u: p.u, v: p.v, size: radius * 1.25, t: 0, life: 0.9 });
-    this.effects.push({ kind: 'explosion', u: p.u, v: p.v, size: radius * 0.7, t: 0, life: 0.5 });
+    if (p.nuke) {
+      // a small atom bomb: a flash, a mushroom cloud and debris coming down, at the spot where it landed only
+      this.nuked++;
+      this.effects.push({ kind: 'explosion', u: p.u, v: p.v, size: radius * 0.9, t: 0, life: 0.45 });
+      this.effects.push({ kind: 'nuke', u: p.u, v: p.v, size: radius, t: 0, life: 2.4 });
+    } else {
+      this.boomed++;
+      this.effects.push({ kind: 'explosion', u: p.u, v: p.v, size: radius * 1.25, t: 0, life: 0.9 });
+      this.effects.push({ kind: 'explosion', u: p.u, v: p.v, size: radius * 0.7, t: 0, life: 0.5 });
+    }
     this.shake = Math.max(this.shake, 1);
     for (const e of this.alive) {
       const [l, t, r, b] = this.box(e, p.aspect, p.ratio(e));
@@ -570,7 +581,7 @@ export class Game {
     if (w.splash && !w.auto) {
       // a grenade is lobbed and a missile flies: each goes off where it lands, some moments after the shot (see detonate)
       const grenade = w.id === 'm79';
-      this.projectiles.push({ kind: grenade ? 'grenade' : 'missile', u0: 0.68, v0: 1.06, u, v, t: 0, life: grenade ? 0.95 : w.id === 'fatman' ? 0.7 : 0.42, damage: w.damage, splash: w.splash, aspect, ratio });
+      this.projectiles.push({ kind: grenade ? 'grenade' : 'missile', u0: 0.68, v0: 1.06, u, v, t: 0, life: grenade ? 0.95 : w.id === 'fatman' ? 0.7 : 0.42, damage: w.damage, splash: w.splash, aspect, ratio, nuke: w.id === 'fatman' });
       return true;
     }
     if (w.splash) {

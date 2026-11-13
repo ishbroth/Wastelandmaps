@@ -115,7 +115,7 @@ function plan(width: number, height: number, seed: number, ox: number, oy: numbe
 }
 
 /** The mushroom cloud: a fireball at the base, a stem, and a billowing cap, grown from nothing and then breaking up in the dust. */
-function mushroom(ctx: CanvasRenderingContext2D, t: number, x: number, base: number, w: number, h: number, seed: number) {
+export function mushroom(ctx: CanvasRenderingContext2D, t: number, x: number, base: number, w: number, h: number, seed: number) {
   const grow = ease(clamp((t - 0.265) / 0.3));
   if (grow <= 0) return;
   const fade = 1 - ease(clamp((t - 0.62) / 0.14));

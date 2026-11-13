@@ -211,33 +211,35 @@ export function nextBlast(seed: number): number {
 }
 
 /** Every version is a crack, then the thunderous explosion, then debris coming down (the made sound has the pieces falling from just after the boom). */
-export function playBlast(variant: number, options: Pick<PlayOptions, 'record' | 'speakers'> = {}): void {
-  const at = BURST - 0.02;
+export function playBlast(variant: number, options: Pick<PlayOptions, 'record' | 'speakers'> & { /** Seconds until the burst (the picture reveal waits 1.94 s for its light; a blast in a fight goes off at once). */ lead?: number; volume?: number } = {}): void {
+  const { lead: leadOpt, volume: volOpt, ...rest } = options;
+  const lead = leadOpt ?? BURST, vol = volOpt ?? 1;
+  const at = lead - 0.02;
   const synth = `blast-synth-${variant % 4}`;
   switch (variant % 4) {
     case 0: // a sharp crack, the big blast right behind it, thunder rolling off, the pieces coming down
-      void playSfx('blast-crack', { at, volume: 1, ...options });
-      void playSfx(synth, { at, volume: 0.9, ...options });
-      void playSfx('blast-big', { at: at + 0.12, volume: 1, ...options });
-      void playSfx('blast-distant', { at: at + 0.9, volume: 0.5, rate: 0.9, ...options });
+      void playSfx('blast-crack', { at, volume: 1 * vol, ...rest });
+      void playSfx(synth, { at, volume: 0.9 * vol, ...rest });
+      void playSfx('blast-big', { at: at + 0.12, volume: 1 * vol, ...rest });
+      void playSfx('blast-distant', { at: at + 0.9, volume: 0.5 * vol, rate: 0.9, ...rest });
       break;
     case 1: // a higher, harder crack and a much deeper explosion: the thunder first, the blast on top
-      void playSfx('blast-crack', { at, volume: 0.85, rate: 1.15, ...options });
-      void playSfx(synth, { at, volume: 0.95, ...options });
-      void playSfx('blast-distant', { at: at + 0.1, volume: 1, rate: 0.8, ...options });
-      void playSfx('blast-big', { at: at + 0.2, volume: 0.8, rate: 0.9, ...options });
+      void playSfx('blast-crack', { at, volume: 0.85 * vol, rate: 1.15, ...rest });
+      void playSfx(synth, { at, volume: 0.95 * vol, ...rest });
+      void playSfx('blast-distant', { at: at + 0.1, volume: 1 * vol, rate: 0.8, ...rest });
+      void playSfx('blast-big', { at: at + 0.2, volume: 0.8 * vol, rate: 0.9, ...rest });
       break;
     case 2: // a charge counting down (its own beeps) that goes off with a crack, then the blast and the debris
-      void playSfx('blast-charge', { at: BURST - 1.86, volume: 0.9, ...options });
-      void playSfx('blast-crack', { at: at + 0.02, volume: 0.9, ...options });
-      void playSfx(synth, { at, volume: 0.9, ...options });
-      void playSfx('blast-big', { at: at + 0.16, volume: 1, ...options });
+      void playSfx('blast-charge', { at: lead - 1.86, volume: 0.9 * vol, ...rest });
+      void playSfx('blast-crack', { at: at + 0.02, volume: 0.9 * vol, ...rest });
+      void playSfx(synth, { at, volume: 0.9 * vol, ...rest });
+      void playSfx('blast-big', { at: at + 0.16, volume: 1 * vol, ...rest });
       break;
     default: // the crack, a beat of silence, then the explosion with thunder behind it and the debris
-      void playSfx('blast-crack', { at, volume: 1, rate: 0.95, ...options });
-      void playSfx(synth, { at, volume: 0.9, ...options });
-      void playSfx('blast-big', { at: at + 0.3, volume: 1, rate: 0.85, ...options });
-      void playSfx('blast-distant', { at: at + 0.8, volume: 0.55, ...options });
+      void playSfx('blast-crack', { at, volume: 1 * vol, rate: 0.95, ...rest });
+      void playSfx(synth, { at, volume: 0.9 * vol, ...rest });
+      void playSfx('blast-big', { at: at + 0.3, volume: 1 * vol, rate: 0.85, ...rest });
+      void playSfx('blast-distant', { at: at + 0.8, volume: 0.55 * vol, ...rest });
   }
 }
 
