@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { signInWithFaceId, signInWithVault } from '../lib/account';
 import { faceIdName, forgetFaceId, savedFaceIds } from '../lib/faceid';
-import type { BeepKind } from '../lib/sound';
 
 /** Signing in: email and vault number (the simple password set when the home was chosen), or, in the
  *  app, Face ID (or Touch ID) for an account that was signed in here before and saved. `auto` starts the Face ID check as soon as it opens (the app does this
  *  when it opens signed out and has a saved account). Everything about the account itself (caps, packs, home, sign out, delete) lives in the Data tab once signed in. */
-export default function AccountModal({ onClose, auto = false, onSound }: { onClose: () => void; auto?: boolean; /** The app's sound and buzz for a moment (signing in is one). */ onSound?: (kind: BeepKind) => void }) {
+export default function AccountModal({ onClose, auto = false }: { onClose: () => void; auto?: boolean }) {
   const [email, setEmail] = useState('');
   const [digits, setDigits] = useState('');
   const [note, setNote] = useState('');
@@ -21,7 +20,7 @@ export default function AccountModal({ onClose, auto = false, onSound }: { onClo
     setNote('');
     const problem = await signInWithVault(email.trim(), digits);
     if (problem) setNote(problem);
-    else { onSound?.('arrive'); onClose(); }
+    else onClose();
     setBusy(false);
   };
 
@@ -29,7 +28,7 @@ export default function AccountModal({ onClose, auto = false, onSound }: { onClo
     setBusy(true);
     setNote('');
     const result = await signInWithFaceId(who);
-    if (result === null) { onSound?.('arrive'); onClose(); return; }
+    if (result === null) { onClose(); return; }
     if (result !== 'cancelled') setNote(result);
     setBusy(false);
   };

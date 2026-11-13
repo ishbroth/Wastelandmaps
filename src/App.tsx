@@ -362,6 +362,17 @@ export default function App() {
     if (soundRef.current) beep(kind);
   }, []);
 
+  // the Pip-Boy powers up when a sign-in finishes (Face ID, vault number or the emailed link, whichever it was): the chime and the buzz, played here so every way of signing in has them
+  const signInSeen = useRef<string | null | undefined>(undefined);
+  const signInOpened = useRef(false);
+  useEffect(() => {
+    if (accountOpen) signInOpened.current = true;
+    const id = account.session?.user.id ?? null;
+    if (signInSeen.current === null && id && signInOpened.current) sound('arrive');
+    if (id) signInOpened.current = false;
+    signInSeen.current = id;
+  }, [account.session, accountOpen, sound]);
+
   // the names of the continents, countries and states
   useEffect(() => {
     void loadRegions().then((data) => data && setRegionLabels(allLabels(data)));
@@ -1428,7 +1439,7 @@ export default function App() {
           {moving && <div className="rm-moving" role="status"><CogSpinner big /><span>MOVING VAULT FURNITURE…</span></div>}
           {vacationAsk && vacationOffer && <VacationAsk choice={vacationAsk} offer={vacationOffer} account={account} onClose={() => setVacationAsk(null)} onDone={() => setVacationAsk(null)} />}
           {vaultOpen !== null && <VaultHome key={vaultOpen.key ?? 'home'} title={vaultOpen.title} vaultKey={vaultOpen.key} account={account} onExit={() => setVaultOpen(null)} vacation={vaultOpen.key ? undefined : vacationOffer} />}
-          {accountOpen && !account.session && <AccountModal auto={accountAuto} onSound={sound} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
+          {accountOpen && !account.session && <AccountModal auto={accountAuto} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
           <FaceIdOffer />
           {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped) || homeOpen) && (
             <HomePrompt
