@@ -615,3 +615,9 @@ export async function galleryUrl(id: string): Promise<string | null> {
   const { data, error } = await db().functions.invoke('gallery', { body: { action: 'url', id } });
   return error || !data || typeof (data as { url?: unknown }).url !== 'string' ? null : (data as { url: string }).url;
 }
+
+/** The trades already bought from this four-hour board ("stimpak:wood", "time:gears"). */
+export async function loadTradesBought(windowNo: number): Promise<Set<string>> {
+  const { data } = await db().from('trade_purchases').select('item,trade_id').eq('window_no', windowNo);
+  return new Set(((data ?? []) as { item: string; trade_id: string }[]).map((r) => `${r.item}:${r.trade_id}`));
+}

@@ -48,7 +48,7 @@ export function lootRangeFor(worth: number): [number, number] {
 }
 
 /** One wave after another: a single enemy, then two, then growing until the rest arrive together. */
-export function wavesFor(total: number): number[] {
+export function wavesFor(total: number, fillLast = true): number[] {
   const waves: number[] = [];
   let left = total;
   let next = 1;
@@ -57,6 +57,11 @@ export function wavesFor(total: number): number[] {
     waves.push(size);
     left -= size;
     next = next < 3 ? next + 1 : Math.ceil(next * 1.6);
+  }
+  // the last wave is never a few stragglers: at least four, and more than the wave before it once that one had four or more (a place with only one wave is left alone)
+  if (fillLast && waves.length > 1) {
+    const prev = waves[waves.length - 2];
+    waves[waves.length - 1] = Math.max(waves[waves.length - 1], 4, prev >= 4 ? prev + 1 : prev);
   }
   return waves;
 }
@@ -85,12 +90,13 @@ export function planFor(id: string, worth: number): RaidPlan {
   // never more kinds than pieces (a win pays at least one of each kind)
   const kinds = Math.min(lootRangeFor(worth)[0], 1 + Math.floor(rand() * 3));
   const loot = [...LOOT_TYPES].map((l) => l.id).sort(() => rand() - 0.5).slice(0, kinds) as LootId[];
-  return { worth, enemies, boss, waves: wavesFor(total), total, lootTypes: loot, lootRange: lootRangeFor(worth) };
+  const waves = wavesFor(total);
+  return { worth, enemies, boss, waves, total: waves.reduce((a, b) => a + b, 0), lootTypes: loot, lootRange: lootRangeFor(worth) };
 }
 
 /** The first fight every survivor has: their own home vault, with four radroaches, the weakest enemy there is. */
 export function homePlan(): RaidPlan {
-  return { worth: 10, enemies: ['radroach'], boss: null, waves: wavesFor(4), total: 4, lootTypes: ['steel', 'wood'], lootRange: lootRangeFor(10) };
+  return { worth: 10, enemies: ['radroach'], boss: null, waves: wavesFor(4, false), total: 4, lootTypes: ['steel', 'wood'], lootRange: lootRangeFor(10) };
 }
 
 /**

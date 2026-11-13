@@ -7,7 +7,7 @@
 // Deploy: supabase functions deploy stimpak
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
-import { STIMPAK_TRADES, TIME_TRADES } from '../_shared/stimpak.ts';
+import { offersFor, tradeWindow } from '../_shared/stimpak.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
@@ -23,11 +23,14 @@ Deno.serve(async (req) => {
     return error ? reply(req, { error: 'server' }, 500) : reply(req, data);
   }
   if (b.action === 'trade') {
-    const trade = (item === 'time' ? TIME_TRADES : STIMPAK_TRADES).find((t) => t.id === b.trade);
+    // one of the three on the board right now, and only once: it is marked as bought first, and the mark is taken back if the loot is not there
+    const win = tradeWindow();
+    const trade = offersFor(item, win).find((t) => t.id === b.trade);
     if (!trade) return reply(req, { error: 'bad_trade' }, 400);
-    const qty = b.qty === undefined ? 1 : Number(b.qty);
-    if (!Number.isInteger(qty) || qty < 1 || qty > 99) return reply(req, { error: 'bad_qty' }, 400);
-    const { data, error } = await db.rpc('trade_item', { p_user: user, p_item: item, p_cost: trade.cost, p_qty: qty });
+    const mark = await db.from('trade_purchases').insert({ user_id: user, item, trade_id: trade.id, window_no: win });
+    if (mark.error) return mark.error.code === '23505' ? reply(req, { ok: false, reason: 'bought' }) : reply(req, { error: 'server' }, 500);
+    const { data, error } = await db.rpc('trade_item', { p_user: user, p_item: item, p_cost: trade.cost, p_qty: 1 });
+    if (error || !(data as { ok?: boolean })?.ok) await db.from('trade_purchases').delete().eq('user_id', user).eq('item', item).eq('trade_id', trade.id).eq('window_no', win);
     return error ? reply(req, { error: 'server' }, 500) : reply(req, data);
   }
   return reply(req, { error: 'bad_action' }, 400);

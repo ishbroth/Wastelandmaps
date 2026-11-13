@@ -1115,3 +1115,6 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-gun-arrows button { width: 34px; background: transparent; color: var(--ink); border: 1px solid var(--ink); cursor: pointer; font: inherit; font-size: 14px; }
 .rm-gun-arrows button:disabled { opacity: 0.3; cursor: default; }
 .rm-gun-arrows button:hover:not(:disabled) { background: var(--ink); color: var(--on-ink); }
+
+/* a trade that has been bought from this board is spent: dim until the board changes */
+.rm-arsenal-buy.spent { opacity: 0.35; text-decoration: line-through; }

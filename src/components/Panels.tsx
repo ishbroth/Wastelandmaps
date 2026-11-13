@@ -11,10 +11,10 @@ import { personalId, personalLocation } from '../lib/personal';
 import { purchasesAvailable } from '../lib/native';
 import Leaderboard from './Leaderboard';
 import Caps, { CapIcon } from './Caps';
-import { STIMPAK_TRADES, TIME_TRADES, affordableQty } from '../../supabase/functions/_shared/stimpak';
+import { STIMPAK_TRADES, TIME_TRADES, offersFor, tradeWindow, tradeWindowEnds } from '../../supabase/functions/_shared/stimpak';
 import ConfirmSpend from './ConfirmSpend';
 import BuyCaps from './BuyCaps';
-import { METRO_COST, caps, tradeStimpak, tradeTime, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
+import { METRO_COST, caps, loadTradesBought, tradeStimpak, tradeTime, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag, type LootBag } from '../lib/raid/loot';
 import { WEAPON_CLASS_IDS, WEAPON_CLASSES, magazineOf, nextWeapon, weaponAt, type Weapon, type WeaponClass } from '../lib/raid/weapons';
@@ -193,6 +193,14 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
   const [sort, setSort] = useState<'dist' | 'time'>('dist');
   /** The "spend this loot?" question that is open, if any. */
   const [ask, setAsk] = useState<{ kind: 'stimpak' | 'time'; id: string } | { kind: 'gun'; id: WeaponClass } | null>(null);
+  // the trade board: three offers each for stimpaks and Legendary Time, each bought once, the board changing every four hours
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => { const id = window.setInterval(() => setClock(Date.now()), 30_000); return () => window.clearInterval(id); }, []);
+  const board = tradeWindow(clock);
+  const [bought, setBought] = useState<Set<string>>(new Set());
+  const refreshBought = () => { if (account.session) void loadTradesBought(board).then(setBought); };
+  useEffect(refreshBought, [board, account.session?.user.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hoursLeft = Math.max(1, Math.ceil((tradeWindowEnds(clock) - clock) / 3_600_000));
   // the tier of each class of gun to take into battle (chosen by scrolling the gun's bubble)
   const who = account.session?.user.id;
   const [equipped, setEquipped] = useState<Equipped>(() => loadEquipped(who));
@@ -274,10 +282,11 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
         </>
       )}
       <h3>STIMPAKS: {account.stimpaks}</h3>
+      <p className="rm-fine">Three trades on the board, each once. The board changes in about {hoursLeft} hour{hoursLeft === 1 ? '' : 's'}.</p>
       <ul className="rm-arsenal">
-        {STIMPAK_TRADES.map((t) => (
+        {offersFor('stimpak', board).map((t) => (
           <li key={t.id}>
-            <button type="button" className="rm-btn rm-btn-ghost rm-arsenal-buy" disabled={affordableQty(account.loot, t.cost) < 1} onClick={() => setAsk({ kind: 'stimpak', id: t.id })}>
+            <button type="button" className={`rm-btn rm-btn-ghost rm-arsenal-buy${bought.has(`stimpak:${t.id}`) ? ' spent' : ''}`} disabled={bought.has(`stimpak:${t.id}`) || !canAfford(account.loot, t.cost as LootBag)} onClick={() => setAsk({ kind: 'stimpak', id: t.id })}>
               {describeBag(t.cost as LootBag).toUpperCase()} FOR 1 STIMPAK
             </button>
           </li>
@@ -286,9 +295,9 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
       <h3>LEGENDARY TIME: {account.legendaryTime}</h3>
       <p className="rm-fine">Slows the enemies for four seconds in the shooting gallery. Tap the stopwatch.</p>
       <ul className="rm-arsenal">
-        {TIME_TRADES.map((t) => (
+        {offersFor('time', board).map((t) => (
           <li key={t.id}>
-            <button type="button" className="rm-btn rm-btn-ghost rm-arsenal-buy" disabled={affordableQty(account.loot, t.cost) < 1} onClick={() => setAsk({ kind: 'time', id: t.id })}>
+            <button type="button" className={`rm-btn rm-btn-ghost rm-arsenal-buy${bought.has(`time:${t.id}`) ? ' spent' : ''}`} disabled={bought.has(`time:${t.id}`) || !canAfford(account.loot, t.cost as LootBag)} onClick={() => setAsk({ kind: 'time', id: t.id })}>
               {describeBag(t.cost as LootBag).toUpperCase()} FOR 1 LEGENDARY TIME
             </button>
           </li>
@@ -311,7 +320,7 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
       </div>
 
       {ask && (() => {
-        const failed = (reason?: string) => (reason === 'full' ? 'YOU CAN HOLD AT MOST 99.' : reason === 'loot' ? 'NOT ENOUGH LOOT.' : 'THAT DID NOT GO THROUGH. NOTHING WAS SPENT.');
+        const failed = (reason?: string) => (reason === 'bought' ? 'THAT TRADE IS SPENT UNTIL THE BOARD CHANGES.' : reason === 'full' ? 'YOU CAN HOLD AT MOST 99.' : reason === 'loot' ? 'NOT ENOUGH LOOT.' : 'THAT DID NOT GO THROUGH. NOTHING WAS SPENT.');
         if (ask.kind === 'gun') {
           const next = nextWeapon(account.arsenal, ask.id);
           if (!next) return null;
@@ -328,10 +337,10 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
         const owned = ask.kind === 'time' ? account.legendaryTime : account.stimpaks;
         return (
           <ConfirmSpend
-            title={ask.kind === 'time' ? 'BUY LEGENDARY TIME' : 'BUY STIMPAKS'} what={ask.kind === 'time' ? 'LEGENDARY TIME' : 'STIMPAK'} cost={trade.cost as LootBag} have={account.loot}
-            max={Math.min(affordableQty(account.loot, trade.cost), 99 - owned)} owned={owned} counted verb="BUY"
+            title={ask.kind === 'time' ? 'BUY LEGENDARY TIME' : 'BUY A STIMPAK'} what={ask.kind === 'time' ? 'LEGENDARY TIME' : 'STIMPAK'} cost={trade.cost as LootBag} have={account.loot}
+            max={1} owned={owned} verb="BUY"
             onClose={() => setAsk(null)}
-            onConfirm={async (qty) => { const r = await (ask.kind === 'time' ? tradeTime : tradeStimpak)(trade.id, qty); await account.refresh(); return r.ok ? null : failed(r.reason); }}
+            onConfirm={async (qty) => { const r = await (ask.kind === 'time' ? tradeTime : tradeStimpak)(trade.id, qty); await account.refresh(); refreshBought(); return r.ok ? null : failed(r.reason); }}
           />
         );
       })()}
