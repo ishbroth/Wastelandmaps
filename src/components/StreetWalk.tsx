@@ -19,7 +19,7 @@ const ROAD_W: Record<string, number> = { motorway: 14, trunk: 12, primary: 11, s
 interface Place { id: string; lat: number; lng: number; name: string }
 type V = { x: number; y: number };
 interface Road { id: number; hw: string; w: number; pts: V[] }
-interface Building extends NeighborItem { x: number; y: number; n: V; img: HTMLCanvasElement | null; ratio: number; width: number; depth: number; side: number; /** the building as re-rendered: its own front and side, and its size in metres */ vf?: HTMLCanvasElement; vs?: HTMLCanvasElement; fw?: number; fh?: number; sd?: number }
+interface Building extends NeighborItem { x: number; y: number; n: V; img: HTMLCanvasElement | null; ratio: number; width: number; depth: number; sideIdx: number; /** the building as re-rendered: its own front and side, and its size in metres */ vf?: HTMLCanvasElement; vs?: HTMLCanvasElement; fw?: number; fh?: number; sd?: number }
 interface Tex { data: Uint8ClampedArray; mean: [number, number, number] }
 interface Assets { tex: Record<string, Tex>; sprites: Record<string, HTMLImageElement>; /** small copies, for far-off drawing (much cheaper than shrinking the big ones every frame) */ small: Record<string, HTMLCanvasElement>; sky: HTMLImageElement | null }
 
@@ -247,7 +247,7 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
       if (nr) { const need = nr.road.w / 2 + 4.5 + depth / 2; if (nr.d < need) { m.x -= n.x * (need - nr.d); m.y -= n.y * (need - nr.d); } }
       const v = await loadViews(it);
       if (v) { width = v.fw; depth = v.sd; }
-      w.b.push({ ...it, ...(v ? { vf: v.vf, vs: v.vs, fw: v.fw, fh: v.fh, sd: v.sd } : {}), x: m.x, y: m.y, n, img: cut?.canvas ?? null, ratio: Math.min(1.1, Math.max(0.5, cut?.ratio ?? 0.75)), width, depth, side: Math.floor(hash(m.x * 3 + m.y) * 3) });
+      w.b.push({ ...it, ...(v ? { vf: v.vf, vs: v.vs, fw: v.fw, fh: v.fh, sd: v.sd } : {}), x: m.x, y: m.y, n, img: cut?.canvas ?? null, ratio: Math.min(1.1, Math.max(0.5, cut?.ratio ?? 0.75)), width, depth, sideIdx: Math.floor(hash(m.x * 3 + m.y) * 3) });
     }
     w.viewsPending = !!got.viewsPending;
     setBusy(false);
@@ -567,7 +567,7 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
         const hM = own ? (b.fh as number) : b.width * b.ratio, sideH = own ? hM : Math.min(hM * 0.5, b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? 6.5 : 7.5);
         const sink = own ? 0.12 : hM * 0.05;
         const drop = camZ - heightAt({ x: b.x + b.n.x * hd, y: b.y + b.n.y * hd });
-        const generic = assets.sprites[b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? `houseside${b.side + 1}` : 'shopside1'] ?? null;
+        const generic = assets.sprites[b.kind === 'house' || b.kind === 'home' || b.kind === 'address' ? `houseside${b.sideIdx + 1}` : 'shopside1'] ?? null;
         const sideImg: CanvasImageSource | null = own ? (b.vs as HTMLCanvasElement) : generic;
         const sideW = own ? (b.vs as HTMLCanvasElement).width : generic?.naturalWidth ?? 1, sideHpx = own ? (b.vs as HTMLCanvasElement).height : generic?.naturalHeight ?? 1;
         const frontImg: CanvasImageSource | null = own ? (b.vf as HTMLCanvasElement) : b.img;
