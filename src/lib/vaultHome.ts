@@ -14,7 +14,7 @@ export const MAX_SLOTS = 25;
 /** The most hallways on one level. */
 export const MAX_HALLWAYS_PER_LEVEL = 6;
 /** What the dearest room costs, in pieces of loot (the cheapest costs 4). */
-export const MAX_ROOM_PRICE = 40;
+export const MAX_ROOM_PRICE = 25;
 /** Rooms (not the entryway, hallways or stairwells) it takes before a vacation vault can be bought, and how many of them a person can have. */
 export const ROOMS_FOR_VACATION = 12;
 export const MAX_VACATIONS = 4;
@@ -395,7 +395,7 @@ export function normalize(v: VaultHome): VaultHome {
   return w;
 }
 
-/** The price of the nth room slot: the second is 4 (the cheapest), the twentieth is 40 (the dearest), and it climbs gently at first and faster toward the end. */
+/** The price of the nth room slot: the second is 4 (the cheapest), the last slot is 25 (the dearest: no room costs more), and it climbs gently at first and faster toward the end. */
 export const slotPrice = (n: number): number => {
   if (n <= 2) return 4;
   if (n >= MAX_SLOTS) return MAX_ROOM_PRICE;

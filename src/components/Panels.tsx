@@ -282,9 +282,9 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
         </>
       )}
       <h3>STIMPAKS: {account.stimpaks}</h3>
-      <p className="rm-fine">Three trades on the board, each once. The board changes in about {hoursLeft} hour{hoursLeft === 1 ? '' : 's'}.</p>
+      <p className="rm-fine">Three trades on the board, each once: a trade you take leaves the board until it changes, in about {hoursLeft} hour{hoursLeft === 1 ? '' : 's'}.</p>
       <ul className="rm-arsenal">
-        {offersFor('stimpak', board).map((t) => (
+        {offersFor('stimpak', board).filter((t) => !bought.has(`stimpak:${t.id}`)).map((t) => (
           <li key={t.id}>
             <button type="button" className={`rm-btn rm-btn-ghost rm-arsenal-buy${bought.has(`stimpak:${t.id}`) ? ' spent' : ''}`} disabled={bought.has(`stimpak:${t.id}`) || !canAfford(account.loot, t.cost as LootBag)} onClick={() => setAsk({ kind: 'stimpak', id: t.id })}>
               {describeBag(t.cost as LootBag).toUpperCase()} FOR 1 STIMPAK
@@ -295,7 +295,7 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
       <h3>LEGENDARY TIME: {account.legendaryTime}</h3>
       <p className="rm-fine">Slows the enemies for four seconds in the shooting gallery. Tap the stopwatch.</p>
       <ul className="rm-arsenal">
-        {offersFor('time', board).map((t) => (
+        {offersFor('time', board).filter((t) => !bought.has(`time:${t.id}`)).map((t) => (
           <li key={t.id}>
             <button type="button" className={`rm-btn rm-btn-ghost rm-arsenal-buy${bought.has(`time:${t.id}`) ? ' spent' : ''}`} disabled={bought.has(`time:${t.id}`) || !canAfford(account.loot, t.cost as LootBag)} onClick={() => setAsk({ kind: 'time', id: t.id })}>
               {describeBag(t.cost as LootBag).toUpperCase()} FOR 1 LEGENDARY TIME
