@@ -299,7 +299,10 @@ Deno.serve(async (req) => {
     if (up.error) throw new Error('could not store the image');
     // a shared address render is part of the public atlas: a copy goes where its page can show it
     await db.storage.from('public-renders').upload(path, png, { contentType: 'image/png', upsert: true }).catch(() => null);
-    await db.from('address_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString(), rubble }).eq('place_id', googleId);
+    // the picture is kept first (status and path); the rubble mark goes in on its own, so a table without that column can never leave a finished picture marked as still being made
+    const kept = await db.from('address_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString() }).eq('place_id', googleId);
+    if (kept.error) throw new Error('could not record the image: ' + kept.error.message);
+    if (rubble) await db.from('address_renders').update({ rubble: true }).eq('place_id', googleId);
     const url = await signed(path);
     if (!url) throw new Error('no link');
     // the rubble is a lesser picture: three of the four credits (300 caps) go back, one stays for the making
