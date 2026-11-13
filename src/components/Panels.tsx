@@ -565,6 +565,11 @@ const ammoOf = (w: Weapon): number => magazineOf(w) || w.ammo || 0;
  * better gun in the class and arrow down the one before it. A gun that is owned is chosen as soon as it is shown; one that is not shows what it costs (bright if
  * there is enough loot, dim if not) with a button to unlock it. A gun cannot be unlocked before the one under it.
  */
+/** The small hand-free picture of a gun, at the right of its card (nothing if there is none for it). */
+function GunIcon({ id, dim }: { id: string; dim: boolean }) {
+  const [ok, setOk] = useState(true);
+  return ok ? <img className={`rm-gun-img${dim ? ' dim' : ''}`} src={`${import.meta.env.BASE_URL}raid/gunicons/${id}.webp`} alt="" draggable={false} onError={() => setOk(false)} /> : null;
+}
 function GunPicker({ cls, owned, chosen, loot, onEquip, onUnlock }: { cls: WeaponClass; owned: number; chosen?: number; loot: Account['loot']; onEquip: (tier: 1 | 2 | 3 | 4) => void; onUnlock: () => void }) {
   const best = Math.max(1, owned);
   const [shown, setShown] = useState<number>(Math.max(1, Math.min(chosen ?? best, best)));
@@ -590,16 +595,19 @@ function GunPicker({ cls, owned, chosen, loot, onEquip, onUnlock }: { cls: Weapo
         onPointerUp={(e) => { const y0 = swipe.current; swipe.current = null; if (y0 === null) return; const d = e.clientY - y0; if (Math.abs(d) > 28) go(shown + (d < 0 ? 1 : -1)); }}
         title={w.real}
       >
-        <div className="rm-gun-name"><b>{w.name.toUpperCase()}</b>{have && shown === (chosen ?? best) ? <span>EQUIPPED</span> : null}</div>
-        <div className="rm-gun-stats"><span>DAM <b>{w.damage}</b></span><span>AMMO <b>{ammoOf(w)}</b></span><span>TIER <b>{shown}</b></span></div>
-        {!have && (
-          <div className="rm-gun-cost">
-            <span>{describeBag(w.recipe).toUpperCase()}</span>
-            {next
-              ? <button type="button" className="rm-btn rm-btn-ghost rm-arsenal-buy" disabled={!affordable} onClick={onUnlock}>{owned === 0 ? 'UNLOCK' : 'UPGRADE'}</button>
-              : <small>UNLOCK {weaponAt(cls, (shown - 1) as 1 | 2 | 3).name.toUpperCase()} FIRST</small>}
-          </div>
-        )}
+        <div className="rm-gun-main">
+          <div className="rm-gun-name"><b>{w.name.toUpperCase()}</b>{have && shown === (chosen ?? best) ? <span>EQUIPPED</span> : null}</div>
+          <div className="rm-gun-stats"><span>DAM <b>{w.damage}</b></span><span>AMMO <b>{ammoOf(w)}</b></span><span>TIER <b>{shown}</b></span></div>
+          {!have && (
+            <div className="rm-gun-cost">
+              <span>{describeBag(w.recipe).toUpperCase()}</span>
+              {next
+                ? <button type="button" className="rm-btn rm-btn-ghost rm-arsenal-buy" disabled={!affordable} onClick={onUnlock}>{owned === 0 ? 'UNLOCK' : 'UPGRADE'}</button>
+                : <small>UNLOCK {weaponAt(cls, (shown - 1) as 1 | 2 | 3).name.toUpperCase()} FIRST</small>}
+            </div>
+          )}
+        </div>
+        <GunIcon id={w.id} dim={!have} />
       </div>
       <div className="rm-gun-arrows">
         <button type="button" aria-label="Next gun up" disabled={shown >= 4} onClick={() => go(shown + 1)}>▲</button>

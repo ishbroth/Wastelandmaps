@@ -1104,11 +1104,14 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 
 /* the guns: one bubble per class with an up and a down arrow beside it */
 .rm-gun { display: flex; gap: 6px; align-items: stretch; margin-top: 4px; }
-.rm-gun-card { flex: 1; min-width: 0; border: 1px solid var(--line); padding: 5px 8px; touch-action: pan-x; user-select: none; }
+.rm-gun-card { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; border: 1px solid var(--line); padding: 5px 8px; touch-action: pan-x; user-select: none; }
 .rm-gun-card.have { border-color: var(--ink); }
 .rm-gun-card.can { border-color: var(--ink); text-shadow: 0 0 6px var(--glow); }
 .rm-gun-card.dim { opacity: 0.55; }
-.rm-gun-name { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.rm-gun-main { flex: 1; min-width: 0; }
+.rm-gun-img { flex: none; width: 74px; max-height: 44px; object-fit: contain; filter: drop-shadow(0 0 4px var(--glow)); pointer-events: none; }
+.rm-gun-img.dim { opacity: 0.4; filter: grayscale(0.6); }
+.rm-gun-name { display: flex; justify-content: flex-start; gap: 10px; align-items: baseline; }
 .rm-gun-name b { font-family: var(--font-display); font-weight: 400; font-size: 17px; letter-spacing: 1px; color: var(--ink); }
 .rm-gun-name span { font-size: 11px; letter-spacing: 2px; color: var(--ink-dim); }
 .rm-gun-stats { display: flex; gap: 14px; font-size: 12px; letter-spacing: 2px; color: var(--ink-dim); margin-top: 2px; }
