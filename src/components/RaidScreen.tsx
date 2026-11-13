@@ -5,6 +5,7 @@ import { loadRaidAssets, type RaidAssets } from '../lib/raid/assets';
 import { playSound } from '../lib/raid/audio';
 import { blastFiles, enemyFiles, hasVoice, nextBlast, playBlast, playEnemy, preloadSfx } from '../lib/sfx';
 import { mushroom } from './BlowApart';
+import { StimpakIcon } from './ItemIcons';
 import { buzz } from '../lib/haptics';
 import { Game, SLOW_SECONDS, type Enemy, type Spawns } from '../lib/raid/engine';
 import { LOOT_CAP, describeBag, lootName, type LootBag, type LootId } from '../lib/raid/loot';
@@ -728,7 +729,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
             : hud.ammo !== null && <div className="rm-raid-ammo">AMMO {hud.ammo}</div>}
           <div className="rm-raid-bar">
             <button type="button" className="rm-btn rm-raid-btn" onClick={openWheel} disabled={wheelOpen || downed}>WEAPONS</button>
-            <button type="button" className="rm-btn rm-raid-btn" onClick={() => void heal()} disabled={wheelOpen || downed || healing || stims <= 0 || hud.hp >= 0.999} title="Take back all your health">STIMPAK ×{stims}</button>
+            <button type="button" className="rm-btn rm-raid-btn" onClick={() => void heal()} disabled={wheelOpen || downed || healing || stims <= 0 || hud.hp >= 0.999} title="Take back all your health">STIMPAK<StimpakIcon size={18} />×{stims}</button>
             <button
               type="button" className={`rm-btn rm-raid-btn rm-raid-time${hud.slow > 0 ? ' running' : ''}`} onClick={() => void slowTime()}
               disabled={wheelOpen || downed || timing || hud.slow > 0 || times <= 0} title="Legendary Time: slow the enemies for four seconds" aria-label={`Legendary Time, ${times} left`}

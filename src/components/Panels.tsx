@@ -11,6 +11,7 @@ import { personalId, personalLocation } from '../lib/personal';
 import { purchasesAvailable } from '../lib/native';
 import Leaderboard from './Leaderboard';
 import Caps, { CapIcon } from './Caps';
+import { StimpakIcon, StopwatchIcon } from './ItemIcons';
 import { STIMPAK_TRADES, TIME_TRADES, offersFor, tradeWindow, tradeWindowEnds } from '../../supabase/functions/_shared/stimpak';
 import ConfirmSpend from './ConfirmSpend';
 import BuyCaps from './BuyCaps';
@@ -281,9 +282,10 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
       <p className="rm-fine">Three trades on the board, each once: a trade you take leaves the board until it changes, in about {hoursLeft} hour{hoursLeft === 1 ? '' : 's'}.</p>
       <ul className="rm-arsenal">
         {offersFor('stimpak', board).filter((t) => !bought.has(`stimpak:${t.id}`)).map((t) => (
-          <li key={t.id}>
+          <li key={t.id} className="rm-trade-row">
+            <span className="rm-trade-icon"><StimpakIcon /></span>
             <button type="button" className={`rm-btn rm-btn-ghost rm-arsenal-buy${bought.has(`stimpak:${t.id}`) ? ' spent' : ''}`} disabled={bought.has(`stimpak:${t.id}`) || !canAfford(account.loot, t.cost as LootBag)} onClick={() => setAsk({ kind: 'stimpak', id: t.id })}>
-              {describeBag(t.cost as LootBag).toUpperCase()} FOR 1 STIMPAK
+              {describeBag(t.cost as LootBag).toUpperCase()}
             </button>
           </li>
         ))}
@@ -292,9 +294,10 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
       <p className="rm-fine">Slows the enemies for four seconds in the shooting gallery. Tap the stopwatch.</p>
       <ul className="rm-arsenal">
         {offersFor('time', board).filter((t) => !bought.has(`time:${t.id}`)).map((t) => (
-          <li key={t.id}>
+          <li key={t.id} className="rm-trade-row">
+            <span className="rm-trade-icon"><StopwatchIcon /></span>
             <button type="button" className={`rm-btn rm-btn-ghost rm-arsenal-buy${bought.has(`time:${t.id}`) ? ' spent' : ''}`} disabled={bought.has(`time:${t.id}`) || !canAfford(account.loot, t.cost as LootBag)} onClick={() => setAsk({ kind: 'time', id: t.id })}>
-              {describeBag(t.cost as LootBag).toUpperCase()} FOR 1 LEGENDARY TIME
+              {describeBag(t.cost as LootBag).toUpperCase()}
             </button>
           </li>
         ))}
@@ -493,7 +496,7 @@ function AtlasBox({ account, metro }: { account: Account; metro: { id: string; n
     <div className="rm-atlas">
       <h3>PROJECT: ATLAS · {metro.name.toUpperCase()}</h3>
       {unlocked ? (
-        <p className="rm-fine">Unlocked. Every address rendered here{count ? ` (${count} so far)` : ''}, including ones added later, is on your map; open one to see it and loot it.</p>
+        <p className="rm-fine">Unlocked. Every address and snapshot unlocked by every user in this metro is now on the map and available for you to view and loot.</p>
       ) : (
         <>
           <p className="rm-fine">{count === null ? 'Counting…' : count === 0 ? 'No addresses are rendered here yet.' : `${count} address${count === 1 ? '' : 'es'} here have been rendered by other survivors.`} Unlock them all, now and in the future, for <Caps n={caps(METRO_COST)} />.</p>
