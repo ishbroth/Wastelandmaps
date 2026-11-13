@@ -285,10 +285,10 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       const Z = scope.current.zoom;
       const through = (Z - 1) / 0.5; // 0 to 1: how much of the way into the scope
       const vw = baseW * Z, vh = baseH * Z;
-      const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
       // (a picture that is smaller than the screen one way can still be moved that way: the middle of the scope can go to any part of the picture)
-      const zoomX = vw >= cssW ? clamp(cssW / 2 - scope.current.pu * vw, cssW - vw, 0) : cssW / 2 - scope.current.pu * vw;
-      const zoomY = vh >= cssH ? clamp(cssH / 2 - scope.current.pv * vh, cssH - vh, 0) : cssH / 2 - scope.current.pv * vh;
+      // (the middle of the scope, where the shot goes, can reach any part of the picture, edges and corners included, so enemies at the very edge can be hit)
+      const zoomX = cssW / 2 - scope.current.pu * vw;
+      const zoomY = cssH / 2 - scope.current.pv * vh;
       const vx = baseX + (zoomX - baseX) * through;
       const vy = baseY + (zoomY - baseY) * through;
       view.current = { x: vx, y: vy, w: vw, h: vh };

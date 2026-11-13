@@ -309,6 +309,7 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
         return proj.fromPointToLatLng(new google.maps.Point((clientX - rect.left) / scale + sw.x, (clientY - rect.top) / scale + ne.y));
       };
       host.addEventListener('pointerdown', (e) => {
+        if (e.isPrimary) touches.clear(); // a finger that came up without the map hearing of it (after a pinch, say) must not block every press that follows
         touches.add(e.pointerId);
         cancel();
         if (touches.size > 1 || (e.pointerType === 'mouse' && e.button !== 0)) return;
@@ -325,6 +326,7 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
       });
       host.addEventListener('pointermove', (e) => { if (press && (e.pointerId !== press.id || Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10)) cancel(); });
       const lifted = (e: PointerEvent) => { touches.delete(e.pointerId); cancel(); };
+      window.addEventListener('pointerup', lifted, true); window.addEventListener('pointercancel', lifted, true);
       host.addEventListener('pointerup', lifted);
       host.addEventListener('pointercancel', lifted);
       host.addEventListener('contextmenu', (e) => { if ((map.getZoom() ?? 0) >= LONG_PRESS_ZOOM && onLongPressRef.current) e.preventDefault(); }); // no callout over the address bubble
