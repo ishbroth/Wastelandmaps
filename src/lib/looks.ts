@@ -91,7 +91,7 @@ export const LOOKS: Record<LookId, Look> = {
 
 export const isLookId = (v: string | null): v is LookId => v === 'pipboy' || v === 'parchment';
 
-/** The map styles at a zoom: the middling roads (arterials) are only drawn from city level in, so a grid of them never shows from far out. */
+/** The map styles at a zoom: the middling roads (arterials) are drawn from one zoom level farther back than they were (11), so a grid of them never shows from far out. */
 export function stylesAt(look: Look, zoom: number): google.maps.MapTypeStyle[] {
-  return zoom < 12 ? [...look.mapStyles, { featureType: 'road.arterial', stylers: [{ visibility: 'off' }] }] : look.mapStyles;
+  return zoom < 11 ? [...look.mapStyles, { featureType: 'road.arterial', stylers: [{ visibility: 'off' }] }] : look.mapStyles;
 }

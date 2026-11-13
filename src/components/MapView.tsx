@@ -285,7 +285,7 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     if (import.meta.env.DEV) (window as unknown as { __wlroads?: Map<string, google.maps.Polyline[]> }).__wlroads = roadShapes.current;
     const markClose = () => {
       const zoom = map.getZoom() ?? 0;
-      const far = zoom < 12;
+      const far = zoom < 11;
       if (far !== farRoads.current) { farRoads.current = far; map.setOptions({ styles: stylesAt(lookRef.current, zoom) }); }
       holder.current?.classList.toggle('rm-zoomed', zoom >= LABEL_ZOOM);
       holder.current?.classList.toggle('rm-near', zoom >= SELECTED_TAG_ZOOM);
@@ -544,7 +544,7 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
       const lines: google.maps.Polyline[] = [];
       for (const raw of floodRoads[String(patch[5])]) {
         const { cls, points } = decodeRoad(raw);
-        if (cls >= 1 && zoomNow < 12) continue; // the map itself shows these roads only from city level in
+        if (cls >= 1 && zoomNow < 11) continue; // the map itself shows these roads only from city level in
         // cut into short steps so the depth is followed smoothly along the road
         const dense: LatLng[] = [];
         for (let i = 0; i < points.length; i++) {
