@@ -88,9 +88,18 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   const atlasOwned = !!spot.personal?.atlas && !!account.session;
   const homeOwned = !!spot.personal?.home && [...account.unlocked].some((k) => k.startsWith(`vault:${spot.id.slice(3)}:`));
   const streetState = !personal ? null : street?.id === spot.id ? (street.ok ? 'yes' : 'no') : 'checking';
-  const searching = personal ? streetState === 'checking' : snapshot === 'searching';
+  // no free photo of a place on the map: Street View can be the last resort, where Google has a picture of the spot (asking is free)
+  const [streetCover, setStreetCover] = useState<{ id: string; ok: boolean } | null>(null);
+  useEffect(() => {
+    if (personal || spot.kind === 'vault' || !spot.id.startsWith('wd:') || snapshot !== null || render) return;
+    let cancelled = false;
+    void streetViewAvailable(spot.position).then((ok) => { if (!cancelled) setStreetCover({ id: spot.id, ok }); });
+    return () => { cancelled = true; };
+  }, [spot, snapshot, render, personal]);
+  const viaStreet = !personal && spot.id.startsWith('wd:') && snapshot === null && !render && streetCover?.id === spot.id && streetCover.ok;
+  const searching = personal ? streetState === 'checking' : snapshot === 'searching' || (snapshot === null && spot.id.startsWith('wd:') && !render && streetCover?.id !== spot.id);
   // an address of a bought atlas costs nothing to open for the first time (and is then kept as theirs, in their gallery)
-  const cost = personal ? (atlasOwned && !account.unlocked.has(spot.id) ? 0 : 4) : 1;
+  const cost = personal ? (atlasOwned && !account.unlocked.has(spot.id) ? 0 : 4) : viaStreet ? 4 : 1;
   const home = !!spot.personal?.home;
   const seed = useMemo(() => hashString(spot.id), [spot.id]);
   const journal = useMemo(() => describeSpot(spot, regionName, plan), [spot, regionName, plan]);
@@ -107,8 +116,8 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   // standing under one of the radiation clouds: the render has the fallout haze and acid rain
   const irradiated = isIrradiated(spot.position, zones);
   const supplied = manualBefore(spot.id);
-  const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || !!supplied || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned || atlasOwned || (streetState === 'no' && !spot.personal?.home))));
-  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated, vault: spot.vault?.number, category: spot.kind }, !!rendered?.owned || homeOwned || account.cleared.has(spot.id)); // a cleared place was unlocked: its picture opens by itself
+  const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || viaStreet || !!supplied || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned || atlasOwned || (streetState === 'no' && !spot.personal?.home))));
+  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated, vault: spot.vault?.number, category: spot.kind, ...(viaStreet ? { streetView: true, lat: spot.position.lat, lng: spot.position.lng } : {}) }, !!rendered?.owned || homeOwned || account.cleared.has(spot.id)); // a cleared place was unlocked: its picture opens by itself
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
   // a vacation vault: its picture is the place with a vault door in it (made when it was unlocked)
@@ -212,6 +221,8 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
                 ? (streetState === 'no'
                   ? <p>No Street View picture of this place can be found, so no pre-war footage exists. Unlock it anyway and you get the aftermath alone: a crater or a heap of burnt rubble, nothing recognizable. 300 caps come back.</p>
                   : <p>Unlock it and the Street View picture of this place is turned into what it looks like now: collapsed, burnt and overgrown. Made just for you, yours to download and share.</p>)
+                : viaStreet
+                ? <p>There is no free photograph of this place, so its snapshot is made from Street View: the street picture of it is turned into what it looks like now, collapsed, burnt and overgrown. Yours to download and share.</p>
                 : <p>Unlock it and the photograph of this place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown. Yours to download and share.</p>}
               {paid.state.kind === 'error' && (paid.state.resetsAt ? <ProjectorDown resetsAt={paid.state.resetsAt} /> : <p className="rm-account-note">{paid.state.message}</p>)}
               {!ownershipKnown ? (

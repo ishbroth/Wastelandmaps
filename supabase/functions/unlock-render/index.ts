@@ -12,6 +12,7 @@
 import { callerId, corsHeaders, reply, serviceClient, dailyRenderCap, nextRenderReset } from '../_shared/common.ts';
 import { renderPrompt } from '../_shared/renderPrompt.ts';
 import { findPhotoFor } from '../_shared/photoSources.ts';
+import { streetPrompt } from '../_shared/streetPrompt.ts';
 
 const UA = { 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' };
 const STALE_AFTER_MS = 150_000; // a render "being made" for longer than this is taken to have been abandoned
@@ -28,6 +29,46 @@ async function fetchPhoto(entity: string, name: string): Promise<Photo | null> {
   const bytes = new Uint8Array(await image.arrayBuffer());
   if (bytes.length > 12_000_000) return null;
   return { bytes, mime, title: hit.title, author: hit.author, license: hit.license, page: hit.pageUrl };
+}
+
+// ---- the last resort: a place with no freely licensed photo can be made from Google Street View instead (it costs more, and only where Street View covers the spot) ----
+const STREET_COST = 4;
+const kindFor = (category?: string): string => (category === 'chapel' ? 'church' : category === 'medical' ? 'medical' : category === 'guard' ? 'gov' : category === 'park' ? 'park' : 'office');
+
+function bearing(from: { lat: number; lng: number }, to: { lat: number; lng: number }): number {
+  const r = Math.PI / 180;
+  const y = Math.sin((to.lng - from.lng) * r) * Math.cos(to.lat * r);
+  const x = Math.cos(from.lat * r) * Math.sin(to.lat * r) - Math.sin(from.lat * r) * Math.cos(to.lat * r) * Math.cos((to.lng - from.lng) * r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+
+/** A Street View picture looking at the spot from the nearest street, or null where Google has none. */
+async function streetPhoto(lat: number, lng: number): Promise<Photo | null> {
+  const key = Deno.env.get('STREETVIEW_API_KEY');
+  if (!key) return null;
+  const meta = await (await fetch(`https://maps.googleapis.com/maps/api/streetview/metadata?${new URLSearchParams({ location: `${lat},${lng}`, radius: '60', source: 'outdoor', key })}`)).json();
+  if (meta.status !== 'OK' || !meta.location) return null;
+  const heading = Math.round(bearing({ lat: meta.location.lat, lng: meta.location.lng }, { lat, lng }));
+  const res = await fetch(`https://maps.googleapis.com/maps/api/streetview?${new URLSearchParams({ size: '640x640', location: `${meta.location.lat},${meta.location.lng}`, heading: String(heading), pitch: '6', fov: '90', source: 'outdoor', return_error_codes: 'true', key })}`);
+  if (!res.ok) return null;
+  return { bytes: new Uint8Array(await res.arrayBuffer()), mime: res.headers.get('content-type') ?? 'image/jpeg', title: 'Google Street View', author: 'Google', license: 'Google Street View (used to make this picture)', page: 'https://www.google.com/streetview/' };
+}
+
+async function generateFromStreet(photo: Photo, name: string, category: string | undefined, flooded: boolean, irradiated: boolean): Promise<Uint8Array> {
+  const key = Deno.env.get('GEMINI_API_KEY');
+  if (!key) throw new Error('image generation is not set up');
+  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: streetPrompt(kindFor(category), name, undefined, flooded, irradiated) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }),
+  });
+  if (!res.ok) throw new Error(`image model said ${res.status}`);
+  const body = await res.json();
+  const part = (body.candidates?.[0]?.content?.parts ?? []).find((p: any) => p.inlineData?.data || p.inline_data?.data);
+  const b64: string | undefined = part?.inlineData?.data ?? part?.inline_data?.data;
+  if (!b64) throw new Error('the image model returned no image');
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -63,7 +104,7 @@ Deno.serve(async (req) => {
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
 
-  const { placeId, name, flooded, irradiated, vault, category } = (await req.json().catch(() => ({}))) as { placeId?: string; name?: string; flooded?: boolean; irradiated?: boolean; vault?: number; category?: string };
+  const { placeId, name, flooded, irradiated, vault, category, streetView, lat, lng } = (await req.json().catch(() => ({}))) as { placeId?: string; name?: string; flooded?: boolean; irradiated?: boolean; vault?: number; category?: string; streetView?: boolean; lat?: number; lng?: number };
   // what kind of place it is (a park has no building to put the vault door in)
   const kindOf = typeof category === 'string' && /^[a-z]{2,20}$/.test(category) ? category : undefined;
   // a place that is the entrance to a vault: its picture has the vault door in it (the number is the vault's)
@@ -74,13 +115,21 @@ Deno.serve(async (req) => {
   const placeName = (name ?? '').slice(0, 120);
   const db = serviceClient();
 
+  // a place with no photo may ask to be made from Street View: that costs more, and only if nobody has made it yet (if it is made, everyone pays the usual one credit)
+  let useStreet = false;
+  if (streetView === true && typeof lat === 'number' && typeof lng === 'number' && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+    const { data: pre } = await db.from('renders').select('status').eq('place_id', placeId).maybeSingle();
+    useStreet = pre?.status !== 'ready';
+  }
   // 1. the credit (nothing is charged if this person already unlocked the place)
-  const { data: spent, error: spendError } = await db.rpc('unlock_place', { p_user: user, p_place: placeId });
+  const { data: spent, error: spendError } = useStreet
+    ? await db.rpc('unlock_personal', { p_user: user, p_place: placeId, p_cost: STREET_COST })
+    : await db.rpc('unlock_place', { p_user: user, p_place: placeId });
   if (spendError) return reply(req, { error: 'server' }, 500);
   if (spent === 'no_credits') return reply(req, { error: 'no_credits' }, 402);
   const charged = spent === 'spent';
   // If the render cannot be delivered, this person's unlock is undone and the credit returned (also when they paid on an earlier try that failed).
-  const giveBack = async () => { await db.rpc('refund_unlock', { p_user: user, p_place: placeId }); };
+  const giveBack = async () => { if (useStreet && charged) await db.rpc('refund_personal', { p_user: user, p_place: placeId, p_cost: STREET_COST }); else await db.rpc('refund_unlock', { p_user: user, p_place: placeId }); };
 
   try {
     // 2. is the render already made, or being made?
@@ -111,13 +160,13 @@ Deno.serve(async (req) => {
         // a picture that was already made stays as it was if the new one cannot be
         const keepOld = async () => { await db.from('renders').update({ status: 'ready', started_at: (before as { started_at: string }).started_at }).eq('place_id', placeId); row = before; };
 
-        const photo = await fetchPhoto(entity, placeName).catch(() => null);
+        const photo = useStreet ? await streetPhoto(lat as number, lng as number).catch(() => null) : await fetchPhoto(entity, placeName).catch(() => null);
         if (!photo) {
           if (stale) await keepOld();
           else { await db.from('renders').delete().eq('place_id', placeId); await giveBack(); return reply(req, { error: 'no_photo' }, 404); }
         } else {
           try {
-            const png = await generate(photo, placeName, entity, flooded === true, irradiated === true, vaultNum ?? undefined, kindOf);
+            const png = useStreet ? await generateFromStreet(photo, placeName, kindOf, flooded === true, irradiated === true) : await generate(photo, placeName, entity, flooded === true, irradiated === true, vaultNum ?? undefined, kindOf);
             const path = `${entity}.png`;
             const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
             if (up.error) throw new Error('could not store the image');
