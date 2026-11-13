@@ -5,6 +5,7 @@
 // lowers music or podcasts while it speaks, and keeps going with the screen locked (the iOS "audio" background mode is on). On the website it is the browser's own speech.
 
 import { TextToSpeech, QueueStrategy } from '@capacitor-community/text-to-speech';
+import { speakable } from './speakable';
 import { isNative } from './native';
 
 const KEY = 'wastelandmaps:voice';
@@ -67,7 +68,9 @@ function chooseNativeVoice(): Promise<NativeVoice> {
 }
 
 /** Says it, in the machine's voice, over whatever it was saying. */
-export function speak(text: string): void {
+export function speak(spoken: string): void {
+  // shorter is better: route numbers the short way, no "Street" or "Avenue", and no abbreviations that are not clearly known
+  const text = speakable(spoken);
   if (!voiceEnabled() || !text) return;
   if (isNative()) {
     // 'playback' so it is heard with the screen locked, over the car's speakers, with other audio lowered meanwhile
