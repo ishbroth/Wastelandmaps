@@ -676,6 +676,19 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
   useEffect(() => {
     pins.current.forEach((p, id) => p.el.classList.toggle('rm-pin-selected', id === selectedId));
   }, [selectedId, view]);
+  const lastSelected = useRef<string | null>(null);
+  useEffect(() => {
+    // a pin that stops being the chosen one (its glow and size change while the map slides back) can leave a stale coloured square where it was drawn: the pins that
+    // changed are repainted from scratch once the move has settled
+    const before = lastSelected.current;
+    lastSelected.current = selectedId;
+    if (before === selectedId) return;
+    const touched = [before, selectedId].filter((x): x is string => !!x).map((id) => pins.current.get(id)?.el).filter((e): e is HTMLElement => !!e);
+    if (!touched.length) return;
+    const repaint = () => touched.forEach((el) => { const keep = el.style.display; el.style.display = 'none'; void el.offsetHeight; el.style.display = keep; });
+    const timers = [60, 350, 900].map((ms) => window.setTimeout(repaint, ms));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [selectedId]);
 
   // you: a marker where you stand
   useEffect(() => {
