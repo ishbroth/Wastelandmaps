@@ -581,7 +581,7 @@ export class Game {
     if (w.splash && !w.auto) {
       // a grenade is lobbed and a missile flies: each goes off where it lands, some moments after the shot (see detonate)
       const grenade = w.id === 'm79';
-      this.projectiles.push({ kind: grenade ? 'grenade' : 'missile', u0: 0.68, v0: 1.06, u, v, t: 0, life: grenade ? 0.95 : w.id === 'fatman' ? 0.7 : 0.42, damage: w.damage, splash: w.splash, aspect, ratio, nuke: w.id === 'fatman' });
+      this.projectiles.push({ kind: grenade ? 'grenade' : 'missile', u0: 0.68, v0: 1.06, u, v, t: 0, life: grenade ? 0.95 : w.id === 'fatman' ? 0.95 : 0.42, damage: w.damage, splash: w.splash, aspect, ratio, nuke: w.id === 'fatman' });
       return true;
     }
     if (w.splash) {

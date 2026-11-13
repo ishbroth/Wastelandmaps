@@ -373,7 +373,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           ctx.beginPath(); ctx.arc(fxx, fxy, r, 0, Math.PI * 2); ctx.fill();
         } else if (fx.kind === 'nuke') {
           // a small mushroom cloud where it landed (the same cloud as the bomb that blows up a picture, but small and short), a ring of dust on the ground, and pieces thrown up that fall back
-          const tt = 0.265 + p * (0.76 - 0.265), small = fx.size * vw * 3.2;
+          const tt = 0.265 + p * (0.76 - 0.265), small = fx.size * vw * 2.72;
           mushroom(ctx, tt, fxx, fxy, small, small, Math.floor(fx.u * 1000));
           const ring = fx.size * vw * (0.4 + 2.2 * Math.min(1, p * 2.2));
           ctx.save(); ctx.globalAlpha = Math.max(0, 0.55 * (1 - p * 1.6)); ctx.strokeStyle = 'rgb(205,170,125)'; ctx.lineWidth = Math.max(2, ring * 0.06);
@@ -405,7 +405,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         const k = Math.min(1, pr.t / pr.life);
         const sx0 = vx + pr.u0 * vw, sy0 = vy + pr.v0 * vh, tx = vx + pr.u * vw, ty = vy + pr.v * vh;
         const arc = Math.min(cssH * 0.4, vh * 0.45);
-        const at = (kk: number): [number, number] => [sx0 + (tx - sx0) * kk, sy0 + (ty - sy0) * kk - (pr.kind === 'grenade' ? Math.sin(Math.PI * kk) * arc : 0)];
+        const at = (kk: number): [number, number] => [sx0 + (tx - sx0) * kk, sy0 + (ty - sy0) * kk - (pr.kind === 'grenade' || pr.nuke ? Math.sin(Math.PI * kk) * arc : 0)];
         const [px, py] = at(k);
         const small = 1 - 0.55 * k; // it gets smaller as it goes away from you
         const uu = Math.min(cssW, cssH);
@@ -766,7 +766,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
                   >
                     {w ? (
                       <>
-                        <GunThumb src={`${import.meta.env.BASE_URL}raid/guns/${w.id}.webp`} />
+                        <GunThumb src={`${import.meta.env.BASE_URL}raid/gunicons/${w.id}.webp`} />
                         <small>{w.name}</small>
                       </>
                     ) : <span>🔒</span>}
