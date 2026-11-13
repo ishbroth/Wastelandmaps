@@ -1211,3 +1211,28 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 /* a place that has been cleared: its CLEARED tab is quiet (no pulse, dim lettering) unless there is loot waiting */
 .rm-tab-loot.rm-tab-loot-done { animation: none; color: var(--ink-dim); border-color: var(--line); opacity: 0.6; cursor: default; }
 .rm-tab-loot.rm-tab-loot-done:hover { background: transparent; color: var(--ink-dim); }
+
+/* the desktop info side: no text is larger than the TRADE PRE-WAR MONEY button's (16px in the display font); the rest sit at or under it */
+@media (min-width: 961px) and (pointer: fine) {
+  .rm-prompt { font-size: 16px; }
+  .rm-search input { font-size: 16px; }
+  .rm-tabs button { font-size: 16px; }
+  .rm-clear, .rm-scroll-arrow { font-size: 12px; }
+  .rm-level-head b { font-size: 16px; letter-spacing: 2px; }
+  .rm-acct-credits b, .rm-acct-credits b.rm-caps-big { font-size: 16px; letter-spacing: 1px; }
+  .rm-acct-credits b.rm-caps-big .rm-cap-icon { width: 16px; height: 16px; }
+  .rm-foundline b { font-size: 16px; }
+  .rm-found-head b, .rm-found-go b { font-size: 16px; }
+  .rm-data dd { font-size: 16px; }
+  .rm-atlas h3, .rm-acct h3, .rm-panel h3 { font-size: 12px; letter-spacing: 1.5px; }
+  .rm-acct-credits span, .rm-acct-who { font-size: 11px; }
+  .rm-gun-name b { font-size: 14px; }
+  .rm-gun-name span { font-size: 10px; letter-spacing: 1px; }
+  .rm-gun-stats, .rm-gun-stats b { font-size: 11px; letter-spacing: 1px; }
+  .rm-gun-cost, .rm-gun-cost small { font-size: 10px; }
+  .rm-sort-toggle button { font-size: 14px; }
+  .rm-row-text b { font-size: 15px; }
+  .rm-account-note, .rm-fine { font-size: 10.5px; }
+  .rm-loot-item b { font-size: 14px; }
+  .rm-arsenal-head b { font-size: 14px; }
+}

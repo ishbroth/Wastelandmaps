@@ -6,7 +6,7 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { isNative } from './native';
 
 export type Buzz =
-  | 'tick' | 'select' | 'error' | 'travel' | 'arrive' | 'discover' | 'xp' | 'levelup'
+  | 'tick' | 'select' | 'error' | 'travel' | 'arrive' | 'discover' | 'xp' | 'levelup' | 'signin'
   | 'pistol' | 'automatic' | 'sniper' | 'explosive' | 'flame' | 'boom' | 'hit' | 'kill' | 'hurt' | 'wave' | 'victory' | 'defeat';
 
 const KEY = 'wastelandmaps:haptics';
@@ -44,7 +44,7 @@ const rapid = (minGap: number): boolean => {
 
 /** Web patterns (milliseconds on, off, on...). */
 const WEB: Record<Buzz, number | number[]> = {
-  tick: 8, select: 14, error: [40, 40, 40], travel: [20, 30, 30, 30, 50], arrive: [30, 40, 70], discover: [18, 30, 24], xp: [10, 20, 10, 20, 14], levelup: [30, 40, 30, 40, 90],
+  tick: 8, select: 14, error: [40, 40, 40], travel: [20, 30, 30, 30, 50], arrive: [30, 40, 70], discover: [18, 30, 24], xp: [10, 20, 10, 20, 14], levelup: [30, 40, 30, 40, 90], signin: [10, 40, 10, 40, 10, 40, 14, 60, 90],
   pistol: 22, automatic: 12, sniper: 55, explosive: 70, flame: 8, boom: 90, hit: 10, kill: 24, hurt: [70, 30, 40], wave: 25, victory: [40, 50, 40, 50, 120], defeat: [150, 60, 150],
 };
 
@@ -60,6 +60,7 @@ export function buzz(kind: Buzz): void {
     case 'error': return notify(NotificationType.Error);
     case 'travel': return void sequence([[ImpactStyle.Light, 70], [ImpactStyle.Medium, 70], [ImpactStyle.Heavy, 0]]); // a rising rumble
     case 'arrive': return void sequence([[ImpactStyle.Heavy, 120], [ImpactStyle.Light, 0]]);
+    case 'signin': return void sequence([[ImpactStyle.Light, 90], [ImpactStyle.Light, 90], [ImpactStyle.Light, 90], [ImpactStyle.Medium, 130], [ImpactStyle.Heavy, 0]]); // the Pip-Boy powering up: a run of taps and a thump
     case 'discover': return notify(NotificationType.Success);
     case 'xp': return void sequence([[ImpactStyle.Light, 60], [ImpactStyle.Light, 60], [ImpactStyle.Medium, 0]]);
     case 'levelup': return void sequence([[ImpactStyle.Medium, 90], [ImpactStyle.Medium, 90], [ImpactStyle.Heavy, 140], [ImpactStyle.Heavy, 0]]);

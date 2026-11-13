@@ -21,7 +21,7 @@ export default function AccountModal({ onClose, auto = false, onSound }: { onClo
     setNote('');
     const problem = await signInWithVault(email.trim(), digits);
     if (problem) setNote(problem);
-    else { onSound?.('arrive'); onClose(); }
+    else { onSound?.('signin'); onClose(); }
     setBusy(false);
   };
 
@@ -29,7 +29,7 @@ export default function AccountModal({ onClose, auto = false, onSound }: { onClo
     setBusy(true);
     setNote('');
     const result = await signInWithFaceId(who);
-    if (result === null) { onSound?.('arrive'); onClose(); return; }
+    if (result === null) { onSound?.('signin'); onClose(); return; }
     if (result !== 'cancelled') setNote(result);
     setBusy(false);
   };
