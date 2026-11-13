@@ -12,7 +12,7 @@ const NL = String.fromCharCode(10);
 const fwd = (p) => p.split(BS).join('/');
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function launch({ w = 443, h = 960, dsf = 2, profile = 'clip-profile', geo = null, gpu = false, port = 9700 + Math.floor(Math.random() * 90) } = {}) {
+export async function launch({ w = 443, h = 960, dsf = 2, profile = 'clip-profile', geo = null, gpu = false, mobile = true, port = 9700 + Math.floor(Math.random() * 90) } = {}) {
   const dir = path.join(ROOT, '_data', profile);
   fs.mkdirSync(dir, { recursive: true });
   const chrome = spawn(CHROME, ['--headless=new', ...(gpu ? ['--enable-gpu', '--ignore-gpu-blocklist'] : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']), '--autoplay-policy=no-user-gesture-required', '--hide-scrollbars', `--remote-debugging-port=${port}`, '--user-data-dir=' + dir, `--window-size=${w},${h}`, 'about:blank'], { stdio: 'ignore' });
@@ -31,7 +31,7 @@ export async function launch({ w = 443, h = 960, dsf = 2, profile = 'clip-profil
   const browser = await mk(version.webSocketDebuggerUrl);
   const { send } = page;
   await send('Page.enable'); await send('Runtime.enable');
-  await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: dsf, mobile: true, screenWidth: w, screenHeight: h });
+  await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: dsf, mobile, screenWidth: w, screenHeight: h });
   await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
   await send('Emulation.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' });
   if (geo) await send('Emulation.setGeolocationOverride', { latitude: geo.lat, longitude: geo.lng, accuracy: 10 });

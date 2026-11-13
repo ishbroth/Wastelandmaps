@@ -1140,3 +1140,60 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-binoc.on:hover { background: var(--ink); color: var(--on-ink); }
 .rm-sw-busy { position: absolute; right: max(12px, env(safe-area-inset-right)); top: calc(max(10px, env(safe-area-inset-top)) + 46px); padding: 3px 10px; background: rgba(0, 0, 0, 0.6); border: 1px solid #8a7a4a; font-size: 14px; }
 .rm-sw-center .rm-cog { width: 46px; height: 46px; }
+
+/* the desktop (a mouse, and room): the info side is compacted, the text, buttons and sections inside the windows, so more fits at once */
+@media (min-width: 961px) and (pointer: fine) {
+  .rm-device { grid-template-columns: minmax(0, 1fr) 360px; }
+  .rm-side { gap: 8px; }
+  .rm-search { padding: 8px 10px; }
+  .rm-prompt { font-size: 20px; }
+  .rm-search input { font-size: 19px; }
+  .rm-quick { margin-top: 6px; gap: 4px; }
+  .rm-btn { font-size: 16px; padding: 2px 9px; letter-spacing: 1px; border-width: 1px; }
+  .rm-tabs button { font-size: 17px; letter-spacing: 2px; padding: 3px 4px; border-bottom-width: 3px; }
+  .rm-panel { padding: 8px 10px; border-width: 1px; font-size: 13px; }
+  .rm-chips { gap: 4px; margin-bottom: 6px; }
+  .rm-chip { padding: 1px 8px 1px 5px; font-size: 11px; }
+  .rm-row { padding: 4px 5px; gap: 8px; }
+  .rm-row-icon { width: 20px; height: 20px; margin-top: 1px; }
+  .rm-row-text b { font-size: 16px; letter-spacing: 0.5px; line-height: 1.15; }
+  .rm-row-text i, .rm-row-text small, .rm-row-dist { font-size: 11px; margin-top: 0; }
+  .rm-sort-toggle { margin: 2px 0 5px; }
+  .rm-sort-toggle button { font-size: 15px; letter-spacing: 3px; }
+  .rm-foundline { margin: 0 0 6px; padding-bottom: 3px; }
+  .rm-foundline b { font-size: 19px; }
+  .rm-foundline span { font-size: 11px; }
+  .rm-data dt { margin-top: 6px; font-size: 11px; }
+  .rm-data dd { font-size: 18px; }
+  .rm-acct { gap: 6px; }
+  .rm-acct-credits { padding-bottom: 6px; }
+  .rm-acct-credits b { font-size: 30px; }
+  .rm-acct-credits b.rm-caps-big { font-size: 22px; }
+  .rm-acct-credits b.rm-caps-big .rm-cap-icon { width: 20px; height: 20px; }
+  .rm-acct h3 { font-size: 15px; margin: 2px 0 0; }
+  .rm-acct-who { font-size: 12px; margin: 3px 0; }
+  .rm-account-note { font-size: 12px; margin-top: 3px; }
+  .rm-level { padding: 6px 9px; }
+  .rm-level-head b { font-size: 22px; letter-spacing: 2px; }
+  .rm-level-head span { font-size: 11px; }
+  .rm-level-bar { height: 10px; margin: 4px 0 5px; }
+  .rm-loot { gap: 4px; }
+  .rm-loot-item { padding: 1px 8px; font-size: 12px; }
+  .rm-loot-item b { font-size: 15px; }
+  .rm-arsenal { gap: 5px; }
+  .rm-arsenal-head { font-size: 11px; }
+  .rm-arsenal-head b { font-size: 15px; }
+  .rm-arsenal-buy { font-size: 12px; padding: 2px 7px; margin-top: 2px; }
+  .rm-gun-card { padding: 3px 6px; }
+  .rm-gun-name b { font-size: 15px; }
+  .rm-gun-stats { font-size: 11px; gap: 10px; }
+  .rm-gun-stats b { font-size: 13px; }
+  .rm-gun-cost { margin-top: 2px; gap: 2px; font-size: 11px; }
+  .rm-gun-arrows button { width: 28px; font-size: 12px; }
+  .rm-metro-progress li { padding: 2px 0; }
+  .rm-fine { font-size: 10.5px; line-height: 1.35; }
+  .rm-empty { margin: 4px 0; }
+  .rm-row-buttons { gap: 5px; margin-bottom: 8px; }
+  .rm-share p { margin-bottom: 6px; }
+  .rm-link { padding: 5px; margin-bottom: 6px; }
+}
