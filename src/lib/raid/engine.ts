@@ -4,7 +4,7 @@
 // backs off three steps and comes again until the survivor has taken three in all. Everything is in the picture's own coordinates (u across, v down,
 // both 0 to 1) and the screen maps them (see RaidScreen).
 
-import { ENEMIES, STRIKE_DAMAGE, enemyById, threatOf, type BossId, type EnemyType } from './enemies';
+import { BOSSES, ENEMIES, STRIKE_DAMAGE, enemyById, threatOf, type BossId, type EnemyType } from './enemies';
 import type { RaidPlan } from './raid';
 import { magazineOf, WEAPON_CLASS_IDS, usesMagazine, weaponAt, type Arsenal, type Weapon, type WeaponClass } from './weapons';
 
@@ -495,7 +495,8 @@ export class Game {
       const cx = (l + r) / 2, cy = (t + b) / 2;
       const d = Math.hypot((cx - p.u) * p.aspect, cy - p.v);
       const reach = radius * p.aspect + Math.max(r - l, 0) * p.aspect * 0.4;
-      if (d <= reach) this.damage(e, p.damage * (1 - 0.5 * (d / reach)));
+      // the Fat Man tapers down to this: dead centre it takes about 80% of the weakest boss's health, so it can never kill any boss in one hit
+      if (d <= reach) this.damage(e, Math.min(p.damage, p.nuke ? Math.floor(0.8 * Math.min(...Object.values(BOSSES).map((b) => b.hp))) : p.damage) * (1 - 0.5 * (d / reach)));
     }
   }
 
