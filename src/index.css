@@ -1152,8 +1152,9 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
   .rm-btn { font-size: 16px; padding: 2px 9px; letter-spacing: 1px; border-width: 1px; }
   .rm-tabs button { font-size: 17px; letter-spacing: 2px; padding: 3px 4px; border-bottom-width: 3px; }
   .rm-panel { padding: 8px 10px; border-width: 1px; font-size: 13px; }
-  .rm-chips { gap: 4px; margin-bottom: 6px; }
-  .rm-chip { padding: 1px 8px 1px 5px; font-size: 11px; }
+  .rm-chips { gap: 3px; margin-bottom: 6px; }
+  .rm-chip { flex: 1 1 calc(50% - 3px); justify-content: flex-start; white-space: nowrap; gap: 3px; padding: 0 5px 0 3px; font-size: 10.5px; line-height: 1.5; }
+  .rm-chip .rm-chip-icon { width: 14px; height: 14px; }
   .rm-row { padding: 4px 5px; gap: 8px; }
   .rm-row-icon { width: 20px; height: 20px; margin-top: 1px; }
   .rm-row-text b { font-size: 16px; letter-spacing: 0.5px; line-height: 1.15; }
