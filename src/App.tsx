@@ -34,7 +34,7 @@ import { geocodeLatLng, geocodeQuery, loadGoogle, type Region } from './lib/goog
 import { dedupePlaces, loadIndex, loadMetro, metroAt, titleAt } from './lib/metros';
 import { wastelandName } from './lib/lore';
 import { loadFlood, type FloodPatch } from './lib/flood';
-import { loadZones, zoneFromEntry } from './lib/zones';
+import { isIrradiated, loadZones, zoneFromEntry } from './lib/zones';
 import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORTH_AMERICA, type RegionLabel } from './lib/regions';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState, shareMapView } from './lib/share';
@@ -1424,7 +1424,7 @@ export default function App() {
               account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || place.personal) ? (place.personal?.home ? homePlan() : raidFor(place)) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => { setSceneId(null); setSceneRaid(false); }} onNeedDiscover={() => say('YOU MUST DISCOVER THIS LOCATION FIRST', true)}
             />
           )}
-          {walking && <StreetWalk center={walking} places={locations.filter((l) => l.id.startsWith('wd:') && (account.unlocked.has(l.id) || !!freeRenderFor(l.id))).map((l) => ({ id: l.id, lat: l.position.lat, lng: l.position.lng, name: l.name }))} onClose={() => setWalking(null)} />}
+          {walking && <StreetWalk center={walking} radiated={!!wasteland && isIrradiated(walking, wasteland.zones)} places={locations.filter((l) => l.id.startsWith('wd:') && (account.unlocked.has(l.id) || !!freeRenderFor(l.id))).map((l) => ({ id: l.id, lat: l.position.lat, lng: l.position.lng, name: l.name }))} onClose={() => setWalking(null)} />}
           {moving && <div className="rm-moving" role="status"><CogSpinner big /><span>MOVING VAULT FURNITURE…</span></div>}
           {vacationAsk && vacationOffer && <VacationAsk choice={vacationAsk} offer={vacationOffer} account={account} onClose={() => setVacationAsk(null)} onDone={() => setVacationAsk(null)} />}
           {vaultOpen !== null && <VaultHome key={vaultOpen.key ?? 'home'} title={vaultOpen.title} vaultKey={vaultOpen.key} account={account} onExit={() => setVaultOpen(null)} vacation={vaultOpen.key ? undefined : vacationOffer} />}

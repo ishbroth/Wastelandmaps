@@ -15,17 +15,17 @@ const RADIUS_M = 125; // 400 feet
 
 // The building views: each finished picture is re-rendered once into the pieces the walk builds its 3D building from (a straight-on front, and a side, both cut out on magenta),
 // kept for good in storage and used by everyone who walks past. They are made in the background the first time someone with the atlas walks there.
-const VIEW_FRONT = 'This is a post-apocalyptic video game render of one ruined building. Re-draw THIS SAME building as a clean, flat, straight-on orthographic FRONT ELEVATION (no perspective, as if photographed square-on from far away with a long lens): the whole building only, from the ground line to the top of its roof or highest broken part, keeping its exact shape, proportions, materials, colors, damage, and ALL of its signage, lettering, posters and details copied faithfully. No ground, no sky, no neighbouring buildings, no fences in front, no cast shadows, no people, no vehicles. Place it centered on a perfectly flat solid magenta (#FF00FF) background, with nothing else in the picture, with a little magenta margin all round.';
-const VIEW_SIDE = 'This is a post-apocalyptic video game render of one ruined building (its front). Draw the SIDE of THIS SAME building, imagined from the front: a clean, flat, straight-on orthographic SIDE ELEVATION (the left side wall, no perspective, as if photographed square-on from far away with a long lens): the whole side from the ground line to the top of the roof or highest broken part, using exactly the same materials, colors, roof type, height, weathering and kind of damage as the front, with plausible windows or doors, and any fallen roof or wall edges matching. No ground, no sky, no neighbouring buildings, no cast shadows, no people, no vehicles. Place it centered on a perfectly flat solid magenta (#FF00FF) background, with nothing else in the picture, with a little magenta margin all round.';
+const VIEW_FRONT = 'This is a post-apocalyptic video game render of one ruined building (it may be a heap of rubble where a building stood). Re-draw THIS SAME structure as a clean, flat, straight-on orthographic FRONT ELEVATION (no perspective, as if photographed square-on from far away with a long lens): the whole building only, from the ground line to the top of its roof or highest broken part, keeping its exact shape, proportions, materials, colors, state of damage, and ALL of its signage, lettering, posters and special objects (a vault door, for instance) copied faithfully. If the render shows a heap of rubble, draw that heap from the front. No ground plane, no sky, no neighbouring buildings, no fences in front, no cast shadows, no people, no vehicles. Place it centered on a perfectly flat solid magenta (#FF00FF) background, with nothing else in the picture, with a little magenta margin all round.';
+const VIEW_SIDE = 'Image 1 is a post-apocalyptic video game render of one ruined building. Image 2 is a straight-on front elevation of that same building. Draw the LEFT SIDE ELEVATION of the SAME structure: a clean, flat, straight-on orthographic side view (no perspective, as if photographed square-on from far away with a long lens), the whole side from the ground line to the top. It must be consistent with the front: identical materials, colors, roof type and pitch, height, floor levels, and the SAME state of destruction, neither more intact nor more ruined (if the front is a collapsed heap of rubble, the side is the same heap seen from the side; if parts are missing or burnt at the front, that damage continues round the corner). Things that belong to the front only (signs, the front door, a vault door) do not appear on the side. No ground plane, no sky, no neighbouring buildings, no cast shadows, no people, no vehicles. Place it centered on a perfectly flat solid magenta (#FF00FF) background, with nothing else in the picture, with a little magenta margin all round.';
 const b64 = (bytes: Uint8Array): string => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(t); };
 const viewKey = (id: string) => id.replace(/[^A-Za-z0-9_-]/g, '_');
-async function drawView(prompt: string, src: Uint8Array): Promise<Uint8Array | null> {
+async function drawView(prompt: string, src: Uint8Array, also?: Uint8Array): Promise<Uint8Array | null> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) return null;
   const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/png', data: b64(src) } }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: '1:1' } } }),
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/png', data: b64(src) } }, ...(also ? [{ inline_data: { mime_type: 'image/png', data: b64(also) } }] : [])] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: '1:1' } } }),
   });
   if (!res.ok) return null;
   const body = await res.json();
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
   const near = [...items].sort((x, y) => dist(here, x) - dist(here, y)).slice(0, 14);
   await Promise.all(near.map(async (it) => {
     const k = viewKey(it.id);
-    const [fr, sd] = await Promise.all([sign(`walk/${k}-front.png`), sign(`walk/${k}-side.png`)]);
+    const [fr, sd] = await Promise.all([sign(`walk/${k}-v2-front.png`), sign(`walk/${k}-v2-side.png`)]);
     if (fr && sd) views.set(it.id, { front: fr, side: sd }); else lacking.add(it.id);
   }));
   const toMake = near.filter((it) => lacking.has(it.id) && paths.has(it.id)).slice(0, 2);
@@ -155,10 +155,11 @@ Deno.serve(async (req) => {
       const dl = await db.storage.from('renders').download(paths.get(it.id) as string);
       if (dl.error || !dl.data) return;
       const src = new Uint8Array(await dl.data.arrayBuffer());
-      const [front, side] = await Promise.all([drawView(VIEW_FRONT, src), drawView(VIEW_SIDE, src)]);
+      const front = await drawView(VIEW_FRONT, src);
+      const side = front ? await drawView(VIEW_SIDE, src, front) : null; // the side is drawn from the front too, so the two are the same building in the same state
       if (front && side) {
-        await db.storage.from('renders').upload(`walk/${k}-front.png`, front, { contentType: 'image/png', upsert: true });
-        await db.storage.from('renders').upload(`walk/${k}-side.png`, side, { contentType: 'image/png', upsert: true });
+        await db.storage.from('renders').upload(`walk/${k}-v2-front.png`, front, { contentType: 'image/png', upsert: true });
+        await db.storage.from('renders').upload(`walk/${k}-v2-side.png`, side, { contentType: 'image/png', upsert: true });
       }
     } catch { /* tried again at the next walk */ }
     await db.storage.from('renders').remove([lock]);

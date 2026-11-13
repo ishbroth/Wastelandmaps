@@ -257,7 +257,7 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
   useEffect(() => {
     let cancelled = false, timer = 0;
     void (async () => {
-      const [assets, waiting] = await Promise.all([loadAssets(`sky-${radiated ? 'fallout' : hash(center.lat * 91 + center.lng * 37) > 0.5 ? 'sunset' : 'overcast'}${1 + Math.floor(hash(center.lng * 53 + center.lat * 17) * 3)}`), gather(center, true)]);
+      const [assets, waiting] = await Promise.all([loadAssets(`sky-${radiated ? 'fallout' : ['overcast', 'sunset', 'blue', 'blue', 'sunset'][Math.floor(hash(center.lat * 91 + center.lng * 37) * 5)]}${1 + Math.floor(hash(center.lng * 53 + center.lat * 17) * 3)}`), gather(center, true)]);
       // the streets are still being fetched from the map: ask again for a little while, since each try saves what has come
       let more = waiting;
       for (let i = 0; i < 8 && more && !cancelled; i++) { await new Promise((r) => setTimeout(r, 6000)); more = await gather(center, false); }

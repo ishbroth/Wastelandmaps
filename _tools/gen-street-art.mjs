@@ -18,7 +18,7 @@ const SPRITE = (what, view) => `${STYLE} A game sprite of ${what}, seen at eye l
 
 const SKY = (what) => `${STYLE} A wide panoramic picture of ONLY the sky, as seen from the ground looking at the horizon: ${what}. Volumetric clouds with real depth and soft light. Absolutely no ground, no buildings, no trees, no power lines, no birds, no sun disc cut by edges: only sky, with the bottom edge fading into a dusty brownish-orange haze where the horizon would be. It must read as a real photographic game sky, not a cartoon.`;
 const ASPECT = {};
-for (const t of ['overcast', 'sunset', 'fallout']) for (let i = 1; i <= 3; i++) ASPECT[`sky-${t}${i}`] = '16:9';
+for (const t of ['overcast', 'sunset', 'fallout', 'blue']) for (let i = 1; i <= 3; i++) ASPECT[`sky-${t}${i}`] = '16:9';
 const VARIANT = ['with a large cloud bank on the left and a clearer patch to the right', 'with long streaky clouds stretched across the whole width', 'with towering clouds in the middle and thinner haze at both sides'];
 const PROMPTS = {
   // ground, from above
@@ -47,6 +47,9 @@ const PROMPTS = {
   'sky-sunset1': SKY('a low sun glowing through dusty haze and big volumetric clouds, orange, gold and teal, like the Commonwealth sky of Fallout 4, ' + VARIANT[0]),
   'sky-sunset2': SKY('a low sun glowing through dusty haze and big volumetric clouds, orange, gold and teal, like the Commonwealth sky of Fallout 4, ' + VARIANT[1]),
   'sky-sunset3': SKY('a low sun glowing through dusty haze and big volumetric clouds, orange, gold and teal, like the Commonwealth sky of Fallout 4, ' + VARIANT[2]),
+  'sky-blue1': SKY('a hazy pale blue and grey daytime sky with big dusty cream and tan clouds, a touch of warm orange at the horizon, like a clearer day in the Fallout 4 Commonwealth, ' + VARIANT[0]),
+  'sky-blue2': SKY('a hazy pale blue and grey daytime sky with big dusty cream and tan clouds, a touch of warm orange at the horizon, like a clearer day in the Fallout 4 Commonwealth, ' + VARIANT[1]),
+  'sky-blue3': SKY('a hazy pale blue and grey daytime sky with big dusty cream and tan clouds, a touch of warm orange at the horizon, like a clearer day in the Fallout 4 Commonwealth, ' + VARIANT[2]),
   'sky-fallout1': SKY('a sickly green-yellow radioactive sky with roiling toxic clouds and glowing green fallout haze drifting through, ' + VARIANT[0]),
   'sky-fallout2': SKY('a sickly green-yellow radioactive sky with roiling toxic clouds and glowing green fallout haze drifting through, ' + VARIANT[1]),
   'sky-fallout3': SKY('a sickly green-yellow radioactive sky with roiling toxic clouds and glowing green fallout haze drifting through, ' + VARIANT[2]),
