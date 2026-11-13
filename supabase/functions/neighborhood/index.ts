@@ -17,6 +17,9 @@ const RADIUS_M = 125; // 400 feet
 // kept for good in storage and used by everyone who walks past. They are made in the background the first time someone with the atlas walks there.
 const VIEW_FRONT = 'This is a post-apocalyptic video game render of one ruined building (it may be a heap of rubble where a building stood). Re-draw THIS SAME structure as a clean, flat, straight-on orthographic FRONT ELEVATION (no perspective, as if photographed square-on from far away with a long lens): the whole building only, from the ground line to the top of its roof or highest broken part, keeping its exact shape, proportions, materials, colors, state of damage, and ALL of its signage, lettering, posters and special objects (a vault door, for instance) copied faithfully. If the render shows a heap of rubble, draw that heap from the front. No ground plane, no sky, no neighbouring buildings, no fences in front, no cast shadows, no people, no vehicles. Place it centered on a perfectly flat solid magenta (#FF00FF) background, with nothing else in the picture, with a little magenta margin all round.';
 const VIEW_SIDE = 'Image 1 is a post-apocalyptic video game render of one ruined building. Image 2 is a straight-on front elevation of that same building. Draw the LEFT SIDE ELEVATION of the SAME structure: a clean, flat, straight-on orthographic side view (no perspective, as if photographed square-on from far away with a long lens), the whole side from the ground line to the top. It must be consistent with the front: identical materials, colors, roof type and pitch, height, floor levels, and the SAME state of destruction, neither more intact nor more ruined (if the front is a collapsed heap of rubble, the side is the same heap seen from the side; if parts are missing or burnt at the front, that damage continues round the corner). Things that belong to the front only (signs, the front door, a vault door) do not appear on the side. No ground plane, no sky, no neighbouring buildings, no cast shadows, no people, no vehicles. Place it centered on a perfectly flat solid magenta (#FF00FF) background, with nothing else in the picture, with a little magenta margin all round.';
+const VIEW_Q = (deg: number, how: string) => `Image 1 is a post-apocalyptic video game render of one ruined building. Image 2 is a straight-on front elevation of that same building. Draw THE SAME building as seen by a person standing ${deg} degrees to the LEFT of straight-on in front of it, looking at it from standing eye height: ${how}. It is a real perspective view of the same 3D structure, so the roof, walls, windows, porch and damage must be the same as in the front elevation and continue consistently round the corner onto the left side wall (identical materials, colors, roof type and pitch, height, floor levels and state of destruction, neither more intact nor more ruined; if it is a collapsed heap of rubble, draw the same heap from this angle). Keep any signage or special object (a vault door, for instance) that is on the front. The whole building from the ground line to the top, nothing cropped. No ground plane, no sky, no neighbouring buildings, no cast shadows, no people, no vehicles. Place it centered on a perfectly flat solid magenta (#FF00FF) background, with nothing else in the picture, with a little magenta margin all round.`;
+const VIEW_Q35 = VIEW_Q(35, 'a three-quarter view: the front facade is turned a little away and a good part of its left side wall is visible');
+const VIEW_Q65 = VIEW_Q(65, 'a steep angle: the left side wall fills most of the view and the front facade is seen only as a narrow foreshortened strip');
 const b64 = (bytes: Uint8Array): string => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(t); };
 const viewKey = (id: string) => id.replace(/[^A-Za-z0-9_-]/g, '_');
 async function drawView(prompt: string, src: Uint8Array, also?: Uint8Array): Promise<Uint8Array | null> {
@@ -93,7 +96,7 @@ Deno.serve(async (req) => {
     const s = await db.storage.from('renders').createSignedUrl(path, 3600);
     return s.error || !s.data ? null : s.data.signedUrl;
   };
-  const items: { id: string; name: string; kind: string; lat: number; lng: number; url: string; front?: string; side?: string }[] = [];
+  const items: { id: string; name: string; kind: string; lat: number; lng: number; url: string; front?: string; side?: string; q35?: string; q65?: string }[] = [];
   const paths = new Map<string, string>();
 
   // addresses other people rendered in the metros whose atlas they bought
@@ -129,14 +132,19 @@ Deno.serve(async (req) => {
     }
   }
 
-  // the building views: the ones made are sent along; the ones not made yet are started (a couple at a time, nearest first) and the answer says they are on their way
-  const views = new Map<string, { front: string; side: string }>();
+  // the building views: the ones made are sent along (a straight-on front, the left side, and two three-quarter views, so the walk can show the angle it is seen from); the ones not made
+  // yet are started (a couple of buildings at a time, nearest first) and the answer says they are on their way
+  const NAMES = ['front', 'side', 'q35', 'q65'] as const;
+  const views = new Map<string, Record<string, string>>();
   const lacking = new Set<string>();
   const near = [...items].sort((x, y) => dist(here, x) - dist(here, y)).slice(0, 14);
   await Promise.all(near.map(async (it) => {
     const k = viewKey(it.id);
-    const [fr, sd] = await Promise.all([sign(`walk/${k}-v2-front.png`), sign(`walk/${k}-v2-side.png`)]);
-    if (fr && sd) views.set(it.id, { front: fr, side: sd }); else lacking.add(it.id);
+    const urls = await Promise.all(NAMES.map((n) => sign(`walk/${k}-v2-${n}.png`)));
+    const got: Record<string, string> = {};
+    NAMES.forEach((n, i) => { if (urls[i]) got[n] = urls[i] as string; });
+    if (Object.keys(got).length) views.set(it.id, got);
+    if (Object.keys(got).length < NAMES.length) lacking.add(it.id);
   }));
   const toMake = near.filter((it) => lacking.has(it.id) && paths.has(it.id)).slice(0, 2);
   const viewsPending = lacking.size > 0;
@@ -155,11 +163,18 @@ Deno.serve(async (req) => {
       const dl = await db.storage.from('renders').download(paths.get(it.id) as string);
       if (dl.error || !dl.data) return;
       const src = new Uint8Array(await dl.data.arrayBuffer());
-      const front = await drawView(VIEW_FRONT, src);
-      const side = front ? await drawView(VIEW_SIDE, src, front) : null; // the side is drawn from the front too, so the two are the same building in the same state
-      if (front && side) {
-        await db.storage.from('renders').upload(`walk/${k}-v2-front.png`, front, { contentType: 'image/png', upsert: true });
-        await db.storage.from('renders').upload(`walk/${k}-v2-side.png`, side, { contentType: 'image/png', upsert: true });
+      const read = async (n: string): Promise<Uint8Array | null> => { const r = await db.storage.from('renders').download(`walk/${k}-v2-${n}.png`); return r.error || !r.data ? null : new Uint8Array(await r.data.arrayBuffer()); };
+      const keep = (n: string, bytes: Uint8Array) => db.storage.from('renders').upload(`walk/${k}-v2-${n}.png`, bytes, { contentType: 'image/png', upsert: true });
+      // the front first (it is what the rest are drawn from, so they are all the same building in the same state), then the others together
+      let front = await read('front');
+      if (!front) { front = await drawView(VIEW_FRONT, src); if (front) await keep('front', front); }
+      if (front) {
+        const f2 = front;
+        await Promise.all([['side', VIEW_SIDE], ['q35', VIEW_Q35], ['q65', VIEW_Q65]].map(async ([n, prompt]) => {
+          if (await read(n)) return;
+          const out = await drawView(prompt, src, f2);
+          if (out) await keep(n, out);
+        }));
       }
     } catch { /* tried again at the next walk */ }
     await db.storage.from('renders').remove([lock]);

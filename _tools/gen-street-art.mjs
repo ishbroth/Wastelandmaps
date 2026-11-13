@@ -85,10 +85,25 @@ const PROMPTS = {
   // more trees
   tree5: SPRITE('a tall dead pine tree, bare of needles except a few brown clumps, thin straight trunk with short dead branches', 'the front'),
   tree6: SPRITE('a gnarled old oak with half its limbs snapped off and a few clusters of sickly yellow-green leaves, thick trunk', 'the front'),
-  tree7: SPRITE('a tall dead palm tree with drooping brown fronds, a ragged trunk and a few fronds hanging down', 'the front'),
+  tree7: SPRITE('a tall burnt dead palm tree: a charred black cracked trunk with only a few blackened singed stubs of fronds, nothing green', 'the front'),
   tree8: SPRITE('a half-fallen leaning dead tree with a split trunk and tangled roots in the air, a few living green shoots growing from it', 'the front'),
   tree9: SPRITE('a scorched, leafless birch-like tree with pale peeling bark and thin twisting branches', 'the front'),
   tree10: SPRITE('a small scrawny young tree with a few bright green leaves growing out of the cracks, spindly and crooked', 'the front'),
+  // more cars, in the retro-futuristic 1950s style of the Fallout games, rusted and wrecked
+  car3: SPRITE('a rusted wrecked 1950s retro-futuristic station wagon with big tail fins, wood-panel sides peeling, no glass, flat tires, scorched and faded turquoise paint', 'the side, in a clean side elevation'),
+  car4: SPRITE('a rusted abandoned 1950s retro-futuristic delivery van with a dented roof, one door hanging open, faded paint and a partly peeled logo area, flat tires', 'the side, in a clean side elevation'),
+  car5: SPRITE('a rusted wrecked yellow school bus, windows broken out, roof crushed, flat tires, paint peeling to bare metal, tilted slightly', 'the side, in a clean side elevation'),
+  car6: SPRITE('a rusted wrecked 1950s retro-futuristic taxi cab with a roof sign, no glass, flat tires, scorched yellow paint and checker stripe faded', 'the side, in a clean side elevation'),
+  car7: SPRITE('a rusted wrecked 1950s retro-futuristic police cruiser with a roof light bar, doors open, no glass, flat tires, faded black and white paint', 'the side, in a clean side elevation'),
+  car8: SPRITE('a rusted burnt-out 1950s retro-futuristic two-door coupe with rounded fenders and a bubble roof, stripped to bare metal and rust, on its rims', 'the side, in a clean side elevation'),
+  car9: SPRITE('a rusted wrecked flatbed tow truck with a bent crane arm, flat tires, scorched red paint, windows gone', 'the side, in a clean side elevation'),
+  car10: SPRITE('a rusted wrecked 1950s retro-futuristic sedan tipped onto its side against rubble, crushed, no glass, faded pink and cream paint', 'a three-quarter front angle'),
+  car11: SPRITE('a rusted wrecked 1950s retro-futuristic sedan seen from the front, bumper hanging, headlights smashed, hood open and crumpled, flat tires, scorched blue paint', 'straight on from the front'),
+  car12: SPRITE('a rusted wrecked pickup truck seen from behind with its tailgate open, rear window gone, flat tires, scorched green paint', 'straight on from behind'),
+  // burnt palms
+  tree11: SPRITE('a tall burnt dead palm tree: the trunk charred black and cracked, all the fronds burnt away to a few blackened stubs, nothing green', 'the front'),
+  tree12: SPRITE('a pair of burnt black dead palm trunks leaning, stripped of fronds, charred and split, with ash at the base', 'the front'),
+  tree13: SPRITE('a burnt dead palm tree with a few brown singed dead fronds hanging down from a charred black trunk', 'the front'),
   // flatter debris and things strewn about, to fill bare ground between the piles
   flat1: SPRITE('a flat, wide spread of broken concrete slabs, shattered bricks and gravel lying low on the ground, no tall parts, no more than half a metre high, very wide and low', 'a low eye-level front view'),
   flat2: SPRITE('a wide, low scatter of burnt planks, torn insulation, plaster chunks and crumpled sheet metal lying flat on the ground, nothing taller than half a metre', 'a low eye-level front view'),

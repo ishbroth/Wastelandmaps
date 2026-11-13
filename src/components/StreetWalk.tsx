@@ -19,19 +19,19 @@ const ROAD_W: Record<string, number> = { motorway: 14, trunk: 12, primary: 11, s
 interface Place { id: string; lat: number; lng: number; name: string }
 type V = { x: number; y: number };
 interface Road { id: number; hw: string; w: number; pts: V[] }
-interface Building extends NeighborItem { x: number; y: number; n: V; img: HTMLCanvasElement | null; ratio: number; width: number; depth: number; sideIdx: number; /** the building as re-rendered: its own front and side, and its size in metres */ vf?: HTMLCanvasElement; vs?: HTMLCanvasElement; fw?: number; fh?: number; sd?: number }
+interface Building extends NeighborItem { x: number; y: number; n: V; img: HTMLCanvasElement | null; ratio: number; width: number; depth: number; sideIdx: number; /** the building as re-rendered: its own front and side, and its size in metres */ vf?: HTMLCanvasElement; vs?: HTMLCanvasElement; fw?: number; fh?: number; sd?: number; /** the views of it from different angles (0 front, 35, 65, 90 side; seen from the left), for drawing it as it is seen from where the walker is */ imp?: { ang: number; c: HTMLCanvasElement; asp: number }[] }
 interface Tex { data: Uint8ClampedArray; mean: [number, number, number] }
-interface Assets { tex: Record<string, Tex>; sprites: Record<string, HTMLImageElement>; /** small copies, for far-off drawing (much cheaper than shrinking the big ones every frame) */ small: Record<string, HTMLCanvasElement>; sky: HTMLImageElement | null }
+interface Assets { tex: Record<string, Tex>; sprites: Record<string, HTMLImageElement>; /** small copies, for far-off drawing (much cheaper than shrinking the big ones every frame), and the same turned the other way */ small: Record<string, HTMLCanvasElement>; smallFlip: Record<string, HTMLCanvasElement>; sky: HTMLImageElement | null }
 
 const mPerDegLat = 111_320;
 const toMeters = (o: { lat: number; lng: number }, p: { lat: number; lng: number }): V => ({ x: (p.lng - o.lng) * mPerDegLat * Math.cos((o.lat * Math.PI) / 180), y: (p.lat - o.lat) * mPerDegLat });
 const hash = (n: number): number => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const BASE = import.meta.env.BASE_URL;
 const SPRITE_NAMES = ['rubble1', 'rubble2', 'rubble3', 'rubble4', 'tree1', 'tree2', 'tree3', 'car1', 'car2', 'pole1', 'lamp1', 'houseside1', 'houseside2', 'houseside3', 'shopside1', 'flat1', 'flat2', 'flat3', 'scatter2', 'scatter3', 'tree4', 'tree5', 'tree6', 'tree7', 'tree8', 'tree9', 'tree10',
-  'swingset1', 'bench1', 'mailbox1', 'carparts1', 'junk1', 'shopcart1', 'hydrant1', 'stopsign1', 'fence1', 'fence2', 'tires1', 'bigpile1', 'bigpile2', 'bigpile3', 'shrub1', 'shrub2', 'shrub3', 'grass1', 'grass2s', 'grass3'];
+  'swingset1', 'bench1', 'mailbox1', 'carparts1', 'junk1', 'shopcart1', 'hydrant1', 'stopsign1', 'fence1', 'fence2', 'tires1', 'bigpile1', 'bigpile2', 'bigpile3', 'shrub1', 'shrub2', 'shrub3', 'grass1', 'grass2s', 'grass3', 'car3', 'car4', 'car5', 'car7', 'car8', 'car9', 'car10', 'car11', 'car12', 'tree11', 'tree12', 'tree13'];
 const TEX_NAMES = ['asphalt', 'asphalt2', 'dirt', 'dirt2', 'dirt3', 'dirt4', 'grass', 'grass2', 'debris1', 'debris2', 'debris3', 'sidewalk'];
 /** How tall each stock piece stands, in metres (its width follows its picture). */
-const SPRITE_H: Record<string, number> = { rubble1: 2.2, rubble2: 2.2, rubble3: 1.1, rubble4: 2.4, tree1: 6.5, tree2: 4.5, tree3: 1.4, tree4: 5, tree5: 9, tree6: 7, tree7: 8, tree8: 4.5, tree9: 6.5, tree10: 3, swingset1: 3, bench1: 1, mailbox1: 1.3, trashcan1: 1.1, carparts1: 1.2, junk1: 1.4, shopcart1: 1, hydrant1: 0.9, stopsign1: 2.8, fence1: 1.8, fence2: 1.2, tires1: 0.8, bigpile1: 1.8, bigpile2: 1.8, bigpile3: 1.8, shrub1: 1.1, shrub2: 1.3, shrub3: 0.9, grass1: 0.9, grass2s: 0.7, grass3: 0.8, flat1: 0.55, flat2: 0.5, flat3: 0.5, scatter2: 0.4, scatter3: 0.7, car1: 1.6, car2: 1.9, pole1: 8, lamp1: 6.5 };
+const SPRITE_H: Record<string, number> = { rubble1: 2.2, rubble2: 2.2, rubble3: 1.1, rubble4: 2.4, tree1: 6.5, tree2: 4.5, tree3: 1.4, car3: 1.7, car4: 2.4, car5: 3.3, car6: 1.7, car7: 1.7, car8: 1.5, car9: 2.6, car10: 1.8, car11: 1.7, car12: 1.8, tree11: 8, tree12: 6, tree13: 7, tree4: 5, tree5: 9, tree6: 7, tree7: 8, tree8: 4.5, tree9: 6.5, tree10: 3, swingset1: 3, bench1: 1, mailbox1: 1.3, trashcan1: 1.1, carparts1: 1.2, junk1: 1.4, shopcart1: 1, hydrant1: 0.9, stopsign1: 2.8, fence1: 1.8, fence2: 1.2, tires1: 0.8, bigpile1: 1.8, bigpile2: 1.8, bigpile3: 1.8, shrub1: 1.1, shrub2: 1.3, shrub3: 0.9, grass1: 0.9, grass2s: 0.7, grass3: 0.8, flat1: 0.55, flat2: 0.5, flat3: 0.5, scatter2: 0.4, scatter3: 0.7, car1: 1.6, car2: 1.9, pole1: 8, lamp1: 6.5 };
 
 const loadImg = (src: string): Promise<HTMLImageElement | null> => new Promise((res) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
 
@@ -49,15 +49,18 @@ async function loadAssets(skyName: string): Promise<Assets> {
   }));
   const sprites: Record<string, HTMLImageElement> = {};
   await Promise.all(SPRITE_NAMES.map(async (n) => { const i = await loadImg(`${BASE}street/${n}.webp`); if (i) sprites[n] = i; }));
-  const small: Record<string, HTMLCanvasElement> = {};
+  const small: Record<string, HTMLCanvasElement> = {}, smallFlip: Record<string, HTMLCanvasElement> = {};
   for (const [n, im] of Object.entries(sprites)) {
     const sc = Math.min(1, 96 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
     c.width = Math.max(2, Math.round(im.naturalWidth * sc)); c.height = Math.max(2, Math.round(im.naturalHeight * sc));
     const x = c.getContext('2d') as CanvasRenderingContext2D; x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, c.width, c.height);
     small[n] = c;
+    const cf = document.createElement('canvas'); cf.width = c.width; cf.height = c.height;
+    const xf = cf.getContext('2d') as CanvasRenderingContext2D; xf.translate(c.width, 0); xf.scale(-1, 1); xf.drawImage(c, 0, 0);
+    smallFlip[n] = cf;
   }
   const sky = await loadImg(`${BASE}street/${skyName}.webp`);
-  return { tex, sprites, small, sky };
+  return { tex, sprites, small, smallFlip, sky };
 }
 
 /** The whole picture, as it was rendered: it is the facade, so from the road it looks like the render (fence, curb and sidewalk included). It melts into the sky at the top and
@@ -124,18 +127,21 @@ function keyView(img: HTMLImageElement): { canvas: HTMLCanvasElement; aspect: nu
   (out.getContext('2d') as CanvasRenderingContext2D).drawImage(c, x0, y0, bw, bh, 0, 0, out.width, out.height);
   return { canvas: out, aspect: bw / bh };
 }
-/** How tall a building of this kind stands, in metres (the width follows from its picture). */
-const HEIGHT_OF: Record<string, number> = { house: 6.5, home: 6.5, address: 6.5, medical: 9, office: 10, church: 12, gov: 12, park: 5, place: 14 };
+/** How wide a building of this kind is, in metres (its height follows from its picture). */
+const WIDTH_OF: Record<string, number> = { house: 11, home: 11, address: 11, medical: 16, office: 16, church: 18, gov: 22, park: 10, place: 24 };
 /** The re-rendered pieces of a building loaded and sized: its front and its side, and how big it is. */
-async function loadViews(it: NeighborItem): Promise<{ vf: HTMLCanvasElement; vs: HTMLCanvasElement; fw: number; fh: number; sd: number } | null> {
+async function loadViews(it: NeighborItem): Promise<{ vf: HTMLCanvasElement; vs: HTMLCanvasElement; fw: number; fh: number; sd: number; imp?: { ang: number; c: HTMLCanvasElement; asp: number }[] } | null> {
   if (!it.front || !it.side) return null;
-  const [fi, si] = await Promise.all([loadImg(it.front), loadImg(it.side)]);
+  const [fi, si, q1, q2] = await Promise.all([loadImg(it.front), loadImg(it.side), it.q35 ? loadImg(it.q35) : null, it.q65 ? loadImg(it.q65) : null]);
   const fr = fi ? keyView(fi) : null, sd = si ? keyView(si) : null;
   if (!fr || !sd) return null;
-  const fh = HEIGHT_OF[it.kind] ?? 8;
-  const fw = Math.max(7, Math.min(42, fh * fr.aspect));
+  // its size: how wide a building of its kind is, and the height that follows from its picture
+  const fw = WIDTH_OF[it.kind] ?? 12;
+  const fh = Math.max(3, Math.min(16, fw / fr.aspect));
   const depth = Math.max(6, Math.min(28, fh * sd.aspect));
-  return { vf: fr.canvas, vs: sd.canvas, fw, fh, sd: depth };
+  const a1 = q1 ? keyView(q1) : null, a2 = q2 ? keyView(q2) : null;
+  const imp = a1 && a2 ? [{ ang: 0, c: fr.canvas, asp: fr.aspect }, { ang: 35, c: a1.canvas, asp: a1.aspect }, { ang: 65, c: a2.canvas, asp: a2.aspect }, { ang: 90, c: sd.canvas, asp: sd.aspect }] : undefined;
+  return { vf: fr.canvas, vs: sd.canvas, fw, fh, sd: depth, imp };
 }
 
 /** The lie of the land: heights (metres) on a grid round a point, from the free open elevation service (coarse, but it has the real hills). Null if it cannot be had. */
@@ -158,8 +164,9 @@ const elevAt = (e: Elev | null, p: V): number => {
   const cx = Math.max(0, Math.min(e.n - 1.001, fx)), cy = Math.max(0, Math.min(e.n - 1.001, fy));
   const x0 = Math.floor(cx), y0 = Math.floor(cy), tx = cx - x0, ty = cy - y0;
   const g = (i: number, j: number) => e.h[j * e.n + i];
-  return (g(x0, y0) * (1 - tx) + g(x0 + 1, y0) * tx) * (1 - ty) + (g(x0, y0 + 1) * (1 - tx) + g(x0 + 1, y0 + 1) * tx) * ty;
+  return ((g(x0, y0) * (1 - tx) + g(x0 + 1, y0) * tx) * (1 - ty) + (g(x0, y0 + 1) * (1 - tx) + g(x0 + 1, y0 + 1) * tx) * ty) * ELEV_SCALE; // the real hills, eased down (they were too steep at street level)
 };
+const ELEV_SCALE = 0.4;
 
 /** Smooth value noise at a scale in metres (the same everywhere in the world, so the land is the same on every walk). */
 function vnoise(x: number, y: number, sc: number, seed: number): number {
@@ -223,10 +230,10 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
     for (const it of got.items) {
       const have = w.b.find((b) => b.id === it.id);
       if (have) { // the building has since been re-rendered into its own pieces: it is rebuilt in the street with them
-        if (!have.vf && it.front && it.side && !w.loading.has(it.id + '#v')) {
+        if ((!have.vf || (!have.imp && it.q35 && it.q65)) && it.front && it.side && !w.loading.has(it.id + '#v')) {
           w.loading.add(it.id + '#v');
           const v = await loadViews(it);
-          if (v) { have.vf = v.vf; have.vs = v.vs; have.fw = v.fw; have.fh = v.fh; have.sd = v.sd; have.width = v.fw; have.depth = v.sd; }
+          if (v) { have.vf = v.vf; have.vs = v.vs; have.fw = v.fw; have.fh = v.fh; have.sd = v.sd; have.imp = v.imp; have.width = v.fw; have.depth = v.sd; }
           w.loading.delete(it.id + '#v');
         }
         continue;
@@ -247,7 +254,7 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
       if (nr) { const need = nr.road.w / 2 + 4.5 + depth / 2; if (nr.d < need) { m.x -= n.x * (need - nr.d); m.y -= n.y * (need - nr.d); } }
       const v = await loadViews(it);
       if (v) { width = v.fw; depth = v.sd; }
-      w.b.push({ ...it, ...(v ? { vf: v.vf, vs: v.vs, fw: v.fw, fh: v.fh, sd: v.sd } : {}), x: m.x, y: m.y, n, img: cut?.canvas ?? null, ratio: Math.min(1.1, Math.max(0.5, cut?.ratio ?? 0.75)), width, depth, sideIdx: Math.floor(hash(m.x * 3 + m.y) * 3) });
+      w.b.push({ ...it, ...(v ? { vf: v.vf, vs: v.vs, fw: v.fw, fh: v.fh, sd: v.sd, imp: v.imp } : {}), x: m.x, y: m.y, n, img: cut?.canvas ?? null, ratio: Math.min(1.1, Math.max(0.5, cut?.ratio ?? 0.75)), width, depth, sideIdx: Math.floor(hash(m.x * 3 + m.y) * 3) });
     }
     w.viewsPending = !!got.viewsPending;
     setBusy(false);
@@ -547,7 +554,7 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
           const topL = b0 - hp0, topR = b1 - hp1, dx = xb - xa + 0.7, srcX = ((flip ? N - 1 - i : i) * sw) / N, srcW = sw / N + 0.6;
           ctx.globalAlpha = fogAlpha((z0c + z1c) / 2);
           ctx.save();
-          ctx.transform(dx / srcW, (topR - topL) / Math.max(0.5, xb - xa), 0, (hp0 + hp1) / 2 / sh, xa, topL);
+          ctx.transform(dx / srcW, (topR - topL) / srcW, 0, (hp0 + hp1) / 2 / sh, xa, topL);
           ctx.drawImage(src, srcX, 0, srcW, sh, 0, 0, srcW, sh);
           ctx.restore();
         }
@@ -555,6 +562,38 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
       };
 
       for (const b of w0.b) {
+        if (b.imp) { // the picture of the building from the angle it is seen at (two views blended, mirrored for the right-hand side): a real look at it from here, not a flat picture skewed
+          const t: V = { x: -b.n.y, y: b.n.x };
+          const dxc = k.x - b.x, dyc = k.y - b.y, dl = Math.hypot(dxc, dyc) || 1;
+          const cosN = (dxc * b.n.x + dyc * b.n.y) / dl, sideS = (dxc * t.x + dyc * t.y) / dl; // facing it, and which side of it the walker is on (negative: the left)
+          const th = Math.min(90, (Math.atan2(Math.abs(sideS), cosN) * 180) / Math.PI), mirror = sideS > 0;
+          const imp = b.imp;
+          let vi = 0; while (vi < imp.length - 2 && th >= imp[vi + 1].ang) vi++;
+          const VA = imp[vi], VB = imp[vi + 1], tt = (th - VA.ang) / (VB.ang - VA.ang), mix = Math.max(0, Math.min(1, (tt - 0.35) / 0.3));
+          const Q: V = { x: b.x + b.n.x * b.depth * 0.3 * Math.max(0, cosN), y: b.y + b.n.y * b.depth * 0.3 * Math.max(0, cosN) };
+          const [qx, qz] = cam3(Q);
+          if (qz < NEAR + 0.5 || qz > FAR + 20 || Math.abs(qx) > qz * 1.5 + (b.fw ?? 12)) continue;
+          const hM = b.fh as number, drop = camZ - heightAt(Q);
+          const hp = (hM * f) / qz, base = hy + ((drop + 0.22) * f) / qz, sx = cx + (qx / qz) * f, oy = occAt(qx, qz);
+          if (base - hp > oy + 2) continue; // behind a hill
+          things.push({ z: qz, draw: () => {
+            ctx.save();
+            if (base > oy) { ctx.beginPath(); ctx.rect(0, 0, W, oy); ctx.clip(); }
+            // it sits on the ground: a soft shadow under it
+            const sh = ctx.createRadialGradient(sx, base - hp * 0.01, 1, sx, base - hp * 0.01, Math.max(4, hp * VA.asp * 0.62));
+            sh.addColorStop(0, 'rgba(18,12,6,0.5)'); sh.addColorStop(1, 'rgba(18,12,6,0)');
+            ctx.save(); ctx.translate(0, base - hp * 0.01); ctx.scale(1, 0.14); ctx.translate(0, -(base - hp * 0.01)); ctx.fillStyle = sh; ctx.fillRect(sx - hp * VA.asp, base - hp * 0.01 - hp * VA.asp, hp * VA.asp * 2, hp * VA.asp * 2); ctx.restore();
+            const put = (v: { c: HTMLCanvasElement; asp: number }, alpha: number) => {
+              const wp = hp * v.asp;
+              ctx.globalAlpha = fogAlpha(qz) * alpha;
+              if (mirror) { ctx.save(); ctx.translate(sx, 0); ctx.scale(-1, 1); ctx.drawImage(v.c, -wp / 2, base - hp, wp, hp); ctx.restore(); } else ctx.drawImage(v.c, sx - wp / 2, base - hp, wp, hp);
+            };
+            put(VA, 1);
+            if (mix > 0.02) put(VB, mix);
+            ctx.restore();
+          } });
+          continue;
+        }
         const t: V = { x: -b.n.y, y: b.n.x };
         const own = !!(b.vf && b.vs); // re-rendered into its own front and side: a real box of its own size
         const body = own ? (b.fw as number) : b.width * 0.55, hw = body / 2, hd = b.depth / 2, fw = own ? hw : b.width / 2;
@@ -591,7 +630,8 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
       const cell = 4.5;
       const gx0 = Math.floor((k.x - FAR) / cell), gx1 = Math.floor((k.x + FAR) / cell), gy0 = Math.floor((k.y - FAR) / cell), gy1 = Math.floor((k.y + FAR) / cell);
       const have = (names: string[]) => names.filter((n) => assets.sprites[n]);
-      const TREES = have(['tree1', 'tree2', 'tree3', 'tree4', 'tree5', 'tree6', 'tree7', 'tree8', 'tree9', 'tree10']), SHRUBS = have(['shrub1', 'shrub2', 'shrub3']), GRASS = have(['grass2s', 'grass3', 'grass2s']);
+      const CARS = have(['car1', 'car2', 'car3', 'car4', 'car5', 'car7', 'car8', 'car9', 'car10', 'car11', 'car12']);
+      const TREES = have(['tree1', 'tree2', 'tree3', 'tree4', 'tree5', 'tree6', 'tree7', 'tree8', 'tree9', 'tree10', 'tree11', 'tree12', 'tree13']), SHRUBS = have(['shrub1', 'shrub2', 'shrub3']), GRASS = have(['grass2s', 'grass3', 'grass2s']);
       const BIG = have(['rubble1', 'rubble2', 'rubble3', 'rubble4']), PILES = have(['bigpile1', 'bigpile2', 'bigpile3']), FLAT = have(['flat1', 'flat2', 'flat3']), STREW = have(['scatter2', 'scatter3', 'scatter2', 'flat3']);
       const JUNK = have(['swingset1', 'bench1', 'mailbox1', 'trashcan1', 'carparts1', 'junk1', 'shopcart1', 'tires1', 'fence1', 'fence2', 'junk1', 'carparts1']);
       const pick = (a: string[], q: number): string => (a.length ? a[Math.floor(q * a.length) % a.length] : '');
@@ -610,7 +650,7 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
           if (w0.b.some((b) => Math.hypot(b.x - p.x, b.y - p.y) < Math.max(b.width, b.depth) * 0.6 + 2)) continue;
           const R = surfaceR(p), r = hash(seed + 3), q2 = hash(seed + 4);
           let name = '';
-          if (R > 150) { if (r > 0.08) continue; name = r > 0.05 ? pick(['car1'], 0) : r > 0.03 ? pick(['car2'], 0) : pick(['tires1', 'carparts1'], q2); }
+          if (R > 150) { if (r > 0.08) continue; name = r > 0.03 ? pick(CARS, q2) : pick(['tires1', 'carparts1'], q2); }
           else if (R > 50) { if (r > 0.14) continue; name = r > 0.1 ? pick(['lamp1', 'pole1'], q2) : pick(['hydrant1', 'mailbox1', 'bench1', 'trashcan1', 'stopsign1'], q2); }
           else if (pv > 0.5 && r < 0.4) name = pick(r < 0.15 ? PILES : r < 0.3 ? BIG : JUNK, q2); // on a mound: heaps and junk
           else if (zone < 0.33) name = r < 0.1 ? pick(TREES, q2) : r < 0.3 ? pick(SHRUBS, q2) : r < 0.5 ? pick(GRASS, q2) : r < 0.72 ? pick(STREW, q2) : r < 0.9 ? pick(FLAT, q2) : pick(BIG, q2);
@@ -626,7 +666,7 @@ export default function StreetWalk({ center, places, radiated = false, onClose }
           things.push({ z: pz, draw: () => {
             const wp = hp * (sp.naturalWidth / sp.naturalHeight);
             const sx = cx + (px / pz) * f;
-            const far = hp * dpr < 110, img = far ? assets.small[name] ?? sp : sp;
+            const far = hp * dpr < 110, img = far ? (flip ? assets.smallFlip[name] : assets.small[name]) ?? sp : sp; // a far copy faces the same way as the near one (it is turned too)
             const clipped = base > oy;
             if (clipped || (flip && !far)) ctx.save();
             if (clipped) { ctx.beginPath(); ctx.rect(0, 0, W, oy); ctx.clip(); }
