@@ -65,7 +65,7 @@ export default function LocationCard({ waiting, spot, from, here, visited, clear
         <button type="button" className="rm-card-close" onClick={onClose} aria-label="Close">×</button>
       </div>
       <p className="rm-card-meta">
-        {spot.personal ? <>{spot.personal.home ? 'YOUR HOME' : cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : spot.personal.atlas ? 'ADDRESS ATLAS' : spot.personal.saved ? 'YOUR PLACE · DISCOVERED' : 'DESTINATION'}{enemies ? ` · ${enemies}` : ''}</> : <>{cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : visited ? 'DISCOVERED' : 'UNDISCOVERED'}{enemies ? ` · ${enemies}` : ''}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}</>}
+        {spot.personal ? <>{spot.personal.home ? 'YOUR HOME' : cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : spot.personal.atlas ? 'PROJECT: ATLAS' : spot.personal.saved ? 'YOUR PLACE · DISCOVERED' : 'DESTINATION'}{enemies ? ` · ${enemies}` : ''}</> : <>{cleared ? 'CLEARED' : unlocked ? 'UNLOCKED' : visited ? 'DISCOVERED' : 'UNDISCOVERED'}{enemies ? ` · ${enemies}` : ''}{spot.rads > 60 ? ` · ${spot.rads} RADS` : ''}</>}
       </p>
       {waiting && <p className="rm-waiting">WAITING FOR YOU: {waiting}</p>}
       {!here && from && (

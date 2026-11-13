@@ -81,6 +81,9 @@ Deno.serve(async (req) => {
   if (typeof b.lat !== 'number' || typeof b.lng !== 'number' || Math.abs(b.lat) > 90 || Math.abs(b.lng) > 180) return reply(req, { error: 'bad_point' }, 400);
   const here = { lat: b.lat, lng: b.lng };
   const db = serviceClient();
+  // in testing: only the owner's account may use the street view
+  const who = await db.auth.admin.getUserById(user);
+  if (who.data.user?.email?.toLowerCase() !== 'iw@sdcarealty.com') return reply(req, { error: 'not_yet' }, 403);
 
   const { data: owned } = await db.from('metro_unlocks').select('metro_id').eq('user_id', user);
   const metros = (owned ?? []).map((m) => String(m.metro_id));

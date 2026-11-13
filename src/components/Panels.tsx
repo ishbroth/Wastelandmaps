@@ -46,7 +46,7 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
   /** Vacation vaults: a cog beside [CLEARED] on a cleared place outside the home metro. */
   vacation?: VacationOffer;
   onVacation?: (choice: VacationChoice) => void;
-  /** The metro under the map: the list is its places only, and changes as the map moves to another metro (its address atlas sits above the list). */
+  /** The metro under the map: the list is its places only, and changes as the map moves to another metro (its Project: Atlas sits above the list). */
   metro?: { id?: string; name?: string; lat?: number; lng?: number; radiusKm?: number } | null;
   account: Account;
   region: Region | null;
@@ -469,7 +469,7 @@ export function SharePanel({ query, look, account, mapPoster }: { query: string;
   );
 }
 
-/** The address atlas of the metro on the map: how many addresses other survivors have rendered here, and the one-time unlock of all of them. */
+/** Project: Atlas of the metro on the map: how many addresses other survivors have rendered here, and the one-time unlock of all of them. */
 function AtlasBox({ account, metro }: { account: Account; metro: { id: string; name: string } }) {
   const [count, setCount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -491,7 +491,7 @@ function AtlasBox({ account, metro }: { account: Account; metro: { id: string; n
   };
   return (
     <div className="rm-atlas">
-      <h3>ADDRESS ATLAS · {metro.name.toUpperCase()}</h3>
+      <h3>PROJECT: ATLAS · {metro.name.toUpperCase()}</h3>
       {unlocked ? (
         <p className="rm-fine">Unlocked. Every address rendered here{count ? ` (${count} so far)` : ''}, including ones added later, is on your map; open one to see it and loot it.</p>
       ) : (

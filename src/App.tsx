@@ -147,7 +147,7 @@ export default function App() {
     if (target && !account.personal.some((q) => q.placeId === target.placeId)) mine.push(personalLocation(target, false));
     return mine;
   }, [account.personal, account.home, target, region]);
-  // the metro on the map (its address atlas), the addresses other survivors rendered there when this person has unlocked the metro, and the home prompt
+  // the metro on the map (its Project: Atlas), the addresses other survivors rendered there when this person has unlocked the metro, and the home prompt
   const [metroInfo, setMetroInfo] = useState<{ id: string; name: string; lat?: number; lng?: number; radiusKm?: number } | null>(null);
   const [atlas, setAtlas] = useState<AtlasPlace[]>([]);
   const [homeOpen, setHomeOpen] = useState(false);
@@ -695,6 +695,8 @@ export default function App() {
   const viewNow = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
   // where the map is (as state, for the street view button)
   const [mapAt, setMapAt] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
+  // our own street view is in testing: only this account can see the binoculars or open it
+  const streetViewAllowed = account.email?.toLowerCase() === 'iw@sdcarealty.com';
   const [walking, setWalking] = useState<{ lat: number; lng: number } | null>(null);
   const mapPosterRef = useRef<() => MapPosterInput | null>(() => null);
   const mapPoster = useCallback(() => mapPosterRef.current(), []);
@@ -1355,7 +1357,7 @@ export default function App() {
           {(() => {
             // our own street view: for a person who bought this metro's atlas. With no place open it is at the bottom left of the map (lit when a place with a picture is close to the middle of
             // the map); with a place open it moves to that place's card
-            const owned = !!account.session && !!metroInfo && account.metros.has(metroInfo.id);
+            const owned = streetViewAllowed && !!account.session && !!metroInfo && account.metros.has(metroInfo.id);
             if (!owned || !mapAt || mapAt.zoom < 16 || nav || (selectedSpot && wasteland && !sceneSpot)) return null;
             const here = { lat: mapAt.lat, lng: mapAt.lng };
             const plotted = [
@@ -1409,7 +1411,7 @@ export default function App() {
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard waiting={waitingLine(account.waiting.get(selectedSpot.id))}
               spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
-              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onWalk={account.session && metroInfo && account.metros.has(metroInfo.id) ? () => { sound('select'); setWalking({ lat: selectedSpot.position.lat, lng: selectedSpot.position.lng }); } : undefined} walkOn={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || selectedSpot.personal?.home === true || selectedSpot.personal?.atlas === true} onClose={() => setSelectedId(null)}
+              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onWalk={streetViewAllowed && account.session && metroInfo && account.metros.has(metroInfo.id) ? () => { sound('select'); setWalking({ lat: selectedSpot.position.lat, lng: selectedSpot.position.lng }); } : undefined} walkOn={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || selectedSpot.personal?.home === true || selectedSpot.personal?.atlas === true} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
