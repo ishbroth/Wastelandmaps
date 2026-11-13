@@ -12,7 +12,7 @@ import { purchasesAvailable } from '../lib/native';
 import Leaderboard from './Leaderboard';
 import Caps, { CapIcon } from './Caps';
 import { StimpakIcon, StopwatchIcon } from './ItemIcons';
-import { STIMPAK_TRADES, TIME_TRADES, offersFor, tradeWindow, tradeWindowEnds } from '../../supabase/functions/_shared/stimpak';
+import { STIMPAK_TRADES, TIME_TRADES, offersFor, tradeWindow } from '../../supabase/functions/_shared/stimpak';
 import ConfirmSpend from './ConfirmSpend';
 import BuyCaps from './BuyCaps';
 import { METRO_COST, caps, loadTradesBought, tradeStimpak, tradeTime, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
@@ -197,7 +197,6 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
   const [bought, setBought] = useState<Set<string>>(new Set());
   const refreshBought = () => { if (account.session) void loadTradesBought(board).then(setBought); };
   useEffect(refreshBought, [board, account.session?.user.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const hoursLeft = Math.max(1, Math.ceil((tradeWindowEnds(clock) - clock) / 3_600_000));
   // the tier of each class of gun to take into battle (chosen by scrolling the gun's bubble)
   const who = account.session?.user.id;
   const [equipped, setEquipped] = useState<Equipped>(() => loadEquipped(who));
