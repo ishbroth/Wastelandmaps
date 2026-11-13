@@ -279,7 +279,6 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
         </>
       )}
       <h3>STIMPAKS: {account.stimpaks}</h3>
-      <p className="rm-fine">Three trades on the board, each once: a trade you take leaves the board until it changes, in about {hoursLeft} hour{hoursLeft === 1 ? '' : 's'}.</p>
       <ul className="rm-arsenal">
         {offersFor('stimpak', board).filter((t) => !bought.has(`stimpak:${t.id}`)).map((t) => (
           <li key={t.id} className="rm-trade-row">
@@ -291,7 +290,6 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
         ))}
       </ul>
       <h3>LEGENDARY TIME: {account.legendaryTime}</h3>
-      <p className="rm-fine">Slows the enemies for four seconds in the shooting gallery. Tap the stopwatch.</p>
       <ul className="rm-arsenal">
         {offersFor('time', board).filter((t) => !bought.has(`time:${t.id}`)).map((t) => (
           <li key={t.id} className="rm-trade-row">
