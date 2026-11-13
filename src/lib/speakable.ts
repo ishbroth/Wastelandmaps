@@ -32,6 +32,8 @@ const KNOWN = new Set(['US', 'USA', 'UK']);
 
 export function speakable(text: string): string {
   let s = text.replace(/\bU\.S\.?\s*/g, 'US ');
+  // a lone N, S, E, W (or NE...) is a direction
+  s = s.replace(/\b(NE|NW|SE|SW|N|S|E|W)\b\.?/g, (m, d: string) => DIRECTIONS[d] ?? m);
   const names = Object.keys(STATES).sort((a, b) => b.length - a.length).join('|');
   // "California State Route 125", "Texas Highway 71": the state's letters and the number
   s = s.replace(new RegExp(`\\b(${names})\\s+(?:State\\s+)?(?:Route|Highway|Hwy|Rte|SR|Freeway)\\s*-?\\s*(\\d{1,3}[A-Za-z]?)\\b`, 'g'), (_m, st: string, n: string) => `${letters(STATES[st])} ${routeNumber(n)}`);
@@ -46,8 +48,6 @@ export function speakable(text: string): string {
   s = s.replace(/\b(?:State Route|State Highway|Highway|Hwy|Route|Rte)\s+(\d{1,3}[A-Za-z]?)\b/g, (_m, n: string) => `Route ${routeNumber(n)}`);
   // a street is its name: "Main Street" is "Main"
   s = s.replace(SUFFIX, '$1');
-  // a lone N, S, E, W (or NE...) is a direction
-  s = s.replace(/\b(NE|NW|SE|SW|N|S|E|W)\b\.?/g, (m, d: string) => DIRECTIONS[d] ?? m);
   // an abbreviation of capital letters that is not clearly known is left out (the letters spaced out above, "C A", are single letters and stay)
   s = s.replace(/\b[A-Z]{2,6}\b/g, (m) => (KNOWN.has(m) ? m : ''));
   return s.replace(/\s{2,}/g, ' ').replace(/\s+([,.])/g, '$1').trim();
