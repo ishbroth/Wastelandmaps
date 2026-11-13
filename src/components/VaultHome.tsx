@@ -576,8 +576,8 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
       });
     }
     layers.sort((a, b) => a.depth - b.depth);
-    // the level above, faintly, so you can see what you are digging under
-    const ghosts = level > 0 ? vault.rooms.filter((r) => r.level === level - 1).map((r, i) => <RoomOutline key={`g${i}`} rect={roomRect(r)} label="" plain />) : [];
+    // (the rooms of the level above are not outlined: nothing of another level is plotted here. Building a way up where a room already stands above says so instead.)
+    const ghosts: React.ReactElement[] = [];
     const entry = vault.rooms.find((r) => r.type === 'entry' && r.level === level);
     return { layers, ghosts, entry, tapRoom };
   }, [vault, fresh, level, say, openCells, focus]);

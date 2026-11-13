@@ -601,7 +601,7 @@ export async function vacationPicture(placeId: string): Promise<string | null> {
 
 // ---- the gallery: the finished pictures this person has unlocked ----
 
-export interface GalleryItem { id: string; name: string; city: string | null; lat: number | null; lng: number | null; at: string; kind: 'place' | 'address' | 'home' }
+export interface GalleryItem { id: string; name: string; city: string | null; lat: number | null; lng: number | null; at: string; kind: 'place' | 'address' | 'home'; /** For a personal address: what kind of building it is. */ pkind?: string }
 
 /** Everything this person has unlocked that has a finished picture (with a name and a position for each), or null if it could not be read. */
 export async function loadGallery(): Promise<GalleryItem[] | null> {

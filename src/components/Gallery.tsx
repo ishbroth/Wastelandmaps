@@ -6,6 +6,10 @@ import { galleryUrl, loadGallery, type Account, type GalleryItem } from '../lib/
 import { distanceMeters } from '../lib/wasteland';
 import { loadIndex, metroAt } from '../lib/metros';
 import { shareImage } from '../lib/poster';
+import { loadMetro } from '../lib/metros';
+import { PERSONAL_CATEGORY, type PersonalKind } from '../lib/personal';
+import { type CategoryId } from '../lib/wasteland';
+import CategoryChips from './CategoryChips';
 
 export interface GalleryNow { item: GalleryItem; city: string | null; url: string | null }
 
@@ -14,6 +18,10 @@ export default function Gallery({ account, onNow }: { account: Account; onNow: (
   const [items, setItems] = useState<GalleryItem[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [sort, setSort] = useState<'dist' | 'time'>('time');
+  // what kinds of place are shown (the same buttons as the Locations tab), and whether the person's own are
+  const [hidden, setHidden] = useState<Set<CategoryId>>(new Set());
+  const [personalOn, setPersonalOn] = useState(true);
+  const [cats, setCats] = useState<Record<string, CategoryId>>({});
   const [urls, setUrls] = useState<Record<string, string | 'none'>>({});
   const [cities, setCities] = useState<Record<string, string>>({});
   const [index, setIndex] = useState(0);
@@ -30,11 +38,41 @@ export default function Gallery({ account, onNow }: { account: Account; onNow: (
   }, [open, items, account.session]);
 
   const homeAt = account.home?.lat !== undefined && account.home?.lng !== undefined ? { lat: account.home.lat, lng: account.home.lng } : null;
+  // the kind of each place: a landmark's from the metro's own list, a personal address's from the kind it was sorted into
+  useEffect(() => {
+    if (!items?.length) return;
+    let cancelled = false;
+    void (async () => {
+      const metros = await loadIndex();
+      const out: Record<string, CategoryId> = {};
+      const byMetro = new Map<string, GalleryItem[]>();
+      for (const it of items) {
+        if (it.kind !== 'place') { out[it.id] = PERSONAL_CATEGORY[(it.pkind as PersonalKind) ?? 'house'] ?? 'lodging'; continue; }
+        const m = it.lat !== null && it.lng !== null ? metroAt(metros, { lat: it.lat, lng: it.lng }, 120) : null;
+        if (!m) { out[it.id] = 'other'; continue; }
+        byMetro.set(m.id, [...(byMetro.get(m.id) ?? []), it]);
+        void m;
+      }
+      for (const [id, list] of byMetro) {
+        const entry = metros.find((x) => x.id === id);
+        const places = entry ? await loadMetro(entry).catch(() => []) : [];
+        const lookup = new Map(places.map((p) => [p.id, p.category]));
+        for (const it of list) out[it.id] = lookup.get(it.id) ?? 'other';
+      }
+      if (!cancelled) setCats(out);
+    })();
+    return () => { cancelled = true; };
+  }, [items]);
+  const isPersonal = (it: GalleryItem) => it.kind !== 'place';
+  const catOf = (it: GalleryItem): CategoryId => cats[it.id] ?? (isPersonal(it) ? 'lodging' : 'other');
+  const counts = useMemo(() => { const m = new Map<CategoryId, number>(); for (const it of items ?? []) { const c = catOf(it); m.set(c, (m.get(c) ?? 0) + 1); } return m; }, [items, cats]); // eslint-disable-line react-hooks/exhaustive-deps
+  const personalCount = (items ?? []).filter(isPersonal).length;
+  const toggle = (id: CategoryId) => setHidden((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const shown = useMemo(() => {
-    const rows = (items ?? []).map((it) => ({ it, d: homeAt && it.lat !== null && it.lng !== null ? distanceMeters(homeAt, { lat: it.lat, lng: it.lng }) : Number.POSITIVE_INFINITY }));
+    const rows = (items ?? []).filter((it) => !hidden.has(catOf(it)) && (personalOn || !isPersonal(it))).map((it) => ({ it, d: homeAt && it.lat !== null && it.lng !== null ? distanceMeters(homeAt, { lat: it.lat, lng: it.lng }) : Number.POSITIVE_INFINITY }));
     rows.sort(sort === 'dist' ? (a, b) => a.d - b.d : (a, b) => (a.it.at < b.it.at ? 1 : a.it.at > b.it.at ? -1 : 0));
     return rows.map((r) => r.it);
-  }, [items, sort, homeAt?.lat, homeAt?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [items, sort, hidden, personalOn, cats, homeAt?.lat, homeAt?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the city of each one: what the server knew, or the metro it is in
   useEffect(() => {
@@ -66,7 +104,7 @@ export default function Gallery({ account, onNow }: { account: Account; onNow: (
   useEffect(() => () => onNow(null), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the order changed: back to the first picture
-  useEffect(() => { setIndex(0); track.current?.scrollTo({ left: 0 }); }, [sort]);
+  useEffect(() => { setIndex(0); track.current?.scrollTo({ left: 0 }); }, [sort, hidden, personalOn]);
   const onScroll = () => {
     const el = track.current;
     if (!el || !el.clientWidth) return;
@@ -97,6 +135,8 @@ export default function Gallery({ account, onNow }: { account: Account; onNow: (
           {account.session && items === null && !failed && <p className="rm-empty">Loading your pictures…</p>}
           {failed && <p className="rm-empty">The gallery could not be reached. Try again in a moment.</p>}
           {items !== null && items.length === 0 && <p className="rm-empty">Nothing unlocked yet. Open a place&apos;s snapshot and unlock it, and its picture will be kept here.</p>}
+          {items !== null && items.length > 0 && <CategoryChips counts={counts} hidden={hidden} onToggle={toggle} personal={{ count: personalCount, on: personalOn, onToggle: () => setPersonalOn((v) => !v) }} />}
+          {items !== null && items.length > 0 && shown.length === 0 && <p className="rm-empty">Nothing here with those kinds switched off.</p>}
           {shown.length > 1 && (
             <div className="rm-sort-toggle" role="group" aria-label="Order of the pictures">
               <button type="button" className={sort === 'dist' ? 'on' : ''} aria-pressed={sort === 'dist'} onClick={() => setSort('dist')}>DIST</button>

@@ -77,13 +77,14 @@ Deno.serve(async (req) => {
 
   const wd = unlocks.filter((u) => /^wd:Q\d+$/.test(u.place_id));
   const wdIds = wd.map((u) => u.place_id);
+  const { data: metrosOwned } = await db.from('metro_unlocks').select('metro_id').eq('user_id', user);
   const [{ data: renders }, { data: found }, { data: home }, { data: addrs }] = await Promise.all([
     wdIds.length ? db.from('renders').select('place_id,place_name,status').in('place_id', wdIds) : Promise.resolve({ data: [] as { place_id: string; place_name: string | null; status: string }[] }),
     wdIds.length ? db.from('found_places').select('place_id,name,city,lat,lng').eq('user_id', user).in('place_id', wdIds) : Promise.resolve({ data: [] as { place_id: string; name: string; city: string | null; lat: number; lng: number }[] }),
     db.from('user_home').select('place_id,name,address,lat,lng').eq('user_id', user).maybeSingle(),
     (async () => {
       const meIds = unlocks.filter((u) => u.place_id.startsWith('me:')).map((u) => u.place_id.slice(3));
-      return meIds.length ? db.from('address_renders').select('place_id,name,address,lat,lng,status').in('place_id', meIds) : { data: [] as { place_id: string; name: string | null; address: string | null; lat: number; lng: number; status: string }[] };
+      return meIds.length ? db.from('address_renders').select('place_id,name,address,lat,lng,status,kind').in('place_id', meIds) : { data: [] as { place_id: string; name: string | null; address: string | null; lat: number; lng: number; status: string; kind: string | null }[] };
     })(),
   ]);
 
@@ -92,7 +93,7 @@ Deno.serve(async (req) => {
   const missing = wdIds.filter((id) => ready.has(id) && !foundBy.has(id)).map((id) => id.slice(3));
   const positions = missing.length ? await wikidataPositions(missing) : new Map<string, { lat: number; lng: number }>();
 
-  const items: { id: string; name: string; city: string | null; lat: number | null; lng: number | null; at: string; kind: 'place' | 'address' | 'home' }[] = [];
+  const items: { id: string; name: string; city: string | null; lat: number | null; lng: number | null; at: string; kind: 'place' | 'address' | 'home'; pkind?: string }[] = [];
   for (const u of unlocks) {
     if (u.place_id.startsWith('wd:')) {
       if (!ready.has(u.place_id)) continue;
@@ -103,12 +104,24 @@ Deno.serve(async (req) => {
       // the home's own picture is unlocked under its vault key
       if (!home) continue;
       const a = splitAddress(home.address);
-      items.push({ id: `me:${home.place_id}`, name: a.street || home.name || 'Home', city: a.city, lat: home.lat ?? null, lng: home.lng ?? null, at: u.created_at, kind: 'home' });
+      items.push({ id: `me:${home.place_id}`, name: a.street || home.name || 'Home', city: a.city, lat: home.lat ?? null, lng: home.lng ?? null, at: u.created_at, kind: 'home', pkind: 'house' });
     } else if (u.place_id.startsWith('me:')) {
       const r = (addrs ?? []).find((x) => x.place_id === u.place_id.slice(3));
       if (!r || r.status !== 'ready') continue;
       const a = splitAddress(r.address);
-      items.push({ id: u.place_id, name: a.street || r.name || 'Address', city: a.city, lat: r.lat ?? null, lng: r.lng ?? null, at: u.created_at, kind: 'address' });
+      items.push({ id: u.place_id, name: a.street || r.name || 'Address', city: a.city, lat: r.lat ?? null, lng: r.lng ?? null, at: u.created_at, kind: 'address', pkind: r.kind ?? 'house' });
+    }
+  }
+  // the addresses of a metro whose atlas they bought are theirs to see too
+  const metroIds = (metrosOwned ?? []).map((m) => String(m.metro_id));
+  if (metroIds.length) {
+    const have = new Set(items.map((i) => i.id));
+    const { data: atlas } = await db.from('address_renders').select('place_id,name,address,lat,lng,kind,created_at').in('metro_id', metroIds).eq('status', 'ready').order('created_at', { ascending: false }).limit(300);
+    for (const r of atlas ?? []) {
+      const id = `me:${r.place_id}`;
+      if (have.has(id)) continue;
+      const a = splitAddress(r.address as string | null);
+      items.push({ id, name: a.street || (r.name as string | null) || 'Address', city: a.city, lat: (r.lat as number) ?? null, lng: (r.lng as number) ?? null, at: String(r.created_at), kind: 'address', pkind: (r.kind as string | null) ?? 'house' });
     }
   }
   return reply(req, { items });

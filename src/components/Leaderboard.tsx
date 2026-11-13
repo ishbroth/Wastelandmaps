@@ -38,7 +38,7 @@ export default function Leaderboard({ account }: { account: Account }) {
     personal: 'NO LINKS, EMAIL ADDRESSES OR LONG NUMBERS (NOT YOUR VAULT NUMBER)',
     reserved: 'THAT NAME IS RESERVED',
     not_allowed: 'THAT NAME IS NOT ALLOWED: PICK ANOTHER',
-    taken: 'SOMEONE ALREADY HAS THAT ONE',
+    taken: 'THAT CALLSIGN IS ALREADY TAKEN',
   };
   const saveChoice = async () => {
     if (choosing === null) return;
@@ -91,7 +91,7 @@ export default function Leaderboard({ account }: { account: Account }) {
         <div className="rm-board-me">
           <p className="rm-fine">You are <b>{me.callsign}</b>: #{me.rank}, level {me.level}, {me.places} places.</p>
           <div className="rm-row-buttons">
-            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void join(true)}>NEW CALLSIGN</button>
+            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void join(true)}>RANDOM</button>
             <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { setChooseNote(''); setChoosing(me.callsign); }}>CHOOSE</button>
             <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void leave()}>LEAVE</button>
           </div>
@@ -108,7 +108,7 @@ export default function Leaderboard({ account }: { account: Account }) {
           <p className="rm-fine">3 to 20 letters, numbers and spaces. Names are checked, and rude ones in any language are refused.</p>
         </div>
       )}
-      {chooseNote && <p className="rm-account-note">{chooseNote}</p>}
+      {chooseNote && <p className={`rm-account-note${/TAKEN/.test(chooseNote) ? ' rm-flashnote' : ''}`} key={chooseNote + (busy ? '' : Date.now())}>{chooseNote}</p>}
       {!failed && rows !== null && shown.length === 0 && <p className="rm-empty">Nobody has joined yet. Be the first.</p>}
       {shown.length > 0 && (
         <ul className="rm-list rm-board-list" ref={listRef} style={listHeight ? { height: listHeight } : undefined} aria-label="Leaderboard">

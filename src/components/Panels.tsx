@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CATEGORIES, distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
+import { distanceMeters, subtitle, type CategoryId, type Location } from '../lib/wasteland';
 import { freeRenderFor } from '../lib/renders';
 import { LOOT_CAP } from '../lib/raid/loot';
 import { waitingLine } from '../lib/waitingLoot';
@@ -20,7 +20,8 @@ import { LOOT_TYPES, canAfford, describeBag, type LootBag } from '../lib/raid/lo
 import { WEAPON_CLASS_IDS, WEAPON_CLASSES, magazineOf, nextWeapon, weaponAt, type Weapon, type WeaponClass } from '../lib/raid/weapons';
 import { loadEquipped, saveEquipped, type Equipped } from '../lib/raid/equipped';
 
-import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
+import { placeIcon } from '../lib/placeIcons';
+import CategoryChips from './CategoryChips';
 import { iconHtmlFor } from '../lib/landmarkIcons';
 import { buildShareUrl } from '../lib/share';
 import { LOOKS, type LookId } from '../lib/looks';
@@ -43,7 +44,7 @@ function snapshotUnlocked(account: Account, id: string, metroId?: string | null)
 
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
-export function LocationsPanel({ metro, account, region, locations: everywhere, hidden, onToggleCategory, selectedId, visited, cleared, onSelect, vacation, onVacation }: {
+export function LocationsPanel({ metro, account, region, locations: everywhere, hidden, onToggleCategory, personalOn, onTogglePersonal, selectedId, visited, cleared, onSelect, vacation, onVacation }: {
   /** Vacation vaults: a cog beside [CLEARED] on a cleared place outside the home metro. */
   vacation?: VacationOffer;
   onVacation?: (choice: VacationChoice) => void;
@@ -54,6 +55,9 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
   locations: Location[];
   hidden: Set<CategoryId>;
   onToggleCategory: (id: CategoryId) => void;
+  /** The person's own places (addresses they unlocked) are shown, and the switch for that. */
+  personalOn: boolean;
+  onTogglePersonal: () => void;
   selectedId: string | null;
   visited: Set<string>;
   /** Places already looted. */
@@ -68,16 +72,17 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
   const rows = useMemo(() => {
     if (!from) return [];
     return locations
-      .filter((l) => !hidden.has(l.category))
+      .filter((l) => !hidden.has(l.category) && (personalOn || !l.personal))
       .map((l) => ({ l, d: distanceMeters(from, l.position) }))
       .sort((a, b) => a.d - b.d);
-  }, [locations, hidden, from?.lat, from?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [locations, hidden, personalOn, from?.lat, from?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => {
     const m = new Map<CategoryId, number>();
     locations.forEach((l) => m.set(l.category, (m.get(l.category) ?? 0) + 1));
     return m;
   }, [locations]);
+  const personalCount = useMemo(() => locations.filter((l) => l.personal).length, [locations]);
 
   // The list is a window that always shows ten places and scrolls through the rest: the window keeps its size (the height of the first ten rows)
   // while the Pip-Boy stays where it is.
@@ -118,14 +123,7 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
   return (
     <div>
       <p className="rm-foundline"><span>LOCATIONS FOUND</span> <b>{locations.length}</b></p>
-      <div className="rm-chips" role="group" aria-label="Filter locations">
-        {CATEGORIES.filter((c) => counts.has(c.id)).map((c) => (
-          <button key={c.id} type="button" className={`rm-chip ${hidden.has(c.id) ? 'rm-chip-off' : ''}`} onClick={() => onToggleCategory(c.id)} aria-pressed={!hidden.has(c.id)}>
-            <span className="rm-chip-icon" dangerouslySetInnerHTML={{ __html: placeIcon(CATEGORY_ICON[c.id]) }} />
-            {c.label} <small>{counts.get(c.id)}</small>
-          </button>
-        ))}
-      </div>
+      <CategoryChips counts={counts} hidden={hidden} onToggle={onToggleCategory} personal={{ count: personalCount, on: personalOn, onToggle: onTogglePersonal }} />
       {account.session && metro?.id && <AtlasBox account={account} metro={{ id: metro.id, name: metro.name ?? metro.id }} />}
       <ul className="rm-list" ref={listRef} style={listHeight ? { height: listHeight } : undefined}>
         {rows.map(({ l, d }) => (

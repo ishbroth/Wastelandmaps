@@ -403,13 +403,13 @@ export const slotPrice = (n: number): number => {
   return Math.round(4 + (MAX_ROOM_PRICE - 4) * Math.pow((n - 2) / (MAX_SLOTS - 2), 1.3));
 };
 
-/** Pieces of loot to build a room of this type now: the price of each slot it takes. A 2-slot room as your 4th slot costs 8 + 10. */
+/** Pieces of loot to build a room of this type now: the price of the next slot (a 2-slot room costs the same as a 1-slot room). */
 export function buildCost(v: VaultHome, type: RoomType): number {
   // a hallway is priced by how many hallways there are already, on the same climb as the rooms (the first costs what the cheapest room does)
   if (type === 'hallway') return slotPrice(v.rooms.filter((r) => r.type === 'hallway').length + 2);
   if (type === 'stairs') return slotPrice(stairwellsBuilt(v) + 2);
   const first = slotsUsed(v) + 1;
-  return roomDef(type).slots === 2 ? Math.min(MAX_ROOM_PRICE, slotPrice(first) + slotPrice(first + 1)) : slotPrice(first);
+  return slotPrice(first); // a two-slot room costs no more than a one-slot room: it only takes two slots of room
 }
 
 /** Pieces of loot for the next piece of furniture in a room (3, 4, 5, then 6 for the last of four). */
@@ -641,7 +641,7 @@ export function spentOn(v: VaultHome, idx: number): LootBag {
   const stairsBefore = before.filter((r) => r.type === 'stairs' && !isTwin(r)).length;
   if (isTwin(room)) { const built = twinsOf(v, room)[0]; return built ? spentOn(v, v.rooms.indexOf(built)) : total; } // the twin end cost nothing: demolishing from here returns what the built end cost
   const first = slotsBefore + 1;
-  const pieces = room.type === 'hallway' ? slotPrice(hallsBefore + 2) : room.type === 'stairs' ? slotPrice(stairsBefore + 2) : roomDef(room.type).slots === 2 ? Math.min(MAX_ROOM_PRICE, slotPrice(first) + slotPrice(first + 1)) : slotPrice(first);
+  const pieces = room.type === 'hallway' ? slotPrice(hallsBefore + 2) : room.type === 'stairs' ? slotPrice(stairsBefore + 2) : slotPrice(first);
   add(recipeFor(v.seed ?? 0, `room:${room.type}:${room.type === 'hallway' ? hallsBefore : room.type === 'stairs' ? stairsBefore : slotsBefore}`, pieces));
   room.furniture.forEach((item, k) => add(recipeFor(v.seed ?? 0, `item:${idx}:${room.type}:${slotOf(item)}:${k}`, 3 + k)));
   return total;

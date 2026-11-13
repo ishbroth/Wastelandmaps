@@ -22,7 +22,7 @@ export const isPersonalId = (id: string): boolean => id.startsWith('me:');
 
 export const PERSONAL_ICON: Record<PersonalKind, IconId> = { house: 'house', park: 'leafytree', office: 'skyscraper', church: 'church', medical: 'hospital', gov: 'capitol' };
 /** The kind of scene and loot to use for each. */
-const PERSONAL_CATEGORY: Record<PersonalKind, CategoryId> = { house: 'lodging', park: 'park', office: 'other', church: 'chapel', medical: 'medical', gov: 'guard' };
+export const PERSONAL_CATEGORY: Record<PersonalKind, CategoryId> = { house: 'lodging', park: 'park', office: 'other', church: 'chapel', medical: 'medical', gov: 'guard' };
 
 const has = (types: string[], ...wanted: string[]) => wanted.some((w) => types.includes(w));
 

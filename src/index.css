@@ -893,7 +893,7 @@ html[data-look='parchment'] .rm-board-row.mine { background: rgba(120, 80, 20, 0
 .rm-found-list { max-height: none; }
 .rm-found-list .rm-lock { width: 13px; height: 13px; vertical-align: -2px; }
 .rm-sort-toggle { display: flex; width: 100%; margin: 4px 0 8px; border: 1px solid var(--ink); }
-.rm-sort-toggle button { flex: 1; background: transparent; color: var(--ink); border: 0; padding: 5px 0; font-family: var(--font-display); font-size: 20px; letter-spacing: 4px; cursor: pointer; }
+.rm-sort-toggle button { flex: 1; background: transparent; color: var(--ink); border: 0; padding: 0; line-height: 1.15; font-family: var(--font-display); font-size: 18px; letter-spacing: 4px; cursor: pointer; }
 .rm-sort-toggle button + button { border-left: 1px solid var(--ink); }
 .rm-sort-toggle button.on { background: var(--ink); color: var(--on-ink); }
 
@@ -1118,3 +1118,5 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 
 /* a trade that has been bought from this board is spent: dim until the board changes */
 .rm-arsenal-buy.spent { opacity: 0.35; text-decoration: line-through; }
+
+.rm-flashnote { animation: rm-vh-blink 0.7s steps(2) 6; }

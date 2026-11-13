@@ -72,6 +72,8 @@ export default function App() {
   const [wasteland, setWasteland] = useState<Wasteland | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [hidden, setHidden] = useState<Set<CategoryId>>(new Set());
+  // the person's own unlocked places (addresses): shown or hidden as a whole, on the map and in the list
+  const [personalOn, setPersonalOn] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [soundOn, setSoundOn] = useState(true); // on, in the app and on the website (it can be switched off)
 
@@ -1336,7 +1338,7 @@ export default function App() {
           {status === 'ready' ? (
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
-              look={LOOKS[look]} region={region} wasteland={wasteland} locations={mapLocations} hiddenCategories={hidden}
+              look={LOOKS[look]} region={region} wasteland={wasteland} locations={personalOn ? mapLocations : mapLocations.filter((l) => !l.personal || l.personal.home)} hiddenCategories={hidden}
               selectedId={selectedId} visited={shownVisited} cleared={account.cleared} waiting={account.waiting} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { if (navRef.current) return; setSelectedId(id); if (id) sound('tick'); }} onViewport={onViewport} onLongPress={onMapHold} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
@@ -1435,7 +1437,7 @@ export default function App() {
               <LocationsPanel
                 vacation={vacationOffer} onVacation={setVacationAsk}
                 metro={metroInfo} account={account}
-                region={region} locations={locations} hidden={hidden} onToggleCategory={toggleCategory} selectedId={selectedId} visited={shownVisited} cleared={account.cleared}
+                region={region} locations={[...locations, ...personalLocs.filter((p) => !p.personal?.home)]} hidden={hidden} onToggleCategory={toggleCategory} personalOn={personalOn} onTogglePersonal={() => setPersonalOn((v) => !v)} selectedId={selectedId} visited={shownVisited} cleared={account.cleared}
                 onSelect={(id) => { if (navRef.current) return; setSelectedId(id); sound('select'); }}
               />
             )}
