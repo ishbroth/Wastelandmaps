@@ -6,6 +6,7 @@ import AccountModal from './components/AccountModal';
 import FaceIdOffer from './components/FaceIdOffer';
 import { savedFaceIds } from './lib/faceid';
 import SceneModal from './components/SceneModal';
+import StreetWalk from './components/StreetWalk';
 import { accountsEnabled, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { startPurchases } from './lib/iap';
@@ -691,6 +692,9 @@ export default function App() {
   }, [show]);
 
   const viewNow = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
+  // where the map is (as state, for the street view button)
+  const [mapAt, setMapAt] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
+  const [walking, setWalking] = useState<{ lat: number; lng: number } | null>(null);
   const mapPosterRef = useRef<() => MapPosterInput | null>(() => null);
   const mapPoster = useCallback(() => mapPosterRef.current(), []);
   mapPosterRef.current = () => {
@@ -709,6 +713,7 @@ export default function App() {
   };
   const onViewport = useCallback((center: LatLng, zoom: number) => {
     viewNow.current = { lat: center.lat, lng: center.lng, zoom };
+    setMapAt((p) => (p && Math.abs(p.lat - center.lat) < 1e-5 && Math.abs(p.lng - center.lng) < 1e-5 && p.zoom === zoom ? p : { lat: center.lat, lng: center.lng, zoom }));
     window.clearTimeout(viewTimer.current);
     viewTimer.current = window.setTimeout(() => {
       if (travelRef.current || busyRef.current) return;
@@ -1346,6 +1351,23 @@ export default function App() {
           ) : (
             <div className="rm-setup"><h2>BOOTING…</h2></div>
           )}
+          {(() => {
+            // our own street view: for a person who bought this metro's atlas, close in on a street; lit when there is a mapped place with a picture to walk to
+            const owned = !!account.session && !!metroInfo && account.metros.has(metroInfo.id);
+            if (!owned || !mapAt || mapAt.zoom < 17 || nav) return null;
+            const here = { lat: mapAt.lat, lng: mapAt.lng };
+            const plotted = [
+              ...atlas.map((a) => ({ id: `me:${a.placeId}`, lat: a.lat, lng: a.lng, name: a.name })),
+              ...locations.filter((l) => l.id.startsWith('wd:') && (account.unlocked.has(l.id) || !!freeRenderFor(l.id))).map((l) => ({ id: l.id, lat: l.position.lat, lng: l.position.lng, name: l.name })),
+              ...(account.home?.lat !== undefined && account.home.lng !== undefined ? [{ id: 'home', lat: account.home.lat, lng: account.home.lng, name: 'Home' }] : []),
+            ];
+            const near = plotted.some((p) => distanceMeters(here, { lat: p.lat, lng: p.lng }) <= 60);
+            return (
+              <button type="button" className={`rm-binoc${near ? ' on' : ''}`} disabled={!near} aria-label="Street view" title={near ? 'Walk the street' : 'Get near a mapped place to walk its street'} onClick={() => { sound('select'); setWalking(here); }}>
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="6.5" cy="15.5" r="4" /><circle cx="17.5" cy="15.5" r="4" /><path d="M6.5 11.5V6h3v5.5M17.5 11.5V6h-3v5.5M10.5 14.5h3M9.5 8h5" /></svg>
+              </button>
+            );
+          })()}
           <div className="rm-crt" aria-hidden="true" />
 
           {xpFlash && <div className="rm-xp" key={xpFlash.id} role="status">{xpFlash.text}</div>}
@@ -1402,6 +1424,7 @@ export default function App() {
               account={account} plan={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place ? raidFor(place) : undefined; })()} raid={(() => { const place = mapLocations.find((l) => l.id === sceneSpot.id); return place && !place.lore && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || place.personal) ? (place.personal?.home ? homePlan() : raidFor(place)) : undefined; })()} level={levelInfo(account.points).level} sound={soundOn} onAccount={openAccount} onClose={() => { setSceneId(null); setSceneRaid(false); }} onNeedDiscover={() => say('YOU MUST DISCOVER THIS LOCATION FIRST', true)}
             />
           )}
+          {walking && <StreetWalk center={walking} places={locations.filter((l) => l.id.startsWith('wd:') && (account.unlocked.has(l.id) || !!freeRenderFor(l.id))).map((l) => ({ id: l.id, lat: l.position.lat, lng: l.position.lng, name: l.name }))} onClose={() => setWalking(null)} />}
           {moving && <div className="rm-moving" role="status"><CogSpinner big /><span>MOVING VAULT FURNITURE…</span></div>}
           {vacationAsk && vacationOffer && <VacationAsk choice={vacationAsk} offer={vacationOffer} account={account} onClose={() => setVacationAsk(null)} onDone={() => setVacationAsk(null)} />}
           {vaultOpen !== null && <VaultHome key={vaultOpen.key ?? 'home'} title={vaultOpen.title} vaultKey={vaultOpen.key} account={account} onExit={() => setVaultOpen(null)} vacation={vaultOpen.key ? undefined : vacationOffer} />}
@@ -1454,3 +1477,4 @@ export default function App() {
     </div>
   );
 }
+
