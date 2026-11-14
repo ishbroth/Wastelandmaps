@@ -143,6 +143,13 @@ export default function App() {
     setTarget(null);
     setSelectedId(landmark.id);
   }, [target, locations]);
+  // an address held on the map (not one of the pre-plotted places) is only a visitor: when its card is closed and the scene is not open, its pin and name tag go, unless the address is theirs
+  // (rendered and saved, so it is in their list) or on the map from the Project: Atlas (those have their own pins); one just unlocked and not yet saved stays until it is saved
+  useEffect(() => {
+    if (selectedId !== null || sceneId !== null || !target) return;
+    if (account.unlocked.has(personalId(target.placeId)) && !account.personal.some((q) => q.placeId === target.placeId)) return;
+    setTarget(null);
+  }, [selectedId, sceneId, target, account.unlocked, account.personal]);
   const personalLocs = useMemo(() => {
     const here = region?.center;
     const mine = account.personal.filter((q) => !here || distanceMeters(here, { lat: q.lat, lng: q.lng }) < 150_000 || account.home?.placeId === q.placeId).map((q) => personalLocation(q, true, account.home?.vaultNumber !== undefined && account.home.placeId === q.placeId ? account.home.vaultNumber : undefined));
@@ -1482,7 +1489,7 @@ export default function App() {
           {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped) || homeOpen) && (
             <HomePrompt
               key={homeOpen ? 'change' : 'first'}
-              onChosen={chooseHome} onSkip={() => void skipHome()} number={account.home?.vaultNumber}
+              onChosen={chooseHome} onSkip={() => void skipHome()} canSkip={account.home?.vaultNumber !== undefined} number={account.home?.vaultNumber}
               startWith={!homeOpen && account.home?.address && account.home.vaultNumber === undefined && account.home.lat !== undefined && account.home.lng !== undefined
                 ? { placeId: account.home.placeId ?? '', name: 'Home', address: account.home.address, position: { lat: account.home.lat, lng: account.home.lng }, kind: 'house' } : undefined}
             />

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { signInWithFaceId, signInWithVault } from '../lib/account';
+import { sendSignInLink, signInWithFaceId, signInWithVault } from '../lib/account';
 import { faceIdName, forgetFaceId, savedFaceIds } from '../lib/faceid';
 
 /** Signing in: email and vault number (the simple password set when the home was chosen), or, in the
@@ -13,6 +13,17 @@ export default function AccountModal({ onClose, auto = false }: { onClose: () =>
   const [face, setFace] = useState<string | null>(null);
   const [saved, setSaved] = useState(savedFaceIds());
   const autoTried = useRef(false);
+  /** The registration page: a new survivor gives an email, is sent a link, and on opening it picks the vault number and home (see the home prompt). */
+  const [registering, setRegistering] = useState(false);
+  const [sentTo, setSentTo] = useState('');
+  const register = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setNote('');
+    const problem = await sendSignInLink(email.trim());
+    if (problem) setNote(problem); else setSentTo(email.trim());
+    setBusy(false);
+  };
 
   const signIn = async (e: FormEvent) => {
     e.preventDefault();
@@ -54,6 +65,24 @@ export default function AccountModal({ onClose, auto = false }: { onClose: () =>
           </div>
           <button type="button" className="rm-btn rm-btn-ghost" onClick={onClose}>CLOSE</button>
         </div>
+        {registering ? (
+          <form onSubmit={register} className="rm-account-body">
+            {sentTo ? (
+              <>
+                <p>A link is on its way to <b>{sentTo}</b>. Open it on this device to create your vault. You will then choose your four-digit vault number, the one you sign in with from then on, and your home address.</p>
+                <p className="rm-fine">Nothing in the inbox? Look in the spam folder, or send it again.</p>
+                <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setSentTo('')}>SEND IT AGAIN</button>
+              </>
+            ) : (
+              <>
+                <p>Register your vault. Give your email and we send you a link; opening it creates your vault, and then you choose your four-digit vault number and your home.</p>
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+                <button type="submit" className="rm-btn" disabled={busy || !email.trim()}>{busy ? 'SENDING…' : 'EMAIL ME THE LINK'}</button>
+              </>
+            )}
+            <button type="button" className="rm-btn rm-btn-ghost" onClick={() => { setRegistering(false); setSentTo(''); setNote(''); }}>BACK TO SIGN IN</button>
+          </form>
+        ) : (
         <form onSubmit={signIn} className="rm-account-body">
           <p>Sign in with your email and your vault number, the four digits you chose for your home.</p>
           <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
@@ -72,11 +101,13 @@ export default function AccountModal({ onClose, auto = false }: { onClose: () =>
             </div>
           )}
           <button type="submit" className="rm-btn" disabled={busy || !email.trim() || digits.length !== 4}>{busy ? 'WORKING…' : 'SIGN IN'}</button>
+          <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { setRegistering(true); setNote(''); }}>REGISTER YOUR VAULT</button>
           <p className="rm-account-small"><a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noreferrer">Privacy policy</a></p>
           {face && saved.length > 0 && (
             <p className="rm-account-small rm-faceid-forget">{face === 'FACE ID' ? 'Face ID' : face === 'TOUCH ID' ? 'Touch ID' : 'Biometric'} sign-in is on for this phone. <button type="button" className="rm-link" onClick={() => void forgetFaceId().then(() => setSaved([]))}>Forget it</button></p>
           )}
         </form>
+        )}
         {note && <p className="rm-account-note">{note}</p>}
       </div>
     </div>

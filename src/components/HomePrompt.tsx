@@ -10,10 +10,12 @@ type Step = 'ask' | 'type' | 'number';
  * otherwise (or if they would rather) they type an address. Then they pick a four-digit number: their home is a vault on the map, and no other vault on the
  * whole map has four digits. They can skip it.
  */
-export default function HomePrompt({ onChosen, onSkip, startWith, number: startNumber }: {
+export default function HomePrompt({ onChosen, onSkip, canSkip = true, startWith, number: startNumber }: {
   /** Saves the home; returns a message if it could not be (the number is taken), or null when it is done. */
   onChosen: (place: PickedPlace, vaultNumber: number) => Promise<string | null>;
   onSkip: () => void;
+  /** False for a survivor with no vault number yet: the number is what they sign in with, so the first time it cannot be put off (or they could never sign back in). */
+  canSkip?: boolean;
   /** A home already chosen that still needs its number. */
   startWith?: PickedPlace;
   /** The number to start from (their current one, when changing home). */
@@ -137,7 +139,7 @@ export default function HomePrompt({ onChosen, onSkip, startWith, number: startN
             </>
           )}
           {note && <p className="rm-account-note">{note}</p>}
-          <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={onSkip}>SKIP FOR NOW</button>
+          {canSkip && <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={onSkip}>SKIP FOR NOW</button>}
         </div>
       </div>
     </div>
