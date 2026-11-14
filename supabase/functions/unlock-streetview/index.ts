@@ -137,11 +137,69 @@ async function generate(picture: { bytes: Uint8Array; mime: string }, kind: stri
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
+/** A street address without its unit (Apt 4B, #12, Suite 3): the building. The part after the street line (city, state, zip) is kept. */
+function buildingKey(address: string): string {
+  const parts = address.split(',').map((p) => p.trim());
+  const unit = /^(apt\.?|apartment|unit|suite|ste\.?|#|no\.?|bldg\.?|room|rm\.?)\s*[\w-]+$/i;
+  const line = (parts[0] ?? '').toLowerCase().replace(/\s+(#|apt\.?|apartment|unit|suite|ste\.?|no\.?|bldg\.?|room|rm\.?)\s*[\w-]+$/i, '').replace(/\s+#[\w-]+$/, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const rest = parts.slice(1).filter((p) => !unit.test(p)).join(' ').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return `${line}|${rest}`;
+}
+
+/** The render of the same building already made for another unit of it (an apartment complex is one picture, whatever the apartment number): a finished render within about 40 metres with the same street address once the unit is left off. */
+// deno-lint-ignore no-explicit-any
+async function findTwin(db: any, details: { address: string; lat: number; lng: number }): Promise<any | null> {
+  const dLat = 0.00036, dLng = 0.00036 / Math.max(0.2, Math.cos((details.lat * Math.PI) / 180));
+  const { data } = await db.from('address_renders').select('place_id,name,address,lat,lng,kind,metro_id,storage_path,rubble,status')
+    .eq('status', 'ready').gte('lat', details.lat - dLat).lte('lat', details.lat + dLat).gte('lng', details.lng - dLng).lte('lng', details.lng + dLng).limit(60);
+  const key = buildingKey(details.address);
+  // deno-lint-ignore no-explicit-any
+  return (data ?? []).find((r: any) => r.storage_path && buildingKey(String(r.address ?? '')) === key) ?? null;
+}
+
+/** A person's home picture with the numbers on the vault door taken off, so the picture other people see of that house has a blank door. Null if the model cannot do it (then nothing is shared). */
+async function eraseNumber(png: Uint8Array): Promise<Uint8Array | null> {
+  const key = Deno.env.get('GEMINI_API_KEY');
+  if (!key) return null;
+  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: 'Edit this picture: the round steel vault door has a number painted on its face. Remove every digit completely, so the face of the door is plain, blank, worn painted metal with no numbers, letters or marks of any kind. Change nothing else in the picture: the ruin, the door, the sky and everything round it stay exactly as they are.' }, { inline_data: { mime_type: 'image/png', data: toBase64(png) } }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }),
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    // deno-lint-ignore no-explicit-any
+    const part = (body.candidates?.[0]?.content?.parts ?? []).find((p: any) => p.inlineData?.data || p.inline_data?.data);
+    const b64: string | undefined = part?.inlineData?.data ?? part?.inline_data?.data;
+    return b64 ? Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)) : null;
+  } catch { return null; }
+}
+
+/** What everyone else sees of someone's home: the same destroyed house with its vault door, the number taken off. Made once (when nobody has a picture of that address yet) and kept as the address's shared render. */
+// deno-lint-ignore no-explicit-any
+async function publishHome(db: any, user: string, home: { place_id: string; address?: string | null; lat?: number | null; lng?: number | null }, png: Uint8Array, metro: string | null): Promise<void> {
+  try {
+    if (home.lat === null || home.lat === undefined || home.lng === null || home.lng === undefined) return;
+    const { data: there } = await db.from('address_renders').select('place_id').eq('place_id', home.place_id).maybeSingle();
+    if (there) return;
+    const blank = await eraseNumber(png);
+    if (!blank) return;
+    const path = `address/${home.place_id}.png`;
+    const up = await db.storage.from('renders').upload(path, blank, { contentType: 'image/png', upsert: true });
+    if (up.error) return;
+    await db.storage.from('public-renders').upload(path, blank, { contentType: 'image/png', upsert: true }).catch(() => null);
+    const address = String(home.address ?? '');
+    const now = new Date().toISOString();
+    await db.from('address_renders').insert({ place_id: home.place_id, name: address.split(',')[0] || 'Home', address, lat: home.lat, lng: home.lng, kind: 'house', metro_id: metro, status: 'ready', started_at: now, created_at: now, storage_path: path, created_by: user });
+  } catch (e) { console.error('home publish failed', e instanceof Error ? e.message : e); }
+}
+
 // Their own home, blown up with their vault door in it: kept per person (the number on the door is theirs), 4 credits, charged first and refunded on failure.
 // Only the home they saved (and its vault number) can be rendered this way: both come from their account, never from the browser.
 // deno-lint-ignore no-explicit-any
-async function homeFlow(req: Request, db: any, user: string, googleId: string, checkOnly: boolean, flooded: boolean, irradiated: boolean): Promise<Response> {
-  const { data: home } = await db.from('user_home').select('place_id,vault_number').eq('user_id', user).maybeSingle();
+async function homeFlow(req: Request, db: any, user: string, googleId: string, checkOnly: boolean, flooded: boolean, irradiated: boolean, metro: string | null): Promise<Response> {
+  const { data: home } = await db.from('user_home').select('place_id,vault_number,address,lat,lng').eq('user_id', user).maybeSingle();
   if (!home || home.place_id !== googleId || home.vault_number === null || home.vault_number === undefined) return reply(req, { error: 'bad_place' }, 400);
   const number = home.vault_number as number;
   const unlockKey = `vault:${googleId}:${number}`;
@@ -158,6 +216,10 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
     // the picture is theirs already: make sure the unlock is on record too (clearing the home and the app both look for it), without charging anything
     await db.from('unlocks').upsert({ user_id: user, place_id: unlockKey }, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
     const url = await signed(mine.storage_path as string);
+    // the shared picture of this house (the same, with the number off the door) is made if nobody has one yet, in the background
+    const work = (async () => { const dl = await db.storage.from('renders').download(mine.storage_path as string); if (!dl.error && dl.data) await publishHome(db, user, home, new Uint8Array(await dl.data.arrayBuffer()), metro); })();
+    // @ts-ignore the edge runtime lets work finish after the answer is sent
+    if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(work); else void work;
     return url ? reply(req, { status: 'ready', url, charged: false }) : reply(req, { error: 'server' }, 500);
   }
   if (mine?.status === 'generating' && Date.now() - new Date(mine.started_at as string).getTime() < STALE_AFTER_MS) return reply(req, { status: 'working' });
@@ -192,6 +254,7 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
     await db.from('home_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString() }).eq('user_id', user).eq('google_id', googleId);
     const url = await signed(path);
     if (!url) throw new Error('no link');
+    await publishHome(db, user, home, png, metro);
     return reply(req, { status: 'ready', url, charged: spent === 'spent' });
   } catch (e) {
     await db.from('home_renders').update({ status: 'failed' }).eq('user_id', user).eq('google_id', googleId);
@@ -212,7 +275,7 @@ Deno.serve(async (req) => {
   const placeId = body.placeId;
   const googleId = placeId.slice(3);
   const db = serviceClient();
-  if (body.home === true) return homeFlow(req, db, user, googleId, body.action === 'check', body.flooded === true, body.irradiated === true);
+  if (body.home === true) return homeFlow(req, db, user, googleId, body.action === 'check', body.flooded === true, body.irradiated === true, /^[a-z0-9-]{3,80}$/.test(String(body.metroId ?? '')) ? String(body.metroId) : null);
 
   const { data: existing } = await db.from('address_renders').select('*').eq('place_id', googleId).maybeSingle();
   const { data: unlocked } = await db.from('unlocks').select('place_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
@@ -270,6 +333,20 @@ Deno.serve(async (req) => {
     let details;
     try { details = await placeDetails(googleId); } catch { await giveBack(); return reply(req, { error: 'server' }, 500); }
     if (!details) { await giveBack(); return reply(req, { error: 'unknown_place' }, 404); }
+    // an apartment (or any unit) in a building that has been rendered already is that picture: no new render, just the same one kept for this address too
+    const twin = await findTwin(db, details);
+    if (twin) {
+      const t = new Date().toISOString();
+      const alias = { place_id: googleId, name: details.name, address: details.address, lat: details.lat, lng: details.lng, kind: twin.kind ?? kind, metro_id: twin.metro_id ?? metro, status: 'ready', started_at: t, created_at: t, storage_path: twin.storage_path, created_by: user, rubble: twin.rubble === true };
+      const saved = await db.from('address_renders').upsert(alias, { onConflict: 'place_id' });
+      if (!saved.error) {
+        const sharedUrl = await signed(twin.storage_path as string);
+        if (sharedUrl) {
+          if (twin.rubble === true && spent === 'spent') await db.rpc('part_refund_personal', { p_user: user, p_place: placeId, p_refund: COST - RUBBLE_COST });
+          return reply(req, { status: 'ready', url: sharedUrl, charged: spent === 'spent', ...(twin.rubble === true ? { rubble: true, refunded: COST - RUBBLE_COST } : {}) });
+        }
+      }
+    }
     // a daily cap on new renders (shared with the landmark ones), so one bad day cannot run up a bill
     const cap = dailyRenderCap();
     const since = new Date(); since.setUTCHours(0, 0, 0, 0);
