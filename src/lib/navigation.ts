@@ -131,19 +131,28 @@ export interface Progress {
 
 /** Where along the route a position is: the step it is on, how far to the next turn and to the end, and how far off the route it is. */
 export function progressAlong(route: NavRoute, pos: LatLng): Progress {
-  let best = { step: 0, point: 0, d: Infinity };
+  // the nearest point of the route to the position, found on the lines between the route's points (not only at the points: on a long straight stretch the points are far apart, and
+  // the nearest one can be hundreds of metres away while the person is exactly on the road)
+  const ky = 110_540, kx = 111_320 * Math.cos((pos.lat * Math.PI) / 180);
+  let best = { step: 0, seg: 0, t: 0, d: Infinity };
   route.steps.forEach((st, i) => {
     const pts = st.path.length > 0 ? st.path : [st.start, st.end];
-    pts.forEach((p, j) => {
-      const d = distanceMeters(pos, p);
-      if (d < best.d) best = { step: i, point: j, d };
-    });
+    if (pts.length === 1) { const d = distanceMeters(pos, pts[0]); if (d < best.d) best = { step: i, seg: 0, t: 0, d }; return; }
+    for (let j = 0; j + 1 < pts.length; j++) {
+      const ax = (pts[j].lng - pos.lng) * kx, ay = (pts[j].lat - pos.lat) * ky, bx = (pts[j + 1].lng - pos.lng) * kx, by = (pts[j + 1].lat - pos.lat) * ky;
+      const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2));
+      const d = Math.hypot(ax + dx * t, ay + dy * t);
+      if (d < best.d) best = { step: i, seg: j, t, d };
+    }
   });
   const st = route.steps[best.step];
   const pts = st ? (st.path.length > 0 ? st.path : [st.start, st.end]) : [];
   let toTurn = 0;
-  for (let j = best.point; j < pts.length - 1; j++) toTurn += distanceMeters(pts[j], pts[j + 1]);
-  toTurn += pts.length > 0 ? distanceMeters(pos, pts[best.point]) : 0;
+  if (pts.length >= 2) {
+    toTurn = (1 - best.t) * distanceMeters(pts[best.seg], pts[best.seg + 1]);
+    for (let j = best.seg + 1; j < pts.length - 1; j++) toTurn += distanceMeters(pts[j], pts[j + 1]);
+  } else if (pts.length === 1) toTurn = distanceMeters(pos, pts[0]);
   let remaining = toTurn;
   for (let i = best.step + 1; i < route.steps.length; i++) remaining += route.steps[i].meters;
   return { step: best.step, toTurn, remaining, off: best.d };

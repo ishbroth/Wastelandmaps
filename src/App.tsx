@@ -91,6 +91,7 @@ export default function App() {
   const fixRef = useRef<LatLng | null>(null);
   const [nav, setNav] = useState<{ spot: Spot; route: NavRoute | null; step: number; toTurn: number | null; remaining: number | null; busy: string } | null>(null);
   const navRef = useRef(nav);
+  const offStreak = useRef(0);
   const lastReroute = useRef(0);
   const [flash, setFlash] = useState(false);
   // the "+50 XP" that flashes on the map when a place is discovered
@@ -1193,7 +1194,10 @@ export default function App() {
       return;
     }
     setNav({ ...n, step: p.step, toTurn: p.toTurn, remaining: p.remaining, busy: '' });
-    if (p.off > 90 && Date.now() - lastReroute.current > 15_000) {
+    // off the road for three position readings in a row (a single stray reading is not a wrong turn), and not more than once every 25 seconds
+    offStreak.current = p.off > 90 ? offStreak.current + 1 : 0;
+    if (offStreak.current >= 3 && Date.now() - lastReroute.current > 25_000) {
+      offStreak.current = 0;
       lastReroute.current = Date.now();
       setNav((cur) => (cur ? { ...cur, busy: 'REROUTING' } : cur));
       const answer = await requestRoute(here, n.spot.position);

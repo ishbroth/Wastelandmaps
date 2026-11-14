@@ -861,17 +861,27 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     const host = holder.current;
     if (!host || !nav || !player) return;
     // the way ahead: toward the first point of the route that is a little way off (a few turns of the road are ignored, so the map does not shake)
+    // (only points still AHEAD of you count: the steps' lines begin behind you, so the nearest point of the route is found first and the way ahead is measured from there)
+    const line: LatLng[] = [];
+    for (let i = nav.step; i < nav.steps.length && line.length < 400; i++) { const st = nav.steps[i]; line.push(...(st.path.length ? st.path : [st.start, st.end])); }
+    let from = 0;
+    {
+      const ky = 110_540, kx = 111_320 * Math.cos((player.lat * Math.PI) / 180);
+      let bestD = Infinity;
+      for (let j = 0; j + 1 < line.length; j++) {
+        const ax = (line[j].lng - player.lng) * kx, ay = (line[j].lat - player.lat) * ky, bx = (line[j + 1].lng - player.lng) * kx, by = (line[j + 1].lat - player.lat) * ky;
+        const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, t = l2 === 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2));
+        const dd = Math.hypot(ax + dx * t, ay + dy * t);
+        if (dd < bestD - 1e-6) { bestD = dd; from = j + 1; }
+      }
+    }
     let target: LatLng | null = null;
     let walked = 0;
     let last = player;
-    outer: for (let i = nav.step; i < nav.steps.length; i++) {
-      const st = nav.steps[i];
-      const pts = st.path.length ? st.path : [st.start, st.end];
-      for (const q of pts) {
-        const seg = distanceMeters(last, q);
-        walked += seg; last = q;
-        if (walked >= 35 && distanceMeters(player, q) >= 25) { target = q; break outer; }
-      }
+    for (let j = from; j < line.length; j++) {
+      const q = line[j];
+      walked += distanceMeters(last, q); last = q;
+      if (walked >= 35 && distanceMeters(player, q) >= 25) { target = q; break; }
     }
     if (!target) return;
     const r = Math.PI / 180;
