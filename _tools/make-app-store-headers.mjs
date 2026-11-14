@@ -45,22 +45,33 @@ if (!fontUrl) throw new Error('no font url');
 const font = Buffer.from(await (await fetch(fontUrl)).arrayBuffer()).toString('base64');
 
 /** One header: everything is sized from the height (u = 1% of the height), and the writing stays inside the middle of the picture where the store does not crop it. */
-/** The streets of downtown Chicago (from OpenStreetMap, saved in resources/header-chicago-streets.json by tools/fetch-osm-streets.mjs) and a route along them: from near Union Station
- *  to Millennium Park, found by the shortest way through the street lines. It is drawn the way the app's own navigation draws a trip: green streets, the route bright on top, an arrow
- *  where the trip starts and a ring at its end. */
-const CHI = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'header-chicago-streets.json'), 'utf8')).ways;
+/** Chicago from higher up (about ten kilometres from top to bottom of the header): Lake Michigan, the river and its branches, the expressways and main roads (OpenStreetMap, saved in
+ *  resources/header-chicago-map.json), and a trip along the expressways with two turns, drawn the way the app draws a trip: the roads green, the route bright, an arrow where it starts and a ring where it ends. */
+const CHI = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'header-chicago-map.json'), 'utf8'));
+const MAP_MID = [41.878, -87.65], MAP_X = 0.2, MAP_KM = 10.4;
+const COS = Math.cos((MAP_MID[0] * Math.PI) / 180);
+const project = (W, H) => (p) => [MAP_X * W + ((p[1] - MAP_MID[1]) * 111320 * COS) / ((MAP_KM * 1000) / H), 0.5 * H - ((p[0] - MAP_MID[0]) * 111320) / ((MAP_KM * 1000) / H)];
 const keyOf = (p) => p[0] + ',' + p[1];
-const metres = (a, b) => Math.hypot((b[0] - a[0]) * 111320, (b[1] - a[1]) * 111320 * Math.cos((a[0] * Math.PI) / 180));
-const ROUTE = (() => {
+const metres = (p, q) => Math.hypot((q[0] - p[0]) * 111320, (q[1] - p[1]) * 111320 * COS);
+const MAJOR = /^(motorway|trunk|primary|motorway_link|trunk_link|primary_link)$/;
+const GRAPH = (() => {
   const adj = new Map(), at = new Map();
-  for (const w of CHI) for (let i = 0; i + 1 < w.pts.length; i++) {
-    const p = w.pts[i], q = w.pts[i + 1], kp = keyOf(p), kq = keyOf(q), d = metres(p, q);
-    at.set(kp, p); at.set(kq, q);
-    if (!adj.has(kp)) adj.set(kp, []); if (!adj.has(kq)) adj.set(kq, []);
-    adj.get(kp).push([kq, d]); adj.get(kq).push([kp, d]);
+  for (const r of CHI.roads) {
+    if (!MAJOR.test(r.hw)) continue;
+    for (let i = 0; i + 1 < r.pts.length; i++) {
+      const p = r.pts[i], q = r.pts[i + 1], kp = keyOf(p), kq = keyOf(q), d = metres(p, q);
+      at.set(kp, p); at.set(kq, q);
+      if (!adj.has(kp)) adj.set(kp, []); if (!adj.has(kq)) adj.set(kq, []);
+      adj.get(kp).push([kq, d]); adj.get(kq).push([kp, d]);
+    }
   }
-  const nearest = (lat, lng) => { let best = null, bd = 1e12; for (const [k, p] of at) { const d = metres(p, [lat, lng]); if (d < bd) { bd = d; best = k; } } return best; };
-  const from = nearest(41.8786, -87.6322), to = nearest(41.8838, -87.6246);
+  return { adj, at };
+})();
+/** The route for a header size: from the expressway point nearest a spot low in the picture (under the tags) to the one nearest a spot high in it (beside the badge), so the marks never sit on the writing. */
+const routeFor = (W, H) => {
+  const px = project(W, H), { adj, at } = GRAPH;
+  const pick = (tx, ty, box) => { let best = null, bd = 1e12; for (const [k, p] of at) { const [x, y] = px(p); if (x < box[0] * W || x > box[1] * W || y < box[2] * H || y > box[3] * H) continue; const d = Math.hypot(x - tx * W, y - ty * H); if (d < bd) { bd = d; best = k; } } return best; };
+  const from = pick(0.3, 0.9, [0.04, 0.45, 0.82, 0.95]), to = pick(0.2, 0.1, [0.04, 0.45, 0.05, 0.18]);
   const dist = new Map([[from, 0]]), prev = new Map(), todo = new Set([from]);
   while (todo.size) {
     let cur = null, cd = 1e12;
@@ -69,30 +80,48 @@ const ROUTE = (() => {
     if (cur === to) break;
     for (const [k, d] of adj.get(cur) ?? []) if (cd + d < (dist.get(k) ?? 1e12)) { dist.set(k, cd + d); prev.set(k, cur); todo.add(k); }
   }
-  const path = [];
-  for (let k = to; k; k = prev.get(k)) { path.push(at.get(k)); if (k === from) break; }
-  return path.reverse();
+  const out = [];
+  for (let k = to; k; k = prev.get(k)) { out.push(at.get(k)); if (k === from) break; }
+  return out.reverse();
+};
+/** The shore of the lake as one line, south to north (its pieces joined end to end). */
+const SHORE = (() => {
+  const pieces = CHI.shore.map((l) => ({ l, used: false }));
+  const same = (p, q) => p[0] === q[0] && p[1] === q[1];
+  let chain = [], cur = pieces.reduce((m, x) => (Math.min(x.l[0][0], x.l[x.l.length - 1][0]) < Math.min(m.l[0][0], m.l[m.l.length - 1][0]) ? x : m));
+  cur.used = true; chain = cur.l[0][0] <= cur.l[cur.l.length - 1][0] ? [...cur.l] : [...cur.l].reverse();
+  for (let guard = 0; guard < 80; guard++) {
+    const end = chain[chain.length - 1];
+    const next = pieces.find((x) => !x.used && (same(x.l[0], end) || same(x.l[x.l.length - 1], end)));
+    if (!next) break;
+    next.used = true; chain.push(...(same(next.l[0], end) ? next.l : [...next.l].reverse()).slice(1));
+  }
+  return chain;
 })();
-const WIDTHS = { motorway: 1.5, trunk: 1.5, primary: 1.3, secondary: 1.05, tertiary: 0.9 };
-/** The map for the dark left side only (it fades out well before the tower), centred so the whole route shows: about 1.5 km from top to bottom of the header. */
 const streetsSvg = (W, H) => {
-  const u = H / 100, mPerPx = 1500 / H;
-  const mid = [(ROUTE[0][0] + ROUTE[ROUTE.length - 1][0]) / 2, (ROUTE[0][1] + ROUTE[ROUTE.length - 1][1]) / 2];
-  const cosLat = Math.cos((mid[0] * Math.PI) / 180);
-  const px = (p) => [0.2 * W + ((p[1] - mid[1]) * 111320 * cosLat) / mPerPx, 0.5 * H - ((p[0] - mid[0]) * 111320) / mPerPx];
+  const u = H / 100, px = project(W, H);
   const d = (pts) => pts.map((p, i) => { const [x, y] = px(p); return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`; }).join('');
-  const vis = (pts) => pts.some((p) => { const [x, y] = px(p); return x > -50 && x < 0.55 * W && y > -50 && y < H + 50; });
+  const vis = (pts) => pts.some((p) => { const [x, y] = px(p); return x > -80 && x < 0.62 * W && y > -80 && y < H + 80; });
+  // the lake: water to the east of the shore line (to the edge of the picture), with a bright shore
+  const shore = SHORE.map((p) => px(p));
+  const lake = `M${shore.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L')}L${W} ${shore[shore.length - 1][1]}L${W} ${shore[0][1]}Z`;
+  const rivers = CHI.rivers.filter((r) => vis(r.pts)).map((r) => ({ w: r.w, d: d(r.pts) }));
+  const ponds = CHI.lakes.filter((l) => l.length > 24 && vis(l)).map((l) => d(l) + 'Z');
   const groups = {};
-  for (const w of CHI) { if (!vis(w.pts)) continue; const k = WIDTHS[w.hw] ?? 0.5; (groups[k] ??= []).push(d(w.pts)); }
-  const bands = Object.entries(groups).map(([wd, ds]) => `<path d="${ds.join('')}" stroke="#0e5a2a" stroke-opacity="0.55" stroke-width="${u * Number(wd) * 1.5}"/><path d="${ds.join('')}" stroke="#3dff8a" stroke-opacity="0.28" stroke-width="${u * Number(wd) * 0.28}"/>`).join('');
-  const route = d(ROUTE), start = px(ROUTE[0]), end = px(ROUTE[ROUTE.length - 1]);
-  const next = px(ROUTE[Math.min(ROUTE.length - 1, 6)]), heading = (Math.atan2(next[1] - start[1], next[0] - start[0]) * 180) / Math.PI + 90;
+  for (const r of CHI.roads) { if (!MAJOR.test(r.hw) || !vis(r.pts)) continue; const k = /link/.test(r.hw) ? 0.55 : r.hw === 'motorway' ? 1.35 : 1.0; (groups[k] ??= []).push(d(r.pts)); }
+  const bands = Object.entries(groups).map(([wd, ds]) => `<path d="${ds.join('')}" stroke="#0e5a2a" stroke-opacity="0.6" stroke-width="${u * Number(wd) * 1.5}"/><path d="${ds.join('')}" stroke="#3dff8a" stroke-opacity="0.34" stroke-width="${u * Number(wd) * 0.3}"/>`).join('');
+  const route = routeFor(W, H), rd = d(route), start = px(route[0]), end = px(route[route.length - 1]);
+  const next = px(route[Math.min(route.length - 1, 8)]), heading = (Math.atan2(next[1] - start[1], next[0] - start[0]) * 180) / Math.PI + 90;
   return `<svg class="streets" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" stroke-linecap="round" stroke-linejoin="round">
     <defs><filter id="rg" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="${u * 0.6}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    <g opacity="0.6">${bands}</g>
-    <g filter="url(#rg)" opacity="0.42"><path d="${route}" stroke="#3dff8a" stroke-opacity="0.55" stroke-width="${u * 1.7}"/><path d="${route}" stroke="#d9ffe8" stroke-opacity="0.7" stroke-width="${u * 0.5}"/></g>
-    <g transform="translate(${start[0]} ${start[1]}) rotate(${heading})"><circle r="${u * 2.4}" fill="#021a0c" fill-opacity="0.75" stroke="#3dff8a" stroke-opacity="0.8" stroke-width="${u * 0.35}"/><path d="M0 ${-u * 1.5}L${u * 1.1} ${u * 1.2}L0 ${u * 0.5}L${-u * 1.1} ${u * 1.2}Z" fill="#3dff8a" fill-opacity="0.9" stroke="none"/></g>
-    <circle cx="${end[0]}" cy="${end[1]}" r="${u * 2.8}" stroke="#d9ffe8" stroke-opacity="0.7" stroke-width="${u * 0.5}"/><circle cx="${end[0]}" cy="${end[1]}" r="${u * 1.1}" fill="#d9ffe8" fill-opacity="0.8" stroke="none"/>
+    <rect width="${W}" height="${H}" fill="#3dff8a" fill-opacity="0.045" stroke="none"/>
+    <g opacity="0.9"><path d="${lake}" fill="#00120a" fill-opacity="0.82" stroke="none"/><path d="${d(SHORE)}" stroke="#3dff8a" stroke-opacity="0.5" stroke-width="${u * 0.4}"/>
+    ${rivers.map((r) => `<path d="${r.d}" stroke="#3dff8a" stroke-opacity="0.3" stroke-width="${u * (r.w === 'canal' ? 1.5 : 2.5)}"/><path d="${r.d}" stroke="#00120a" stroke-opacity="0.9" stroke-width="${u * (r.w === 'canal' ? 0.9 : 1.8)}"/>`).join('')}
+    ${ponds.map((p) => `<path d="${p}" fill="#00120a" fill-opacity="0.85" stroke="#3dff8a" stroke-opacity="0.3" stroke-width="${u * 0.25}"/>`).join('')}</g>
+    <g opacity="0.75">${bands}</g>
+    <g filter="url(#rg)" opacity="0.5"><path d="${rd}" stroke="#3dff8a" stroke-opacity="0.6" stroke-width="${u * 1.7}"/><path d="${rd}" stroke="#d9ffe8" stroke-opacity="0.75" stroke-width="${u * 0.5}"/></g>
+    <g transform="translate(${start[0]} ${start[1]}) rotate(${heading})"><circle r="${u * 2.4}" fill="#021a0c" fill-opacity="0.8" stroke="#3dff8a" stroke-opacity="0.85" stroke-width="${u * 0.35}"/><path d="M0 ${-u * 1.5}L${u * 1.1} ${u * 1.2}L0 ${u * 0.5}L${-u * 1.1} ${u * 1.2}Z" fill="#3dff8a" fill-opacity="0.95" stroke="none"/></g>
+    <circle cx="${end[0]}" cy="${end[1]}" r="${u * 2.8}" stroke="#d9ffe8" stroke-opacity="0.75" stroke-width="${u * 0.5}"/><circle cx="${end[0]}" cy="${end[1]}" r="${u * 1.1}" fill="#d9ffe8" fill-opacity="0.85" stroke="none"/>
   </svg>`;
 };
 
@@ -105,7 +134,7 @@ html,body{margin:0;background:#000}
 .tiles div{position:absolute;top:0;bottom:0;width:38%;background-size:cover;background-position:center;filter:saturate(1.05) contrast(1.05);-webkit-mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent);mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent)}
 .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,10,4,0.97) 0%,rgba(0,10,4,0.92) 30%,rgba(0,10,4,0.78) 48%,rgba(0,10,4,0.5) 62%,rgba(0,10,4,0.1) 80%,rgba(0,10,4,0.2) 100%)}
 .tint{position:absolute;inset:0;background:radial-gradient(ellipse at 28% 50%,rgba(61,255,138,0.16),rgba(0,0,0,0) 60%);mix-blend-mode:screen}
-.streets{position:absolute;left:0;top:0;-webkit-mask-image:linear-gradient(90deg,#000 0,#000 30%,transparent 47%);mask-image:linear-gradient(90deg,#000 0,#000 30%,transparent 47%)}
+.streets{position:absolute;left:0;top:0;-webkit-mask-image:linear-gradient(90deg,#000 0,#000 38%,transparent 50%);mask-image:linear-gradient(90deg,#000 0,#000 30%,transparent 47%)}
 .door{position:absolute;transform-origin:50% 50%;filter:brightness(0.82) saturate(0.85) contrast(1.05);-webkit-mask-image:linear-gradient(180deg,#000 72%,rgba(0,0,0,0.0) 99%);mask-image:linear-gradient(180deg,#000 72%,rgba(0,0,0,0.0) 99%)}
 .rubf{position:absolute;filter:brightness(0.66) saturate(0.7) sepia(0.4)}
 .scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.22) 0,rgba(0,0,0,0.22) calc(var(--u)*0.12),rgba(0,0,0,0) calc(var(--u)*0.12),rgba(0,0,0,0) calc(var(--u)*0.34));pointer-events:none}
