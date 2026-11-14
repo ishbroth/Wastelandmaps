@@ -123,7 +123,6 @@ export default function Leaderboard({ account }: { account: Account }) {
         </ul>
       )}
       {me && !meInList && <p className="rm-fine">Your place, #{me.rank}, is below the top {shown.length}.</p>}
-      <p className="rm-fine">Ranked by level, then by places discovered: the places you have actually been to.</p>
     </div>
   );
 }
