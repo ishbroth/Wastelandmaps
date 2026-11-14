@@ -1103,7 +1103,7 @@ export default function App() {
     return () => window.clearTimeout(t);
   }, [message, nav, restLine]);
   const endNavigation = useCallback(() => {
-    if (navRef.current) speak('Navigation terminated.');
+    if (navRef.current) { speak('Navigation terminated.'); buzz('hurt'); } // the voice and a heavy-then-lighter thump together
     setNav(null);
     navRef.current = null;
   }, []);
