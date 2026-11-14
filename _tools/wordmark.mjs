@@ -8,6 +8,7 @@ import sharp from 'sharp';
 
 const [,, inFile, outFile, gapArg = '8'] = process.argv;
 const GAP = Number(gapArg);
+const MARGIN = Number(process.env.WM_MARGIN ?? 0); // space left clear at each side, so the first and last letters are not at the very edge
 const SIZE = 1024;
 const CH = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const img = fs.readFileSync(inFile).toString('base64');
@@ -59,13 +60,13 @@ const inkOf = async (buf) => {
 let px = 100, left = 200, bottom = 300;
 let ink = await inkOf(await shoot(px, left, bottom, false));
 for (let i = 0; i < 3; i++) {
-  const scale = SIZE / (ink.x1 - ink.x0 + 1);
+  const scale = (SIZE - 2 * MARGIN) / (ink.x1 - ink.x0 + 1);
   const bearing = ink.x0 - left; // the space before the first letter, at the size just measured
   px *= scale;
-  left = -bearing * scale; // so the first letter starts on the left edge
+  left = MARGIN - bearing * scale; // so the first letter starts at the left margin
   ink = await inkOf(await shoot(px, left, bottom, false));
 }
-left -= ink.x0; // any last pixel
+left -= ink.x0 - MARGIN; // any last pixel
 ink = await inkOf(await shoot(px, left, bottom, false));
 bottom -= (SIZE - GAP - 1) - ink.y1; // the letters' bottom edge just above the bottom of the picture
 ink = await inkOf(await shoot(px, left, bottom, false));

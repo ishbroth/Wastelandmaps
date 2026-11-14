@@ -92,6 +92,7 @@ export default function App() {
   const [nav, setNav] = useState<{ spot: Spot; route: NavRoute | null; step: number; toTurn: number | null; remaining: number | null; busy: string; /** Walking directions (the person tapped the walking man); driving ones otherwise. */ walking?: boolean } | null>(null);
   const navRef = useRef(nav);
   const offStreak = useRef(0);
+  const speedTrail = useRef<{ t: number; p: LatLng }[]>([]);
   const lastReroute = useRef(0);
   const [flash, setFlash] = useState(false);
   // the "+50 XP" that flashes on the map when a place is discovered
@@ -1195,6 +1196,19 @@ export default function App() {
       return;
     }
     setNav({ ...n, step: p.step, toTurn: p.toTurn, remaining: p.remaining, busy: '' });
+    // walking directions on, but the phone is plainly not being walked (over 4.5 m/s, 10 mph, as an average over eight seconds or more): back to driving directions
+    const trail = speedTrail.current;
+    trail.push({ t: Date.now(), p: here });
+    while (trail.length && Date.now() - trail[0].t > 14_000) trail.shift();
+    if (foot && trail.length >= 4 && (Date.now() - trail[0].t) / 1000 >= 8 && distanceMeters(trail[0].p, here) / ((Date.now() - trail[0].t) / 1000) > 4.5) {
+      speedTrail.current = [];
+      say('MOVING TOO FAST TO WALK: BACK TO DRIVING', true);
+      buzz('select');
+      setNav((cur) => (cur ? { ...cur, walking: false, busy: 'ROUTING' } : cur));
+      const drive = await requestRoute(here, n.spot.position, false);
+      setNav((cur) => (cur ? (drive.kind === 'route' ? { ...cur, walking: false, route: drive.route, step: 0, toTurn: drive.route.steps[0]?.meters ?? null, remaining: drive.route.meters, busy: '' } : { ...cur, walking: false, busy: '' }) : cur));
+      return;
+    }
     // off the road for three position readings in a row (a single stray reading is not a wrong turn), and not more than once every 25 seconds
     offStreak.current = p.off > (foot ? 30 : 90) ? offStreak.current + 1 : 0;
     if (offStreak.current >= 3 && Date.now() - lastReroute.current > 25_000) {
@@ -1213,6 +1227,7 @@ export default function App() {
     const n = navRef.current;
     if (!n) return;
     const walking = !n.walking;
+    speedTrail.current = [];
     sound('select');
     setNav((cur) => (cur ? { ...cur, walking, busy: 'ROUTING' } : cur));
     const here = fixRef.current ?? (await currentFix(8000));
