@@ -121,8 +121,11 @@ const streetsSvg = (W, H) => {
   // the lake: water to the east of the shore line (to the edge of the picture), with a bright shore
   const shore = SHORE.map((p) => px(p));
   const lake = `M${shore.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L')}L${W} ${shore[shore.length - 1][1]}L${W} ${shore[0][1]}Z`;
-  const rivers = CHI.rivers.filter((r) => vis(r.pts)).map((r) => ({ w: r.w, d: d(r.pts) }));
-  const ponds = CHI.lakes.filter((l) => l.length > 24 && vis(l)).map((l) => d(l) + 'Z');
+  // the river and its long branches only (the short side cuts, boat slips and stubs would show as thin teeth on the land)
+  const rivers = CHI.rivers.filter((r) => r.pts.length >= 8 && vis(r.pts)).map((r) => ({ w: r.w, d: d(r.pts) }));
+  // only the water that is a whole closed shape (the open pieces of a big water body would be closed up into thin slivers on the land)
+  const ponds = CHI.lakes.filter((l) => l.length > 24 && vis(l) && l[0][0] === l[l.length - 1][0] && l[0][1] === l[l.length - 1][1]).map((l) => d(l) + 'Z');
+  const rivers0 = rivers.filter((r) => r.w !== 'canal').map((r) => r.d).join(''), canals0 = rivers.filter((r) => r.w === 'canal').map((r) => r.d).join('');
   const groups = {};
   for (const r of CHI.roads) { if (!MAJOR.test(r.hw) || !vis(r.pts)) continue; const k = /link/.test(r.hw) ? 0.55 : r.hw === 'motorway' ? 1.35 : 1.0; (groups[k] ??= []).push(d(r.pts)); }
   const bands = Object.entries(groups).map(([wd, ds]) => `<path d="${ds.join('')}" stroke="#0e5a2a" stroke-opacity="0.6" stroke-width="${u * Number(wd) * 1.5}"/><path d="${ds.join('')}" stroke="#3dff8a" stroke-opacity="0.34" stroke-width="${u * Number(wd) * 0.3}"/>`).join('');
@@ -132,8 +135,10 @@ const streetsSvg = (W, H) => {
     <defs><filter id="rg" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="${u * 0.6}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
     <rect width="${W}" height="${H}" fill="#3dff8a" fill-opacity="0.045" stroke="none"/>
     <g opacity="0.9"><path d="${lake}" fill="#00120a" fill-opacity="0.82" stroke="none"/><path d="${d(SHORE)}" stroke="#3dff8a" stroke-opacity="0.5" stroke-width="${u * 0.4}"/>
-    ${rivers.map((r) => `<path d="${r.d}" stroke="#3dff8a" stroke-opacity="0.3" stroke-width="${u * (r.w === 'canal' ? 1.5 : 2.5)}"/><path d="${r.d}" stroke="#00120a" stroke-opacity="0.9" stroke-width="${u * (r.w === 'canal' ? 0.9 : 1.8)}"/>`).join('')}
-    ${ponds.map((p) => `<path d="${p}" fill="#00120a" fill-opacity="0.85" stroke="#3dff8a" stroke-opacity="0.3" stroke-width="${u * 0.25}"/>`).join('')}</g>
+    <path d="${rivers0}" stroke="#3dff8a" stroke-opacity="0.3" stroke-width="${u * 2.5}"/><path d="${canals0}" stroke="#3dff8a" stroke-opacity="0.3" stroke-width="${u * 1.5}"/>
+    <path d="${ponds.join('')}" fill="#3dff8a" fill-opacity="0.0" stroke="#3dff8a" stroke-opacity="0.3" stroke-width="${u * 0.4}"/>
+    <path d="${rivers0}" stroke="#00120a" stroke-opacity="0.9" stroke-width="${u * 1.8}"/><path d="${canals0}" stroke="#00120a" stroke-opacity="0.9" stroke-width="${u * 0.9}"/>
+    <path d="${ponds.join('')}" fill="#00120a" fill-opacity="0.85" stroke="none"/></g>
     <g opacity="0.75">${bands}</g>
     <g filter="url(#rg)" opacity="0.5"><path d="${rd}" stroke="#3dff8a" stroke-opacity="0.6" stroke-width="${u * 1.7}"/><path d="${rd}" stroke="#d9ffe8" stroke-opacity="0.75" stroke-width="${u * 0.5}"/></g>
     <g transform="translate(${start[0]} ${start[1]}) rotate(${heading})"><circle r="${u * 2.4}" fill="#021a0c" fill-opacity="0.8" stroke="#3dff8a" stroke-opacity="0.85" stroke-width="${u * 0.35}"/><path d="M0 ${-u * 1.5}L${u * 1.1} ${u * 1.2}L0 ${u * 0.5}L${-u * 1.1} ${u * 1.2}Z" fill="#3dff8a" fill-opacity="0.95" stroke="none"/></g>
