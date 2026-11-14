@@ -89,7 +89,7 @@ export default function App() {
   // where the device is now (while AUTO-DISCOVER is on), and the driving navigation to a place
   const [fix, setFix] = useState<LatLng | null>(null);
   const fixRef = useRef<LatLng | null>(null);
-  const [nav, setNav] = useState<{ spot: Spot; route: NavRoute | null; step: number; toTurn: number | null; remaining: number | null; busy: string } | null>(null);
+  const [nav, setNav] = useState<{ spot: Spot; route: NavRoute | null; step: number; toTurn: number | null; remaining: number | null; busy: string; /** Walking directions (the person tapped the walking man); driving ones otherwise. */ walking?: boolean } | null>(null);
   const navRef = useRef(nav);
   const offStreak = useRef(0);
   const lastReroute = useRef(0);
@@ -904,16 +904,16 @@ export default function App() {
     const plain = spokenInstruction(next);
     const lower = plain.charAt(0).toLowerCase() + plain.slice(1);
     if (!said || said.route !== nav.route) {
-      speak(`${said ? 'Route updated.' : `Navigation online. Destination: ${nav.spot.name}.`} ${nav.toTurn !== null ? `In ${spokenDistance(nav.toTurn)}, ` : ''}${lower}.`);
+      speak(`${said ? (nav.walking ? 'Walking directions.' : 'Route updated.') : `Navigation online. Destination: ${nav.spot.name}.`} ${nav.toTurn !== null ? `In ${spokenDistance(nav.toTurn, nav.walking)}, ` : ''}${lower}.`);
       spoken.current = { route: nav.route, step: nav.step, near: false, rerouting: false };
       return;
     }
     if (said.step !== nav.step) {
-      speak(`${nav.toTurn !== null && nav.toTurn > 120 ? `In ${spokenDistance(nav.toTurn)}, ` : ''}${lower}.`);
+      speak(`${nav.toTurn !== null && nav.toTurn > (nav.walking ? 50 : 120) ? `In ${spokenDistance(nav.toTurn, nav.walking)}, ` : ''}${lower}.`);
       spoken.current = { ...said, step: nav.step, near: false };
       return;
     }
-    if (!said.near && nav.toTurn !== null && nav.toTurn < 130) {
+    if (!said.near && nav.toTurn !== null && nav.toTurn < (nav.walking ? 40 : 130)) {
       speak(`${plain}. Now.`);
       spoken.current = { ...said, near: true };
     }
@@ -1177,7 +1177,8 @@ export default function App() {
     if (!n?.route) return;
     const p = progressAlong(n.route, here);
     const toDestination = distanceMeters(here, n.spot.position);
-    if (toDestination < 60 || p.remaining < 40) {
+    const foot = !!n.walking;
+    if (toDestination < (foot ? 22 : 60) || p.remaining < (foot ? 14 : 40)) {
       const spot = n.spot;
       setNav(null);
       navRef.current = null;
@@ -1195,17 +1196,33 @@ export default function App() {
     }
     setNav({ ...n, step: p.step, toTurn: p.toTurn, remaining: p.remaining, busy: '' });
     // off the road for three position readings in a row (a single stray reading is not a wrong turn), and not more than once every 25 seconds
-    offStreak.current = p.off > 90 ? offStreak.current + 1 : 0;
+    offStreak.current = p.off > (foot ? 30 : 90) ? offStreak.current + 1 : 0;
     if (offStreak.current >= 3 && Date.now() - lastReroute.current > 25_000) {
       offStreak.current = 0;
       lastReroute.current = Date.now();
       setNav((cur) => (cur ? { ...cur, busy: 'REROUTING' } : cur));
-      const answer = await requestRoute(here, n.spot.position);
+      const answer = await requestRoute(here, n.spot.position, foot);
       setNav((cur) => (cur && answer.kind === 'route' ? { ...cur, route: answer.route, step: 0, toTurn: answer.route.steps[0]?.meters ?? null, remaining: answer.route.meters, busy: '' } : cur ? { ...cur, busy: '' } : cur));
     }
   }, [markFound, say]);
   const onNavFixRef = useRef(onNavFix);
   useEffect(() => { onNavFixRef.current = onNavFix; }, [onNavFix]);
+
+  /** The walking man: on foot instead of in a car (and back). The route is asked for again, the other way of travelling, from where the person is. */
+  const toggleWalking = useCallback(async () => {
+    const n = navRef.current;
+    if (!n) return;
+    const walking = !n.walking;
+    sound('select');
+    setNav((cur) => (cur ? { ...cur, walking, busy: 'ROUTING' } : cur));
+    const here = fixRef.current ?? (await currentFix(8000));
+    if (!here) { setNav((cur) => (cur ? { ...cur, walking: !walking, busy: '' } : cur)); say('COULD NOT FIND YOU TO CHANGE THE ROUTE', true); return; }
+    const answer = await requestRoute(here, n.spot.position, walking);
+    setNav((cur) => (cur && answer.kind === 'route'
+      ? { ...cur, walking, route: answer.route, step: 0, toTurn: answer.route.steps[0]?.meters ?? null, remaining: answer.route.meters, busy: '' }
+      : cur ? { ...cur, walking: !walking, busy: '' } : cur));
+    if (answer.kind !== 'route') say('NO ' + (walking ? 'WALKING' : 'DRIVING') + ' ROUTE FROM HERE', true);
+  }, [sound, say]);
 
   // turning AUTO-DISCOVER off ends any navigation
   useEffect(() => {
@@ -1338,7 +1355,7 @@ export default function App() {
     return () => { watch?.disconnect(); el.removeEventListener('animationend', fit); };
   }, [titleWords, titleCleared]);
 
-  const navView = useMemo(() => (nav?.route ? { path: nav.route.path, steps: nav.route.steps, step: nav.step } : null), [nav?.route, nav?.step]);
+  const navView = useMemo(() => (nav?.route ? { path: nav.route.path, steps: nav.route.steps, step: nav.step, walking: !!nav.walking } : null), [nav?.route, nav?.step, nav?.walking]);
 
   return (
     <div className={`rm-app${nav ? ' rm-navigating' : ''}`}>
@@ -1415,6 +1432,8 @@ export default function App() {
               onEnd={endNavigation}
               voiceOn={voiceOn}
               onVoice={toggleVoice}
+              walking={!!nav.walking}
+              onWalking={() => void toggleWalking()}
             />
           )}
           {travel && (

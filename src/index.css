@@ -649,7 +649,8 @@ html[data-look='parchment'] .rm-locked b { text-shadow: none; color: var(--ink);
 .rm-nav { top: max(10px, env(safe-area-inset-top)); }
 .rm-nav-bottom { position: absolute; left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 14; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 0 0 20px var(--glow); padding: 8px 12px; font-family: var(--font-display); font-size: 20px; letter-spacing: 1px; }
 .rm-nav-bottom small { color: var(--ink-dim); font-size: 14px; letter-spacing: 1px; }
-.rm-nav-buttons { display: flex; gap: 8px; }
+.rm-nav-buttons { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; justify-content: flex-end; }
+.rm-nav-buttons .rm-nav-end { margin-left: auto; }
 .rm-nav-bottom .rm-btn { font-size: 24px; padding: 8px 22px; }
 
 /* discovered places are filled in, on the map's pins and in the lists */

@@ -93,7 +93,8 @@ export function speak(spoken: string): void {
 }
 
 /** A distance as it is said aloud: "400 feet", "1.5 miles". */
-export function spokenDistance(meters: number): string {
+export function spokenDistance(meters: number, walking = false): string {
+  if (walking && meters < 400) return `${Math.max(20, Math.round((meters * 3.281) / 10) * 10)} feet`;
   if (meters < 250) return `${Math.max(50, Math.round((meters * 3.281) / 50) * 50)} feet`;
   const mi = meters / 1609.34;
   if (mi < 0.2) return '1000 feet';

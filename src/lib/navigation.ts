@@ -35,11 +35,11 @@ const toPoint = (p: { lat: number | (() => number); lng: number | (() => number)
 });
 
 /** Google's Routes service. Null if it cannot be asked (the service is not switched on for this key, or there is no connection); 'none' if there is no road. */
-async function viaGoogle(from: LatLng, to: LatLng): Promise<NavRoute | 'none' | null> {
+async function viaGoogle(from: LatLng, to: LatLng, walking = false): Promise<NavRoute | 'none' | null> {
   try {
     await google.maps.importLibrary('routes');
     const { routes } = await google.maps.routes.Route.computeRoutes({
-      origin: from, destination: to, travelMode: 'DRIVING' as google.maps.TravelModeString, fields: ['path', 'legs', 'distanceMeters', 'durationMillis'],
+      origin: from, destination: to, travelMode: (walking ? 'WALKING' : 'DRIVING') as google.maps.TravelModeString, fields: ['path', 'legs', 'distanceMeters', 'durationMillis'],
     });
     const route = routes?.[0];
     const leg = route?.legs?.[0];
@@ -87,9 +87,10 @@ interface OsrmStep { distance: number; name: string; geometry: { coordinates: [n
  * The open road-routing service (OSRM, built on OpenStreetMap) as the second choice: it needs no key, so the navigation still works on this map when Google's
  * routing is not switched on. Null if it cannot be reached; 'none' if there is no road.
  */
-async function viaOsrm(from: LatLng, to: LatLng): Promise<NavRoute | 'none' | null> {
+async function viaOsrm(from: LatLng, to: LatLng, walking = false): Promise<NavRoute | 'none' | null> {
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&steps=true`;
+    // on foot: the open service that routes along footpaths and sidewalks (the main one only knows roads for cars)
+    const url = `${walking ? 'https://routing.openstreetmap.de/routed-foot/route/v1/foot' : 'https://router.project-osrm.org/route/v1/driving'}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&steps=true`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const json = (await res.json()) as { code: string; routes?: { distance: number; duration: number; geometry: { coordinates: [number, number][] }; legs: { steps: OsrmStep[] }[] }[] };
@@ -108,11 +109,11 @@ async function viaOsrm(from: LatLng, to: LatLng): Promise<NavRoute | 'none' | nu
 }
 
 /** A driving route from here to there: Google's routing if it is switched on, otherwise the open one. 'no_route': not reachable by road; 'unavailable': neither could be asked. */
-export async function requestRoute(from: LatLng, to: LatLng): Promise<RouteAnswer> {
-  const first = await viaGoogle(from, to);
+export async function requestRoute(from: LatLng, to: LatLng, walking = false): Promise<RouteAnswer> {
+  const first = await viaGoogle(from, to, walking);
   if (first === 'none') return { kind: 'no_route' };
   if (first) return { kind: 'route', route: first };
-  const second = await viaOsrm(from, to);
+  const second = await viaOsrm(from, to, walking);
   if (second === 'none') return { kind: 'no_route' };
   if (second) return { kind: 'route', route: second };
   return { kind: 'unavailable' };
@@ -176,7 +177,8 @@ export async function currentFix(timeoutMs = 12_000): Promise<LatLng | null> {
 
 const feet = (m: number) => Math.round(m * 3.281 / 50) * 50;
 /** "400 ft", "0.8 mi", "12 mi". */
-export function formatDistance(m: number): string {
+export function formatDistance(m: number, walking = false): string {
+  if (walking && m < 400) return `${Math.max(10, Math.round((m * 3.281) / 10) * 10)} ft`; // on foot the steps are smaller
   if (m < 160) return `${Math.max(50, feet(m))} ft`;
   const mi = m / 1609.34;
   return mi < 10 ? `${mi.toFixed(1)} mi` : `${Math.round(mi)} mi`;

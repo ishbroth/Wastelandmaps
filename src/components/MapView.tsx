@@ -85,7 +85,7 @@ interface Props {
   travel: TravelRun | null;
   onArrive: () => void;
   /** Driving navigation: the route to draw, and the map follows you along it. Null when not navigating. */
-  nav: { path: LatLng[]; steps: { text: string; meters: number; start: LatLng; end: LatLng; path: LatLng[] }[]; step: number } | null;
+  nav: { path: LatLng[]; steps: { text: string; meters: number; start: LatLng; end: LatLng; path: LatLng[] }[]; step: number; /** Walking directions: the map zooms in further. */ walking?: boolean } | null;
   onSelect: (id: string | null) => void;
   /** The map came to rest somewhere: where, and how far in. */
   onViewport: (center: LatLng, zoom: number) => void;
@@ -832,6 +832,7 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
   // heading up, as the navigation apps do: the map turns around you so the way ahead is always straight up the screen. The map's own tiles cannot be rotated, so the
   // whole map layer is turned (made larger than the screen so its corners never show) and the icons are turned back to stand upright.
   const heading = useRef(0);
+  const walkZoomed = useRef(false);
   const navigatingNow = !!nav;
   useEffect(() => {
     const map = mapRef.current;
@@ -855,6 +856,7 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
       host.style.removeProperty('--nav-d'); host.style.removeProperty('--nav-shift'); host.style.removeProperty('--nav-rot');
       map.setOptions({ gestureHandling: 'greedy' });
       heading.current = 0;
+      walkZoomed.current = false;
     };
   }, [navigatingNow]);
   useEffect(() => {
@@ -902,7 +904,9 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     if (Date.now() - lastDrag.current < 8000) return;
     if (Date.now() < overviewUntil.current) return;
     map.panTo(player);
-    if ((map.getZoom() ?? 0) < 16) map.setZoom(17);
+    // walking: the route is shown close in; turned back to driving it eases out again
+    if (walkZoomed.current !== !!nav.walking) { walkZoomed.current = !!nav.walking; map.setZoom(nav.walking ? 19 : 17); }
+    else if ((map.getZoom() ?? 0) < 16) map.setZoom(nav.walking ? 19 : 17);
   }, [nav, player]);
 
   return <div ref={holder} className="rm-map" role="application" aria-label="Wasteland map" />;
