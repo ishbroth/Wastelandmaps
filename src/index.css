@@ -1084,6 +1084,7 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-app.rm-navigating .rm-map { filter: brightness(1.7) contrast(1.06) saturate(1.1); }
 .rm-app.rm-navigating .rm-crt { opacity: 0.3; }
 .rm-map.rm-nav-rot { position: absolute; inset: auto; width: var(--nav-d); height: var(--nav-d); left: calc(50% - var(--nav-d) / 2); top: calc(50% - var(--nav-d) / 2); transform: translateY(var(--nav-shift, 0)) rotate(var(--nav-rot, 0deg)); transition: transform 0.7s linear; will-change: transform; }
+.rm-map.rm-nav-rot.rm-nav-overview { transform: none; }
 .rm-map.rm-nav-rot .rm-pin-icon { rotate: var(--nav-unrot, 0deg); }
 .rm-map.rm-nav-rot .rm-pin-label, .rm-map.rm-nav-rot .rm-region { display: none !important; }
 .rm-map.rm-nav-rot .rm-player { rotate: var(--nav-unrot, 0deg); }

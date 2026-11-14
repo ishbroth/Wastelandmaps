@@ -333,6 +333,7 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     }
     // moving the map by hand pauses the navigation's following for a few seconds
     map.addListener('dragstart', () => { lastDrag.current = Date.now(); });
+    map.addListener('zoom_changed', () => { if (Date.now() - autoZoomAt.current > 1500) userZoomed.current = true; });
     // a click on empty map clears the choice, but not the same moment a marker was pressed
     map.addListener('click', () => {
       if (Date.now() - lastPressAt > 600) onSelectRef.current(null);
@@ -751,6 +752,9 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
   const ahead = useRef<{ halo: google.maps.Polyline; line: google.maps.Polyline } | null>(null);
   // when a route starts the map first pulls back to show all of it for a moment, then settles into the close-up that follows you
   const overviewUntil = useRef(0);
+  // pinching to zoom out while driving is allowed at any point (the map keeps following you, at the zoom the person chose)
+  const userZoomed = useRef(false);
+  const autoZoomAt = useRef(0);
   const playerRef = useRef(player);
   useEffect(() => { playerRef.current = player; }, [player]);
   useEffect(() => {
@@ -768,17 +772,31 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     ahead.current = { halo: aheadHalo, line: aheadLine };
     holder.current?.classList.add('rm-navigating');
     lastDrag.current = 0;
-    const OVERVIEW_MS = 3000;
+    const OVERVIEW_MS = 3200;
     const box = new google.maps.LatLngBounds();
     nav.path.forEach((p) => box.extend(p));
-    map.fitBounds(box, { top: 150, bottom: 190, left: 50, right: 50 });
+    // the whole route is shown first, north up and not shifted (the close-up that follows turns and shifts the map layer, which is bigger than the screen): the padding leaves out the part
+    // of the layer that is off the screen, so the route is all on the screen, with room at the top for the turn banner and at the bottom for the bar
+    holder.current?.classList.add('rm-nav-overview');
     overviewUntil.current = Date.now() + OVERVIEW_MS;
+    const fitAll = () => {
+      const host = holder.current, screenBox = host?.parentElement;
+      if (!host || !screenBox) return;
+      google.maps.event.trigger(map, 'resize');
+      autoZoomAt.current = Date.now();
+      const w = screenBox.clientWidth, h = screenBox.clientHeight, dx = Math.max(0, (host.clientWidth - w) / 2), dy = Math.max(0, (host.clientHeight - h) / 2);
+      map.fitBounds(box, { top: dy + 150, bottom: dy + 190, left: dx + 56, right: dx + 56 });
+    };
+    fitAll();
+    const refit = window.setTimeout(fitAll, 220);
+    userZoomed.current = false;
     const settle = window.setTimeout(() => {
+      holder.current?.classList.remove('rm-nav-overview');
       overviewUntil.current = 0;
       const here = playerRef.current;
       if (!here) return;
       map.panTo(here);
-      map.setZoom(17);
+      if (!userZoomed.current) { autoZoomAt.current = Date.now(); map.setZoom(17); }
     }, OVERVIEW_MS);
     // the pulse and the running chevrons
     let raf = 0;
@@ -797,6 +815,8 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     return () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(settle);
+      window.clearTimeout(refit);
+      holder.current?.classList.remove('rm-nav-overview');
       overviewUntil.current = 0;
       halo.setMap(null);
       thin.setMap(null);
@@ -848,20 +868,22 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     };
     size();
     host.classList.add('rm-nav-rot');
-    map.setOptions({ gestureHandling: 'none' }); // a finger would move the turned map the wrong way: the map follows you, and a tap on the screen's buttons still works
+    map.setOptions({ gestureHandling: 'greedy', draggable: false }); // a finger would move the turned map the wrong way, so it cannot be dragged: the map follows you, but it can be pinched to zoom
     window.addEventListener('resize', size);
     return () => {
       window.removeEventListener('resize', size);
       host.classList.remove('rm-nav-rot');
       host.style.removeProperty('--nav-d'); host.style.removeProperty('--nav-shift'); host.style.removeProperty('--nav-rot');
-      map.setOptions({ gestureHandling: 'greedy' });
+      map.setOptions({ gestureHandling: 'greedy', draggable: true });
       heading.current = 0;
       walkZoomed.current = false;
+      userZoomed.current = false;
     };
   }, [navigatingNow]);
   useEffect(() => {
     const host = holder.current;
     if (!host || !nav || !player) return;
+    if (Date.now() < overviewUntil.current) return; // the overview of the whole route is north up
     // the way ahead: toward the first point of the route that is a little way off (a few turns of the road are ignored, so the map does not shake)
     // (only points still AHEAD of you count: the steps' lines begin behind you, so the nearest point of the route is found first and the way ahead is measured from there)
     const line: LatLng[] = [];
@@ -905,8 +927,8 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     if (Date.now() < overviewUntil.current) return;
     map.panTo(player);
     // walking: the route is shown close in; turned back to driving it eases out again
-    if (walkZoomed.current !== !!nav.walking) { walkZoomed.current = !!nav.walking; map.setZoom(nav.walking ? 19 : 17); }
-    else if ((map.getZoom() ?? 0) < 16) map.setZoom(nav.walking ? 19 : 17);
+    if (walkZoomed.current !== !!nav.walking) { walkZoomed.current = !!nav.walking; userZoomed.current = false; autoZoomAt.current = Date.now(); map.setZoom(nav.walking ? 19 : 17); }
+    else if (!userZoomed.current && (map.getZoom() ?? 0) < 16) { autoZoomAt.current = Date.now(); map.setZoom(nav.walking ? 19 : 17); }
   }, [nav, player]);
 
   return <div ref={holder} className="rm-map" role="application" aria-label="Wasteland map" />;
