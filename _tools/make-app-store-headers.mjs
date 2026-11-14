@@ -45,46 +45,54 @@ if (!fontUrl) throw new Error('no font url');
 const font = Buffer.from(await (await fetch(fontUrl)).arrayBuffer()).toString('base64');
 
 /** One header: everything is sized from the height (u = 1% of the height), and the writing stays inside the middle of the picture where the store does not crop it. */
-/** A faint street map for the dark left side: a city grid turned a little, its blocks broken up at random (always the same ones), two curving avenues across it, and a route with its marks. */
-const streetsSvg = (W, H) => {
-  const u = H / 100;
-  let seed = 7;
-  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  const minor = [], major = [];
-  const ang = (-17 * Math.PI) / 180, dirA = [Math.cos(ang), Math.sin(ang)], dirB = [-dirA[1], dirA[0]];
-  const cx = 0.3 * W, cy = 0.5 * H, reach = 1.2 * W;
-  for (const [d, n] of [[dirA, dirB], [dirB, dirA]]) {
-    let off = -reach;
-    while (off < reach) {
-      off += (6 + rnd() * 6.5) * u;
-      // one street, in pieces (a block or three long), with gaps between
-      let t = -reach;
-      while (t < reach) {
-        const len = (14 + rnd() * 34) * u, gap = rnd() < 0.5 ? 0 : (2 + rnd() * 6) * u;
-        const x0 = cx + n[0] * off + d[0] * t, y0 = cy + n[1] * off + d[1] * t, x1 = x0 + d[0] * len, y1 = y0 + d[1] * len;
-        minor.push(`M${x0.toFixed(1)} ${y0.toFixed(1)}L${x1.toFixed(1)} ${y1.toFixed(1)}`);
-        t += len + gap;
-      }
-    }
+/** The streets of downtown Chicago (from OpenStreetMap, saved in resources/header-chicago-streets.json by tools/fetch-osm-streets.mjs) and a route along them: from near Union Station
+ *  to Millennium Park, found by the shortest way through the street lines. It is drawn the way the app's own navigation draws a trip: green streets, the route bright on top, an arrow
+ *  where the trip starts and a ring at its end. */
+const CHI = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources', 'header-chicago-streets.json'), 'utf8')).ways;
+const keyOf = (p) => p[0] + ',' + p[1];
+const metres = (a, b) => Math.hypot((b[0] - a[0]) * 111320, (b[1] - a[1]) * 111320 * Math.cos((a[0] * Math.PI) / 180));
+const ROUTE = (() => {
+  const adj = new Map(), at = new Map();
+  for (const w of CHI) for (let i = 0; i + 1 < w.pts.length; i++) {
+    const p = w.pts[i], q = w.pts[i + 1], kp = keyOf(p), kq = keyOf(q), d = metres(p, q);
+    at.set(kp, p); at.set(kq, q);
+    if (!adj.has(kp)) adj.set(kp, []); if (!adj.has(kq)) adj.set(kq, []);
+    adj.get(kp).push([kq, d]); adj.get(kq).push([kp, d]);
   }
-  const curve = (pts) => `M${pts[0][0] * W} ${pts[0][1] * H}C${pts[1][0] * W} ${pts[1][1] * H} ${pts[2][0] * W} ${pts[2][1] * H} ${pts[3][0] * W} ${pts[3][1] * H}`;
-  major.push(curve([[-0.02, 0.86], [0.18, 0.62], [0.3, 0.7], [0.62, 0.3]]), curve([[0.02, 0.1], [0.2, 0.3], [0.4, 0.2], [0.66, 0.22]]), curve([[0.3, 1.02], [0.34, 0.7], [0.5, 0.45], [0.6, 0.0]]));
-  // the route: along the grid, turning at the corners
-  const route = [[0.05, 0.9]];
-  let [px, py] = [0.05 * W, 0.9 * H];
-  const legs = [[dirA, 24], [dirB, -16], [dirA, 22], [dirB, -14], [dirA, 20]];
-  const pts = [[px, py]];
-  for (const [d, len] of legs) { px += d[0] * len * u; py += d[1] * len * u; pts.push([px, py]); }
-  void route;
-  const end = pts[pts.length - 1], start = pts[0];
-  const path = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join('');
+  const nearest = (lat, lng) => { let best = null, bd = 1e12; for (const [k, p] of at) { const d = metres(p, [lat, lng]); if (d < bd) { bd = d; best = k; } } return best; };
+  const from = nearest(41.8786, -87.6322), to = nearest(41.8838, -87.6246);
+  const dist = new Map([[from, 0]]), prev = new Map(), todo = new Set([from]);
+  while (todo.size) {
+    let cur = null, cd = 1e12;
+    for (const k of todo) if (dist.get(k) < cd) { cd = dist.get(k); cur = k; }
+    todo.delete(cur);
+    if (cur === to) break;
+    for (const [k, d] of adj.get(cur) ?? []) if (cd + d < (dist.get(k) ?? 1e12)) { dist.set(k, cd + d); prev.set(k, cur); todo.add(k); }
+  }
+  const path = [];
+  for (let k = to; k; k = prev.get(k)) { path.push(at.get(k)); if (k === from) break; }
+  return path.reverse();
+})();
+const WIDTHS = { motorway: 1.5, trunk: 1.5, primary: 1.3, secondary: 1.05, tertiary: 0.9 };
+/** The map for the dark left side only (it fades out well before the tower), centred so the whole route shows: about 1.5 km from top to bottom of the header. */
+const streetsSvg = (W, H) => {
+  const u = H / 100, mPerPx = 1500 / H;
+  const mid = [(ROUTE[0][0] + ROUTE[ROUTE.length - 1][0]) / 2, (ROUTE[0][1] + ROUTE[ROUTE.length - 1][1]) / 2];
+  const cosLat = Math.cos((mid[0] * Math.PI) / 180);
+  const px = (p) => [0.2 * W + ((p[1] - mid[1]) * 111320 * cosLat) / mPerPx, 0.5 * H - ((p[0] - mid[0]) * 111320) / mPerPx];
+  const d = (pts) => pts.map((p, i) => { const [x, y] = px(p); return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`; }).join('');
+  const vis = (pts) => pts.some((p) => { const [x, y] = px(p); return x > -50 && x < 0.55 * W && y > -50 && y < H + 50; });
+  const groups = {};
+  for (const w of CHI) { if (!vis(w.pts)) continue; const k = WIDTHS[w.hw] ?? 0.5; (groups[k] ??= []).push(d(w.pts)); }
+  const bands = Object.entries(groups).map(([wd, ds]) => `<path d="${ds.join('')}" stroke="#0e5a2a" stroke-opacity="0.55" stroke-width="${u * Number(wd) * 1.5}"/><path d="${ds.join('')}" stroke="#3dff8a" stroke-opacity="0.28" stroke-width="${u * Number(wd) * 0.28}"/>`).join('');
+  const route = d(ROUTE), start = px(ROUTE[0]), end = px(ROUTE[ROUTE.length - 1]);
+  const next = px(ROUTE[Math.min(ROUTE.length - 1, 6)]), heading = (Math.atan2(next[1] - start[1], next[0] - start[0]) * 180) / Math.PI + 90;
   return `<svg class="streets" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="${minor.join('')}" stroke="#3dff8a" stroke-opacity="0.11" stroke-width="${u * 0.55}"/>
-    <path d="${major.join('')}" stroke="#3dff8a" stroke-opacity="0.15" stroke-width="${u * 1.5}"/>
-    <path d="${major.join('')}" stroke="#3dff8a" stroke-opacity="0.12" stroke-width="${u * 0.25}"/>
-    <path d="${path}" stroke="#9dffc4" stroke-opacity="0.38" stroke-width="${u * 0.95}" stroke-dasharray="${u * 2.4} ${u * 1.8}"/>
-    <circle cx="${start[0]}" cy="${start[1]}" r="${u * 1.7}" fill="#3dff8a" fill-opacity="0.34"/>
-    <circle cx="${end[0]}" cy="${end[1]}" r="${u * 2.6}" stroke="#9dffc4" stroke-opacity="0.45" stroke-width="${u * 0.5}"/><circle cx="${end[0]}" cy="${end[1]}" r="${u * 0.9}" fill="#9dffc4" fill-opacity="0.5"/>
+    <defs><filter id="rg" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="${u * 0.6}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <g opacity="0.6">${bands}</g>
+    <g filter="url(#rg)" opacity="0.42"><path d="${route}" stroke="#3dff8a" stroke-opacity="0.55" stroke-width="${u * 1.7}"/><path d="${route}" stroke="#d9ffe8" stroke-opacity="0.7" stroke-width="${u * 0.5}"/></g>
+    <g transform="translate(${start[0]} ${start[1]}) rotate(${heading})"><circle r="${u * 2.4}" fill="#021a0c" fill-opacity="0.75" stroke="#3dff8a" stroke-opacity="0.8" stroke-width="${u * 0.35}"/><path d="M0 ${-u * 1.5}L${u * 1.1} ${u * 1.2}L0 ${u * 0.5}L${-u * 1.1} ${u * 1.2}Z" fill="#3dff8a" fill-opacity="0.9" stroke="none"/></g>
+    <circle cx="${end[0]}" cy="${end[1]}" r="${u * 2.8}" stroke="#d9ffe8" stroke-opacity="0.7" stroke-width="${u * 0.5}"/><circle cx="${end[0]}" cy="${end[1]}" r="${u * 1.1}" fill="#d9ffe8" fill-opacity="0.8" stroke="none"/>
   </svg>`;
 };
 
@@ -97,7 +105,7 @@ html,body{margin:0;background:#000}
 .tiles div{position:absolute;top:0;bottom:0;width:38%;background-size:cover;background-position:center;filter:saturate(1.05) contrast(1.05);-webkit-mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent);mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent)}
 .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,10,4,0.97) 0%,rgba(0,10,4,0.92) 30%,rgba(0,10,4,0.78) 48%,rgba(0,10,4,0.5) 62%,rgba(0,10,4,0.1) 80%,rgba(0,10,4,0.2) 100%)}
 .tint{position:absolute;inset:0;background:radial-gradient(ellipse at 28% 50%,rgba(61,255,138,0.16),rgba(0,0,0,0) 60%);mix-blend-mode:screen}
-.streets{position:absolute;left:0;top:0;-webkit-mask-image:linear-gradient(90deg,#000 0,#000 34%,transparent 66%);mask-image:linear-gradient(90deg,#000 0,#000 34%,transparent 66%)}
+.streets{position:absolute;left:0;top:0;-webkit-mask-image:linear-gradient(90deg,#000 0,#000 30%,transparent 47%);mask-image:linear-gradient(90deg,#000 0,#000 30%,transparent 47%)}
 .door{position:absolute;transform-origin:50% 50%;filter:brightness(0.82) saturate(0.85) contrast(1.05);-webkit-mask-image:linear-gradient(180deg,#000 72%,rgba(0,0,0,0.0) 99%);mask-image:linear-gradient(180deg,#000 72%,rgba(0,0,0,0.0) 99%)}
 .rubf{position:absolute;filter:brightness(0.66) saturate(0.7) sepia(0.4)}
 .scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.22) 0,rgba(0,0,0,0.22) calc(var(--u)*0.12),rgba(0,0,0,0) calc(var(--u)*0.12),rgba(0,0,0,0) calc(var(--u)*0.34));pointer-events:none}
