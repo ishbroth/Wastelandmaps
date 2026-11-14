@@ -5,14 +5,15 @@ import { suggest, type Suggestion } from '../lib/addressSearch';
 import { hapticsAvailable, hapticsEnabled, setHaptics } from '../lib/haptics';
 
 /** Cities with a permanent landmark snapshot, as one-click starting points (a different order each visit, three showing at a time). Typing also suggests real addresses. */
-export default function SearchBar({ busy, disabled, initial, onSearch, onPick, onSignIn, tracking, onToggleTracking, soundOn, onToggleSound }: {
-  busy: boolean; disabled: boolean; initial: string; onSearch: (q: string) => void; onPick: (s: Suggestion) => void; /** Present while signed out: the SIGN IN button beside AUTO-DISCOVER. */ onSignIn?: () => void; tracking: boolean; onToggleTracking: () => void; /** Sound effects are on, and the switch for them (a small speaker beside AUTO-DISCOVER). */ soundOn: boolean; onToggleSound: () => void;
+export default function SearchBar({ busy, disabled, initial, onSearch, onPick, recents, onPickRecent, onSignIn, tracking, onToggleTracking, soundOn, onToggleSound }: {
+  busy: boolean; disabled: boolean; initial: string; onSearch: (q: string) => void; onPick: (s: Suggestion) => void; /** Signed in: the home vault first, then addresses navigated to before, shown when the field is first tapped. */ recents?: { id: string; main: string; secondary: string; home?: boolean }[]; onPickRecent?: (id: string) => void; /** Present while signed out: the SIGN IN button beside AUTO-DISCOVER. */ onSignIn?: () => void; tracking: boolean; onToggleTracking: () => void; /** Sound effects are on, and the switch for them (a small speaker beside AUTO-DISCOVER). */ soundOn: boolean; onToggleSound: () => void;
 }) {
   const off = busy || disabled;
   const [value, setValue] = useState(initial);
   const [items, setItems] = useState<Suggestion[]>([]);
   const [active, setActive] = useState(-1);
   const typed = useRef(false);
+  const [showRecents, setShowRecents] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const latest = useRef(0);
   const cities = useMemo(() => shuffledShowcase(), []);
@@ -40,6 +41,7 @@ export default function SearchBar({ busy, disabled, initial, onSearch, onPick, o
 
   const close = () => {
     typed.current = false;
+    setShowRecents(false);
     latest.current++;
     setItems([]);
     setActive(-1);
@@ -71,7 +73,8 @@ export default function SearchBar({ busy, disabled, initial, onSearch, onPick, o
           id="rm-q"
           ref={input}
           value={value}
-          onChange={(e) => { typed.current = true; setValue(e.target.value); }}
+          onChange={(e) => { typed.current = true; setShowRecents(false); setValue(e.target.value); }}
+          onFocus={() => { if (!off && recents && recents.length > 0) setShowRecents(true); }}
           onKeyDown={onKey}
           onBlur={() => window.setTimeout(close, 150)}
           placeholder="Enter a city or an address"
@@ -85,6 +88,18 @@ export default function SearchBar({ busy, disabled, initial, onSearch, onPick, o
         {value && !off && <button type="button" className="rm-clear" aria-label="Clear" title="Clear" onMouseDown={(e) => e.preventDefault()} onClick={() => { close(); setValue(''); input.current?.focus(); }}>×</button>}
         <button type="submit" className="rm-btn" disabled={off || !value.trim()}>{busy ? 'SCANNING…' : 'SCAN'}</button>
       </form>
+      {showRecents && items.length === 0 && recents && recents.length > 0 && (
+        <ul className="rm-suggest rm-recents" role="listbox" aria-label="Your vault and places you have navigated to">
+          {recents.map((r) => (
+            <li key={r.id} role="option" aria-selected="false">
+              <button type="button" className={r.home ? 'home' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => { close(); onPickRecent?.(r.id); }}>
+                <b>{r.home ? '⌂ ' : ''}{r.main}</b>
+                <i>{r.secondary}</i>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {items.length > 0 && (
         <ul className="rm-suggest" role="listbox">
           {items.map((s, i) => (

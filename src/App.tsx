@@ -4,6 +4,7 @@ import VaultHome from './components/VaultHome';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
 import FaceIdOffer from './components/FaceIdOffer';
+import { loadNavHistory, pushNavHistory } from './lib/navHistory';
 import { savedFaceIds } from './lib/faceid';
 import SceneModal from './components/SceneModal';
 import StreetWalk from './components/StreetWalk';
@@ -820,6 +821,12 @@ export default function App() {
   const search = useCallback((q: string) => show(() => geocodeQuery(q), q), [show]);
 
   /** A suggestion picked from the scan field: a city opens its map; an address opens the map around it with the address as the destination. */
+  /** Opens a place the person chose (a suggestion, their vault, or an address they went to before) with its card ready. */
+  const openPlace = useCallback(async (place: PickedPlace) => {
+    await show(() => geocodeQuery(place.address).catch(() => geocodeLatLng(place.position)), place.name);
+    setTarget({ placeId: place.placeId, name: place.name, address: place.address, lat: place.position.lat, lng: place.position.lng, kind: place.kind });
+    setSelectedId(personalId(place.placeId));
+  }, [show]);
   const pickSuggestion = useCallback(async (suggestion: Suggestion) => {
     if (suggestion.area) {
       void search(suggestion.text);
@@ -832,10 +839,19 @@ export default function App() {
       setMessage('NO SUCH PLACE ON ANY MAP');
       return;
     }
-    await show(() => geocodeQuery(place.address).catch(() => geocodeLatLng(place.position)), place.name);
-    setTarget({ placeId: place.placeId, name: place.name, address: place.address, lat: place.position.lat, lng: place.position.lng, kind: place.kind });
-    setSelectedId(personalId(place.placeId));
-  }, [show, search]);
+    await openPlace(place);
+  }, [openPlace, search]);
+  // the dropdown under the scan field (signed in): the home vault always first, then the addresses navigated to before
+  const [navHist, setNavHist] = useState<PersonalPlace[]>([]);
+  useEffect(() => { setNavHist(account.session ? loadNavHistory(account.session.user.id) : []); }, [account.session]);
+  const recents = useMemo(() => {
+    if (!account.session) return undefined;
+    const home = account.home;
+    const list: { id: string; main: string; secondary: string; home?: boolean; place: PickedPlace }[] = [];
+    if (home?.address && home.lat !== undefined && home.lng !== undefined) list.push({ id: 'home', main: `VAULT ${home.vaultNumber !== undefined ? String(home.vaultNumber).padStart(4, '0') : ''}`.trim(), secondary: home.address, home: true, place: { placeId: home.placeId ?? 'home', name: 'Home', address: home.address, position: { lat: home.lat, lng: home.lng }, kind: 'house' } });
+    for (const p of navHist) if (p.placeId !== home?.placeId) list.push({ id: p.placeId, main: p.name || p.address.split(',')[0], secondary: p.address, place: { placeId: p.placeId, name: p.name, address: p.address, position: { lat: p.lat, lng: p.lng }, kind: p.kind } });
+    return list;
+  }, [account.session, account.home, navHist]);
   /** A tap and hold on a building's outline, close in: its address, as a destination with the card (FAST TRAVEL and VIEW) ready, as if it had been typed in. */
   const onMapHold = useCallback(async (position: { lat: number; lng: number }) => {
     if (navRef.current) return;
@@ -1177,6 +1193,9 @@ export default function App() {
     setNav({ spot, route: answer.route, step: 0, toTurn: first?.meters ?? null, remaining: answer.route.meters, busy: '' });
     setMessage(`NAVIGATING TO ${spot.name.toUpperCase()}`);
     sound('travel');
+    // an address navigated to goes on the list under the scan field
+    const who = accountRef.current?.session;
+    if (who && spot.personal && !spot.personal.home) setNavHist(pushNavHistory(who.user.id, { placeId: spot.id.slice(3), name: spot.name, address: spot.personal.address, lat: spot.position.lat, lng: spot.position.lng, kind: spot.personal.kind }));
   }, [tracking, say, sound, openFlights, openFerries]);
 
   /** Every new position while navigating: the next turn, the distance left, rerouting if you left the road, and arriving. */
@@ -1503,7 +1522,7 @@ export default function App() {
         </div>
 
         <aside className="rm-side">
-          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onPick={(s) => void pickSuggestion(s)} onSignIn={accountsEnabled && !account.session ? () => setAccountOpen(true) : undefined} tracking={tracking} onToggleTracking={() => void toggleTracking()} soundOn={soundOn} onToggleSound={() => { const next = !soundOn; setSoundOn(next); buzz('tick'); if (next) beep('tick'); }} />
+          <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onPick={(s) => void pickSuggestion(s)} recents={recents?.map(({ id, main, secondary, home }) => ({ id, main, secondary, home }))} onPickRecent={(id) => { const r = recents?.find((x) => x.id === id); if (r) void openPlace(r.place); }} onSignIn={accountsEnabled && !account.session ? () => setAccountOpen(true) : undefined} tracking={tracking} onToggleTracking={() => void toggleTracking()} soundOn={soundOn} onToggleSound={() => { const next = !soundOn; setSoundOn(next); buzz('tick'); if (next) beep('tick'); }} />
           <nav className="rm-tabs" role="tablist" aria-label="Pip-Boy menu">
             {(['locations', 'data', 'share'] as Tab[]).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); sound('tick'); }}>

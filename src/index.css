@@ -1251,3 +1251,9 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
   .rm-gun-arrows button { width: 28px; }
   .rm-gun-card { gap: 6px; padding: 4px 6px; }
 }
+
+/* the list under the scan field when it is first tapped: the home vault first, then addresses navigated to before */
+.rm-recents button.home { border-bottom: 1px solid var(--line); }
+.rm-recents button.home b { text-shadow: 0 0 6px var(--glow); }
+.rm-recents button b { text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 100%; }
+.rm-recents button i { text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 100%; }
