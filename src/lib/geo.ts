@@ -67,7 +67,7 @@ export async function getFix(options: GeoOptions = {}): Promise<GeoFix> {
 export async function watchFixes(onFix: (fix: GeoFix) => void, onError: (code: 1 | 2 | 3) => void, options: GeoOptions = {}): Promise<() => void> {
   if (isNative() && options.background) {
     const id = await BackgroundGeolocation.addWatcher(
-      { backgroundTitle: options.background.title, backgroundMessage: options.background.message, requestPermissions: true, stale: false, distanceFilter: options.lowPower ? 40 : 10, lowPower: options.lowPower === true },
+      { backgroundTitle: options.background.title, backgroundMessage: options.background.message, requestPermissions: true, stale: false, distanceFilter: options.lowPower ? 40 : 3, lowPower: options.lowPower === true },
       (location, error) => {
         if (location) onFix({ lat: location.latitude, lng: location.longitude, accuracy: location.accuracy });
         else if (error) onError(error.code === 'NOT_AUTHORIZED' ? 1 : 2);

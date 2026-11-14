@@ -867,14 +867,44 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
       host.style.setProperty('--nav-shift', `${shift}px`);
     };
     size();
+    // turning the phone (or any change in the size of the screen) while navigating: the turned layer is made the right size again and the map told, so it does not stick at the old size
+    const resized = () => { size(); window.setTimeout(() => { size(); google.maps.event.trigger(map, 'resize'); const p = playerRef.current; if (p) map.panTo(p); }, 120); };
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resized) : null;
+    ro?.observe(screenBox);
+    window.addEventListener('orientationchange', resized);
+    window.visualViewport?.addEventListener('resize', resized);
     host.classList.add('rm-nav-rot');
-    map.setOptions({ gestureHandling: 'greedy', draggable: false }); // a finger would move the turned map the wrong way, so it cannot be dragged: the map follows you, but it can be pinched to zoom
-    window.addEventListener('resize', size);
+    // the map's own touch handling is off (a finger would move the turned map the wrong way); the map follows you, and two fingers zoom it (done below, so it works on the turned layer too)
+    map.setOptions({ gestureHandling: 'none' });
+    const pts = new Map<number, { x: number; y: number }>();
+    let base = 0;
+    const gap = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+    const down = (e: PointerEvent) => { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 2) base = gap(); };
+    const move = (e: PointerEvent) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size !== 2 || base <= 0) return;
+      const ratio = gap() / base;
+      const z = map.getZoom() ?? 17;
+      if (ratio > 1.28 && z < 21) { userZoomed.current = true; autoZoomAt.current = 0; map.setZoom(z + 1); base = gap(); }
+      else if (ratio < 0.78 && z > 11) { userZoomed.current = true; autoZoomAt.current = 0; map.setZoom(z - 1); base = gap(); }
+    };
+    const up = (e: PointerEvent) => { pts.delete(e.pointerId); base = 0; };
+    screenBox.addEventListener('pointerdown', down, true); screenBox.addEventListener('pointermove', move, true);
+    screenBox.addEventListener('pointerup', up, true); screenBox.addEventListener('pointercancel', up, true);
+    screenBox.style.touchAction = 'none';
+    window.addEventListener('resize', resized);
     return () => {
-      window.removeEventListener('resize', size);
+      window.removeEventListener('resize', resized);
+      window.removeEventListener('orientationchange', resized);
+      window.visualViewport?.removeEventListener('resize', resized);
+      ro?.disconnect();
+      screenBox.removeEventListener('pointerdown', down, true); screenBox.removeEventListener('pointermove', move, true);
+      screenBox.removeEventListener('pointerup', up, true); screenBox.removeEventListener('pointercancel', up, true);
+      screenBox.style.touchAction = '';
       host.classList.remove('rm-nav-rot');
       host.style.removeProperty('--nav-d'); host.style.removeProperty('--nav-shift'); host.style.removeProperty('--nav-rot');
-      map.setOptions({ gestureHandling: 'greedy', draggable: true });
+      map.setOptions({ gestureHandling: 'greedy' });
       heading.current = 0;
       walkZoomed.current = false;
       userZoomed.current = false;
@@ -927,8 +957,8 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     if (Date.now() < overviewUntil.current) return;
     map.panTo(player);
     // walking: the route is shown close in; turned back to driving it eases out again
-    if (walkZoomed.current !== !!nav.walking) { walkZoomed.current = !!nav.walking; userZoomed.current = false; autoZoomAt.current = Date.now(); map.setZoom(nav.walking ? 19 : 17); }
-    else if (!userZoomed.current && (map.getZoom() ?? 0) < 16) { autoZoomAt.current = Date.now(); map.setZoom(nav.walking ? 19 : 17); }
+    if (walkZoomed.current !== !!nav.walking) { walkZoomed.current = !!nav.walking; userZoomed.current = false; autoZoomAt.current = Date.now(); map.setZoom(nav.walking ? 20 : 17); }
+    else if (!userZoomed.current && (map.getZoom() ?? 0) < 16) { autoZoomAt.current = Date.now(); map.setZoom(nav.walking ? 20 : 17); }
   }, [nav, player]);
 
   return <div ref={holder} className="rm-map" role="application" aria-label="Wasteland map" />;

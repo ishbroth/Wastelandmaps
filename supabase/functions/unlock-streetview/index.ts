@@ -15,6 +15,7 @@
 
 import { callerId, corsHeaders, reply, serviceClient, dailyRenderCap, nextRenderReset } from '../_shared/common.ts';
 import { rubblePrompt, streetPrompt } from '../_shared/streetPrompt.ts';
+import { findPhotoFor } from '../_shared/photoSources.ts';
 
 const COST = 4;
 /** A place that cannot be shown as it was (blurred out, or no street picture): only the rubble is rendered, so only this much is kept and the rest is paid back. */
@@ -34,6 +35,22 @@ function bearing(from: { lat: number; lng: number }, to: { lat: number; lng: num
   const y = Math.sin((to.lng - from.lng) * r) * Math.cos(to.lat * r);
   const x = Math.cos(from.lat * r) * Math.sin(to.lat * r) - Math.sin(from.lat * r) * Math.cos(to.lat * r) * Math.cos((to.lng - from.lng) * r);
   return (Math.atan2(y, x) / r + 360) % 360;
+}
+
+/** A named place (a landmark, a business, a campus: not a plain house number) may have a free photograph that shows it far better than the street in front of it (a ring-shaped headquarters set far back from the road is only trees from Street View): the pre-plotted places' photo sources are asked first. Null for an ordinary address or when nothing usable is found. */
+async function freePhotoOf(name: string, address: string, lat: number, lng: number): Promise<{ bytes: Uint8Array; mime: string } | null> {
+  const streetLine = address.split(',')[0].trim().toLowerCase();
+  const plain = name.trim().toLowerCase();
+  if (!plain || plain === streetLine || /^[0-9]/.test(plain)) return null; // named after its street number: a house or an apartment, not a place with its own pictures
+  try {
+    const hit = await findPhotoFor({ name, lat, lng }, new Headers({ 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' }));
+    if (!hit) return null;
+    const res = await fetch(hit.imageUrl, { headers: { 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' } });
+    const mime = (res.headers.get('content-type') ?? '').split(';')[0];
+    if (!res.ok || !(mime === "image/jpeg" || mime === "image/png")) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    return bytes.length > 12_000_000 ? null : { bytes, mime };
+  } catch { return null; }
 }
 
 /** What Google says a place is (its name, address and where it is): the record is made from this, never from what the browser claims. */
@@ -363,10 +380,11 @@ Deno.serve(async (req) => {
       : await db.from('address_renders').insert({ place_id: googleId, ...row }).select();
     if (claim.error || !claim.data || claim.data.length === 0) { await giveBack(); return reply(req, { status: 'working' }); }
 
-    // 2. only now Street View
-    const picture = await streetPicture(details.lat, details.lng);
+    // 2. a free photograph of a named place first (the same sources as the pre-plotted places), and only then Street View
+    const free = await freePhotoOf(details.name, details.address, details.lat, details.lng);
+    const picture = free ?? await streetPicture(details.lat, details.lng);
     // no street picture at all, or the property is blurred out: no pre-war footage, only the aftermath (a crater or a heap of burnt rubble on the landscape)
-    const blurred = !!picture && await looksBlurred(picture);
+    const blurred = !free && !!picture && await looksBlurred(picture);
     const rubble = !picture || blurred;
     const png = rubble
       ? await generateRubble(picture ?? await satellitePicture(details.lat, details.lng), !picture, details.name, googleId.slice(-8), body.flooded === true, body.irradiated === true)

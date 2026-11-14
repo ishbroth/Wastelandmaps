@@ -93,6 +93,7 @@ export default function App() {
   const [nav, setNav] = useState<{ spot: Spot; route: NavRoute | null; step: number; toTurn: number | null; remaining: number | null; busy: string; /** Walking directions (the person tapped the walking man); driving ones otherwise. */ walking?: boolean } | null>(null);
   const navRef = useRef(nav);
   const offStreak = useRef(0);
+  const shownFix = useRef<LatLng | null>(null);
   const speedTrail = useRef<{ t: number; p: LatLng }[]>([]);
   const lastReroute = useRef(0);
   const [flash, setFlash] = useState(false);
@@ -1323,9 +1324,13 @@ export default function App() {
         // with the screen off, the map and the list of nearby places are looked at every ten seconds at most
         if (document.hidden && !navRef.current && Date.now() - lastWork < 10_000) { fixRef.current = here; return; }
         lastWork = Date.now();
-        const moved = !fixRef.current || distanceMeters(fixRef.current, here) > 12;
+        // the person's mark on the map moves when they have moved from where it was last drawn (a few metres while navigating, so walking is followed step by step; not from the last reading,
+        // which is only a step away, so a slow walk would never add up to the distance)
+        const shown = shownFix.current;
+        const moved = !shown || distanceMeters(shown, here) > (navRef.current ? (navRef.current.walking ? 2 : 4) : 12);
         fixRef.current = here;
         if (moved) {
+          shownFix.current = here;
           setFix(here);
           setPlayer(here);
           setHereId(null);
