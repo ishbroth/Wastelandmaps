@@ -38,7 +38,7 @@ function bearing(from: { lat: number; lng: number }, to: { lat: number; lng: num
 }
 
 /** A named place (a landmark, a business, a campus: not a plain house number) may have a free photograph that shows it far better than the street in front of it (a ring-shaped headquarters set far back from the road is only trees from Street View): the pre-plotted places' photo sources are asked first. Null for an ordinary address or when nothing usable is found. */
-async function freePhotoOf(name: string, address: string, lat: number, lng: number): Promise<{ bytes: Uint8Array; mime: string } | null> {
+async function freePhotoOf(name: string, address: string, lat: number, lng: number): Promise<{ bytes: Uint8Array; mime: string; credit: { photo: string; author: string; license: string; page: string } } | null> {
   const streetLine = address.split(',')[0].trim().toLowerCase();
   const plain = name.trim().toLowerCase();
   if (!plain || plain === streetLine || /^[0-9]/.test(plain)) return null; // named after its street number: a house or an apartment, not a place with its own pictures
@@ -49,8 +49,27 @@ async function freePhotoOf(name: string, address: string, lat: number, lng: numb
     const mime = (res.headers.get('content-type') ?? '').split(';')[0];
     if (!res.ok || !(mime === "image/jpeg" || mime === "image/png")) return null;
     const bytes = new Uint8Array(await res.arrayBuffer());
-    return bytes.length > 12_000_000 ? null : { bytes, mime };
+    return bytes.length > 12_000_000 ? null : { bytes, mime, credit: { photo: hit.title, author: hit.author, license: hit.license, page: hit.pageUrl } };
   } catch { return null; }
+}
+
+/** The photograph an address's render was made from, when it was a free one: kept beside the render (the picture, and who made it), so the 'before' of the reveal is the real photograph and not Street View. */
+// deno-lint-ignore no-explicit-any
+async function keepSource(db: any, googleId: string, photo: { bytes: Uint8Array; mime: string; credit: { photo: string; author: string; license: string; page: string } }): Promise<void> {
+  try {
+    await db.storage.from('renders').upload(`address/${googleId}-source.img`, photo.bytes, { contentType: photo.mime, upsert: true });
+    await db.storage.from('renders').upload(`address/${googleId}-source.json`, new TextEncoder().encode(JSON.stringify(photo.credit)), { contentType: 'application/json', upsert: true });
+  } catch { /* the reveal then falls back to Street View */ }
+}
+// deno-lint-ignore no-explicit-any
+async function sourceOf(db: any, googleId: string): Promise<{ before?: string; credit?: { photo: string; author: string; license: string; page: string } }> {
+  try {
+    const meta = await db.storage.from('renders').download(`address/${googleId}-source.json`);
+    if (meta.error || !meta.data) return {};
+    const credit = JSON.parse(await meta.data.text());
+    const s = await db.storage.from('renders').createSignedUrl(`address/${googleId}-source.img`, 3600);
+    return s.error || !s.data ? {} : { before: s.data.signedUrl as string, credit };
+  } catch { return {}; }
 }
 
 /** What Google says a place is (its name, address and where it is): the record is made from this, never from what the browser claims. */
@@ -332,7 +351,7 @@ Deno.serve(async (req) => {
       if (charged) await db.rpc('refund_personal', { p_user: user, p_place: placeId, p_cost: existing!.rubble === true ? RUBBLE_COST : COST });
       return reply(req, { error: 'server' }, 500);
     }
-    return reply(req, { status: 'ready', url, charged, ...(existing!.rubble === true ? { rubble: true } : {}) });
+    return reply(req, { status: 'ready', url, charged, ...(existing!.rubble === true ? { rubble: true } : {}), ...(await sourceOf(db, googleId)) });
   }
 
   if (existing?.status === 'generating' && Date.now() - new Date(existing.started_at as string).getTime() < STALE_AFTER_MS) return reply(req, { status: 'working' });
@@ -407,7 +426,8 @@ Deno.serve(async (req) => {
     if (!url) throw new Error('no link');
     // the rubble is a lesser picture: three of the four credits (300 caps) go back, one stays for the making
     if (rubble && spent === 'spent') await db.rpc('part_refund_personal', { p_user: user, p_place: placeId, p_refund: COST - RUBBLE_COST });
-    return reply(req, { status: 'ready', url, charged: spent === 'spent', ...(rubble ? { rubble: true, refunded: COST - RUBBLE_COST } : {}) });
+    if (free && !rubble) await keepSource(db, googleId, free);
+    return reply(req, { status: 'ready', url, charged: spent === 'spent', ...(rubble ? { rubble: true, refunded: COST - RUBBLE_COST } : {}), ...(free && !rubble ? { before: (await sourceOf(db, googleId)).before, credit: free.credit } : {}) });
   } catch (e) {
     await db.from('address_renders').update({ status: 'failed' }).eq('place_id', googleId);
     await giveBack();

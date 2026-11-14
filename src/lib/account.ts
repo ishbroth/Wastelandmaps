@@ -294,6 +294,8 @@ export interface Unlocked {
   /** How many credits went back for it, when it was just made. */
   refunded?: number;
   credit: { photo: string; author: string; license: string; page: string };
+  /** The photograph the render was made from, when it was a free one (a typed-in place that has its own photo): the 'before' of the reveal. */
+  before?: string;
 }
 export type UnlockResult =
   | { kind: 'ready'; render: Unlocked }
@@ -313,7 +315,7 @@ export async function unlockRender(placeId: string, name: string, extra?: { /** 
     }
     return { kind: 'error', reason: reason as 'server', resetsAt };
   }
-  if (data?.status === 'ready') return { kind: 'ready', render: { url: data.url as string, ...(data.rubble === true ? { rubble: true, refunded: Number(data.refunded) || undefined } : {}), credit: (data.credit as Unlocked['credit'] | undefined) ?? { photo: 'Street View', author: 'Google', license: '', page: 'https://www.google.com/streetview/' } } };
+  if (data?.status === 'ready') return { kind: 'ready', render: { url: data.url as string, ...(data.rubble === true ? { rubble: true, refunded: Number(data.refunded) || undefined } : {}), ...(typeof data.before === 'string' ? { before: data.before } : {}), credit: (data.credit as Unlocked['credit'] | undefined) ?? { photo: 'Street View', author: 'Google', license: '', page: 'https://www.google.com/streetview/' } } };
   if (data?.status === 'working') return { kind: 'working' };
   return { kind: 'error', reason: 'server' };
 }

@@ -140,7 +140,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   // what the reveal plays between: the real photo, and the finished picture
   const reveal = vacationReveal ?? (paidReady?.rubble && personal ? { before: paidReady.url, after: paidReady.url, name: spot.name, file: fileName, pristine: true, credit: null } : render
     ? { before: render.before, after: render.url, name: render.name, file: `${render.name.replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`, pristine: !!render.pristine, credit: render.pristine ? null : { photo: render.photo, author: render.author, license: render.license, page: render.page } }
-    : paidReady && personal ? (beforeStreet?.id === spot.id ? { before: beforeStreet.url ?? '', after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : null)
+    : paidReady && personal ? (paidReady.before ? { before: paidReady.before, after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : beforeStreet?.id === spot.id ? { before: beforeStreet.url ?? '', after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : null)
     : paidReady && (photo || supplied) ? { before: photo?.imageUrl ?? supplied ?? '', after: paidReady.url, name: spot.name, file: fileName, pristine: false, credit: paidReady.credit } : null);
 
   // look for the photo of the place (the famous few already come with their snapshot)
