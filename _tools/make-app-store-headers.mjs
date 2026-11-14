@@ -28,7 +28,7 @@ html,body{margin:0;background:#000}
 .f{position:relative;width:${W}px;height:${H}px;overflow:hidden;background:#000a04;font-family:'VT323','Courier New',monospace}
 .tiles{position:absolute;inset:0}
 .tiles div{position:absolute;top:0;bottom:0;width:38%;background-size:cover;background-position:center;filter:saturate(1.05) contrast(1.05);-webkit-mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent);mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent)}
-.shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,10,4,0.97) 0%,rgba(0,10,4,0.88) 26%,rgba(0,10,4,0.45) 44%,rgba(0,10,4,0.04) 62%,rgba(0,10,4,0.2) 100%)}
+.shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,10,4,0.97) 0%,rgba(0,10,4,0.92) 30%,rgba(0,10,4,0.78) 48%,rgba(0,10,4,0.5) 62%,rgba(0,10,4,0.1) 80%,rgba(0,10,4,0.2) 100%)}
 .tint{position:absolute;inset:0;background:radial-gradient(ellipse at 28% 50%,rgba(61,255,138,0.16),rgba(0,0,0,0) 60%);mix-blend-mode:screen}
 .scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.22) 0,rgba(0,0,0,0.22) calc(var(--u)*0.12),rgba(0,0,0,0) calc(var(--u)*0.12),rgba(0,0,0,0) calc(var(--u)*0.34));pointer-events:none}
 .vig{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 55%,rgba(0,0,0,0.55) 100%)}
@@ -43,7 +43,7 @@ p{margin:calc(var(--u)*2.6) 0 0;font-size:calc(var(--u)*5.4);letter-spacing:calc
 </style><div class="f">
 <div class="tiles">${TILES.map((t, i) => `<div style="left:${i * 15.5}%;background-image:url(${t})"></div>`).join('')}</div>
 <div class="shade"></div><div class="tint"></div><div class="scan"></div><div class="vig"></div><div class="frame"></div>
-<div class="text"><img class="cog" src="${COG}"><h1>WASTELAND<span>MAPS</span></h1><p>SEE WHERE YOU LIVE AFTER THE BOMBS FELL</p><div class="tags"><b>DISCOVER</b><b>UNLOCK</b><b>CLEAR</b><b>SURVIVE</b></div></div>
+<div class="text"><img class="cog" src="${COG}"><h1>WASTELAND<span>MAPS</span></h1><p>SEE WHERE YOU LIVE AFTER THE BOMBS FELL</p><div class="tags"><b>NAVIGATE</b><b>DISCOVER</b><b>LOOT</b><b>SURVIVE</b></div></div>
 </div>`;
 
 const port = 9600 + Math.floor(Math.random() * 30);
