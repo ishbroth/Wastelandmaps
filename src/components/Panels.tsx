@@ -8,7 +8,7 @@ import LockIcon from './LockIcon';
 import VacationCog from './VacationCog';
 import type { VacationChoice, VacationOffer } from './VaultHome';
 import { personalId, personalLocation } from '../lib/personal';
-import { purchasesAvailable } from '../lib/native';
+import { isNative, purchasesAvailable } from '../lib/native';
 import Leaderboard from './Leaderboard';
 import Caps, { CapIcon } from './Caps';
 import { StimpakIcon, StopwatchIcon } from './ItemIcons';
@@ -543,13 +543,15 @@ function LegalLinks() {
 /** Buying caps: one button under the balance, which opens the three packs in a popup (the website's payment page, or the App Store's own purchase in the iPhone app). */
 function Packs({ onBought }: { onBought: () => void }) {
   const [open, setOpen] = useState(false);
+  // wide desktop: the popup is over the map; in the app (and on a phone's browser): over the spot that was tapped
+  const [anchor, setAnchor] = useState<'map' | { x: number; y: number } | undefined>(undefined);
   if (!purchasesAvailable()) {
     return <p className="rm-fine">Caps cannot be bought inside the app yet. The ones you have, and the free ones from levelling up, work here.</p>;
   }
   return (
     <div>
-      <button type="button" className="rm-btn rm-btn-ghost rm-trade-money" onClick={() => setOpen(true)}>TRADE PRE-WAR MONEY</button>
-      {open && <BuyCaps title="TRADE PRE-WAR MONEY" onClose={() => setOpen(false)} onBought={onBought} />}
+      <button type="button" className="rm-btn rm-btn-ghost rm-trade-money" onClick={(e) => { const wide = window.matchMedia('(min-width: 961px) and (pointer: fine)').matches && !isNative(); setAnchor(wide ? 'map' : { x: e.clientX, y: e.clientY }); setOpen(true); }}>TRADE PRE-WAR MONEY</button>
+      {open && <BuyCaps title="TRADE PRE-WAR MONEY" anchor={anchor} onClose={() => setOpen(false)} onBought={onBought} />}
     </div>
   );
 }
