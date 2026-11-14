@@ -1319,6 +1319,22 @@ export default function App() {
   // auto-discover: while it is on, walking within about 120 m of a place fills it in on the map. It listens gently (a block's accuracy, now and then, which saves
   // the battery) except while navigating, which needs a position every second.
   const navigating = !!nav;
+  // resting: with AUTO-DISCOVER on but the phone sat in the same spot for three minutes, the location watch eases off (it reports only after a long move and does not ask for the most exact
+  // position), and it is back to normal at the first real move, or the moment the app or site is opened again
+  const [resting, setResting] = useState(false);
+  const restRef = useRef(false);
+  const stillAnchor = useRef<LatLng | null>(null);
+  const stillSince = useRef(Date.now());
+  useEffect(() => { restRef.current = resting; }, [resting]);
+  useEffect(() => {
+    if (!tracking || navigating) { setResting(false); return; }
+    stillSince.current = Date.now();
+    const timer = window.setInterval(() => { if (!restRef.current && Date.now() - stillSince.current > 180_000) setResting(true); }, 20_000);
+    const wake = () => { if (document.visibilityState === 'visible') { stillSince.current = Date.now(); setResting(false); } };
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('focus', wake);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', wake); window.removeEventListener('focus', wake); };
+  }, [tracking, navigating]);
   useEffect(() => {
     if (!tracking) return;
     let stop: (() => void) | null = null;
@@ -1327,6 +1343,9 @@ export default function App() {
     void watchFixes(
       (pos) => {
         const here = { lat: pos.lat, lng: pos.lng };
+        // moved more than a block's width from where the phone last sat: not resting any more
+        const still = stillAnchor.current;
+        if (!still || distanceMeters(still, here) > 30) { stillAnchor.current = here; stillSince.current = Date.now(); if (restRef.current) setResting(false); }
         // with the screen off, the map and the list of nearby places are looked at every ten seconds at most
         if (document.hidden && !navRef.current && Date.now() - lastWork < 10_000) { fixRef.current = here; return; }
         lastWork = Date.now();
@@ -1350,10 +1369,10 @@ export default function App() {
       },
       // only a refusal turns it off: a moment without a signal (a tunnel, a bad fix) must not end the navigation
       (code) => { if (code === 1) { setTracking(false); setMessage('ERROR: LOCATION PERMISSION DENIED'); } },
-      { lowPower: !navigating, background: { title: 'WastelandMaps is exploring', message: 'Discovering places as you move. Turn AUTO-DISCOVER off to stop.' } },
+      { lowPower: !navigating, idle: resting && !navigating, background: { title: 'WastelandMaps is exploring', message: 'Discovering places as you move. Turn AUTO-DISCOVER off to stop.' } },
     ).then((off) => { if (cancelled) off(); else stop = off; });
     return () => { cancelled = true; stop?.(); };
-  }, [tracking, markFound, navigating]);
+  }, [tracking, markFound, navigating, resting]);
 
   const toggleTracking = async () => {
     const next = !tracking;

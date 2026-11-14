@@ -41,7 +41,7 @@ const codeOf = (e: unknown): 1 | 2 | 3 => {
   return 2;
 };
 
-export interface GeoOptions { /** Save the battery: positions to within a block or so, less often (enough to discover places while the phone is in a pocket; not for turn-by-turn). */ lowPower?: boolean; timeout?: number; maximumAge?: number; highAccuracy?: boolean; /** Keep watching with the phone locked or the app in the background (app only). */ background?: { title: string; message: string } }
+export interface GeoOptions { /** The phone has sat still for minutes: report only after a long move (a few hundred metres), and do not ask for the most exact position. */ idle?: boolean; /** Save the battery: positions to within a block or so, less often (enough to discover places while the phone is in a pocket; not for turn-by-turn). */ lowPower?: boolean; timeout?: number; maximumAge?: number; highAccuracy?: boolean; /** Keep watching with the phone locked or the app in the background (app only). */ background?: { title: string; message: string } }
 
 /** Where the device is now (throws a GeoError). */
 export async function getFix(options: GeoOptions = {}): Promise<GeoFix> {
@@ -67,7 +67,7 @@ export async function getFix(options: GeoOptions = {}): Promise<GeoFix> {
 export async function watchFixes(onFix: (fix: GeoFix) => void, onError: (code: 1 | 2 | 3) => void, options: GeoOptions = {}): Promise<() => void> {
   if (isNative() && options.background) {
     const id = await BackgroundGeolocation.addWatcher(
-      { backgroundTitle: options.background.title, backgroundMessage: options.background.message, requestPermissions: true, stale: false, distanceFilter: options.lowPower ? 40 : 3, lowPower: options.lowPower === true },
+      { backgroundTitle: options.background.title, backgroundMessage: options.background.message, requestPermissions: true, stale: false, distanceFilter: options.idle ? 150 : options.lowPower ? 40 : 3, lowPower: options.lowPower === true },
       (location, error) => {
         if (location) onFix({ lat: location.latitude, lng: location.longitude, accuracy: location.accuracy });
         else if (error) onError(error.code === 'NOT_AUTHORIZED' ? 1 : 2);
@@ -76,7 +76,7 @@ export async function watchFixes(onFix: (fix: GeoFix) => void, onError: (code: 1
     return () => { void BackgroundGeolocation.removeWatcher({ id }); };
   }
   if (isNative()) {
-    const id = await Geolocation.watchPosition({ enableHighAccuracy: options.highAccuracy ?? true, maximumAge: options.maximumAge ?? 10_000, timeout: options.timeout ?? 30_000 }, (pos, err) => {
+    const id = await Geolocation.watchPosition({ enableHighAccuracy: options.idle ? false : (options.highAccuracy ?? true), maximumAge: options.maximumAge ?? 10_000, timeout: options.timeout ?? 30_000 }, (pos, err) => {
       if (pos) onFix({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
       else if (err) onError(codeOf(err));
     });
@@ -86,7 +86,7 @@ export async function watchFixes(onFix: (fix: GeoFix) => void, onError: (code: 1
   const id = navigator.geolocation.watchPosition(
     (pos) => onFix({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
     (err) => onError(err.code as 1 | 2 | 3),
-    { enableHighAccuracy: options.highAccuracy ?? true, maximumAge: options.maximumAge ?? 10_000 },
+    { enableHighAccuracy: options.idle ? false : (options.highAccuracy ?? true), maximumAge: options.idle ? 120_000 : (options.maximumAge ?? 10_000) },
   );
   return () => navigator.geolocation.clearWatch(id);
 }
