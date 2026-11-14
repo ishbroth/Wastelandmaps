@@ -2,13 +2,14 @@
 // Each is [lat, lng, radius in meters, aspect, angle in degrees, seed]; the outline is a wobbly oval drawn from the seed, so it is always the same.
 
 import { seeded, type LatLng } from './wasteland';
+import { fetchSite } from './siteData';
 
 export type FloodPatch = number[];
 
 let loading: Promise<Record<string, FloodPatch[]>> | null = null;
 export function loadFlood(): Promise<Record<string, FloodPatch[]>> {
   if (!loading) {
-    loading = fetch(`${import.meta.env.BASE_URL}data/flood.json`)
+    loading = fetchSite(`data/flood.json`)
       .then((r) => (r.ok ? (r.json() as Promise<Record<string, FloodPatch[]>>) : {}))
       .catch(() => ({}));
   }
@@ -58,7 +59,7 @@ let loadingRoads: Promise<Record<string, number[][]>> | null = null;
 /** The main roads (motorways to tertiary roads) inside each patch, by the patch's seed: [class, lat0, lng0, dLat, dLng, ...] in 1e-5 degrees (class 0: motorway or trunk, 1: primary, 2: secondary). */
 export function loadFloodRoads(): Promise<Record<string, number[][]>> {
   if (!loadingRoads) {
-    loadingRoads = fetch(`${import.meta.env.BASE_URL}data/flood-roads.json`)
+    loadingRoads = fetchSite(`data/flood-roads.json`)
       .then((r) => (r.ok ? (r.json() as Promise<Record<string, number[][]>>) : {}))
       .catch(() => ({}));
   }

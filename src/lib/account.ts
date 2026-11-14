@@ -9,6 +9,7 @@ import { STARTING_ARSENAL, type Arsenal, type WeaponClass } from './raid/weapons
 import type { LootBag, LootId } from './raid/loot';
 import type { VaultHome } from './vaultHome';
 import { forgetFaceId, offerFaceId, readFaceId } from './faceid';
+import { fetchSite } from './siteData';
 
 const URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? 'https://tdwikatzogfwfssyzmlw.supabase.co';
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -560,7 +561,7 @@ export async function claimMetroClear(metroId: string, ids: string[]): Promise<{
 /** The places of a metro that count toward clearing it (Wikidata ids without the Q prefix removed: "Q123"). */
 export async function loadClearable(metroId: string): Promise<string[]> {
   try {
-    const res = await fetch(`${import.meta.env.BASE_URL}data/clear/${metroId}.json`);
+    const res = await fetchSite(`data/clear/${metroId}.json`);
     return res.ok ? ((await res.json()) as string[]) : [];
   } catch { return []; }
 }

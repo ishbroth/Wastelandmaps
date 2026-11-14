@@ -6,6 +6,7 @@ import { FAMOUS } from './famous';
 import { FREE_RENDERS } from './renders';
 import { assignVaults } from './vaults';
 import { distanceMeters, hashString, locationFromData, type CategoryId, type LatLng, type Location } from './wasteland';
+import { fetchSite } from './siteData';
 
 export interface MetroEntry {
   id: string;
@@ -26,7 +27,6 @@ export interface MetroEntry {
 const HIDDEN_IDS = new Set(['wd:Q359939']);
 const NOT_A_PLACE = /congressional district|legislative district|school district|electoral|area codes?|zip codes?|postal code|time zone|telephone|numbering plan/i;
 
-const base = `${import.meta.env.BASE_URL}data/`;
 let index: Promise<MetroEntry[]> | null = null;
 const loaded = new Map<string, Promise<Location[]>>();
 
@@ -34,7 +34,7 @@ const loaded = new Map<string, Promise<Location[]>>();
 export function loadIndex(): Promise<MetroEntry[]> {
   if (!index) {
     const attempt = async (): Promise<MetroEntry[]> => {
-      const res = await fetch(`${base}index.json`);
+      const res = await fetchSite('data/index.json');
       if (!res.ok) throw new Error('no index');
       return (await res.json()) as MetroEntry[];
     };
@@ -130,7 +130,7 @@ function withFamous(metro: MetroEntry, places: Location[]): Location[] {
 type Locals = Record<string, [string, string][]>;
 let localsLoading: Promise<Locals> | null = null;
 const loadLocals = (): Promise<Locals> =>
-  (localsLoading ??= fetch(`${import.meta.env.BASE_URL}data/locals.json`)
+  (localsLoading ??= fetchSite(`data/locals.json`)
     .then(async (r): Promise<Locals> => (r.ok ? ((await r.json()) as Locals) : {}))
     .catch((): Locals => ({})));
 function withLocals(places: Location[], picks: [string, string][]): Location[] {
@@ -241,7 +241,7 @@ export function loadMetro(metro: MetroEntry): Promise<Location[]> {
   const id = metro.id;
   let hit = loaded.get(id);
   if (!hit) {
-    hit = fetch(`${base}metros/${id}.json`)
+    hit = fetchSite(`data/metros/${id}.json`)
       .then((r) => (r.ok ? (r.json() as Promise<{ places: [string, string, number, number, string, number?, number?][] }>) : { places: [] }))
       .then((m) => m.places.map(([pid, name, lat, lng, category, fame, area]) => locationFromData(`wd:${pid}`, name, { lat, lng }, category as CategoryId, fame ?? 0, area === 1)))
       .then((places) => places.filter((p) => !NOT_A_PLACE.test(p.oldName) && !HIDDEN_IDS.has(p.id)))

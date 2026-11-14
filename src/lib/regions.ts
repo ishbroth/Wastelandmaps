@@ -2,6 +2,7 @@
 // Fallout games and their lore are marked; the rest are ours. (The cities have their own names: see lore.ts.)
 
 import { hashString, type LatLng } from './wasteland';
+import { fetchSite } from './siteData';
 
 export interface RegionLabel {
   name: string;
@@ -144,7 +145,7 @@ const LORE_PLACES: { name: string; at: LatLng }[] = [
 let loading: Promise<RegionsFile | null> | null = null;
 export function loadRegions(): Promise<RegionsFile | null> {
   if (!loading) {
-    loading = fetch(`${import.meta.env.BASE_URL}data/regions.json`)
+    loading = fetchSite(`data/regions.json`)
       .then((r) => (r.ok ? (r.json() as Promise<RegionsFile>) : null))
       .catch(() => null);
   }

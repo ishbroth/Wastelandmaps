@@ -2,13 +2,14 @@
 // the cloud may drift out over water. Each is [lat, lng, radius in meters, rads, seed, name of the neighborhood or suburb it sits over].
 
 import { hashString, seeded, type LatLng } from './wasteland';
+import { fetchSite } from './siteData';
 
 export type ZoneEntry = (number | string)[];
 
 let loading: Promise<Record<string, ZoneEntry[]>> | null = null;
 export function loadZones(): Promise<Record<string, ZoneEntry[]>> {
   if (!loading) {
-    loading = fetch(`${import.meta.env.BASE_URL}data/zones.json`)
+    loading = fetchSite(`data/zones.json`)
       .then((r) => (r.ok ? (r.json() as Promise<Record<string, ZoneEntry[]>>) : {}))
       .catch(() => ({}));
   }
