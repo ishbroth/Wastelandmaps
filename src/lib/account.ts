@@ -223,6 +223,15 @@ export function useAccount(): Account {
   return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, legendaryTime, vacations, homeRooms, waiting, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, clearedPaid, refresh, loaded };
 }
 
+/** The welcome gift of 500 caps for being signed in from the phone app: in the app it is claimed (once per person, the server checks); on the website it only asks whether it is still waiting. */
+export async function welcomeBonus(): Promise<{ granted: boolean; waiting: boolean; caps?: number }> {
+  const action = isNative() ? 'claim' : 'status';
+  const { data, error } = await db().functions.invoke('welcome-bonus', { body: { action } });
+  if (error || !data) return { granted: false, waiting: false };
+  if (action === 'claim') return { granted: data.granted === true, waiting: false, caps: data.caps as number | undefined };
+  return { granted: false, waiting: data.claimed === false };
+}
+
 /** Emails a sign-in link. */
 export async function sendSignInLink(email: string): Promise<string | null> {
   const { error } = await db().auth.signInWithOtp({ email, options: { emailRedirectTo: isNative() ? NATIVE_AUTH_REDIRECT : window.location.origin + window.location.pathname } });

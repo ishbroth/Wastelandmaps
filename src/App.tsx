@@ -9,7 +9,7 @@ import { savedFaceIds } from './lib/faceid';
 import SceneModal from './components/SceneModal';
 import StreetWalk from './components/StreetWalk';
 import BinocButton from './components/BinocButton';
-import { accountsEnabled, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import { accountsEnabled, welcomeBonus, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { startPurchases } from './lib/iap';
 import { keepScreenOn } from './lib/awake';
@@ -372,6 +372,18 @@ export default function App() {
     if (soundRef.current) beep(kind);
   }, []);
 
+  // the welcome gift: in the app, 500 caps the first time they are signed in (right away for someone who registered in the app, or the next time for someone who registered on the website);
+  // on the website, a flashing reminder to download the app while the gift is still waiting
+  const giftAsked = useRef<string | null>(null);
+  useEffect(() => {
+    const id = account.session?.user.id;
+    if (!id || giftAsked.current === id) return;
+    giftAsked.current = id;
+    void welcomeBonus().then(async (r) => {
+      if (r.granted) { await account.refresh(); setToast(`WELCOME, SURVIVOR: +${r.caps ?? 500} CAPS`); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 4200); sound('discover'); }
+      else if (r.waiting) { setToast('DOWNLOAD THE APP AND GET 500 FREE CAPS'); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 6000); }
+    });
+  }, [account.session]); // eslint-disable-line react-hooks/exhaustive-deps
   // the Pip-Boy powers up when a sign-in finishes (Face ID, vault number or the emailed link, whichever it was): the chime and the buzz, played here so every way of signing in has them
   const signInSeen = useRef<string | null | undefined>(undefined);
   const signInOpened = useRef(false);
