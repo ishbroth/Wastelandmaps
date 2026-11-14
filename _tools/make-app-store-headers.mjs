@@ -11,6 +11,7 @@ if (!OUT) { console.log('usage: node _tools/make-app-store-headers.mjs <output f
 fs.mkdirSync(OUT, { recursive: true });
 const ROOT = path.resolve(import.meta.dirname, '..');
 const CH = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const { placeIcon } = await import('../src/lib/placeIcons.ts'); // the map's own icons
 const b64 = (file) => fs.readFileSync(file).toString('base64');
 const TILES = ['Q133274', 'Q12506', 'Q180376', 'Q243', 'Q41225'].map((q) => `data:image/png;base64,${b64(path.join(ROOT, 'public', 'renders', `${q}.png`))}`);
 const COG = `data:image/png;base64,${b64(path.join(ROOT, 'resources', 'icon-badge-nowords.png'))}`; // the icon picture without its lettering (the wordmark is set beside it)
@@ -98,6 +99,21 @@ const SHORE = (() => {
   }
   return chain;
 })();
+const PINS = [
+  { name: 'John Hancock Center', at: [41.8989, -87.6232], icon: 'glasstower', found: true },
+  { name: 'Navy Pier', at: [41.8917, -87.6086], icon: 'anchor' },
+  { name: 'Chicago History Museum', at: [41.9119, -87.632], icon: 'column', found: true },
+  { name: 'North Avenue Beach', at: [41.9164, -87.6301], icon: 'palm' },
+  { name: 'Lincoln Park Zoo', at: [41.9212, -87.6341], icon: 'leafytree', found: true },
+  { name: 'Bridgeport', at: [41.8378, -87.649], icon: 'houses' },
+  { name: 'Water Tower', at: [41.8977, -87.6244], icon: 'tower', found: true },
+  { name: 'Holy Name Cathedral', at: [41.896, -87.6272], icon: 'cathedral' },
+  { name: 'Oak Street Beach', at: [41.9025, -87.6256], icon: 'palm' },
+  { name: 'Newberry Library', at: [41.8996, -87.6318], icon: 'book', found: true },
+  { name: 'Chinatown', at: [41.8528, -87.6339], icon: 'temple' },
+  { name: 'McCormick Place', at: [41.8512, -87.6171], icon: 'mall', found: true },
+  { name: 'Willis Tower', at: [41.8789, -87.6359], icon: 'skyscraper', found: true },
+];
 const streetsSvg = (W, H) => {
   const u = H / 100, px = project(W, H);
   const d = (pts) => pts.map((p, i) => { const [x, y] = px(p); return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`; }).join('');
@@ -171,6 +187,26 @@ for (const [W, H] of [[5244, 2950], [3840, 1646]]) {
   await new Promise((r) => setTimeout(r, 2500));
   await send('Runtime.evaluate', { expression: "document.fonts.load('bold 100px VT323').then(() => document.fonts.ready)", awaitPromise: true });
   await new Promise((r) => setTimeout(r, 500));
+  const rectsJson = (await send('Runtime.evaluate', { expression: "JSON.stringify(['.cog', 'h1', '.text p', '.tags'].map((q) => { const r = document.querySelector(q).getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; }))", returnByValue: true })).result.value;
+  const texts = JSON.parse(rectsJson);
+  const u = H / 100, px = project(W, H), route = routeFor(W, H);
+  const marks = [px(route[0]), px(route[route.length - 1])];
+  const placed = [];
+  const SIZE = u * 4.6;
+  for (const p of PINS) {
+    if (placed.length >= 6) break;
+    const [x, y] = px(p.at);
+    const box = [x - SIZE / 2 - u * 0.8, y - SIZE / 2 - u * 0.8, x + SIZE / 2 + u * 0.8, y + SIZE / 2 + u * 0.8];
+    if (x < 0.07 * W || x > 0.44 * W || y < 0.06 * H || y > 0.94 * H) continue; // inside the frame, and where the map is still strong
+    if (texts.some((t) => box[0] < t[2] + u * 1.0 && box[2] > t[0] - u * 1.0 && box[1] < t[3] + u * 1.0 && box[3] > t[1] - u * 1.0)) continue; // not over the writing, the badge or the tags
+    if (marks.some((m) => Math.hypot(m[0] - x, m[1] - y) < u * 9)) continue; // nor on the start arrow or the end ring
+    if (placed.some((q) => Math.hypot(q.x - x, q.y - y) < u * 5.5)) continue; // spread out
+    placed.push({ x, y, ...p });
+  }
+  console.log(W + 'x' + H, 'pins:', placed.map((p) => p.name).join(', '));
+  const pinsHtml = placed.map((p) => `<div class="pin${p.found ? ' found' : ''}" style="left:${p.x - SIZE / 2}px;top:${p.y - SIZE / 2}px;width:${SIZE}px;height:${SIZE}px">${placeIcon(p.icon)}</div>`).join('');
+  await send('Runtime.evaluate', { expression: `(() => { const s = document.createElement('style'); s.textContent = ${JSON.stringify(`.pin{position:absolute;color:#3dff8a;opacity:0.88;filter:drop-shadow(0 0 ${u * 0.12}px #000) drop-shadow(0 0 ${u * 0.9}px rgba(61,255,138,0.75))}.pin svg{width:100%;height:100%}.pin svg .f,.pin svg .d,.pin svg .s{fill:none}.pin:not(.found){opacity:0.62}.pin.found svg{stroke:#021a0c;stroke-width:0.9}.pin.found svg .f{fill:currentColor}.pin.found svg .d{stroke:#021a0c;stroke-width:1.5}`)}; document.head.appendChild(s); document.querySelector('.scan').insertAdjacentHTML('beforebegin', ${JSON.stringify(pinsHtml)}); })()` });
+  await new Promise((r) => setTimeout(r, 300));
   const shot = await send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: W, height: H, scale: 1 } });
   const file = path.join(OUT, `WastelandMaps-header-${W}x${H}.png`);
   fs.writeFileSync(file, Buffer.from(shot.data, 'base64'));
