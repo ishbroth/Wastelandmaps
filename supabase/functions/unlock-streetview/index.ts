@@ -174,42 +174,38 @@ async function findTwin(db: any, details: { address: string; lat: number; lng: n
   return (data ?? []).find((r: any) => r.storage_path && buildingKey(String(r.address ?? '')) === key) ?? null;
 }
 
-/** A person's home picture with the numbers on the vault door taken off, so the picture other people see of that house has a blank door. Null if the model cannot do it (then nothing is shared). */
-async function eraseNumber(png: Uint8Array): Promise<Uint8Array | null> {
-  const key = Deno.env.get('GEMINI_API_KEY');
-  if (!key) return null;
-  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
+/** The picture of a home as everyone else sees it: the building as it would be rendered for anybody (no vault), kept as the address's shared render. Made once; if the address already has a render nothing is changed. */
+// deno-lint-ignore no-explicit-any
+async function publishBase(db: any, user: string, details: { name: string; address: string; lat: number; lng: number }, googleId: string, png: Uint8Array, metro: string | null): Promise<void> {
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: 'Edit this picture: the round steel vault door has a number painted on its face. Remove every digit completely, so the face of the door is plain, blank, worn painted metal with no numbers, letters or marks of any kind. Change nothing else in the picture: the ruin, the door, the sky and everything round it stay exactly as they are.' }, { inline_data: { mime_type: 'image/png', data: toBase64(png) } }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }),
-    });
-    if (!res.ok) return null;
-    const body = await res.json();
-    // deno-lint-ignore no-explicit-any
-    const part = (body.candidates?.[0]?.content?.parts ?? []).find((p: any) => p.inlineData?.data || p.inline_data?.data);
-    const b64: string | undefined = part?.inlineData?.data ?? part?.inline_data?.data;
-    return b64 ? Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)) : null;
-  } catch { return null; }
+    const { data: there } = await db.from('address_renders').select('place_id,status,storage_path').eq('place_id', googleId).maybeSingle();
+    if (there && there.status === 'ready' && there.storage_path) return;
+    const path = `address/${googleId}.png`;
+    const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
+    if (up.error) return;
+    await db.storage.from('public-renders').upload(path, png, { contentType: 'image/png', upsert: true }).catch(() => null);
+    const now = new Date().toISOString();
+    await db.from('address_renders').upsert({ place_id: googleId, name: details.name, address: details.address, lat: details.lat, lng: details.lng, kind: 'house', metro_id: metro, status: 'ready', started_at: now, created_at: now, storage_path: path, created_by: user }, { onConflict: 'place_id' });
+  } catch (e) { console.error('home base publish failed', e instanceof Error ? e.message : e); }
 }
 
-/** What everyone else sees of someone's home: the same destroyed house with its vault door, the number taken off. Made once (when nobody has a picture of that address yet) and kept as the address's shared render. */
-// deno-lint-ignore no-explicit-any
-async function publishHome(db: any, user: string, home: { place_id: string; address?: string | null; lat?: number | null; lng?: number | null }, png: Uint8Array, metro: string | null): Promise<void> {
-  try {
-    if (home.lat === null || home.lat === undefined || home.lng === null || home.lng === undefined) return;
-    const { data: there } = await db.from('address_renders').select('place_id').eq('place_id', home.place_id).maybeSingle();
-    if (there) return;
-    const blank = await eraseNumber(png);
-    if (!blank) return;
-    const path = `address/${home.place_id}.png`;
-    const up = await db.storage.from('renders').upload(path, blank, { contentType: 'image/png', upsert: true });
-    if (up.error) return;
-    await db.storage.from('public-renders').upload(path, blank, { contentType: 'image/png', upsert: true }).catch(() => null);
-    const address = String(home.address ?? '');
-    const now = new Date().toISOString();
-    await db.from('address_renders').insert({ place_id: home.place_id, name: address.split(',')[0] || 'Home', address, lat: home.lat, lng: home.lng, kind: 'house', metro_id: metro, status: 'ready', started_at: now, created_at: now, storage_path: path, created_by: user });
-  } catch (e) { console.error('home publish failed', e instanceof Error ? e.message : e); }
+/** The owner's own picture: the same building render, with their vault door put into it (their number on its face). Everything else in the picture stays exactly as it is. */
+async function addVault(base: Uint8Array, number: string): Promise<Uint8Array> {
+  const key = Deno.env.get('GEMINI_API_KEY');
+  if (!key) throw new Error('image generation is not set up');
+  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
+  const prompt = 'This is a post-apocalyptic render of a ruined building. Edit it into the SAME picture with ONE addition: this building is the entrance to a vault, so put a massive round steel vault door into the scene, where it fits the ruin best: if the building is a house or a low ruin, the door sits flat in the ground among the rubble in a broken concrete hatch; if it is a tall block, the door stands upright in a reinforced concrete frame at the base of the wall. The door is a thick gear-toothed disc with ONE solid, unbroken round face (no seam or split down the middle, no hinges: it is NOT a hinged or barn-style door), thick bolts around the rim, worn yellow and blue paint, with the number ' + number + ' painted in large, crisp, legible white numerals on its face. It never swings open on hinges: it is sealed shut in its frame, or, if open, drawn like a manhole cover partly slid off. Change NOTHING else: the building, the rubble, the road, the sky, the light, the camera angle and every other detail stay exactly as they are. The number ' + number + ' is the only text allowed in the picture.';
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/png', data: toBase64(base) } }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }),
+  });
+  if (!res.ok) throw new Error(`image model said ${res.status}`);
+  const body = await res.json();
+  // deno-lint-ignore no-explicit-any
+  const part = (body.candidates?.[0]?.content?.parts ?? []).find((p: any) => p.inlineData?.data || p.inline_data?.data);
+  const b64: string | undefined = part?.inlineData?.data ?? part?.inline_data?.data;
+  if (!b64) throw new Error('the image model returned no image');
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
 // Their own home, blown up with their vault door in it: kept per person (the number on the door is theirs), 4 credits, charged first and refunded on failure.
@@ -233,10 +229,6 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
     // the picture is theirs already: make sure the unlock is on record too (clearing the home and the app both look for it), without charging anything
     await db.from('unlocks').upsert({ user_id: user, place_id: unlockKey }, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
     const url = await signed(mine.storage_path as string);
-    // the shared picture of this house (the same, with the number off the door) is made if nobody has one yet, in the background
-    const work = (async () => { const dl = await db.storage.from('renders').download(mine.storage_path as string); if (!dl.error && dl.data) await publishHome(db, user, home, new Uint8Array(await dl.data.arrayBuffer()), metro); })();
-    // @ts-ignore the edge runtime lets work finish after the answer is sent
-    if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(work); else void work;
     return url ? reply(req, { status: 'ready', url, charged: false }) : reply(req, { error: 'server' }, 500);
   }
   if (mine?.status === 'generating' && Date.now() - new Date(mine.started_at as string).getTime() < STALE_AFTER_MS) return reply(req, { status: 'working' });
@@ -258,20 +250,33 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
       ? await db.from('home_renders').update(row).eq('user_id', user).eq('google_id', googleId).eq('started_at', existing.started_at).select()
       : await db.from('home_renders').insert(row).select();
     if (claim.error || !claim.data || claim.data.length === 0) { await giveBack(); return reply(req, { status: 'working' }); }
-    const picture = await streetPicture(details.lat, details.lng);
-    if (!picture) {
-      await db.from('home_renders').delete().eq('user_id', user).eq('google_id', googleId);
-      await giveBack();
-      return reply(req, { error: 'no_streetview' }, 404);
+    // 1. the building as anybody sees it, with no vault: the address's shared render if there already is one (then nothing new is drawn of the building), otherwise made now from a free photo of
+    // the place or from Street View, and kept as the shared render
+    let base: Uint8Array | null = null;
+    const { data: shared } = await db.from('address_renders').select('status,storage_path').eq('place_id', googleId).maybeSingle();
+    if (shared?.status === 'ready' && shared.storage_path) {
+      const dl = await db.storage.from('renders').download(shared.storage_path as string);
+      if (!dl.error && dl.data) base = new Uint8Array(await dl.data.arrayBuffer());
     }
-    const png = await generate(picture, 'house', details.name, String(number).padStart(4, '0'), flooded, irradiated);
+    if (!base) {
+      const free = await freePhotoOf(details.name, details.address, details.lat, details.lng);
+      const picture = free ?? await streetPicture(details.lat, details.lng);
+      if (!picture) {
+        await db.from('home_renders').delete().eq('user_id', user).eq('google_id', googleId);
+        await giveBack();
+        return reply(req, { error: 'no_streetview' }, 404);
+      }
+      base = await generate(picture, 'house', details.name, undefined, flooded, irradiated);
+      await publishBase(db, user, details, googleId, base, metro);
+    }
+    // 2. the owner's own picture: that same render with their vault in it
+    const png = await addVault(base, String(number).padStart(4, '0'));
     const path = `home/${user}/${googleId}.png`;
     const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
     if (up.error) throw new Error('could not store the image');
     await db.from('home_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString() }).eq('user_id', user).eq('google_id', googleId);
     const url = await signed(path);
     if (!url) throw new Error('no link');
-    await publishHome(db, user, home, png, metro);
     return reply(req, { status: 'ready', url, charged: spent === 'spent' });
   } catch (e) {
     await db.from('home_renders').update({ status: 'failed' }).eq('user_id', user).eq('google_id', googleId);
