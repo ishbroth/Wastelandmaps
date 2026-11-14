@@ -708,6 +708,7 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
       handle.setMap(map);
       you.current = { handle, el };
     } else {
+      if (!you.current.handle.getMap()) you.current.handle.setMap(map); // taken off the map by something else: put back
       you.current.handle.setPosition(player);
     }
   }, [player, wasteland]);

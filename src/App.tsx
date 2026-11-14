@@ -94,6 +94,9 @@ export default function App() {
   const navRef = useRef(nav);
   const offStreak = useRef(0);
   const shownFix = useRef<LatLng | null>(null);
+  // when the YOU marker has been taken away (a new scan with no position, say), the next reading puts it back, however near it is to where it last was
+  const playerNow = useRef<LatLng | null>(null);
+  useEffect(() => { playerNow.current = player; }, [player]);
   const speedTrail = useRef<{ t: number; p: LatLng }[]>([]);
   const lastReroute = useRef(0);
   const [flash, setFlash] = useState(false);
@@ -974,7 +977,10 @@ export default function App() {
     getFix({ timeout: 20_000, maximumAge: 60_000 }).then(
       (pos) => {
         setMessage('');
-        void show(() => geocodeLatLng({ lat: pos.lat, lng: pos.lng }), 'your position');
+        // the position found is where the person is: kept, and the YOU marker drawn there now (not left to the next reading of the location watch, which may be a long way off)
+        const me = { lat: pos.lat, lng: pos.lng };
+        fixRef.current = me; shownFix.current = me; setFix(me); setPlayer(me); setHereId(null);
+        void show(() => geocodeLatLng(me), 'your position');
         setTracking(true);
         void enableNotifications();
       },
@@ -1327,7 +1333,7 @@ export default function App() {
         // the person's mark on the map moves when they have moved from where it was last drawn (a few metres while navigating, so walking is followed step by step; not from the last reading,
         // which is only a step away, so a slow walk would never add up to the distance)
         const shown = shownFix.current;
-        const moved = !shown || distanceMeters(shown, here) > (navRef.current ? (navRef.current.walking ? 2 : 4) : 12);
+        const moved = !shown || !playerNow.current || distanceMeters(shown, here) > (navRef.current ? (navRef.current.walking ? 2 : 4) : 12);
         fixRef.current = here;
         if (moved) {
           shownFix.current = here;
