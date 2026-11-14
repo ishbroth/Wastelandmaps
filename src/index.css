@@ -1237,3 +1237,16 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
   .rm-loot-item b { font-size: 14px; }
   .rm-arsenal-head b { font-size: 14px; }
 }
+
+/* the gun cards must never be wider than the panel (turned sideways the Pip-Boy's side is narrow): the list and its rows may shrink, the figures and the cost wrap, and the picture is smaller */
+.rm-arsenal { grid-template-columns: minmax(0, 1fr); }
+.rm-arsenal > li, .rm-gun, .rm-gun-card, .rm-gun-main { min-width: 0; }
+.rm-gun { max-width: 100%; }
+.rm-gun-stats { flex-wrap: wrap; gap: 2px 10px; }
+.rm-gun-cost { flex-wrap: wrap; }
+.rm-gun-name { flex-wrap: wrap; }
+@media (max-width: 960px) and (orientation: landscape) {
+  .rm-gun-img { width: 52px; max-height: 34px; }
+  .rm-gun-arrows button { width: 28px; }
+  .rm-gun-card { gap: 6px; padding: 4px 6px; }
+}
