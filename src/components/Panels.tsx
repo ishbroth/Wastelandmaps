@@ -493,7 +493,7 @@ function AtlasBox({ account, metro }: { account: Account; metro: { id: string; n
     <div className="rm-atlas">
       <h3>PROJECT: ATLAS · {metro.name.toUpperCase()}</h3>
       {unlocked ? (
-        <p className="rm-fine">Unlocked. Every address and snapshot unlocked by every user in this metro is now on the map and available for you to view and loot.</p>
+        <p className="rm-fine">Unlocked. Every address mapped by any user in this metro is now on your map and available to view and loot.</p>
       ) : (
         <>
           <p className="rm-fine">{count === null ? 'Counting…' : count === 0 ? 'No addresses are rendered here yet.' : `${count} address${count === 1 ? '' : 'es'} here have been rendered by other survivors.`} Unlock them all, now and in the future, for <Caps n={caps(METRO_COST)} />.</p>
