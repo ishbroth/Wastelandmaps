@@ -12,6 +12,7 @@
 import { callerId, corsHeaders, reply, serviceClient, dailyRenderCap, nextRenderReset } from '../_shared/common.ts';
 import { renderPrompt } from '../_shared/renderPrompt.ts';
 import { findPhotoFor } from '../_shared/photoSources.ts';
+import { keepsBuilding } from '../_shared/verifyRender.ts';
 import { streetPrompt } from '../_shared/streetPrompt.ts';
 
 const UA = { 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' };
@@ -77,7 +78,7 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-async function generate(photo: Photo, name: string, entity: string, flooded: boolean, irradiated: boolean, vaultNumber?: number, category?: string): Promise<Uint8Array> {
+async function generate(photo: Photo, name: string, entity: string, flooded: boolean, irradiated: boolean, vaultNumber?: number, category?: string, strict = false): Promise<Uint8Array> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) throw new Error('image generation is not set up');
   const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
@@ -85,7 +86,7 @@ async function generate(photo: Photo, name: string, entity: string, flooded: boo
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: renderPrompt(name, entity, flooded, irradiated, vaultNumber, category) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }],
+      contents: [{ parts: [{ text: renderPrompt(name, entity, flooded, irradiated, vaultNumber, category, strict) }, { inline_data: { mime_type: photo.mime, data: toBase64(photo.bytes) } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     }),
   });
@@ -166,7 +167,12 @@ Deno.serve(async (req) => {
           else { await db.from('renders').delete().eq('place_id', placeId); await giveBack(); return reply(req, { error: useStreet ? 'no_streetview' : 'no_photo' }, 404); }
         } else {
           try {
-            const png = useStreet ? await generateFromStreet(photo, placeName, kindOf, flooded === true, irradiated === true) : await generate(photo, placeName, entity, flooded === true, irradiated === true, vaultNum ?? undefined, kindOf);
+            const png = useStreet ? await generateFromStreet(photo, placeName, kindOf, flooded === true, irradiated === true) : await (async () => {
+              // the render, a second look at whether it kept the photograph's building, and one more try if it swapped it for a generic one
+              const first = await generate(photo, placeName, entity, flooded === true, irradiated === true, vaultNum ?? undefined, kindOf);
+              if (await keepsBuilding(photo, first)) return first;
+              try { return await generate(photo, placeName, entity, flooded === true, irradiated === true, vaultNum ?? undefined, kindOf, true); } catch { return first; }
+            })();
             const path = `${entity}.png`;
             const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
             if (up.error) throw new Error('could not store the image');

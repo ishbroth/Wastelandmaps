@@ -16,6 +16,7 @@
 import { callerId, corsHeaders, reply, serviceClient, dailyRenderCap, nextRenderReset } from '../_shared/common.ts';
 import { rubblePrompt, streetPrompt } from '../_shared/streetPrompt.ts';
 import { findPhotoFor } from '../_shared/photoSources.ts';
+import { keepsBuilding } from '../_shared/verifyRender.ts';
 
 const COST = 4;
 /** A place that cannot be shown as it was (blurred out, or no street picture): only the rubble is rendered, so only this much is kept and the rest is paid back. */
@@ -153,7 +154,7 @@ async function generateRubble(picture: { bytes: Uint8Array; mime: string } | nul
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
-async function generate(picture: { bytes: Uint8Array; mime: string }, kind: string, name: string, vaultNumber?: string, flooded = false, irradiated = false): Promise<Uint8Array> {
+async function generate(picture: { bytes: Uint8Array; mime: string }, kind: string, name: string, vaultNumber?: string, flooded = false, irradiated = false, strict = false): Promise<Uint8Array> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) throw new Error('image generation is not set up');
   const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3-pro-image';
@@ -161,7 +162,7 @@ async function generate(picture: { bytes: Uint8Array; mime: string }, kind: stri
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: streetPrompt(kind, name, vaultNumber, flooded, irradiated) }, { inline_data: { mime_type: picture.mime, data: toBase64(picture.bytes) } }] }],
+      contents: [{ parts: [{ text: streetPrompt(kind, name, vaultNumber, flooded, irradiated, strict) }, { inline_data: { mime_type: picture.mime, data: toBase64(picture.bytes) } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     }),
   });
@@ -412,7 +413,12 @@ Deno.serve(async (req) => {
     const rubble = !picture || blurred;
     const png = rubble
       ? await generateRubble(picture ?? await satellitePicture(details.lat, details.lng), !picture, details.name, googleId.slice(-8), body.flooded === true, body.irradiated === true)
-      : await generate(picture as { bytes: Uint8Array; mime: string }, kind, details.name, undefined, body.flooded === true, body.irradiated === true);
+      : await (async () => {
+        const pic = picture as { bytes: Uint8Array; mime: string };
+        const first = await generate(pic, kind, details.name, undefined, body.flooded === true, body.irradiated === true);
+        if (await keepsBuilding(pic, first)) return first;
+        try { return await generate(pic, kind, details.name, undefined, body.flooded === true, body.irradiated === true, true); } catch { return first; }
+      })();
     const path = `address/${googleId}.png`;
     const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
     if (up.error) throw new Error('could not store the image');

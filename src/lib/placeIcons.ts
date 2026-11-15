@@ -11,7 +11,7 @@ type BaseIconId =
   | 'book' | 'beaker' | 'houses' | 'skyscraper' | 'statue' | 'ringart' | 'flag' | 'column' | 'railcross' | 'tram' | 'mosque' | 'cathedral' | 'temple' | 'badge' | 'firebadge' | 'fork' | 'cart' | 'theatre' | 'leafytree' | 'fountain'
   | 'factory' | 'apartment' | 'trailer'
   | 'radiotower' | 'lighthouse' | 'gasmask' | 'tractor' | 'cannon' | 'bus' | 'tent' | 'observatory' | 'lifebuoy' | 'ruins' | 'ship' | 'pinetree'
-  | 'officeslab' | 'twintowers' | 'artdeco' | 'glasstower' | 'plaza' | 'officepark' | 'curvedtower' | 'campus' | 'mall' | 'skeletonkey' | 'medkit' | 'medbottle' | 'caduceus' | 'bandage' | 'heartbeat' | 'capsules' | 'crossheart' | 'tooth' | 'lifestar' | 'syringe' | 'arenaflags' | 'standsflags' | 'bowlflags' | 'pitch' | 'track' | 'mountain' | 'palm' | 'windmill' | 'camera' | 'fish' | 'cactus' | 'star' | 'lamp' | 'pump' | 'wrench' | 'car' | 'basket' | 'bag' | 'gradcap' | 'pill' | 'ambulance' | 'helmet' | 'mug' | 'bell' | 'ball' | 'trophy' | 'key' | 'vault0' | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
+  | 'officeslab' | 'twintowers' | 'artdeco' | 'glasstower' | 'plaza' | 'officepark' | 'curvedtower' | 'campus' | 'mall' | 'skeletonkey' | 'medkit' | 'medbottle' | 'caduceus' | 'bandage' | 'heartbeat' | 'capsules' | 'crossheart' | 'tooth' | 'lifestar' | 'syringe' | 'arenaflags' | 'standsflags' | 'bowlflags' | 'pitch' | 'track' | 'mountain' | 'palm' | 'windmill' | 'camera' | 'fish' | 'cactus' | 'star' | 'lamp' | 'pump' | 'wrench' | 'wrenches' | 'car' | 'basket' | 'bag' | 'gradcap' | 'pill' | 'ambulance' | 'helmet' | 'mug' | 'bell' | 'ball' | 'trophy' | 'key' | 'vault0' | 'eiffel' | 'liberty' | 'spaceneedle' | 'opera' | 'redeemer' | 'kremlin';
 
 /** The world-famous buildings and monuments, drawn as themselves (famousIcons.ts). */
 export type FamousIconId =
@@ -152,6 +152,7 @@ const ICONS: Record<BaseIconId, string> = {
   mall: svg(f('M2.5 21V10h19v11Z') + f('M2.5 10 4 6h16l1.5 4Z') + d('M9.5 21v-5h5v5Z') + d('M5 14h2.5M16.5 14H19')),
   // more kinds of place, so that the same sort of place does not always get the same picture
   pump: svg(f('M6 21V5a1.5 1.5 0 0 1 1.5-1.5h6A1.5 1.5 0 0 1 15 5v16Z') + d('M8 6.5h5v4H8Z') + s('M15 9h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0v-5l-2.5-3') + s('M4 21h13')),
+  wrenches: svg(`<g transform="rotate(45 12 12)">${f('M10.8 2.4V6.2h2.4V2.4A3.7 3.7 0 1 1 10.8 2.4Z')}${f('M10.9 9.4h2.2v8.2h-2.2Z')}${f('M12 17.3a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z')}</g><g transform="rotate(-45 12 12)">${f('M10.8 2.4V6.2h2.4V2.4A3.7 3.7 0 1 1 10.8 2.4Z')}${f('M10.9 9.4h2.2v8.2h-2.2Z')}${f('M12 17.3a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z')}</g>`),
   wrench: svg(f('M14.5 3a5 5 0 0 0-4.6 6.9L3.6 16.2a2 2 0 0 0 2.8 2.8l6.3-6.3A5 5 0 0 0 19.6 8l-3 3-2.5-.6-.6-2.5 3-3A5 5 0 0 0 14.5 3Z')),
   car: svg(f('M2.5 17v-5l2.2-4.5h10.6L18 12l3.5 1.2V17Z') + d('M6.3 8.7h3.7v3H5ZM11.5 8.7h3l1.7 3h-4.7Z') + f('M8 15.3a2.2 2.2 0 1 0 .01 0Z') + f('M17 15.3a2.2 2.2 0 1 0 .01 0Z')),
   basket: svg(f('M3.5 10h17l-1.8 9.5H5.3Z') + s('M8 10l3-6M16 10l-3-6') + d('M9 13v4M12 13v4M15 13v4')),
@@ -205,7 +206,7 @@ export function placeIcon(id: IconId): string {
 
 /** The everyday icon for each kind of place, used on the filter buttons and when nothing about the real name says more. */
 export const CATEGORY_ICON: Record<CategoryId, IconId> = {
-  medical: 'hospital', school: 'school', market: 'smallbuilding', fuel: 'smallbuilding', park: 'tree', guard: 'shield', cantina: 'smallbuilding',
+  medical: 'hospital', school: 'school', market: 'smallbuilding', fuel: 'wrenches', park: 'tree', guard: 'shield', cantina: 'smallbuilding',
   chapel: 'church', transit: 'subway', arena: 'stadium', lodging: 'bed', other: 'monument', houses: 'houses',
 };
 
