@@ -208,11 +208,17 @@ export function useAccount(): Account {
       setLoaded(true);
       void load(data.session);
     });
-    const { data } = db().auth.onAuthStateChange((_event, next) => {
+    const arrivedByLink = /access_token=|[?&]code=/.test(window.location.href);
+    const { data } = db().auth.onAuthStateChange((event, next) => {
+      if (event === 'SIGNED_IN' && arrivedByLink && next) void claimSession();
       setSession(next);
       void load(next);
     });
-    return () => data.subscription.unsubscribe();
+    // other devices: a sign-in elsewhere ends this session on the server; it is looked for every minute while signed in and whenever the app comes back
+    const look = () => { if (document.visibilityState === 'visible') void checkSessionAlive(); };
+    const timer = window.setInterval(look, 60_000);
+    document.addEventListener('visibilitychange', look);
+    return () => { data.subscription.unsubscribe(); window.clearInterval(timer); document.removeEventListener('visibilitychange', look); };
   }, []);
 
   const refresh = async () => {
@@ -232,6 +238,22 @@ export async function welcomeBonus(): Promise<{ granted: boolean; waiting: boole
   return { granted: false, waiting: data.claimed === false };
 }
 
+/** One device at a time: signing in here signs every other device of this account out (their sessions end on the server; they notice within a minute, or when they are opened). */
+export async function claimSession(): Promise<void> {
+  try { await db().auth.signOut({ scope: 'others' }); } catch { /* the other devices are signed out the next time they are checked */ }
+}
+/** Is this device's session still alive on the server? Only a refusal from the server ends it here (no connection is not a sign-out); it says so with an 'rm-session-ended' event. */
+export async function checkSessionAlive(): Promise<void> {
+  const { data } = await db().auth.getSession();
+  if (!data.session) return;
+  const { error } = await db().auth.getUser();
+  const status = (error as { status?: number } | null)?.status;
+  if (error && (status === 401 || status === 403 || /session.*(not found|missing|invalid)|invalid.*(jwt|token)/i.test(error.message))) {
+    await db().auth.signOut({ scope: 'local' });
+    window.dispatchEvent(new CustomEvent('rm-session-ended'));
+  }
+}
+
 /** Emails a sign-in link. */
 export async function sendSignInLink(email: string): Promise<string | null> {
   const { error } = await db().auth.signInWithOtp({ email, options: { emailRedirectTo: isNative() ? NATIVE_AUTH_REDIRECT : window.location.origin + window.location.pathname } });
@@ -241,7 +263,7 @@ export async function sendSignInLink(email: string): Promise<string | null> {
 /** Signs in with the email and the four-digit vault number (the password is "vault-" and those digits; the auth system wants six characters or more). Null when it worked. */
 export async function signInWithVault(email: string, digits: string): Promise<string | null> {
   const { error } = await db().auth.signInWithPassword({ email, password: `vault-${digits}` });
-  if (!error) offerFaceId(email, `vault-${digits}`); // in the app, asks whether to use Face ID next time
+  if (!error) { offerFaceId(email, `vault-${digits}`); void claimSession(); } // in the app, asks whether to use Face ID next time
   return error ? 'That email and vault number do not match. If this is your first time, or you forgot the number, use the email link.' : null;
 }
 
@@ -255,6 +277,7 @@ export async function signInWithFaceId(email: string): Promise<string | null> {
     await forgetFaceId(email); // what was saved no longer works (the vault number changed): do not keep offering it
     return 'That saved sign-in no longer works. Sign in with your email and vault number.';
   }
+  void claimSession();
   return null;
 }
 
@@ -543,11 +566,13 @@ export async function completeSignInFromUrl(url: string): Promise<boolean> {
   const refresh = hash.get('refresh_token');
   if (access && refresh) {
     const { error } = await db().auth.setSession({ access_token: access, refresh_token: refresh });
+    if (!error) void claimSession();
     return !error;
   }
   const code = query.get('code');
   if (code) {
     const { error } = await db().auth.exchangeCodeForSession(code);
+    if (!error) void claimSession();
     return !error;
   }
   return false;

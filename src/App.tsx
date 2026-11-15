@@ -378,6 +378,12 @@ export default function App() {
     if (soundRef.current) beep(kind);
   }, []);
 
+  // signed in on another device: this one is signed out, and says why
+  useEffect(() => {
+    const ended = () => { setToast('SIGNED OUT: YOU SIGNED IN ON ANOTHER DEVICE'); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 6000); };
+    window.addEventListener('rm-session-ended', ended);
+    return () => window.removeEventListener('rm-session-ended', ended);
+  }, []);
   // the welcome gift: in the app, 500 caps the first time they are signed in (right away for someone who registered in the app, or the next time for someone who registered on the website);
   // on the website, a flashing reminder to download the app while the gift is still waiting
   const giftAsked = useRef<string | null>(null);
