@@ -240,7 +240,12 @@ export async function welcomeBonus(): Promise<{ granted: boolean; waiting: boole
 
 /** One device at a time: signing in here signs every other device of this account out (their sessions end on the server; they notice within a minute, or when they are opened). */
 export async function claimSession(): Promise<void> {
-  try { await db().auth.signOut({ scope: 'others' }); } catch { /* the other devices are signed out the next time they are checked */ }
+  try {
+    // the account the Apple reviewers use may be signed in on several devices at once
+    const { data } = await db().auth.getSession();
+    if (data.session?.user.email?.toLowerCase() === 'welpcustomer@yahoo.com') return;
+    await db().auth.signOut({ scope: 'others' });
+  } catch { /* the other devices are signed out the next time they are checked */ }
 }
 /** Is this device's session still alive on the server? Only a refusal from the server ends it here (no connection is not a sign-out); it says so with an 'rm-session-ended' event. */
 export async function checkSessionAlive(): Promise<void> {
