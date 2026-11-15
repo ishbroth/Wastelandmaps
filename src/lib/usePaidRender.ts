@@ -15,6 +15,7 @@ const MESSAGES: Record<string, string> = {
   no_credits: 'You do not have enough caps.',
   no_streetview: 'There is no usable Street View picture of this place to make a snapshot from. Nothing was charged.',
   unknown_place: 'That place could not be found. Nothing was charged.',
+  no_photo_cleared: 'There is no usable photo of this place yet, so there is nothing to render. Your caps were returned, and the place is marked cleared with no loot. It is checked again whenever someone tries to unlock it.',
   no_photo: 'There is no free photo of this place to render from. Nothing was charged.',
   busy: 'Rendering is paused for today. Nothing was charged; try again tomorrow.',
   failed: 'The render did not come out. Your caps were returned. Try again.',

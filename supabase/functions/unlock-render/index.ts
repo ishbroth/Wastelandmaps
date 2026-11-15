@@ -16,6 +16,17 @@ import { keepsBuilding } from '../_shared/verifyRender.ts';
 import { streetPrompt } from '../_shared/streetPrompt.ts';
 
 const UA = { 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' };
+/** A place that has no photograph to be made from (no free one and no usable Street View): for this person it is marked cleared, with no loot (a finished raid of no enemies and nothing to pick up), so
+ *  the map does not offer to clear it as if its snapshot were unlocked. It is looked at again whenever anyone tries to unlock it, and the mark goes when a render of it is delivered. */
+// deno-lint-ignore no-explicit-any
+async function markNoPhoto(db: any, user: string, placeId: string): Promise<void> {
+  try {
+    const { data } = await db.from('raid_runs').select('id').eq('user_id', user).eq('place_id', placeId).eq('won', true).limit(1);
+    if (data && data.length > 0) return; // already cleared (really, or already marked)
+    const now = new Date().toISOString();
+    await db.from('raid_runs').insert({ user_id: user, place_id: placeId, worth: 10, enemies: 0, loot: {}, won: true, paid: true, started_at: now, finished_at: now });
+  } catch (e) { console.error('no-photo mark failed', e instanceof Error ? e.message : e); }
+}
 const STALE_AFTER_MS = 150_000; // a render "being made" for longer than this is taken to have been abandoned
 
 interface Photo { bytes: Uint8Array; mime: string; title: string; author: string; license: string; page: string }
@@ -164,7 +175,7 @@ Deno.serve(async (req) => {
         const photo = useStreet ? await streetPhoto(lat as number, lng as number).catch(() => null) : await fetchPhoto(entity, placeName).catch(() => null);
         if (!photo) {
           if (stale) await keepOld();
-          else { await db.from('renders').delete().eq('place_id', placeId); await giveBack(); return reply(req, { error: useStreet ? 'no_streetview' : 'no_photo' }, 404); }
+          else { await db.from('renders').delete().eq('place_id', placeId); await giveBack(); await markNoPhoto(db, user, placeId); return reply(req, { error: 'no_photo_cleared' }, 404); }
         } else {
           try {
             const png = useStreet ? await generateFromStreet(photo, placeName, kindOf, flooded === true, irradiated === true) : await (async () => {
@@ -195,6 +206,8 @@ Deno.serve(async (req) => {
     // 4. a link that works for an hour
     const signed = await db.storage.from('renders').createSignedUrl(row.storage_path, 3600);
     if (signed.error || !signed.data) { await giveBack(); return reply(req, { error: 'server' }, 500); }
+    // a render exists for this person now: the earlier 'no photo, cleared' mark (a finished raid of no enemies) goes
+    await db.from('raid_runs').delete().eq('user_id', user).eq('place_id', placeId).eq('enemies', 0);
     return reply(req, {
       status: 'ready',
       url: signed.data.signedUrl,

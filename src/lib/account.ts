@@ -83,6 +83,8 @@ export interface Account {
   homeRooms: number;
   /** Places they have already looted: each can be looted once, and shows [Cleared] on the map. */
   cleared: Set<string>;
+  /** Places marked cleared only because no photograph could be found to render them from (no loot there). */
+  noPhoto: Set<string>;
   refresh: () => Promise<void>;
 }
 
@@ -101,6 +103,7 @@ export function useAccount(): Account {
   const [homeRooms, setHomeRooms] = useState(0);
   const [arsenal, setArsenal] = useState<Arsenal>(STARTING_ARSENAL);
   const [cleared, setCleared] = useState<Set<string>>(new Set());
+  const [noPhoto, setNoPhoto] = useState<Set<string>>(new Set());
   const [personal, setPersonal] = useState<PersonalPlace[]>([]);
   const [home, setHome] = useState<Home | null>(null);
   const [homeLoaded, setHomeLoaded] = useState(false);
@@ -153,8 +156,10 @@ export function useAccount(): Account {
       setLoot(bag);
       setArsenal(guns);
     });
-    void db().from('raid_runs').select('place_id,metro_id,paid,loot').eq('user_id', s.user.id).eq('won', true).then((r) => {
-      const rows = (r.data ?? []) as { place_id: string; metro_id: string | null; paid: boolean | null; loot: LootBag | null }[];
+    void db().from('raid_runs').select('place_id,metro_id,paid,loot,enemies').eq('user_id', s.user.id).eq('won', true).then((r) => {
+      const rows = (r.data ?? []) as { place_id: string; metro_id: string | null; paid: boolean | null; loot: LootBag | null; enemies?: number }[];
+      // places with no photograph to make a render from are marked cleared (a raid of no enemies, no loot)
+      setNoPhoto(new Set(rows.filter((x) => x.enemies === 0).map((x) => x.place_id)));
       // cleared, but not yet discovered: the loot is held with the place
       const held = new Map<string, LootBag>();
       for (const x of rows) {
@@ -226,7 +231,7 @@ export function useAccount(): Account {
     const { data } = await db().auth.getSession();
     await load(data.session);
   };
-  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, loot, stimpaks, legendaryTime, vacations, homeRooms, waiting, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, clearedPaid, refresh, loaded };
+  return { session, email: session?.user.email ?? null, credits, unlocked, discoveries, points, noPhoto, loot, stimpaks, legendaryTime, vacations, homeRooms, waiting, arsenal, cleared, personal, home, homeLoaded, metros, metrosCleared, clearedByMetro, clearedPaid, refresh, loaded };
 }
 
 /** The welcome gift of 500 caps for being signed in from the phone app: in the app it is claimed (once per person, the server checks); on the website it only asks whether it is still waiting. */
@@ -328,7 +333,7 @@ export interface Unlocked {
 export type UnlockResult =
   | { kind: 'ready'; render: Unlocked }
   | { kind: 'working' }
-  | { kind: 'error'; reason: 'no_credits' | 'no_photo' | 'busy' | 'failed' | 'sign_in' | 'server'; /** For 'busy': when the day's count of new renders starts again (an ISO time). */ resetsAt?: string };
+  | { kind: 'error'; reason: 'no_credits' | 'no_photo' | 'no_photo_cleared' | 'busy' | 'failed' | 'sign_in' | 'server'; /** For 'busy': when the day's count of new renders starts again (an ISO time). */ resetsAt?: string };
 
 /** Unlocks a place (one credit, once) and returns the render. 'working' means it is still being made: ask again in a few seconds, free. */
 export async function unlockRender(placeId: string, name: string, extra?: { /** The last resort: make it from Google Street View at this spot (costs more). */ streetView?: boolean; lat?: number; lng?: number; /** The kind of place it is (a park has no building: its vault door lies in the ground). */ category?: string; kind?: string; metroId?: string | null; home?: boolean; flooded?: boolean; irradiated?: boolean; /** The number of the vault this place is the entrance to (its picture has the vault door in it). */ vault?: number }): Promise<UnlockResult> {

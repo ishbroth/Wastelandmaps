@@ -450,10 +450,10 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       // the gun, bottom of the screen, turning toward where the survivor is aiming
       const weapon = g.weapon;
       const gunArt = weapon ? assets.current.guns[weapon.id] : undefined;
-      const gh = Math.min(cssH * 0.34, 330);
+      const gh = Math.min(cssH * (cssW > cssH ? 0.42 : 0.34), 330);
       const gw = gunArt ? gh * (gunArt.image.naturalWidth / gunArt.image.naturalHeight) : gh * 0.5;
-      // anchored to the bottom right with its edges off screen (the pictures are cut off at their edges), turning a little toward where the survivor aims
-      const pivotX = Math.max(gw * 0.5, cssW - gw * 0.44), pivotY = cssH + gh * 0.64;
+      // anchored in the middle of the bottom of the screen with its edges off screen (the pictures are cut off at their edges), turning a little toward where the survivor aims
+      const pivotX = cssW / 2, pivotY = cssH + gh * 0.64;
       // held out toward the screen with a little lean so it can be told what it is: it swings from leaning left, through straight, to leaning right as the aim goes from the left of the screen to the right
       const across = Math.max(-1, Math.min(1, (pointer.current.x - cssW / 2) / (cssW / 2)));
       const lean = ((GUN_LEAN[weapon?.id ?? ''] ?? 30) * Math.PI) / 180;
@@ -729,16 +729,18 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
             : hud.ammo !== null && <div className="rm-raid-ammo">AMMO {hud.ammo}</div>}
           <div className="rm-raid-bar">
             <button type="button" className="rm-btn rm-raid-btn" onClick={openWheel} disabled={wheelOpen || downed}>WEAPONS</button>
-            <button type="button" className="rm-btn rm-raid-btn" onClick={() => void heal()} disabled={wheelOpen || downed || healing || stims <= 0 || hud.hp >= 0.999} title="Take back all your health">STIMPAK<StimpakIcon size={18} />×{stims}</button>
-            <button
-              type="button" className={`rm-btn rm-raid-btn rm-raid-time${hud.slow > 0 ? ' running' : ''}`} onClick={() => void slowTime()}
-              disabled={wheelOpen || downed || timing || hud.slow > 0 || times <= 0} title="Legendary Time: slow the enemies for four seconds" aria-label={`Legendary Time, ${times} left`}
-            >
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="13.5" r="7.5" /><path d="M12 9.5v4l2.6 1.6M9.5 3h5M12 3v3M18.6 6.4l1.4-1.4" />
-              </svg>
-              <small>×{times}</small>
-            </button>
+            <div className="rm-raid-right">
+              <button type="button" className="rm-btn rm-raid-btn rm-raid-heal" onClick={() => void heal()} disabled={wheelOpen || downed || healing || stims <= 0 || hud.hp >= 0.999} title="Take back all your health"><StimpakIcon size={22} /><small>×{stims}</small></button>
+              <button
+                type="button" className={`rm-btn rm-raid-btn rm-raid-time${hud.slow > 0 ? ' running' : ''}`} onClick={() => void slowTime()}
+                disabled={wheelOpen || downed || timing || hud.slow > 0 || times <= 0} title="Legendary Time: slow the enemies for four seconds" aria-label={`Legendary Time, ${times} left`}
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="13.5" r="7.5" /><path d="M12 9.5v4l2.6 1.6M9.5 3h5M12 3v3M18.6 6.4l1.4-1.4" />
+                </svg>
+                <small>×{times}</small>
+              </button>
+            </div>
             {hud.slow > 0 && <div className="rm-raid-slow" aria-live="polite">LEGENDARY TIME {hud.slow.toFixed(1)}</div>}
           </div>
           {downed && (
