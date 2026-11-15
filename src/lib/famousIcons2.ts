@@ -65,6 +65,7 @@ function castleHall(o: { turrets?: boolean; tower?: boolean } = {}): string {
   return svg(out);
 }
 
+const ICONS_VENETIAN = { venetian: svg(f('M3 21V12.6h7.4V21Z') + d('M4.6 14.6h4.2M4.6 17h4.2') + f('M12.4 21V8.4h2.6V21Z') + f('M12 8.4h3.4L13.7 4Z') + f('M15 21V11.4h6V21Z') + d('M16 13.4h4M16 16h4')) };
 const ICONS: Record<string, string> = {
   reuniontower: svg(f('M10.8 21V11h2.4v10Z') + f('M12 2.8a4.4 4.4 0 1 0 0 8.8 4.4 4.4 0 0 0 0-8.8Z') + s('M12 2.8V.8') + d('M7.8 7.2h8.4M9 4.8c2 1 4 1 6 0M9 9.6c2-1 4-1 6 0') + f('M8.5 21h7v-1.4h-7Z')),
   oldred: castleHall({ turrets: true, tower: true }),
@@ -154,7 +155,7 @@ const ICONS: Record<string, string> = {
   empirestateplaza: svg(f('M14.5 21V3.6h4.6V21Z') + f('M3 21V11h2.4v10ZM6.4 21V11h2.4v10ZM9.8 21V11h2.4v10Z') + f('M3 21c0-2 1.4-3.4 4.2-3.4S11.4 19 11.4 21Z') + d('M16 7h1.6M16 10h1.6M16 13h1.6M16 16h1.6')),
 };
 
-for (const [id, markup] of Object.entries(ICONS)) EXTRA_ICONS[id] = markup;
+for (const [id, markup] of Object.entries({ ...ICONS, ...ICONS_VENETIAN })) EXTRA_ICONS[id] = markup;
 
 // ---- the local landmarks of the world's cities: icons built from a kind and a number, so every building gets its own variation ----
 const CROWNS: Crown[] = ['flat', 'spire', 'pyramid', 'dome', 'gables', 'antenna', 'stepped', 'slant', 'crown', 'clock'];

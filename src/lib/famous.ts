@@ -30,7 +30,6 @@ export const FAMOUS: Famous[] = [
   { match: /london eye|millennium wheel/i, name: 'London Eye', lat: 51.5033, lng: -0.1196, icon: 'londoneye', qid: 'Q160659' },
   { match: /chrysler building/i, name: 'Chrysler Building', lat: 40.7516, lng: -73.9755, icon: 'chrysler', qid: 'Q11274' },
   { match: /colosseum|coliseum|colosseo/i, name: 'Colosseum', lat: 41.8902, lng: 12.4922, icon: 'colosseum', qid: 'Q10285' },
-  { match: /sagrada fam[ií]lia/i, name: 'Sagrada Família', lat: 41.4036, lng: 2.1744, icon: 'sagrada', qid: 'Q2548808' },
   { match: /mus[eé]e du louvre|louvre museum|louvre pyramid|^louvre$/i, name: 'Louvre Museum', lat: 48.8606, lng: 2.3376, icon: 'louvre', qid: 'Q19675' },
   { match: /buckingham palace/i, name: 'Buckingham Palace', lat: 51.5014, lng: -0.1419, icon: 'buckingham', qid: 'Q42182' },
   { match: /brandenburg gate|brandenburger tor/i, name: 'Brandenburg Gate', lat: 52.5163, lng: 13.3777, icon: 'brandenburg', qid: 'Q82425' },
@@ -179,6 +178,7 @@ export const FAMOUS: Famous[] = [
   { match: /travelers tower/i, name: 'Travelers Tower', lat: 41.7677, lng: -72.6722, icon: 'travelerstower', qid: 'Q3538183', metro: 'us-ct-hartford' },
   { match: /buffalo city hall/i, name: 'Buffalo City Hall', lat: 42.8866, lng: -78.8747, icon: 'buffalocityhall', qid: 'Q1001988' },
   { match: /empire state plaza|corning tower/i, name: 'Empire State Plaza', lat: 42.6504, lng: -73.7637, icon: 'empirestateplaza', qid: 'Q5374148', metro: 'us-ny-albany' },
+  { match: /^the venetian\b|venetian (?:resort|las vegas)/i, name: 'The Venetian', lat: 36.12106, lng: -115.17025, icon: 'venetian', qid: 'Q1049209', metro: 'us-nv-las-vegas' },
 ];
 
 /** The famous place a real name belongs to, if any. */
