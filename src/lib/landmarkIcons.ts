@@ -71,6 +71,14 @@ const LANDMARK_ICONS: Record<string, string> = {
   // Hagia Sophia: a great dome on a stone body, with a minaret at each end
   Q12506: svg(f('M6.4 21v-7.6h11.2V21Z') + f('M8.2 13.4a3.8 3.8 0 0 1 7.6 0Z') + f('M3 21V10h1.6v11ZM19.4 21V10H21v11Z') + s('M3.8 10V7.4M20.2 10V7.4M12 9.6V7.6') + d('M10.7 21v-3.2a1.3 1.3 0 0 1 2.6 0V21')),
   // the Bank of China Tower: triangular prisms rising to a point, crossed by diagonal braces, two masts
+  // Q7604504
+  Q7604504: svg(f('M10.2 3.6a1.8 1.8 0 1 1 3.6 0 1.8 1.8 0 0 1-3.6 0Z') + f('M9 7h6l1.3 10.5H7.7Z') + f('M5.5 17.5h13V21h-13Z') + d('M12 8v9M10.4 17.5v3M13.6 17.5v3')),
+  // Q470763
+  Q470763: svg(f('M8.6 21V12.6c0-2.2 1.2-3.8 3-3.8s3 1.6 3 3.8V21Z') + f('M10 6.6a1.7 1.7 0 1 1 3.4 0 1.7 1.7 0 0 1-3.4 0Z') + d('M14.5 10.4l4.4-4.6M8.8 11.4 3.6 8.6') + f('M18.2 3.4a1.3 1.3 0 1 1 2.6 0 1.3 1.3 0 0 1-2.6 0Z') + s('M3 21h18')),
+  // Q947870
+  Q947870: svg(f('M9.4 21V8.6h5.2V21Z') + f('M10.6 8.6V5.8h2.8v2.8Z') + s('M12 5.8V1.4') + d('M9.4 11.2h5.2M9.4 13.8h5.2M9.4 16.4h5.2M9.4 19h5.2') + s('M6.5 21h11')),
+  // Q200328
+  Q200328: svg(f('M8 21V8.6h8V21Z') + f('M9.4 8.6V4.4h5.2v4.2Z') + d('M8 11.6h8M8 14.4h8M8 17.2h8') + f('M4.6 21v-2.8h14.8V21Z')),
   Q214855: svg(f('M6.6 21V13.4L12 8.6V21Z') + f('M12 21V3.6l5.4 6.8V21Z') + d('M7 20.4 12 14M12 20.4l5-6.4M12 13.6l4.6-3.4') + s('M12 3.6V1.5M13.8 5.7V2.6')),
   // the first seven, which already have their own drawings
   // Big Ben: the Elizabeth Tower with a wing of the palace
