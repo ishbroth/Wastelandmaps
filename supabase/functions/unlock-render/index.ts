@@ -13,6 +13,7 @@ import { callerId, corsHeaders, reply, serviceClient, dailyRenderCap, nextRender
 import { renderPrompt } from '../_shared/renderPrompt.ts';
 import { findPhotoFor } from '../_shared/photoSources.ts';
 import { keepsBuilding } from '../_shared/verifyRender.ts';
+import { bestStreetView } from '../_shared/streetViews.ts';
 import { streetPrompt } from '../_shared/streetPrompt.ts';
 
 const UA = { 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' };
@@ -55,15 +56,11 @@ function bearing(from: { lat: number; lng: number }, to: { lat: number; lng: num
 }
 
 /** A Street View picture looking at the spot from the nearest street, or null where Google has none. */
-async function streetPhoto(lat: number, lng: number): Promise<Photo | null> {
-  const key = Deno.env.get('STREETVIEW_API_KEY');
-  if (!key) return null;
-  const meta = await (await fetch(`https://maps.googleapis.com/maps/api/streetview/metadata?${new URLSearchParams({ location: `${lat},${lng}`, radius: '60', source: 'outdoor', key })}`)).json();
-  if (meta.status !== 'OK' || !meta.location) return null;
-  const heading = Math.round(bearing({ lat: meta.location.lat, lng: meta.location.lng }, { lat, lng }));
-  const res = await fetch(`https://maps.googleapis.com/maps/api/streetview?${new URLSearchParams({ size: '640x640', location: `${meta.location.lat},${meta.location.lng}`, heading: String(heading), pitch: '6', fov: '90', source: 'outdoor', return_error_codes: 'true', key })}`);
-  if (!res.ok) return null;
-  return { bytes: new Uint8Array(await res.arrayBuffer()), mime: res.headers.get('content-type') ?? 'image/jpeg', title: 'Google Street View', author: 'Google', license: 'Google Street View (used to make this picture)', page: 'https://www.google.com/streetview/' };
+async function streetPhoto(lat: number, lng: number, name: string, kind: string): Promise<Photo | null> {
+  // several views are taken and a small model picks the one that really shows the place; none that does means no usable picture
+  const pic = await bestStreetView(lat, lng, name, kind);
+  if (!pic) return null;
+  return { bytes: pic.bytes, mime: pic.mime, title: 'Google Street View', author: 'Google', license: 'Google Street View (used to make this picture)', page: 'https://www.google.com/streetview/' };
 }
 
 async function generateFromStreet(photo: Photo, name: string, category: string | undefined, flooded: boolean, irradiated: boolean): Promise<Uint8Array> {
@@ -172,7 +169,7 @@ Deno.serve(async (req) => {
         // a picture that was already made stays as it was if the new one cannot be
         const keepOld = async () => { await db.from('renders').update({ status: 'ready', started_at: (before as { started_at: string }).started_at }).eq('place_id', placeId); row = before; };
 
-        const photo = useStreet ? await streetPhoto(lat as number, lng as number).catch(() => null) : await fetchPhoto(entity, placeName).catch(() => null);
+        const photo = useStreet ? await streetPhoto(lat as number, lng as number, placeName, kindOf ?? "place").catch(() => null) : await fetchPhoto(entity, placeName).catch(() => null);
         if (!photo) {
           if (stale) await keepOld();
           else { await db.from('renders').delete().eq('place_id', placeId); await giveBack(); await markNoPhoto(db, user, placeId); return reply(req, { error: 'no_photo_cleared' }, 404); }

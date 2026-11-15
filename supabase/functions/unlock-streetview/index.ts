@@ -117,14 +117,14 @@ async function satellitePicture(lat: number, lng: number): Promise<{ bytes: Uint
 async function looksBlurred(picture: { bytes: Uint8Array; mime: string }): Promise<boolean> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) return false;
-  const model = Deno.env.get('GEMINI_TEXT_MODEL') ?? 'gemini-2.5-flash';
+  const model = Deno.env.get('GEMINI_TEXT_MODEL') ?? 'gemini-flash-latest';
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: 'This is a Google Street View picture looking at one address. Is the main house or building in the middle of the picture hidden behind a privacy blur (a smeared, pixelated or mosaic patch where the property is), as opposed to being merely far away, small, or partly behind trees? Answer with exactly one word: BLURRED or CLEAR.' }, { inline_data: { mime_type: picture.mime, data: toBase64(picture.bytes) } }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 8 },
+        generationConfig: { temperature: 0, maxOutputTokens: 200, thinkingConfig: { thinkingBudget: 0 } },
       }),
     });
     if (!res.ok) return false;

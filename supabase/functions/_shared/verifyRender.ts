@@ -6,7 +6,7 @@ const toBase64 = (bytes: Uint8Array): string => { let t = ''; for (let i = 0; i 
 export async function keepsBuilding(original: { bytes: Uint8Array; mime: string }, render: Uint8Array): Promise<boolean> {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) return true;
-  const model = Deno.env.get('GEMINI_TEXT_MODEL') ?? 'gemini-2.5-flash';
+  const model = Deno.env.get('GEMINI_TEXT_MODEL') ?? 'gemini-flash-latest';
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
@@ -16,7 +16,7 @@ export async function keepsBuilding(original: { bytes: Uint8Array; mime: string 
           { inline_data: { mime_type: original.mime, data: toBase64(original.bytes) } },
           { inline_data: { mime_type: 'image/png', data: toBase64(render) } },
         ] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 8 },
+        generationConfig: { temperature: 0, maxOutputTokens: 200, thinkingConfig: { thinkingBudget: 0 } },
       }),
     });
     if (!res.ok) return true;
