@@ -5,6 +5,9 @@
 import { CATEGORIES, type CategoryId } from '../lib/wasteland';
 import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
 
+/** The order of the buttons, left to right and top to bottom (the same on the Locations tab and in the gallery). */
+const ORDER: CategoryId[] = ['houses', 'other', 'arena', 'medical', 'market', 'fuel', 'cantina', 'lodging', 'chapel', 'transit', 'guard', 'park', 'school'];
+
 export default function CategoryChips({ counts, hidden, onToggle }: {
   counts: Map<CategoryId, number>;
   hidden: Set<CategoryId>;
@@ -12,7 +15,7 @@ export default function CategoryChips({ counts, hidden, onToggle }: {
 }) {
   return (
     <div className="rm-chips" role="group" aria-label="Filter locations">
-      {CATEGORIES.filter((c) => counts.has(c.id)).map((c) => (
+      {[...CATEGORIES].sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id)).filter((c) => counts.has(c.id)).map((c) => (
         <button key={c.id} type="button" className={`rm-chip ${hidden.has(c.id) ? 'rm-chip-off' : ''}`} onClick={() => onToggle(c.id)} aria-pressed={!hidden.has(c.id)}>
           <span className="rm-chip-icon" dangerouslySetInnerHTML={{ __html: placeIcon(CATEGORY_ICON[c.id]) }} />
           {c.label} <small>{counts.get(c.id)}</small>

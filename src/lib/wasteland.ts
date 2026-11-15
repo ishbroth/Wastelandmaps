@@ -68,7 +68,7 @@ export const CATEGORIES: Category[] = [
     loot: ['Canned food', 'Purified water', 'Bottle caps', 'Cloth and leather', 'Scrap'],
   },
   {
-    id: 'fuel', label: 'Fuel & Garages', types: ['gas_station', 'car_repair', 'car_dealer', 'electric_vehicle_charging_station'],
+    id: 'fuel', label: 'Auto', types: ['gas_station', 'car_repair', 'car_dealer', 'electric_vehicle_charging_station'],
     names: ['Rusted Pump Station', 'Dry Gas Stop', 'Scrapyard Garage', 'Fusion Core Stash', 'Burnt-Out Chassis Lot'],
     loot: ['Fusion cells', 'Motor oil', 'Steel scrap', 'Toolboxes', 'A suspicious number of tires'],
   },
