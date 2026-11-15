@@ -43,7 +43,7 @@ function snapshotUnlocked(account: Account, id: string): boolean {
 
 const miles = (m: number) => (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609.34).toFixed(1)} mi`);
 
-export function LocationsPanel({ metro, account, region, locations: everywhere, hidden, onToggleCategory, personalOn, onTogglePersonal, selectedId, visited, cleared, onSelect, vacation, onVacation }: {
+export function LocationsPanel({ metro, account, region, locations: everywhere, hidden, onToggleCategory, atlasOn, onToggleAtlas, atlasCount, selectedId, visited, cleared, onSelect, vacation, onVacation }: {
   /** Vacation vaults: a cog beside [CLEARED] on a cleared place outside the home metro. */
   vacation?: VacationOffer;
   onVacation?: (choice: VacationChoice) => void;
@@ -54,9 +54,10 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
   locations: Location[];
   hidden: Set<CategoryId>;
   onToggleCategory: (id: CategoryId) => void;
-  /** The person's own places (addresses they unlocked) are shown, and the switch for that. */
-  personalOn: boolean;
-  onTogglePersonal: () => void;
+  /** Project: Atlas (once bought for this metro): the addresses other people mapped are on the map, and the switch for that, and how many of them there are here. */
+  atlasOn: boolean;
+  onToggleAtlas: () => void;
+  atlasCount: number;
   selectedId: string | null;
   visited: Set<string>;
   /** Places already looted. */
@@ -71,17 +72,16 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
   const rows = useMemo(() => {
     if (!from) return [];
     return locations
-      .filter((l) => !hidden.has(l.category) && (personalOn || !l.personal))
+      .filter((l) => !hidden.has(l.category))
       .map((l) => ({ l, d: distanceMeters(from, l.position) }))
       .sort((a, b) => a.d - b.d);
-  }, [locations, hidden, personalOn, from?.lat, from?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [locations, hidden, from?.lat, from?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => {
     const m = new Map<CategoryId, number>();
     locations.forEach((l) => m.set(l.category, (m.get(l.category) ?? 0) + 1));
     return m;
   }, [locations]);
-  const personalCount = useMemo(() => locations.filter((l) => l.personal).length, [locations]);
 
   // The list is a window that always shows ten places and scrolls through the rest: the window keeps its size (the height of the first ten rows)
   // while the Pip-Boy stays where it is.
@@ -122,8 +122,8 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
   return (
     <div>
       <p className="rm-foundline"><span>LOCATIONS FOUND</span> <b>{locations.length}</b></p>
-      <CategoryChips counts={counts} hidden={hidden} onToggle={onToggleCategory} personal={{ count: personalCount, on: personalOn, onToggle: onTogglePersonal }} />
-      {account.session && metro?.id && <AtlasBox account={account} metro={{ id: metro.id, name: metro.name ?? metro.id }} />}
+      <CategoryChips counts={counts} hidden={hidden} onToggle={onToggleCategory} />
+      {account.session && metro?.id && <AtlasBox account={account} metro={{ id: metro.id, name: metro.name ?? metro.id }} on={atlasOn} onToggle={onToggleAtlas} placed={atlasCount} />}
       <ul className="rm-list" ref={listRef} style={listHeight ? { height: listHeight } : undefined}>
         {rows.map(({ l, d }) => (
           <li key={l.id} ref={l.id === selectedId ? selectedRow : null} className="rm-row-li">
@@ -470,7 +470,7 @@ export function SharePanel({ query, look, account, mapPoster }: { query: string;
 }
 
 /** Project: Atlas of the metro on the map: how many addresses other survivors have rendered here, and the one-time unlock of all of them. */
-function AtlasBox({ account, metro }: { account: Account; metro: { id: string; name: string } }) {
+function AtlasBox({ account, metro, on, onToggle, placed }: { account: Account; metro: { id: string; name: string }; on: boolean; onToggle: () => void; placed: number }) {
   const [count, setCount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
@@ -493,7 +493,10 @@ function AtlasBox({ account, metro }: { account: Account; metro: { id: string; n
     <div className="rm-atlas">
       <h3>PROJECT: ATLAS · {metro.name.toUpperCase()}</h3>
       {unlocked ? (
-        <p className="rm-fine">Unlocked. Every address mapped by any user in this metro is now on your map and available to view and loot.</p>
+        <>
+          <button type="button" role="switch" aria-checked={on} aria-label="Show the addresses other users mapped" className={`rm-switch${on ? ' on' : ''}`} onClick={onToggle}><span className="rm-switch-knob" /></button>
+          <p className="rm-fine">{on ? 'Unlocked. Every address mapped by any user in this metro is now on your map and available to view and loot.' : `Now only showing pre-plotted locations in this metro. Turn back on to see all user-mapped locations (${placed.toLocaleString('en-US')} place${placed === 1 ? '' : 's'}).`}</p>
+        </>
       ) : (
         <>
           <p className="rm-fine">{count === null ? 'Counting…' : count === 0 ? 'No addresses are rendered here yet.' : `${count} address${count === 1 ? '' : 'es'} here have been rendered by other survivors.`} Unlock them all, now and in the future, for <Caps n={caps(METRO_COST)} />.</p>

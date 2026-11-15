@@ -38,7 +38,7 @@ import { VAULT_ZERO_ID } from '../../supabase/functions/_shared/vaultZero';
 import { enemyById, type BossId, type EnemyId } from './raid/enemies';
 import { lootName, type LootId } from './raid/loot';
 
-export type CategoryId = 'medical' | 'school' | 'market' | 'fuel' | 'park' | 'guard' | 'cantina' | 'chapel' | 'transit' | 'arena' | 'lodging' | 'other';
+export type CategoryId = 'medical' | 'school' | 'market' | 'fuel' | 'park' | 'guard' | 'cantina' | 'chapel' | 'transit' | 'arena' | 'lodging' | 'other' | 'houses';
 
 export interface Category {
   id: CategoryId;
@@ -106,6 +106,11 @@ export const CATEGORIES: Category[] = [
     id: 'lodging', label: 'Lodging', types: ['hotel', 'lodging', 'motel', 'resort_hotel'],
     names: ['Rest Stop Hotel', 'Bunk House', 'The Sleepless Inn', 'Penthouse Ruins', 'Traveler\'s Rest'],
     loot: ['A bed', 'Safe rest', 'Room keys', 'Minibar (empty)', 'Pre-war luggage'],
+  },
+  {
+    id: 'houses', label: 'Houses & Misc', types: [],
+    names: ['Ruined House', 'Old Homestead', 'Burnt-Out Home', 'Abandoned Address', 'Collapsed Cottage'],
+    loot: ['Whatever the years left in the cupboards', 'Family photos', 'A cold stove', 'Dusty furniture', 'Probably nothing'],
   },
   {
     id: 'other', label: 'Landmarks', types: [],
@@ -282,6 +287,7 @@ const OPENERS: Record<CategoryId, string[]> = {
   transit: ['The departure board is dark, but its last message is still scratched into the dust: everything delayed.', 'Rails run off into the dark of a tunnel nobody walks alone. Luggage lies where it fell on the last day.', 'A control tower leans over a runway full of cracks and weeds. The planes will not be flying again.'],
   arena: ['The stands are half collapsed, but the field is still a good place to settle things. The crowds are smaller now, and louder.', 'Rusted floodlights loom over the pitch like skeletal giants. The scoreboard is frozen on a final score.', 'Fairground rides stand bent and rusted against the sky. The carousel horses are still smiling.'],
   lodging: ['Room keys hang behind the front desk in neat rows. Some of the rooms are still occupied, in a manner of speaking.', 'The hotel stands taller than anything for a mile, which makes it both a landmark and a target.', 'The lobby chandelier lies in pieces across the marble. A bed upstairs is still made.'],
+  houses: ['The front door hangs open on one hinge. Somebody lived here, and somebody once planted that fence.', 'Behind the sagging porch, the rooms still hold the shapes of a life: a table, a stair, a window that faced the street.'],
   other: ['It is not much to look at, but it is on the map, so somebody thought it mattered once.', 'You cannot tell what this place was for. That is not the same as it being empty.', 'The ruins keep their secrets well. Walking in is the only way to find out.'],
 };
 

@@ -5,11 +5,10 @@
 import { CATEGORIES, type CategoryId } from '../lib/wasteland';
 import { CATEGORY_ICON, placeIcon } from '../lib/placeIcons';
 
-export default function CategoryChips({ counts, hidden, onToggle, personal }: {
+export default function CategoryChips({ counts, hidden, onToggle }: {
   counts: Map<CategoryId, number>;
   hidden: Set<CategoryId>;
   onToggle: (id: CategoryId) => void;
-  personal: { count: number; on: boolean; onToggle: () => void };
 }) {
   return (
     <div className="rm-chips" role="group" aria-label="Filter locations">
@@ -19,10 +18,6 @@ export default function CategoryChips({ counts, hidden, onToggle, personal }: {
           {c.label} <small>{counts.get(c.id)}</small>
         </button>
       ))}
-      <button type="button" className={`rm-chip ${personal.on ? '' : 'rm-chip-off'}`} onClick={personal.onToggle} aria-pressed={personal.on}>
-        <span className="rm-chip-icon" dangerouslySetInnerHTML={{ __html: placeIcon('house') }} />
-        Personal <small>{personal.count}</small>
-      </button>
     </div>
   );
 }

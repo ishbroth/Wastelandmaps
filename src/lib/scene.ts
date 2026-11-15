@@ -322,7 +322,7 @@ const vault: Landmark = (ctx, cx, gy, rand, p, lights, label) => {
   for (let i = 0; i < 5; i++) barrel(ctx, cx - 240 + i * 24 + (rand() < 0.5 ? 0 : 3), gy + 46, p);
 };
 
-const LANDMARKS: Record<SceneKind, Landmark> = { medical, school, market, fuel, park, guard, cantina, chapel, transit, arena, lodging, other, vault };
+const LANDMARKS: Record<SceneKind, Landmark> = { medical, school, market, fuel, park, guard, cantina, chapel, transit, arena, lodging, other, houses: lodging, vault };
 
 // ---- building the picture ----
 

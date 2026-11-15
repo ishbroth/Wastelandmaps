@@ -76,7 +76,6 @@ export default function App() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [hidden, setHidden] = useState<Set<CategoryId>>(new Set());
   // the person's own unlocked places (addresses): shown or hidden as a whole, on the map and in the list
-  const [personalOn, setPersonalOn] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [soundOn, setSoundOn] = useState(true); // on, in the app and on the website (it can be switched off)
 
@@ -172,12 +171,15 @@ export default function App() {
   // in the iPhone app: a purchase that was paid for but never reached the server (a dropped connection, the app closed mid-purchase) is picked up again here
   const signedInUser = account.session?.user.id;
   useEffect(() => (signedInUser ? startPurchases(() => void accountRef.current?.refresh()) : undefined), [signedInUser]);
-  const atlasLocs = useMemo(() => atlas
+  // Project: Atlas on or off for this metro (kept on this device): off, only the pre-plotted places and the person's own unlocks are on the map and in the totals
+  const [atlasOffIn, setAtlasOffIn] = useState<Set<string>>(() => { try { return new Set<string>(JSON.parse(localStorage.getItem('wastelandmaps:atlasoff') ?? '[]')); } catch { return new Set<string>(); } });
+  const atlasOn = !metroInfo || !atlasOffIn.has(metroInfo.id);
+  const atlasLocs = useMemo(() => (!atlasOn ? [] : atlas
     .filter((a) => !account.personal.some((q) => q.placeId === a.placeId))
     .map((a) => {
       const loc = personalLocation({ placeId: a.placeId, name: a.name, address: a.address, lat: a.lat, lng: a.lng, kind: a.kind }, true);
       return { ...loc, personal: { ...(loc.personal as NonNullable<Location['personal']>), atlas: true } };
-    }), [atlas, account.personal]);
+    })), [atlas, account.personal, atlasOn]);
   const personalLocsRef = useRef(personalLocs);
   personalLocsRef.current = personalLocs;
   const allLocations = useMemo(() => [...locations, ...personalLocs, ...atlasLocs], [locations, personalLocs, atlasLocs]);
@@ -1461,7 +1463,7 @@ export default function App() {
           {status === 'ready' ? (
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
-              look={LOOKS[look]} region={region} wasteland={wasteland} locations={personalOn ? mapLocations : mapLocations.filter((l) => !l.personal || l.personal.home)} hiddenCategories={hidden}
+              look={LOOKS[look]} region={region} wasteland={wasteland} locations={mapLocations} hiddenCategories={hidden}
               selectedId={selectedId} visited={shownVisited} cleared={account.cleared} waiting={account.waiting} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { if (navRef.current) return; setSelectedId(id); if (id) sound('tick'); }} onViewport={onViewport} onLongPress={onMapHold} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
@@ -1577,7 +1579,7 @@ export default function App() {
               <LocationsPanel
                 vacation={vacationOffer} onVacation={setVacationAsk}
                 metro={metroInfo} account={account}
-                region={region} locations={[...locations, ...personalLocs.filter((p) => !p.personal?.home)]} hidden={hidden} onToggleCategory={toggleCategory} personalOn={personalOn} onTogglePersonal={() => setPersonalOn((v) => !v)} selectedId={selectedId} visited={shownVisited} cleared={account.cleared}
+                region={region} locations={[...locations, ...personalLocs.filter((p) => !p.personal?.home)]} hidden={hidden} onToggleCategory={toggleCategory} atlasOn={atlasOn} atlasCount={atlas.length} onToggleAtlas={() => { if (!metroInfo) return; sound('tick'); setAtlasOffIn((prev) => { const n = new Set(prev); if (n.has(metroInfo.id)) n.delete(metroInfo.id); else n.add(metroInfo.id); try { localStorage.setItem('wastelandmaps:atlasoff', JSON.stringify([...n])); } catch { /* storage unavailable */ } return n; }); }} selectedId={selectedId} visited={shownVisited} cleared={account.cleared}
                 onSelect={(id) => { if (navRef.current) return; setSelectedId(id); sound('select'); }}
               />
             )}

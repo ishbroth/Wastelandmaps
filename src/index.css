@@ -1267,3 +1267,9 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-pin { display: inline-grid; place-items: center; width: auto; height: auto; }
 .rm-pin-label { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px; width: max-content; max-width: 240px; z-index: 2; }
 /* selected: the icon grows by scaling (its layout size never changes, so nothing is re-laid out and nothing flickers) */
+
+/* the little on/off switch (Project: Atlas on this metro's map) */
+.rm-switch { display: inline-block; position: relative; width: 44px; height: 22px; margin: 2px 0 6px; padding: 0; background: transparent; border: 2px solid var(--line); border-radius: 12px; cursor: pointer; }
+.rm-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink-dim); transition: left 0.15s, background 0.15s; }
+.rm-switch.on { border-color: var(--ink); box-shadow: 0 0 8px var(--glow); }
+.rm-switch.on .rm-switch-knob { left: 24px; background: var(--ink); }

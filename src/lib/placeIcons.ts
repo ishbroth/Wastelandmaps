@@ -206,7 +206,7 @@ export function placeIcon(id: IconId): string {
 /** The everyday icon for each kind of place, used on the filter buttons and when nothing about the real name says more. */
 export const CATEGORY_ICON: Record<CategoryId, IconId> = {
   medical: 'hospital', school: 'school', market: 'smallbuilding', fuel: 'smallbuilding', park: 'tree', guard: 'shield', cantina: 'smallbuilding',
-  chapel: 'church', transit: 'subway', arena: 'stadium', lodging: 'bed', other: 'monument',
+  chapel: 'church', transit: 'subway', arena: 'stadium', lodging: 'bed', other: 'monument', houses: 'houses',
 };
 
 // ---- choosing an icon from what the place is ----

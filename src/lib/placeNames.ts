@@ -11,7 +11,7 @@ const pick = <T,>(list: readonly T[], rand: Rand): T => list[Math.floor(rand() *
 // A place's fame is the number of Wikipedia languages that cover it. The line is lower for landmarks (they are why people come) and higher for
 // everyday kinds of place, so a famous station still keeps its name but an ordinary one does not.
 const FAME_LINE: Record<CategoryId, number> = {
-  other: 14, arena: 22, guard: 24, chapel: 24, school: 30, park: 30, lodging: 45, medical: 60, transit: 60, market: 80, cantina: 80, fuel: 120,
+  houses: 9999, other: 14, arena: 22, guard: 24, chapel: 24, school: 30, park: 30, lodging: 45, medical: 60, transit: 60, market: 80, cantina: 80, fuel: 120,
 };
 export const isFamous = (category: CategoryId, fame: number): boolean => fame >= FAME_LINE[category];
 
@@ -36,6 +36,7 @@ const NOUNS: Record<CategoryId, readonly string[]> = {
   transit: ['Depot', 'Platform', 'Junction', 'Terminus', 'Switchyard', 'Signal House', 'Tunnel Mouth', 'Crossing', 'Terminal', 'Waystation', 'Rail Yard'],
   arena: ['Arena', 'Pit', 'Coliseum', 'Fairground', 'Theater', 'Hall of Relics', 'Gallery', 'Big Top', 'Fight Pit', 'Showhouse', 'Stage', 'Dome'],
   lodging: ['Inn', 'Hotel', 'Bunkhouse', 'Rest Stop', 'Lodge', 'Boarding House', 'Penthouse', 'Motel', 'Sleeping Quarters', 'Guest House'],
+  houses: ['House', 'Home', 'Homestead', 'Cottage', 'Residence', 'Lodge', 'Dwelling', 'Cabin'],
   other: ['Ruins', 'Relic', 'Site', 'Remains', 'Wreck', 'Monument', 'Settlement', 'Stronghold', 'Cache', 'Outpost', 'Spire', 'Wreckage'],
 };
 
