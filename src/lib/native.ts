@@ -104,3 +104,13 @@ export async function startNative(): Promise<void> {
   if (shown < SPLASH_MS) await new Promise((r) => window.setTimeout(r, SPLASH_MS - shown));
   try { await SplashScreen.hide({ fadeOutDuration: 250 }); } catch { /* already hidden */ }
 }
+
+// ---- the store pages of the app ----
+
+/** The App Store page. Put the real link here (https://apps.apple.com/app/id<number>) once the app is published; until then it opens an App Store search for the name. */
+export const APP_STORE_URL = 'https://apps.apple.com/us/iphone/search?term=WastelandMaps';
+/** The Google Play page of the app (its package name). */
+export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.wasteland.app';
+
+/** The store page for this browser: Google Play on an Android phone or tablet, the App Store for everything else. */
+export const storeUrl = (): string => (/android/i.test(navigator.userAgent) ? PLAY_STORE_URL : APP_STORE_URL);

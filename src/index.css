@@ -1308,3 +1308,5 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-poster-explored { font-family: var(--font-display); font-size: 17px; letter-spacing: 3px; color: var(--ink); text-shadow: 0 0 8px var(--glow), 0 0 2px #000; padding: 1px 10px; background: color-mix(in srgb, var(--panel) 60%, transparent); border: 1px solid var(--line); white-space: nowrap; }
 .rm-app.rm-navigating .rm-poster-stack { display: none; }
 .rm-acct-home span { font-size: 11px; letter-spacing: 0.5px; }
+
+.rm-gift a { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-shadow: 0 0 8px var(--glow); }

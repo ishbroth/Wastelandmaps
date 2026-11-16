@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { sendSignInLink, signInWithFaceId, signInWithVault } from '../lib/account';
 import { faceIdName, forgetFaceId, savedFaceIds } from '../lib/faceid';
+import { storeUrl } from '../lib/native';
 
 /** Signing in: email and vault number (the simple password set when the home was chosen), or, in the
  *  app, Face ID (or Touch ID) for an account that was signed in here before and saved. `auto` starts the Face ID check as soon as it opens (the app does this
@@ -69,14 +70,14 @@ export default function AccountModal({ onClose, auto = false }: { onClose: () =>
           <form onSubmit={register} className="rm-account-body">
             {sentTo ? (
               <>
-                <p className="rm-gift">DOWNLOAD THE APP AND GET 500 FREE CAPS</p>
+                <p className="rm-gift">DOWNLOAD THE APP AND GET <a href={storeUrl()} target="_blank" rel="noreferrer">500 FREE CAPS</a></p>
                 <p>A link is on its way to <b>{sentTo}</b>. Open it on this device to create your vault. You will then choose your four-digit vault number, the one you sign in with from then on, and your home address.</p>
                 <p className="rm-fine">Nothing in the inbox? Look in the spam folder, or send it again.</p>
                 <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setSentTo('')}>SEND IT AGAIN</button>
               </>
             ) : (
               <>
-                <p className="rm-gift">DOWNLOAD THE APP AND GET 500 FREE CAPS</p>
+                <p className="rm-gift">DOWNLOAD THE APP AND GET <a href={storeUrl()} target="_blank" rel="noreferrer">500 FREE CAPS</a></p>
                 <p>Register your vault. Give your email and we send you a link; opening it creates your vault, and then you choose your four-digit vault number and your home.</p>
                 <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
                 <button type="submit" className="rm-btn" disabled={busy || !email.trim()}>{busy ? 'SENDING…' : 'EMAIL ME THE LINK'}</button>
