@@ -63,5 +63,6 @@ export const MORE_RENDERS: Record<string, FreeRender> = {
   Q804210: { name: "Baiterek Tower", photo: "Baiterek August", author: "Quarot", license: "CC0", page: "https://commons.wikimedia.org/wiki/File:Baiterek_August.jpg", lat: 51.12806, lng: 71.43056 },
   Q30892864: { name: "Palace of the Nation", photo: "Modern Center of Dushanbe, Tajikistan (29935231138)", author: "Ninara from Helsinki, Finland", license: "CC BY 2.0", page: "https://commons.wikimedia.org/wiki/File:Modern_Center_of_Dushanbe,_Tajikistan_(29935231138).jpg", lat: 38.57611, lng: 68.77861 },
   Q80290: { name: "Forbidden City", photo: "Forbidden City, as viewed from Jingshan", author: "Picrazy2", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Forbidden_City,_as_viewed_from_Jingshan.jpg", lat: 39.9163, lng: 116.3972 },
+  Q685484: { name: "Western City Gate (Genex Tower)", photo: "Zapadna kapija Beograda - panoramio", author: "Mister No", license: "CC BY 3.0", page: "https://commons.wikimedia.org/wiki/File:Zapadna_kapija_Beograda_-_panoramio.jpg", lat: 44.82028, lng: 20.40472 },
   Q214855: { name: "Bank of China Tower", photo: "Bank of China Tower (Hong Kong) 20170808", author: "Suicasmo", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Bank_of_China_Tower_(Hong_Kong)_20170808.jpg", lat: 22.2792, lng: 114.1614 },
 };
