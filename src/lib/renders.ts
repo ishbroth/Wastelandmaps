@@ -41,6 +41,9 @@ export const FREE_RENDERS: Record<string, FreeRender> = {
   [VAULT_ZERO_ID]: { name: 'Vault 0', real: 'Vault Tech Headquarters', photo: '', author: '', license: '', page: '', lat: VAULT_ZERO_AT.lat, lng: VAULT_ZERO_AT.lng, pristine: true },
 };
 
+/** A render that was made again keeps its file name, and browsers keep images for hours: bumping its number here makes everyone fetch the new one. */
+const REVISIONS: Record<string, number> = { Q30892864: 2, Q80290: 1 };
+
 /** The free render for a place on the map, by its id ("wd:Q243"), or undefined. */
 export function freeRenderFor(spotId: string): (FreeRender & { url: string; before: string }) | undefined {
   // a Wikidata place ("wd:Q243") or one of the few landmarks that has none ("famous:...", keyed by its whole id)
@@ -48,5 +51,6 @@ export function freeRenderFor(spotId: string): (FreeRender & { url: string; befo
   const hit = id ? FREE_RENDERS[id] : undefined;
   if (!id || !hit) return undefined;
   const file = id.replace(/^famous:/, 'famous-').replace(/-+$/, '');
-  return { ...hit, url: `${import.meta.env.BASE_URL}renders/${file}.png`, before: `${import.meta.env.BASE_URL}renders/${file}-source.jpg` };
+  const v = REVISIONS[id] ? `?v=${REVISIONS[id]}` : '';
+  return { ...hit, url: `${import.meta.env.BASE_URL}renders/${file}.png${v}`, before: `${import.meta.env.BASE_URL}renders/${file}-source.jpg${v}` };
 }

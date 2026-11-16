@@ -41,7 +41,6 @@ export const FAMOUS: Famous[] = [
   { match: /^times square$/i, name: 'Times Square', lat: 40.758, lng: -73.9855, icon: 'timessquare', qid: 'Q11259' },
   { match: /grand central (?:terminal|station)/i, name: 'Grand Central Terminal', lat: 40.7527, lng: -73.9772, icon: 'grandcentral', qid: 'Q11290' },
   { match: /rockefeller center|30 rockefeller|30 rock\b/i, name: 'Rockefeller Center', lat: 40.7587, lng: -73.9787, icon: 'rockefeller', qid: 'Q11277' },
-  { match: /forbidden city|palace museum|gugong|故宫/i, name: 'Forbidden City', lat: 39.9163, lng: 116.3972, icon: 'forbiddencity', qid: 'Q80290' },
   { match: /alcatraz/i, name: 'Alcatraz Island', lat: 37.8267, lng: -122.423, icon: 'alcatraz', qid: 'Q131354' },
   { match: /st\.? peter'?s basilica|saint peter'?s basilica|basilica di san pietro|basilique saint-pierre/i, name: "St. Peter's Basilica", lat: 41.9022, lng: 12.4539, icon: 'stpeters', qid: 'Q12512' },
   { match: /trevi fountain|fontana di trevi/i, name: 'Trevi Fountain', lat: 41.9009, lng: 12.4833, icon: 'trevi', qid: 'Q185382' },
