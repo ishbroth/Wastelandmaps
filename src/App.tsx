@@ -698,6 +698,8 @@ export default function App() {
       return;
     }
     const near = under ?? metroAt(metros, center, 120);
+    // zoomed in over open country or sea with no city near: name the nearest country or region, not the last city that was looked at
+    if (!near && regions) setZoomName(nameForZoom(regions, center, Math.min(zoom, 8.9)));
     if (near) {
       // the title follows the map over the named parts of a metro too (San Blam, then Smokeland across the bay), though it is the same metro
       const title = titleAt(near, center);
