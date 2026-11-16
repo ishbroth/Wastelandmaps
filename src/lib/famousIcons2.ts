@@ -65,7 +65,7 @@ function castleHall(o: { turrets?: boolean; tower?: boolean } = {}): string {
   return svg(out);
 }
 
-const ICONS_VENETIAN = { cbiraq: svg(f('M7.4 21V9.6L9 4.4l1.6-.8 1.4.4 1.6-.4 1.6.8L16.6 9.6V21Z') + d('M10.2 6.4v14M12 5.2v15M13.8 6.4v14') + s('M5.6 21h12.8')), venetian: svg(f('M3 21V12.6h7.4V21Z') + d('M4.6 14.6h4.2M4.6 17h4.2') + f('M12.4 21V8.4h2.6V21Z') + f('M12 8.4h3.4L13.7 4Z') + f('M15 21V11.4h6V21Z') + d('M16 13.4h4M16 16h4')) };
+const ICONS_VENETIAN = { estelarbocagrande: svg(f('M9 21V4.4L14.6 2.6V21Z') + f('M3.6 21v-5.6H9V21Z') + f('M14.6 21v-4h5.8v4Z') + d('M11 8.4h1.6M11 11.4h1.6M11 14.4h1.6M11 17.4h1.6') + s('M2.8 21h18.4')), cbiraq: svg(f('M7.4 21V9.6L9 4.4l1.6-.8 1.4.4 1.6-.4 1.6.8L16.6 9.6V21Z') + d('M10.2 6.4v14M12 5.2v15M13.8 6.4v14') + s('M5.6 21h12.8')), venetian: svg(f('M3 21V12.6h7.4V21Z') + d('M4.6 14.6h4.2M4.6 17h4.2') + f('M12.4 21V8.4h2.6V21Z') + f('M12 8.4h3.4L13.7 4Z') + f('M15 21V11.4h6V21Z') + d('M16 13.4h4M16 16h4')) };
 const ICONS: Record<string, string> = {
   reuniontower: svg(f('M10.8 21V11h2.4v10Z') + f('M12 2.8a4.4 4.4 0 1 0 0 8.8 4.4 4.4 0 0 0 0-8.8Z') + s('M12 2.8V.8') + d('M7.8 7.2h8.4M9 4.8c2 1 4 1 6 0M9 9.6c2-1 4-1 6 0') + f('M8.5 21h7v-1.4h-7Z')),
   oldred: castleHall({ turrets: true, tower: true }),
