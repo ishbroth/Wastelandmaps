@@ -99,7 +99,9 @@ const LANDMARK_ICONS: Record<string, string> = {
   // the first seven, which already have their own drawings
   // Big Ben: the Elizabeth Tower with a wing of the palace
   Q41225: svg(f('M9 21V9l1.2-3.5L12 3l1.8 2.5L15 9v12Z') + f('M2.5 21v-5h6.5v5ZM15 21v-5h6.5v5Z') + d('M12 9.5V11l1 .7M11 21v-3h2v3') + s('M12 3V1.5')),
-  Q243: '', Q9202: '', Q5317: '', Q45178: '', Q79961: '', Q133274: '',
+  // the Statue of Liberty: the raised torch, the crowned head with its rays, the robe and the tablet
+  Q9202: svg(f('M5.4 1.3c.9 1 1.3 1.7 1.3 2.4a1.3 1.3 0 0 1-2.6 0c0-.7.4-1.4 1.3-2.4Z') + f('M4.1 5.2h2.6l-.4 1.8H4.5Z') + d('M5.4 7 8.4 12.2') + f('M13.2 5.4a2.3 2.3 0 1 0 0 4.6 2.3 2.3 0 0 0 0-4.6Z') + s('M13.2 2.2v1.3M10.2 3.2l1 1M16.2 3.2l-1 1M9 6l1.3.3M17.4 6l-1.3.3') + f('M8.2 14.2 13 10.6l4.8 3.6V21H8.2Z') + f('M15.4 14.6l3.4-.7.9 3.8-3.4.7Z') + d('M11.2 14v6.4M13.4 12.4v2.2')),
+  Q243: '', Q5317: '', Q45178: '', Q79961: '', Q133274: '',
 };
 
 /** The landmark's own miniature, or undefined when it is drawn from the common icon set. */
