@@ -60,5 +60,6 @@ export const MORE_RENDERS: Record<string, FreeRender> = {
   Q6062105: { name: "Parque Cristal", photo: "Vista Lateral del Parque Cristal", author: "Junior García", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Vista_Lateral_del_Parque_Cristal.jpg", lat: 10.49778, lng: -66.84306 },
   Q5715648: { name: "BD Bacatá", photo: "2018 Bogotá edificios BD Bacatá", author: "Felipe Restrepo Acosta", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:2018_Bogot%C3%A1_edificios_BD_Bacat%C3%A1.jpg", lat: 4.60475, lng: -74.07033 },
   Q27857526: { name: "Commercial Bank of Ethiopia Headquarters", photo: "Commercial Bank of Ethiopia CBE-HEAD OFFICE", author: "Dagmawi-M", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Commercial_Bank_of_Ethiopia_CBE-HEAD_OFFICE.jpg", lat: 9.01655, lng: 38.75433 },
+  Q804210: { name: "Baiterek Tower", photo: "Baiterek August", author: "Quarot", license: "CC0", page: "https://commons.wikimedia.org/wiki/File:Baiterek_August.jpg", lat: 51.12806, lng: 71.43056 },
   Q214855: { name: "Bank of China Tower", photo: "Bank of China Tower (Hong Kong) 20170808", author: "Suicasmo", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Bank_of_China_Tower_(Hong_Kong)_20170808.jpg", lat: 22.2792, lng: 114.1614 },
 };
