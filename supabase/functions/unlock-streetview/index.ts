@@ -232,7 +232,7 @@ async function addVault(base: Uint8Array, number: string): Promise<Uint8Array> {
 // Only the home they saved (and its vault number) can be rendered this way: both come from their account, never from the browser.
 // deno-lint-ignore no-explicit-any
 async function homeFlow(req: Request, db: any, user: string, googleId: string, checkOnly: boolean, flooded: boolean, irradiated: boolean, metro: string | null): Promise<Response> {
-  const { data: home } = await db.from('user_home').select('place_id,vault_number,address,lat,lng').eq('user_id', user).maybeSingle();
+  const { data: home } = await db.from('user_home').select('place_id,vault_number,address,lat,lng,preplotted_id').eq('user_id', user).maybeSingle();
   if (!home || home.place_id !== googleId || home.vault_number === null || home.vault_number === undefined) return reply(req, { error: 'bad_place' }, 400);
   const number = home.vault_number as number;
   const unlockKey = `vault:${googleId}:${number}`;
@@ -273,8 +273,16 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
     // 1. the building as anybody sees it, with no vault: the address's shared render if there already is one (then nothing new is drawn of the building), otherwise made now from a free photo of
     // the place or from Street View, and kept as the shared render
     let base: Uint8Array | null = null;
+    // a home that is one of the pre-plotted places: the building's own render is the plain picture (the owner's copy is that same render with the vault door added)
+    if (home.preplotted_id) {
+      const { data: pre } = await db.from('renders').select('status,storage_path').eq('place_id', home.preplotted_id).maybeSingle();
+      if (pre?.status === 'ready' && pre.storage_path) {
+        const dl = await db.storage.from('renders').download(pre.storage_path as string);
+        if (!dl.error && dl.data) base = new Uint8Array(await dl.data.arrayBuffer());
+      }
+    }
     const { data: shared } = await db.from('address_renders').select('status,storage_path').eq('place_id', googleId).maybeSingle();
-    if (shared?.status === 'ready' && shared.storage_path) {
+    if (!base && shared?.status === 'ready' && shared.storage_path) {
       const dl = await db.storage.from('renders').download(shared.storage_path as string);
       if (!dl.error && dl.data) base = new Uint8Array(await dl.data.arrayBuffer());
     }
@@ -304,6 +312,17 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
     console.error('home render failed', googleId, e instanceof Error ? e.message : e);
     return reply(req, { error: 'failed' }, 502);
   }
+}
+
+/** Who paid for the shared render of an address the first time, and when (their callsign when they are on the leaderboard). Never for a home: that would say where a callsign lives. */
+// deno-lint-ignore no-explicit-any
+async function discoveredOf(db: any, googleId: string): Promise<{ by: string | null; at: string } | null> {
+  const { data: r } = await db.from('address_renders').select('created_by,created_at').eq('place_id', googleId).maybeSingle();
+  if (!r?.created_by) return null;
+  const { data: h } = await db.from('user_home').select('place_id').eq('user_id', r.created_by).maybeSingle();
+  if (h?.place_id === googleId) return null;
+  const { data: n } = await db.from('leaderboard_names').select('callsign').eq('user_id', r.created_by).maybeSingle();
+  return { by: (n?.callsign as string | undefined) ?? null, at: r.created_at as string };
 }
 
 Deno.serve(async (req) => {
@@ -352,7 +371,7 @@ Deno.serve(async (req) => {
       if (charged) await db.rpc('refund_personal', { p_user: user, p_place: placeId, p_cost: existing!.rubble === true ? RUBBLE_COST : COST });
       return reply(req, { error: 'server' }, 500);
     }
-    return reply(req, { status: 'ready', url, charged, ...(existing!.rubble === true ? { rubble: true } : {}), ...(await sourceOf(db, googleId)) });
+    return reply(req, { status: 'ready', url, charged, discovered: await discoveredOf(db, googleId), ...(existing!.rubble === true ? { rubble: true } : {}), ...(await sourceOf(db, googleId)) });
   }
 
   if (existing?.status === 'generating' && Date.now() - new Date(existing.started_at as string).getTime() < STALE_AFTER_MS) return reply(req, { status: 'working' });
@@ -433,7 +452,7 @@ Deno.serve(async (req) => {
     // the rubble is a lesser picture: three of the four credits (300 caps) go back, one stays for the making
     if (rubble && spent === 'spent') await db.rpc('part_refund_personal', { p_user: user, p_place: placeId, p_refund: COST - RUBBLE_COST });
     if (free && !rubble) await keepSource(db, googleId, free);
-    return reply(req, { status: 'ready', url, charged: spent === 'spent', ...(rubble ? { rubble: true, refunded: COST - RUBBLE_COST } : {}), ...(free && !rubble ? { before: (await sourceOf(db, googleId)).before, credit: free.credit } : {}) });
+    return reply(req, { status: 'ready', url, charged: spent === 'spent', discovered: await discoveredOf(db, googleId), ...(rubble ? { rubble: true, refunded: COST - RUBBLE_COST } : {}), ...(free && !rubble ? { before: (await sourceOf(db, googleId)).before, credit: free.credit } : {}) });
   } catch (e) {
     await db.from('address_renders').update({ status: 'failed' }).eq('place_id', googleId);
     await giveBack();

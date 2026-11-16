@@ -117,7 +117,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   const irradiated = isIrradiated(spot.position, zones);
   const supplied = manualBefore(spot.id);
   const canPay = accountsEnabled && !render && ((spot.id.startsWith('wd:') && !!photo?.listed) || viaStreet || !!supplied || (personal && (streetState === 'yes' || !!rendered?.exists || homeOwned || atlasOwned || (streetState === 'no' && !spot.personal?.home))));
-  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { flooded, irradiated, vault: spot.vault?.number, category: spot.kind, ...(viaStreet ? { streetView: true, lat: spot.position.lat, lng: spot.position.lng } : {}) }, !!rendered?.owned || homeOwned || (account.cleared.has(spot.id) && !account.noPhoto.has(spot.id))); // a cleared place was unlocked: its picture opens by itself
+  const paid = usePaidRender(spot.id, spot.oldName ?? spot.name, account, canPay, personal ? { kind: spot.personal?.kind, metroId, home: !!spot.personal?.home, flooded, irradiated } : { metroId, flooded, irradiated, vault: spot.vault?.number, category: spot.kind, ...(viaStreet ? { streetView: true, lat: spot.position.lat, lng: spot.position.lng } : {}) }, !!rendered?.owned || homeOwned || (account.cleared.has(spot.id) && !account.noPhoto.has(spot.id))); // a cleared place was unlocked: its picture opens by itself
   const paidReady = paid.state.kind === 'ready' ? paid.state.render : null;
   const fileName = `${(spot.oldName ?? spot.name).replace(/[^A-Za-z0-9]+/g, '-')}-wastelandmaps.png`;
   // a vacation vault: its picture is the place with a vault door in it (made when it was unlocked)
@@ -210,7 +210,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
         {/* the scene tab is the story, the enemies and the loot: the picture belongs to the snapshot tab */}
         <div className={`rm-modal-view${tab === 'scene' ? ' rm-modal-view-hidden' : ''}`}>
           {tab === 'snapshot' && reveal && (
-            <BlowApart sound={sound} pristine={reveal.pristine} key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={spot.id} seenUser={account.session?.user.id} />
+            <BlowApart sound={sound} pristine={reveal.pristine} key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={spot.id} seenUser={account.session?.user.id} discovered={reveal.pristine || personal ? null : paidReady?.discovered ?? null} />
           )}
           {tab === 'snapshot' && locked && (
             <div className="rm-locked">

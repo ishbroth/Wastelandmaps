@@ -1,7 +1,7 @@
 // A miniature of each landmark that has a free snapshot, drawn in the landmark's own shape (keyed by Wikidata id). These pins are also drawn
 // slightly larger than the rest so they stand out. Same outline system as placeIcons.ts: f fills in when found, d is a detail, s stays a line.
 
-import { f, d, s, svg } from './placeIcons';
+import { f, d, s, svg, cogAround, ICON_MAKERS } from './placeIcons';
 import { FREE_RENDERS } from './renders';
 const FREE_IDS = new Set(Object.keys(FREE_RENDERS));
 
@@ -149,3 +149,6 @@ export const landmarkIcon = (wikidataId: string): string | undefined => LANDMARK
 
 /** The icon markup for a spot: the landmark's own miniature when it has a free snapshot, otherwise the common icon. */
 export const iconHtmlFor = (spotId: string, fallback: string): string => (spotId.startsWith('wd:') && FREE_IDS.has(spotId.slice(3)) && landmarkIcon(spotId.slice(3))) || fallback;
+
+// a home vault that is a landmark: the landmark's own miniature inside the cog (id "homelm:Q...")
+ICON_MAKERS.push((id) => { if (!id.startsWith('homelm:')) return undefined; const m = LANDMARK_ICONS[id.slice('homelm:'.length)]; return m ? cogAround(m) : undefined; });

@@ -41,7 +41,7 @@ export function kindFromTypes(types: string[], name: string): PersonalKind {
 /** A home vault's number as it is shown: always four digits, so 0730 is not Vault 730. */
 export const homeNumberText = (n: number): string => String(n).padStart(4, '0');
 
-export function personalLocation(p: PersonalPlace, saved: boolean, homeVault?: number): Location {
+export function personalLocation(p: PersonalPlace, saved: boolean, homeVault?: number, homeIcon?: string): Location {
   return {
     id: personalId(p.placeId),
     oldName: p.name,
@@ -51,7 +51,8 @@ export function personalLocation(p: PersonalPlace, saved: boolean, homeVault?: n
     loot: 'Whatever the years left in the cupboards',
     threat: 'Quiet',
     rads: 0,
-    icon: homeVault !== undefined ? 'homevault' : addressIcon(p.kind, p.name, p.address),
+    // the home vault is the cog with a house in it, or with the building's own icon when the home is a pre-plotted place or not an ordinary house
+    icon: homeVault !== undefined ? ((homeIcon as IconId | undefined) ?? 'homevault') : addressIcon(p.kind, p.name, p.address),
     personal: { address: p.address, kind: p.kind, saved, ...(homeVault !== undefined ? { home: true } : {}) },
   };
 }

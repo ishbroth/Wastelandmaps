@@ -300,7 +300,10 @@ function draw(
   ctx.restore();
 }
 
-export default function BlowApart({ sound = false, pristine = false, beforeUrl, afterUrl, name, file, seed, seenId, seenUser }: { /** Sound effects are on. */ sound?: boolean; /** Nothing is destroyed here (Vault 0): just show the picture, with no bomb and no before/after. */ pristine?: boolean; beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string; /** Who is watching: the blast is a first time for each person, not for each phone. */ seenUser?: string }) {
+/** The date of a first render as month/day/year. */
+const discoveredDate = (iso: string): string => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`; };
+
+export default function BlowApart({ sound = false, pristine = false, beforeUrl, afterUrl, name, file, seed, seenId, seenUser, discovered }: { /** Who paid for this place's first render, and when (not for the permanent landmarks). */ discovered?: { by: string | null; at: string } | null; /** Sound effects are on. */ sound?: boolean; /** Nothing is destroyed here (Vault 0): just show the picture, with no bomb and no before/after. */ pristine?: boolean; beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string; /** Who is watching: the blast is a first time for each person, not for each phone. */ seenUser?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const images = useRef<{ before: HTMLImageElement; after: HTMLImageElement; plan: ReturnType<typeof plan>; sky: Sky; cloud: CanvasRenderingContext2D | null; width: number; height: number } | null>(null);
   const frame = useRef(0);
@@ -425,6 +428,7 @@ export default function BlowApart({ sound = false, pristine = false, beforeUrl, 
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z" fill="currentColor" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />{muted ? <path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /> : <path d="M15.5 9.2a4 4 0 0 1 0 5.6M18 6.8a7.4 7.4 0 0 1 0 10.4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}</svg>
         </button>
       )}
+      {discovered && state !== 'loading' && <span className="rm-discovered-by">DISCOVERED BY {(discovered.by ?? 'A SURVIVOR').toUpperCase()} {discoveredDate(discovered.at)}</span>}
       {state === 'loading' && <div className="rm-render-loading" role="status"><CogSpinner big label="Loading the picture" /><span>LOADING…</span></div>}
       </div>
       {big && (

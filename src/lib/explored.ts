@@ -18,7 +18,7 @@ function regionsOf(index: MetroEntry[], data: RegionsFile): Map<string, string> 
 }
 
 /** Percent explored (0 to 100) in the scope, or null when there is nothing to measure. `found` counts the discovered pre-plotted places by metro. */
-export function exploredPercent(scope: Scope, index: MetroEntry[], data: RegionsFile | null, found: Map<string, number>, homeMetro: string | null): number | null {
+export function exploredPercent(scope: Scope, index: MetroEntry[], data: RegionsFile | null, found: Map<string, number>, home: { metro: string | null; /** The home is one of the pre-plotted places (it is not a place of its own). */ preplotted: boolean; /** ...and it is already among the places found. */ found: boolean }): number | null {
   let match: (m: MetroEntry) => boolean;
   if (scope.level === 'metro') match = (m) => m.id === scope.key;
   else if (scope.level === 'country') match = (m) => m.country === scope.key;
@@ -31,9 +31,10 @@ export function exploredPercent(scope: Scope, index: MetroEntry[], data: Regions
   let have = 0, total = 0;
   for (const m of index) {
     if (!match(m)) continue;
-    const home = m.id === homeMetro ? 1 : 0;
-    total += m.places + home;
-    have += Math.min(found.get(m.id) ?? 0, m.places) + home;
+    const here = m.id === home.metro;
+    // a home vault is one more place in its metro, unless it already is one of the pre-plotted places (then it is counted once, as found)
+    total += m.places + (here && !home.preplotted ? 1 : 0);
+    have += Math.min(found.get(m.id) ?? 0, m.places) + (here && (!home.preplotted || !home.found) ? 1 : 0);
   }
   return total > 0 ? (have / total) * 100 : null;
 }

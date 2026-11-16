@@ -30,6 +30,8 @@ export default function Leaderboard({ account }: { account: Account }) {
     setBusy(false);
   };
   // choosing the callsign: free typing, checked by the server's moderator (letters, numbers, spaces; no cuss words in any language, no contact details)
+  // changing a callsign that is already chosen asks first (so a stray tap on RANDOM or CHOOSE does not throw it away)
+  const [sure, setSure] = useState<'random' | 'choose' | null>(null);
   const [choosing, setChoosing] = useState<string | null>(null);
   const [chooseNote, setChooseNote] = useState('');
   const REASONS: Record<string, string> = {
@@ -91,9 +93,18 @@ export default function Leaderboard({ account }: { account: Account }) {
         <div className="rm-board-me">
           <p className="rm-fine">You are <b>{me.callsign}</b>: #{me.rank}, level {me.level}, {me.places} places.</p>
           <div className="rm-row-buttons">
-            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void join(true)}>RANDOM</button>
-            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { setChooseNote(''); setChoosing(me.callsign); }}>CHOOSE</button>
+            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setSure('random')}>RANDOM</button>
+            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setSure('choose')}>CHOOSE</button>
             <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void leave()}>LEAVE</button>
+          </div>
+        </div>
+      )}
+      {me && sure && (
+        <div className="rm-board-choose" role="alertdialog" aria-label="Change your callsign?">
+          <p className="rm-fine">Are you sure you want to change your callsign? <b>{me.callsign}</b> will be gone and somebody else could take it.</p>
+          <div className="rm-row-buttons">
+            <button type="button" className="rm-btn" disabled={busy} onClick={() => { const how = sure; setSure(null); if (how === 'random') void join(true); else { setChooseNote(''); setChoosing(me.callsign); } }}>YES, CHANGE IT</button>
+            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setSure(null)}>KEEP IT</button>
           </div>
         </div>
       )}

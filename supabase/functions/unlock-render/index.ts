@@ -106,6 +106,14 @@ async function generate(photo: Photo, name: string, entity: string, flooded: boo
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
+/** Who paid for the render the first time (their callsign when they are on the leaderboard) and when, for the line under the picture. */
+// deno-lint-ignore no-explicit-any
+async function discoveredBy(db: any, row: any): Promise<{ by: string | null; at: string } | null> {
+  if (!row?.discovered_by) return null;
+  const { data } = await db.from('leaderboard_names').select('callsign').eq('user_id', row.discovered_by).maybeSingle();
+  return { by: (data?.callsign as string | undefined) ?? null, at: row.created_at as string };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
   if (req.method !== 'POST') return reply(req, { error: 'POST only' }, 405);
@@ -113,7 +121,7 @@ Deno.serve(async (req) => {
   const user = await callerId(req);
   if (!user) return reply(req, { error: 'sign_in' }, 401);
 
-  const { placeId, name, flooded, irradiated, vault, category, streetView, lat, lng } = (await req.json().catch(() => ({}))) as { placeId?: string; name?: string; flooded?: boolean; irradiated?: boolean; vault?: number; category?: string; streetView?: boolean; lat?: number; lng?: number };
+  const { placeId, name, flooded, irradiated, vault, category, streetView, lat, lng, metroId } = (await req.json().catch(() => ({}))) as { metroId?: string; placeId?: string; name?: string; flooded?: boolean; irradiated?: boolean; vault?: number; category?: string; streetView?: boolean; lat?: number; lng?: number };
   // what kind of place it is (a park has no building to put the vault door in)
   const kindOf = typeof category === 'string' && /^[a-z]{2,20}$/.test(category) ? category : undefined;
   // a place that is the entrance to a vault: its picture has the vault door in it (the number is the vault's)
@@ -121,6 +129,7 @@ Deno.serve(async (req) => {
   // a Wikidata place, or the one second-tier landmark whose render was supplied (see the renders row for it)
   if (!placeId || !/^(wd:Q\d+|famous:east-county-courthouse-el-cajon-)$/.test(placeId)) return reply(req, { error: 'bad_place' }, 400);
   const entity = placeId.slice(3);
+  const metro = /^[a-z0-9-]{3,80}$/.test(String(metroId ?? '')) ? String(metroId) : null;
   const placeName = (name ?? '').slice(0, 120);
   const db = serviceClient();
 
@@ -164,7 +173,7 @@ Deno.serve(async (req) => {
         const now = new Date().toISOString();
         const claim = row
           ? await db.from('renders').update({ status: 'generating', started_at: now }).eq('place_id', placeId).eq('status', row.status).eq('started_at', row.started_at).select()
-          : await db.from('renders').insert({ place_id: placeId, status: 'generating', place_name: placeName, started_at: now }).select();
+          : await db.from('renders').insert({ place_id: placeId, status: 'generating', place_name: placeName, started_at: now, metro_id: metro, discovered_by: user }).select();
         if (claim.error || !claim.data || claim.data.length === 0) return reply(req, { status: 'working' }); // someone else just claimed it
         // a picture that was already made stays as it was if the new one cannot be
         const keepOld = async () => { await db.from('renders').update({ status: 'ready', started_at: (before as { started_at: string }).started_at }).eq('place_id', placeId); row = before; };
@@ -189,6 +198,7 @@ Deno.serve(async (req) => {
             const done = await db.from('renders').update({
               status: 'ready', storage_path: path, place_name: placeName, photo_title: photo.title, photo_author: photo.author,
               photo_license: photo.license, photo_page: photo.page, created_at: new Date().toISOString(), vault_number: vaultNum,
+              ...(row?.metro_id ? {} : metro ? { metro_id: metro } : {}), ...(row?.discovered_by ? {} : { discovered_by: user }),
             }).eq('place_id', placeId).select().single();
             row = done.data;
           } catch (e) {
@@ -209,6 +219,7 @@ Deno.serve(async (req) => {
       status: 'ready',
       url: signed.data.signedUrl,
       credit: { photo: row.photo_title, author: row.photo_author, license: row.photo_license, page: row.photo_page },
+      discovered: await discoveredBy(db, row),
       charged,
     });
   } catch (e) {

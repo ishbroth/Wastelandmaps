@@ -10,6 +10,7 @@ import type { VacationChoice, VacationOffer } from './VaultHome';
 import { personalId, personalLocation } from '../lib/personal';
 import { isNative, purchasesAvailable } from '../lib/native';
 import Leaderboard from './Leaderboard';
+import AtlasProgress, { type AtlasFocus } from './AtlasProgress';
 import Caps, { CapIcon } from './Caps';
 import { StimpakIcon, StopwatchIcon } from './ItemIcons';
 import { STIMPAK_TRADES, TIME_TRADES, offersFor, tradeWindow } from '../../supabase/functions/_shared/stimpak';
@@ -415,7 +416,7 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
   );
 }
 
-export function SharePanel({ query, look, account, mapPoster }: { query: string; look: LookId; account: Account; mapPoster: () => MapPosterInput | null }) {
+export function SharePanel({ query, look, account, mapPoster, atlasFocus }: { atlasFocus?: AtlasFocus | null; query: string; look: LookId; account: Account; mapPoster: () => MapPosterInput | null }) {
   const [copied, setCopied] = useState(false);
   // the picture on show in the gallery (when it is open): the link, copy, print and save then belong to it; otherwise to the map
   const [now, setNow] = useState<GalleryNow | null>(null);
@@ -465,6 +466,7 @@ export function SharePanel({ query, look, account, mapPoster }: { query: string;
         Map imagery belongs to Google and is for your own use; WastelandMaps is an unofficial fan project and is not affiliated with any game publisher or developer.
       </p>
       <Leaderboard account={account} />
+      <AtlasProgress focus={atlasFocus ?? null} />
     </div>
   );
 }

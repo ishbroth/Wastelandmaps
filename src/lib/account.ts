@@ -37,7 +37,7 @@ export const PACK = PACKS[0];
 /** Unlocking every rendered address in one metro. */
 export const METRO_COST = 48;
 
-export interface Home { placeId?: string; name?: string; address?: string; lat?: number; lng?: number; skipped: boolean; /** The four-digit number of their home vault. */ vaultNumber?: number }
+export interface Home { placeId?: string; name?: string; address?: string; lat?: number; lng?: number; skipped: boolean; /** The four-digit number of their home vault. */ vaultNumber?: number; /** The home is one of the pre-plotted places (its id, "wd:Q..."): it is counted once, and its building's icon sits in the cog. */ preplottedId?: string; /** The metro the home is in. */ metro?: string; /** The icon inside the home cog when the home is not an ordinary house. */ icon?: string }
 
 /** A place turned into a vacation vault: where it is, what it was called and the icon it had (it is drawn inside a vault cog now). */
 export interface Vacation { placeId: string; name: string; icon: string; lat: number; lng: number }
@@ -179,10 +179,10 @@ export function useAccount(): Account {
       setClearedByMetro(byMetro);
     });
     void db().from('personal_places').select('place_id,name,address,lat,lng,kind').eq('user_id', s.user.id).order('created_at').then((r) => setPersonal(((r.data ?? []) as { place_id: string; name: string; address: string; lat: number; lng: number; kind: PersonalPlace['kind'] }[]).map((x) => ({ placeId: x.place_id, name: x.name, address: x.address, lat: x.lat, lng: x.lng, kind: x.kind }))));
-    void db().from('user_home').select('place_id,name,address,lat,lng,skipped,vault_number').eq('user_id', s.user.id).maybeSingle().then((r) => {
+    void db().from('user_home').select('place_id,name,address,lat,lng,skipped,vault_number,preplotted_id,home_metro,home_icon').eq('user_id', s.user.id).maybeSingle().then((r) => {
       // if the table is not there yet, do not nag about it
       if (r.error) setHome({ skipped: true });
-      else setHome(r.data ? { placeId: r.data.place_id ?? undefined, name: r.data.name ?? undefined, address: r.data.address ?? undefined, lat: r.data.lat ?? undefined, lng: r.data.lng ?? undefined, skipped: !!r.data.skipped, vaultNumber: r.data.vault_number ?? undefined } : null);
+      else setHome(r.data ? { placeId: r.data.place_id ?? undefined, name: r.data.name ?? undefined, address: r.data.address ?? undefined, lat: r.data.lat ?? undefined, lng: r.data.lng ?? undefined, skipped: !!r.data.skipped, vaultNumber: r.data.vault_number ?? undefined, preplottedId: r.data.preplotted_id ?? undefined, metro: r.data.home_metro ?? undefined, icon: r.data.home_icon ?? undefined } : null);
       setHomeLoaded(true);
     });
     void db().from('metro_clears').select('metro_id').eq('user_id', s.user.id).then((r) => setMetrosCleared(new Set(((r.data ?? []) as { metro_id: string }[]).map((x) => x.metro_id))));
@@ -329,6 +329,8 @@ export interface Unlocked {
   credit: { photo: string; author: string; license: string; page: string };
   /** The photograph the render was made from, when it was a free one (a typed-in place that has its own photo): the 'before' of the reveal. */
   before?: string;
+  /** Who paid for the first render of this place (their callsign, when they are on the leaderboard) and when. */
+  discovered?: { by: string | null; at: string };
 }
 export type UnlockResult =
   | { kind: 'ready'; render: Unlocked }
@@ -348,7 +350,7 @@ export async function unlockRender(placeId: string, name: string, extra?: { /** 
     }
     return { kind: 'error', reason: reason as 'server', resetsAt };
   }
-  if (data?.status === 'ready') return { kind: 'ready', render: { url: data.url as string, ...(data.rubble === true ? { rubble: true, refunded: Number(data.refunded) || undefined } : {}), ...(typeof data.before === 'string' ? { before: data.before } : {}), credit: (data.credit as Unlocked['credit'] | undefined) ?? { photo: 'Street View', author: 'Google', license: '', page: 'https://www.google.com/streetview/' } } };
+  if (data?.status === 'ready') return { kind: 'ready', render: { url: data.url as string, ...(data.rubble === true ? { rubble: true, refunded: Number(data.refunded) || undefined } : {}), ...(typeof data.before === 'string' ? { before: data.before } : {}), ...(data.discovered && typeof data.discovered.at === 'string' ? { discovered: data.discovered as Unlocked['discovered'] } : {}), credit: (data.credit as Unlocked['credit'] | undefined) ?? { photo: 'Street View', author: 'Google', license: '', page: 'https://www.google.com/streetview/' } } };
   if (data?.status === 'working') return { kind: 'working' };
   return { kind: 'error', reason: 'server' };
 }
@@ -561,7 +563,7 @@ export async function atlasList(metroId: string): Promise<AtlasPlace[]> {
 export async function saveHome(userId: string, home: Home): Promise<'ok' | 'taken' | 'error'> {
   const { error } = await db().from('user_home').upsert({
     user_id: userId, place_id: home.placeId ?? null, name: home.name ?? null, address: home.address ?? null, lat: home.lat ?? null, lng: home.lng ?? null,
-    skipped: home.skipped, vault_number: home.vaultNumber ?? null,
+    skipped: home.skipped, vault_number: home.vaultNumber ?? null, preplotted_id: home.preplottedId ?? null, home_metro: home.metro ?? null, home_icon: home.icon ?? null,
   }, { onConflict: 'user_id' });
   if (!error) return 'ok';
   return error.code === '23505' ? 'taken' : 'error';
@@ -680,3 +682,26 @@ export async function loadNeighborhood(lat: number, lng: number, places: { id: s
 }
 
 export interface StreetRoad { id: number; hw: string; pts: [number, number][] }
+
+/** Remembers which metro the home is in (older homes did not have it kept). */
+export async function saveHomeMetro(userId: string, metro: string): Promise<void> {
+  await db().from('user_home').update({ home_metro: metro }).eq('user_id', userId);
+}
+
+// ---- Progress: Atlas ----
+
+/** How many pre-plotted places have a finished render, by metro. */
+export async function atlasRenderedCounts(): Promise<Map<string, number>> {
+  const { data, error } = await db().rpc('atlas_rendered_counts');
+  const out = new Map<string, number>();
+  if (!error && Array.isArray(data)) for (const r of data as { metro_id: string; n: number | string }[]) out.set(r.metro_id, Number(r.n));
+  return out;
+}
+
+export interface Contributor { callsign: string; n: number }
+
+/** The survivors who have discovered the most pre-plotted places (in one metro when given), by callsign. */
+export async function atlasContributors(metro?: string | null): Promise<Contributor[]> {
+  const { data, error } = await db().rpc('atlas_contributors', { p_metro: metro ?? null, p_limit: 200 });
+  return error || !Array.isArray(data) ? [] : (data as { callsign: string; n: number | string }[]).map((r) => ({ callsign: r.callsign, n: Number(r.n) }));
+}

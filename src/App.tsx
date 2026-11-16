@@ -9,7 +9,7 @@ import { savedFaceIds } from './lib/faceid';
 import SceneModal from './components/SceneModal';
 import StreetWalk from './components/StreetWalk';
 import BinocButton from './components/BinocButton';
-import { accountsEnabled, welcomeBonus, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import { accountsEnabled, welcomeBonus, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, saveHomeMetro, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { startPurchases } from './lib/iap';
 import { keepScreenOn } from './lib/awake';
@@ -18,7 +18,7 @@ import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
 import { addressAt, resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
 import { iconHtmlFor, landmarkIcon } from './lib/landmarkIcons';
 import type { MapPosterInput } from './lib/poster';
-import { placeIcon } from './lib/placeIcons';
+import { addressIcon, placeIcon } from './lib/placeIcons';
 import { personalId, personalLocation, type PersonalPlace } from './lib/personal';
 import { enableNotifications, onNoticeTapped, pushNotice } from './lib/notify';
 import { levelInfo, pointsFor } from './lib/points';
@@ -36,9 +36,10 @@ import { dedupePlaces, loadIndex, loadMetro, metroAt, titleAt } from './lib/metr
 import { wastelandName } from './lib/lore';
 import { loadFlood, type FloodPatch } from './lib/flood';
 import { isIrradiated, loadZones, zoneFromEntry } from './lib/zones';
-import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORTH_AMERICA, scopeForZoom, type RegionLabel, type RegionsFile } from './lib/regions';
+import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORTH_AMERICA, scopeForZoom, whereIs, type RegionLabel, type RegionsFile } from './lib/regions';
 import { exploredPercent, percentText, type Scope } from './lib/explored';
 import type { MetroEntry } from './lib/metros';
+import type { AtlasFocus } from './components/AtlasProgress';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState, shareMapView } from './lib/share';
 import { beep, type BeepKind } from './lib/sound';
@@ -63,6 +64,25 @@ type Tab = 'locations' | 'data' | 'share';
 type Status = 'loading' | 'ready' | 'problem';
 
 interface Trip { spot: Spot; minutes: number; rads: number; note: string }
+
+/** The pre-plotted place a chosen home address is, if it is one: right on top of it, or close by and called the same thing. Its id, its icon for the cog and its metro. */
+async function findPreplotted(place: { name: string; address: string; position: LatLng }): Promise<{ id: string; icon: string; metro: string } | null> {
+  const metro = metroAt(await loadIndex(), place.position, 40);
+  if (!metro) return null;
+  const words = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length >= 5);
+  const mine = new Set(words(`${place.name} ${place.address}`));
+  let best: { l: Location; d: number } | null = null;
+  for (const l of await loadMetro(metro)) {
+    if (!l.id.startsWith('wd:') || l.personal) continue;
+    const d = distanceMeters(place.position, l.position);
+    const named = words(l.name).some((w) => mine.has(w)) || words(l.oldName ?? '').some((w) => mine.has(w));
+    if ((d < 12 || (named && d < 150)) && (!best || d < best.d)) best = { l, d };
+  }
+  if (!best) return null;
+  const q = best.l.id.slice(3);
+  const own = freeRenderFor(best.l.id) && landmarkIcon(q) ? `homelm:${q}` : `vacation:${best.l.icon}`;
+  return { id: best.l.id, icon: own, metro: metro.id };
+}
 
 export default function App() {
   const [initial] = useState(() => readShareState());
@@ -116,6 +136,8 @@ export default function App() {
   const [exploreScope, setExploreScope] = useState<Scope | null>(null);
   const [exploreData, setExploreData] = useState<{ index: MetroEntry[]; regions: RegionsFile | null } | null>(null);
   const [homeMetro, setHomeMetro] = useState<string | null>(null);
+  const [atlasFocus, setAtlasFocus] = useState<AtlasFocus | null>(null);
+  const focusRef = useRef<AtlasFocus>({ country: null, countryName: null, state: null, stateName: null, metroId: null });
   /** The home vault, opened straight from its card on the map (the title is its name). Null when it is not open. */
   const [vaultOpen, setVaultOpen] = useState<{ title: string; key?: string } | null>(null);
   // the title at the top of the screen never spills out of its box: a long name takes smaller letters, down to a floor
@@ -162,7 +184,7 @@ export default function App() {
   }, [selectedId, sceneId, target, account.unlocked, account.personal]);
   const personalLocs = useMemo(() => {
     const here = region?.center;
-    const mine = account.personal.filter((q) => !here || distanceMeters(here, { lat: q.lat, lng: q.lng }) < 150_000 || account.home?.placeId === q.placeId).map((q) => personalLocation(q, true, account.home?.vaultNumber !== undefined && account.home.placeId === q.placeId ? account.home.vaultNumber : undefined));
+    const mine = account.personal.filter((q) => !here || distanceMeters(here, { lat: q.lat, lng: q.lng }) < 150_000 || account.home?.placeId === q.placeId).map((q) => personalLocation(q, true, account.home?.vaultNumber !== undefined && account.home.placeId === q.placeId ? account.home.vaultNumber : undefined, account.home?.placeId === q.placeId ? account.home.icon : undefined));
     if (target && !account.personal.some((q) => q.placeId === target.placeId)) mine.push(personalLocation(target, false));
     return mine;
   }, [account.personal, account.home, target, region]);
@@ -192,7 +214,9 @@ export default function App() {
   // what the map draws and what can be opened: the loaded city's places plus the permanent landmarks of the rest of the world
   const mapLocations = useMemo(() => {
     const have = new Set(allLocations.map((l) => l.id));
-    const base = [...allLocations, ...GLOBAL_LANDMARKS.filter((g) => !have.has(g.id))];
+    // a home that is one of the pre-plotted places is that place: its own pin is the home vault's, not a second one
+    const homeIs = account.session ? account.home?.preplottedId : undefined;
+    const base = [...allLocations, ...GLOBAL_LANDMARKS.filter((g) => !have.has(g.id))].filter((l) => l.id !== homeIs);
     if (account.vacations.length === 0) return base;
     // a vacation vault is drawn as a vault cog with the place's old icon inside, wherever it is (even when its own metro is not the one loaded)
     const byId = new Map(account.vacations.map((v) => [v.placeId, v]));
@@ -203,7 +227,7 @@ export default function App() {
       out.push({ ...locationFromData(v.placeId, v.name, { lat: v.lat, lng: v.lng }, 'other', 999), icon: `vacation:${v.icon}` as Location['icon'], famous: true });
     }
     return out;
-  }, [allLocations, account.vacations]);
+  }, [allLocations, account.vacations, account.home?.preplottedId, account.session]);
   /** The place whose vacation-vault question is open (tapped on the map, in the list of places, or on the Data tab). */
   const [vacationAsk, setVacationAsk] = useState<VacationChoice | null>(null);
   const vacationIds = useMemo(() => new Set(account.vacations.map((v) => v.placeId)), [account.vacations]);
@@ -334,8 +358,11 @@ export default function App() {
   useEffect(() => {
     const h = account.home;
     if (!exploreData || !h || typeof h.lat !== 'number' || typeof h.lng !== 'number') { setHomeMetro(null); return; }
-    setHomeMetro(metroAt(exploreData.index, { lat: h.lat, lng: h.lng }, 40)?.id ?? null);
-  }, [exploreData, account.home]);
+    const id = h.metro ?? metroAt(exploreData.index, { lat: h.lat, lng: h.lng }, 40)?.id ?? null;
+    setHomeMetro(id);
+    // homes saved before the metro was kept get it once
+    if (id && !h.metro && account.session) void saveHomeMetro(account.session.user.id, id);
+  }, [exploreData, account.home, account.session]);
   const shownVisited = useMemo(() => {
     const foundIds = new Set(found.map((f) => f.id));
     const all = new Set([...visited].filter((id) => !id.startsWith('me:') || foundIds.has(id)));
@@ -691,7 +718,12 @@ export default function App() {
   const followMap = useCallback(async (center: LatLng, zoom: number) => {
     const scan = scanId.current;
     const regions = await loadRegions();
-    if (regions) { setZoomName(nameForZoom(regions, center, zoom)); setExploreScope(scopeForZoom(regions, center, zoom)); }
+    if (regions) {
+      setZoomName(nameForZoom(regions, center, zoom)); setExploreScope(scopeForZoom(regions, center, zoom));
+      const w = whereIs(regions, center);
+      focusRef.current = { country: w?.country ?? null, countryName: w?.countryName ?? null, state: w?.state ?? null, stateName: w?.state ? regions.states.find((s) => s.code === w.state)?.name ?? null : null, metroId: null };
+      setAtlasFocus(focusRef.current);
+    }
     if (zoom < 8) return; // far out, the cities are not what is being looked at
     if (scan !== scanId.current) return;
     const seen = metroSeen.current;
@@ -718,6 +750,7 @@ export default function App() {
     // zoomed in over open country or sea with no city near: name the nearest country or region, not the last city that was looked at
     if (!near && regions) { setZoomName(nameForZoom(regions, center, Math.min(zoom, 8.9))); setExploreScope(scopeForZoom(regions, center, Math.min(zoom, 8.9))); }
     else if (near && zoom >= 9) setExploreScope({ level: 'metro', key: near.id });
+    if (near && regions) { focusRef.current = { ...focusRef.current, metroId: near.id }; setAtlasFocus(focusRef.current); }
     if (near) {
       // the title follows the map over the named parts of a metro too (San Blam, then Smokeland across the bay), though it is the same metro
       const title = titleAt(near, center);
@@ -917,7 +950,12 @@ export default function App() {
       await new Promise((r) => window.setTimeout(r, 2000));
       setMoving(false);
     }
-    const saved = await saveHome(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, skipped: false, vaultNumber });
+    // is the home one of the pre-plotted places (a landmark, a named building)? then it is that place: counted once, and its icon goes in the cog
+    const pre = await findPreplotted(place).catch(() => null);
+    const own = addressIcon(place.kind, place.name, place.address);
+    const icon = pre?.icon ?? (own !== 'house' ? `vacation:${own}` : undefined);
+    const metro = pre?.metro ?? metroAt(await loadIndex(), place.position, 40)?.id;
+    const saved = await saveHome(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, skipped: false, vaultNumber, preplottedId: pre?.id, metro, icon });
     if (saved === 'taken') return `Vault ${String(vaultNumber).padStart(4, '0')} already belongs to another survivor. Pick a different number.`;
     if (saved === 'error') return 'That could not be saved. Try again in a moment.';
     await savePersonalPlace(who.user.id, { placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, kind: 'house' });
@@ -1438,9 +1476,10 @@ export default function App() {
     if (!account.session || !exploreData || !exploreScope) return '';
     const counts = new Map<string, number>();
     for (const f of found) if (f.metroId && !f.id.startsWith('me:')) counts.set(f.metroId, (counts.get(f.metroId) ?? 0) + 1);
-    const p = exploredPercent(exploreScope, exploreData.index, exploreData.regions, counts, homeMetro);
+    const pre = account.home?.preplottedId;
+    const p = exploredPercent(exploreScope, exploreData.index, exploreData.regions, counts, { metro: homeMetro, preplotted: !!pre, found: !!pre && found.some((f) => f.id === pre) });
     return p == null ? '' : `${percentText(p)}% EXPLORED`;
-  }, [account.session, exploreData, exploreScope, found, homeMetro]);
+  }, [account.session, exploreData, exploreScope, found, homeMetro, account.home?.preplottedId]);
   const titleCleared = !zoomName && !!account.session && !!metroInfo && account.metrosCleared.has(metroInfo.id);
   useLayoutEffect(() => {
     const el = titleRef.current;
@@ -1617,7 +1656,7 @@ export default function App() {
               />
             )}
             {tab === 'data' && <AccountPanel locationOf={locationOf} vacation={vacationOffer} onVacation={setVacationAsk} account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
-            {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} account={account} mapPoster={mapPoster} />}
+            {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} account={account} mapPoster={mapPoster} atlasFocus={atlasFocus} />}
           </section>
         </aside>
       </main>
