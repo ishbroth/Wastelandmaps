@@ -55,5 +55,6 @@ export const MORE_RENDERS: Record<string, FreeRender> = {
   Q169420: { name: "Altino Arantes Building (Banespa)", photo: "Altino Arantes Building", author: "Dornicke", license: "Public domain", page: "https://commons.wikimedia.org/wiki/File:Altino_Arantes_Building.jpg", lat: -23.54583, lng: -46.63413 },
   Q28362967: { name: "Hotel Estelar Bocagrande", photo: "Fachada-Torre-HotelEstelarCartagenaDeIndias", author: "DGuzmanG", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Fachada-Torre-HotelEstelarCartagenaDeIndias.jpg", lat: 10.40988, lng: -75.55132 },
   Q310023: { name: "Al-Shaheed Monument", photo: "نصب الشهيد 2024", author: "Mohmmd Abd", license: "CC0", page: "https://commons.wikimedia.org/wiki/File:%D9%86%D8%B5%D8%A8_%D8%A7%D9%84%D8%B4%D9%87%D9%8A%D8%AF_2024.jpg", lat: 33.34336, lng: 44.44606 },
+  Q1640197: { name: "King Power Mahanakhon", photo: "MahaNakhon by kylehase", author: "Kyle Hasegawa", license: "CC BY 2.0", page: "https://commons.wikimedia.org/wiki/File:MahaNakhon_by_kylehase.jpg", lat: 13.72361, lng: 100.52833 },
   Q214855: { name: "Bank of China Tower", photo: "Bank of China Tower (Hong Kong) 20170808", author: "Suicasmo", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Bank_of_China_Tower_(Hong_Kong)_20170808.jpg", lat: 22.2792, lng: 114.1614 },
 };
