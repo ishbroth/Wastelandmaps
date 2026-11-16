@@ -38,4 +38,8 @@ export function exploredPercent(scope: Scope, index: MetroEntry[], data: Regions
   return total > 0 ? (have / total) * 100 : null;
 }
 
-export const percentText = (p: number): string => (p > 0 && p < 10 ? Math.max(p, 0.1).toFixed(1) : String(Math.round(p))).replace(/\.0$/, '');
+export const percentText = (p: number): string => {
+  // always one decimal (56.8, 60.0); a bit explored never reads 0.0, and a bit short of everything never reads 100.0
+  const t = p > 0 ? Math.max(p, 0.1) : 0;
+  return (p < 100 ? Math.min(t, 99.9) : 100).toFixed(1);
+};
