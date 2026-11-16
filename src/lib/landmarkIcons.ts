@@ -131,6 +131,8 @@ const LANDMARK_ICONS: Record<string, string> = {
   Q80290: svg(f('M3 21v-6.5h18V21Z') + f('M1.5 14.5 5 11.2h14l3.5 3.3Z') + f('M5.5 11.2V8.2L12 4.6l6.5 3.6v3Z') + s('M12 4.6V2.4') + d('M9.5 21v-4h5v4M7 8.8h.01M17 8.8h.01')),
   // Q685484
   Q685484: svg(f('M4.6 21V7h4.4v14Z') + f('M15 21V9.4h4.4V21Z') + f('M9 8.6h6V12H9Z') + f('M5.4 7V5.2h2.8V7Z') + f('M4.8 5.2c0-1.4 1.4-2.2 2.4-2.2s2.4.8 2.4 2.2Z') + s('M7 3V1.4') + d('M6 10.4h1.4M6 13.4h1.4M6 16.4h1.4M16.6 12.4h1.4M16.6 15.4h1.4') + s('M3.4 21h17.2')),
+  // Q1519373
+  Q1519373: svg(f('M4 21V12h16v9Z') + f('M8.6 12V8h6.8v4Z') + f('M10 8V5.4h4V8Z') + f('M9.4 5.4c0-1.8 1.2-3 2.6-3s2.6 1.2 2.6 3Z') + s('M12 2.4V1') + d('M6 14.6h1.4M9.2 14.6h1.4M13.4 14.6h1.4M16.6 14.6H18M6 18h1.4M9.2 18h1.4M13.4 18h1.4M16.6 18H18') + s('M3 21h18')),
   Q214855: svg(f('M6.6 21V13.4L12 8.6V21Z') + f('M12 21V3.6l5.4 6.8V21Z') + d('M7 20.4 12 14M12 20.4l5-6.4M12 13.6l4.6-3.4') + s('M12 3.6V1.5M13.8 5.7V2.6')),
   // the first seven, which already have their own drawings
   // Big Ben: the Elizabeth Tower with a wing of the palace
