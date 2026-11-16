@@ -47,5 +47,7 @@ export const MORE_RENDERS: Record<string, FreeRender> = {
   Q4255374: { name: "Lakhta Center", photo: "Das Lachta Zentr- Лахта Центр 2H1A1467WI", author: "Kora27", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Das_Lachta_Zentr-_%D0%9B%D0%B0%D1%85%D1%82%D0%B0_%D0%A6%D0%B5%D0%BD%D1%82%D1%80_2H1A1467WI.jpg", lat: 59.98703, lng: 30.17814 },
   Q48435: { name: "Sagrada Família", photo: "Sagrada Familie Spanien", author: "Dulle1846", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Sagrada_Familie_Spanien.jpg", lat: 41.4036, lng: 2.1744 },
   Q172822: { name: "Hoover Dam", photo: "Barrage de hoover", author: "Hypersite", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Barrage_de_hoover.JPG", lat: 36.0161, lng: -114.7377 },
+  Q271466: { name: "Hallgrímskirkja", photo: "Hallgrimskirkja 2026", author: "VeraVidiVici", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Hallgrimskirkja_2026.jpg", lat: 64.14194, lng: -21.92694 },
+  Q1122206: { name: "Salt Lake Temple", photo: "Salt Lake Temple, Utah - Sept 2004", author: "Diliff", license: "CC BY 2.5", page: "https://commons.wikimedia.org/wiki/File:Salt_Lake_Temple,_Utah_-_Sept_2004.jpg", lat: 40.77047, lng: -111.89196 },
   Q214855: { name: "Bank of China Tower", photo: "Bank of China Tower (Hong Kong) 20170808", author: "Suicasmo", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Bank_of_China_Tower_(Hong_Kong)_20170808.jpg", lat: 22.2792, lng: 114.1614 },
 };

@@ -118,7 +118,6 @@ export const FAMOUS: Famous[] = [
   { match: /san jos[eé] city hall/i, name: 'San Jose City Hall', lat: 37.3386, lng: -121.8851, icon: 'sanjosecityhall', qid: 'Q1109555' },
   { match: /reno arch|biggest little city/i, name: 'Biggest Little City Sign', lat: 39.5298, lng: -119.8137, icon: 'renoarch', qid: 'Q7313381' },
   { match: /mgm grand/i, name: 'MGM Grand', lat: 36.1023, lng: -115.1698, icon: 'mgmgrand', qid: 'Q713960' },
-  { match: /salt lake temple/i, name: 'Salt Lake Temple', lat: 40.7708, lng: -111.8919, icon: 'slctemple', qid: 'Q1122206' },
   { match: /salt lake city and county building|salt lake city hall|city (?:&|and) county building/i, name: 'Salt Lake City Hall', lat: 40.7667, lng: -111.8883, icon: 'slccityhall', qid: 'Q2215330' },
   { match: /walker center/i, name: 'Walker Center', lat: 40.7671, lng: -111.8911, icon: 'walkercenter', qid: 'Q82294' },
   { match: /colorado state capitol/i, name: 'Colorado State Capitol', lat: 39.7393, lng: -104.9848, icon: 'cocapitol', qid: 'Q1111402' },
