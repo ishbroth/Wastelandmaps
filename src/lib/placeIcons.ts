@@ -19,7 +19,7 @@ export type FamousIconId =
   | 'parthenon' | 'hagiasophia' | 'stbasils' | 'whitehouse' | 'lincoln' | 'sydneybridge' | 'hooverdam' | 'timessquare' | 'grandcentral' | 'rockefeller'
   | 'forbiddencity' | 'alcatraz' | 'towerbridge' | 'stpeters' | 'trevi' | 'westminsterabbey' | 'sacrecoeur' | 'atomium' | 'charlesbridge' | 'duomomilan'
   | 'rialto' | 'pantheon'
-  | 'cbiraq' | 'estelarbocagrande' | 'venetian' | 'miamifreedom' | 'cocacola' | 'atlairport' | 'keytower' | 'unionterminal' | 'bengalsstadium'
+  | 'cbiraq' | 'dushanbepalace' | 'estelarbocagrande' | 'venetian' | 'miamifreedom' | 'cocacola' | 'atlairport' | 'keytower' | 'unionterminal' | 'bengalsstadium'
   | 'horseshoe' | 'speedway' | 'soldierssailors' | 'rencen' | 'guardian' | 'hancock'
   | 'navypier' | 'wisgas' | 'wiscapitol' | 'libertymemorial' | 'powerlight' | 'capellatower'
   | 'stpaulcathedral' | 'iowacapitol' | 'seagate' | 'aegon' | 'basspro' | 'attbatman'

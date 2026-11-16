@@ -179,6 +179,7 @@ export const FAMOUS: Famous[] = [
   { match: /^the venetian\b|venetian (?:resort|las vegas)/i, name: 'The Venetian', lat: 36.12106, lng: -115.17025, icon: 'venetian', qid: 'Q1049209', metro: 'us-nv-las-vegas' },
   { match: /central bank of iraq|البنك المركزي العراقي/i, name: 'Central Bank of Iraq Tower', lat: 33.28897, lng: 44.3845, icon: 'cbiraq', qid: 'Q100258244' },
   { match: /hotel estelar (?:cartagena|bocagrande)|estelar cartagena de indias/i, name: 'Hotel Estelar Bocagrande', lat: 10.40988, lng: -75.55132, icon: 'estelarbocagrande', qid: 'Q28362967' },
+  { match: /palace of (?:the )?nations?.*dushanbe|dushanbe.*palace of (?:the )?nations?|qasri millat|kokhi millat/i, name: 'Palace of the Nation', lat: 38.57611, lng: 68.77861, icon: 'dushanbepalace', qid: 'Q30892864', metro: 'tj-04-dushanbe' },
 ];
 
 /** The famous place a real name belongs to, if any. */
