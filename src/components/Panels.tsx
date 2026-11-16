@@ -411,7 +411,7 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
                       <b>{q.name}</b>
                       <i>{q.address}</i>
                       {cleared
-                        ? <small>{waiting ? <span className="rm-waiting">WAITING FOR YOU: {waiting}</span> : '[CLEARED]'}</small>
+                        ? <small>[CLEARED]{waiting && <span className="rm-waiting"> · WAITING FOR YOU: {waiting}</span>}</small>
                         : <small>{enemiesLine(loc)} · loot: {lootSummary(raidFor(loc))}</small>}
                     </span>
                     {homeAt && <span className="rm-row-dist">{miles(d)}</span>}
