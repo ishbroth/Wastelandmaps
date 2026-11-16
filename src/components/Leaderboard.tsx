@@ -91,11 +91,13 @@ export default function Leaderboard({ account }: { account: Account }) {
       {!failed && !signedIn && <p className="rm-fine">Sign in (Data tab) to join the leaderboard.</p>}
       {me && (
         <div className="rm-board-me">
-          <p className="rm-fine">You are <b>{me.callsign}</b>: #{me.rank}, level {me.level}, {me.places} places.</p>
+          {me.listed === false
+            ? <p className="rm-fine">You are <b>{me.callsign}</b>, and you are not on the lists. Your callsign still shows under the places you are first to discover.</p>
+            : <p className="rm-fine">You are <b>{me.callsign}</b>: #{me.rank}, level {me.level}, {me.places} places.</p>}
           <div className="rm-row-buttons">
             <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setSure('random')}>RANDOM</button>
             <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setSure('choose')}>CHOOSE</button>
-            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void leave()}>LEAVE</button>
+            <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => void (me.listed === false ? join(false) : leave())}>{me.listed === false ? 'JOIN THE LISTS' : 'LEAVE THE LISTS'}</button>
           </div>
         </div>
       )}

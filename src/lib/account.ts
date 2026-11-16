@@ -357,7 +357,7 @@ export async function unlockRender(placeId: string, name: string, extra?: { /** 
 
 // ---- the leaderboard (see the leaderboard migration; a survivor joins to appear, under a made-up callsign) ----
 
-export interface BoardRow { rank: number; callsign: string; level: number; places: number; /** This row is the signed-in person's own. */ mine: boolean }
+export interface BoardRow { rank: number; callsign: string; level: number; places: number; /** This row is the signed-in person's own. */ mine: boolean; /** On the leaderboard and the contributor lists (false after leaving: the callsign is kept, only the listing goes). */ listed?: boolean }
 
 /** The top survivors, or null if the leaderboard could not be read (the migration has not been run, or no connection). */
 export async function loadLeaderboard(limit = 100): Promise<BoardRow[] | null> {
@@ -370,7 +370,7 @@ export async function loadLeaderboard(limit = 100): Promise<BoardRow[] | null> {
 export async function myStanding(): Promise<BoardRow | null> {
   const { data, error } = await db().rpc('leaderboard_me');
   const r = Array.isArray(data) ? data[0] : null;
-  return error || !r ? null : { rank: Number(r.rank), callsign: r.callsign as string, level: Number(r.level), places: Number(r.places), mine: true };
+  return error || !r ? null : { rank: r.rank === null ? 0 : Number(r.rank), callsign: r.callsign as string, level: Number(r.level), places: Number(r.places), mine: true, listed: r.listed !== false };
 }
 
 /** Joins the leaderboard (or, with reroll, takes a new callsign). Returns the callsign. */
