@@ -18,7 +18,7 @@ export interface RegionLabel {
 interface Outline { rings: number[][]; label: [number, number] }
 interface StateData extends Outline { code: string; name: string }
 interface CountryData extends Outline { iso: string; name: string; continent: string }
-interface RegionsFile { countries: CountryData[]; states: StateData[] }
+export interface RegionsFile { countries: CountryData[]; states: StateData[] }
 
 // ---- names ----
 
@@ -323,4 +323,16 @@ export function levelsAt(zoom: number): RegionLabel['level'][] {
   if (zoom < 6) return ['country'];
   if (zoom < 9) return ['state', 'country'];
   return [];
+}
+
+/** What the title at this zoom names (the same levels as nameForZoom), so a percentage can be worked out for exactly that area. Null close in, where a metro is named. */
+export interface ExploreScope { level: 'region' | 'state' | 'country'; key: string }
+export function scopeForZoom(data: RegionsFile, p: LatLng, zoom: number): ExploreScope | null {
+  if (zoom >= 9) return null;
+  if (p.lat <= ANTARCTIC_CIRCLE_EDGE) return { level: 'region', key: 'vault' };
+  const where = whereIs(data, p) ?? nearestWhere(data, p);
+  if (!where) return null;
+  if (zoom < 4) return { level: 'region', key: where.region };
+  if (zoom >= 6 && where.state) return { level: 'state', key: where.state };
+  return where.country ? { level: 'country', key: where.country } : null;
 }

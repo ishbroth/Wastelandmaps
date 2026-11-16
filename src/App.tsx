@@ -36,7 +36,9 @@ import { dedupePlaces, loadIndex, loadMetro, metroAt, titleAt } from './lib/metr
 import { wastelandName } from './lib/lore';
 import { loadFlood, type FloodPatch } from './lib/flood';
 import { isIrradiated, loadZones, zoneFromEntry } from './lib/zones';
-import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORTH_AMERICA, type RegionLabel } from './lib/regions';
+import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORTH_AMERICA, scopeForZoom, type RegionLabel, type RegionsFile } from './lib/regions';
+import { exploredPercent, percentText, type Scope } from './lib/explored';
+import type { MetroEntry } from './lib/metros';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState, shareMapView } from './lib/share';
 import { beep, type BeepKind } from './lib/sound';
@@ -110,6 +112,10 @@ export default function App() {
   const [liveName, setLiveName] = useState('');
   // while zoomed out the top of the map names the continent, country or state instead of the city
   const [zoomName, setZoomName] = useState<string | null>(null);
+  // what the title at the top names (a metro, a state, a country, a region), so "N% explored" can be worked out for that area
+  const [exploreScope, setExploreScope] = useState<Scope | null>(null);
+  const [exploreData, setExploreData] = useState<{ index: MetroEntry[]; regions: RegionsFile | null } | null>(null);
+  const [homeMetro, setHomeMetro] = useState<string | null>(null);
   /** The home vault, opened straight from its card on the map (the title is its name). Null when it is not open. */
   const [vaultOpen, setVaultOpen] = useState<{ title: string; key?: string } | null>(null);
   // the title at the top of the screen never spills out of its box: a long name takes smaller letters, down to a floor
@@ -319,6 +325,17 @@ export default function App() {
   }, []);
   const trip = useRef<Trip | null>(null);
   const homeId = account.home?.placeId ? personalId(account.home.placeId) : null;
+  useEffect(() => {
+    if (!account.session) return;
+    let off = false;
+    void Promise.all([loadIndex(), loadRegions()]).then(([index, regions]) => { if (!off) setExploreData({ index, regions }); });
+    return () => { off = true; };
+  }, [account.session]);
+  useEffect(() => {
+    const h = account.home;
+    if (!exploreData || !h || typeof h.lat !== 'number' || typeof h.lng !== 'number') { setHomeMetro(null); return; }
+    setHomeMetro(metroAt(exploreData.index, { lat: h.lat, lng: h.lng }, 40)?.id ?? null);
+  }, [exploreData, account.home]);
   const shownVisited = useMemo(() => {
     const foundIds = new Set(found.map((f) => f.id));
     const all = new Set([...visited].filter((id) => !id.startsWith('me:') || foundIds.has(id)));
@@ -674,7 +691,7 @@ export default function App() {
   const followMap = useCallback(async (center: LatLng, zoom: number) => {
     const scan = scanId.current;
     const regions = await loadRegions();
-    if (regions) setZoomName(nameForZoom(regions, center, zoom));
+    if (regions) { setZoomName(nameForZoom(regions, center, zoom)); setExploreScope(scopeForZoom(regions, center, zoom)); }
     if (zoom < 8) return; // far out, the cities are not what is being looked at
     if (scan !== scanId.current) return;
     const seen = metroSeen.current;
@@ -699,7 +716,8 @@ export default function App() {
     }
     const near = under ?? metroAt(metros, center, 120);
     // zoomed in over open country or sea with no city near: name the nearest country or region, not the last city that was looked at
-    if (!near && regions) setZoomName(nameForZoom(regions, center, Math.min(zoom, 8.9)));
+    if (!near && regions) { setZoomName(nameForZoom(regions, center, Math.min(zoom, 8.9))); setExploreScope(scopeForZoom(regions, center, Math.min(zoom, 8.9))); }
+    else if (near && zoom >= 9) setExploreScope({ level: 'metro', key: near.id });
     if (near) {
       // the title follows the map over the named parts of a metro too (San Blam, then Smokeland across the bay), though it is the same metro
       const title = titleAt(near, center);
@@ -1416,6 +1434,13 @@ export default function App() {
 
   // refit the title whenever its words change or the screen does
   const titleWords = zoomName ?? (liveName || wasteland?.regionName) ?? '';
+  const exploredText = useMemo(() => {
+    if (!account.session || !exploreData || !exploreScope) return '';
+    const counts = new Map<string, number>();
+    for (const f of found) if (f.metroId && !f.id.startsWith('me:')) counts.set(f.metroId, (counts.get(f.metroId) ?? 0) + 1);
+    const p = exploredPercent(exploreScope, exploreData.index, exploreData.regions, counts, homeMetro);
+    return p == null ? '' : `${percentText(p)}% EXPLORED`;
+  }, [account.session, exploreData, exploreScope, found, homeMetro]);
   const titleCleared = !zoomName && !!account.session && !!metroInfo && account.metrosCleared.has(metroInfo.id);
   useLayoutEffect(() => {
     const el = titleRef.current;
@@ -1467,7 +1492,7 @@ export default function App() {
 
       <main className="rm-device">
         <div className="rm-screen">
-          {(wasteland || zoomName) && <div className="rm-poster-title" ref={titleRef} key={zoomName ?? (liveName || wasteland?.regionName)}><span aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}{!zoomName && account.session && metroInfo && account.metrosCleared.has(metroInfo.id) && <small className="rm-poster-cleared">[CLEARED]</small>}</span><button type="button" className="rm-poster-share" onClick={() => void shareMap()} aria-label="Share this view of the map" title="Share this view of the map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></button></div>}
+          {(wasteland || zoomName) && <div className="rm-poster-title" ref={titleRef} key={zoomName ?? (liveName || wasteland?.regionName)}><span aria-hidden="true">{zoomName ?? (liveName || wasteland?.regionName)}{!zoomName && account.session && metroInfo && account.metrosCleared.has(metroInfo.id) && <small className="rm-poster-cleared">[CLEARED]</small>}{exploredText && !nav && <small className="rm-poster-explored">{exploredText}</small>}</span><button type="button" className="rm-poster-share" onClick={() => void shareMap()} aria-label="Share this view of the map" title="Share this view of the map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></button></div>}
           {status === 'ready' ? (
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}

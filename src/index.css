@@ -1280,3 +1280,4 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-raid-heal { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; }
 .rm-raid-heal small { font-size: 16px; }
 .rm-raid-heal .rm-item-icon { margin: 0; vertical-align: 0; }
+.rm-poster-explored { display: block; font-size: 0.42em; letter-spacing: 3px; color: var(--ink); text-shadow: 0 0 8px var(--glow); opacity: 0.9; }
