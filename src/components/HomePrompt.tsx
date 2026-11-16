@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { reverseGeocode, resolveSuggestion, suggest, type PickedPlace, type Suggestion } from '../lib/addressSearch';
 import { currentFix } from '../lib/navigation';
 import { locationState } from '../lib/geo';
-import { myStanding, setCallsign } from '../lib/account';
+import { myStanding, randomCallsign, setCallsign } from '../lib/account';
 
 const CALLSIGN_REASONS: Record<string, string> = {
   bad_length: 'A CALLSIGN IS 3 TO 20 CHARACTERS',
@@ -156,6 +156,7 @@ export default function HomePrompt({ onChosen, onSkip, canSkip = true, startWith
                 <>
                   <p>Pick your callsign: the name other survivors see on the leaderboard and under every place you are first to discover. 3 to 20 letters, numbers and spaces.</p>
                   <input value={callsign} maxLength={20} autoCapitalize="words" autoComplete="off" spellCheck={false} placeholder="Your callsign" aria-label="Your callsign" onChange={(e) => setCallsignText(e.target.value)} />
+                  <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setCallsignText(randomCallsign())}>RANDOM CALLSIGN</button>
                 </>
               )}
               <p>Pick a four-digit number (0000 to 9999) for your vault; it may start with a zero, and 0730 is not the same as Vault 730. It is yours alone: nobody else can have the same one.</p>

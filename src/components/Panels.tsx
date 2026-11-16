@@ -11,12 +11,13 @@ import { personalId, personalLocation } from '../lib/personal';
 import { isNative, purchasesAvailable } from '../lib/native';
 import Leaderboard from './Leaderboard';
 import AtlasProgress, { type AtlasFocus } from './AtlasProgress';
+import AccountEdit from './AccountEdit';
 import Caps, { CapIcon } from './Caps';
 import { StimpakIcon, StopwatchIcon } from './ItemIcons';
 import { STIMPAK_TRADES, TIME_TRADES, offersFor, tradeWindow } from '../../supabase/functions/_shared/stimpak';
 import ConfirmSpend from './ConfirmSpend';
 import BuyCaps from './BuyCaps';
-import { METRO_COST, caps, loadTradesBought, tradeStimpak, tradeTime, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, type Account, type FoundPlace } from '../lib/account';
+import { METRO_COST, caps, loadTradesBought, tradeStimpak, tradeTime, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, myCallsign, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag, type LootBag } from '../lib/raid/loot';
 import { WEAPON_CLASS_IDS, WEAPON_CLASSES, magazineOf, nextWeapon, weaponAt, type Weapon, type WeaponClass } from '../lib/raid/weapons';
@@ -229,6 +230,15 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
     .sort((x, y) => x.d - y.d);
   const foundWindow = useRowWindow(places.length, 6);
   const waitingWindow = useRowWindow(waitingPlaces.length, 6);
+  const [callsign, setCallsign] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const signedInId = account.session?.user.id;
+  useEffect(() => {
+    let off = false;
+    if (signedInId) void myCallsign().then((c) => { if (!off) setCallsign(c); });
+    else setCallsign(null);
+    return () => { off = true; };
+  }, [signedInId]);
 
   if (!account.session) {
     return (
@@ -251,8 +261,16 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
         <p className="rm-fine">{level.toGo} XP to level {level.level + 1}</p>
       </div>
       <div className="rm-acct-who">
-        <span>{account.email}</span>
-        <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void signOut()}>SIGN OUT</button>
+        <span>{account.email}{callsign && <small className="rm-acct-callsign">{callsign}</small>}</span>
+        <span className="rm-acct-who-buttons">
+          <button type="button" className="rm-btn rm-btn-ghost rm-edit-icon" aria-label="Edit callsign, email and passcode" title="Edit" onClick={() => setEditing((v) => !v)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg></button>
+          <button type="button" className="rm-btn rm-btn-ghost" onClick={() => void signOut()}>SIGN OUT</button>
+        </span>
+      </div>
+      {editing && <AccountEdit account={account} callsign={callsign} onChangeHome={onChangeHome} onDone={(changed) => { setEditing(false); if (changed) { void myCallsign().then(setCallsign); void account.refresh(); } }} />}
+      <div className="rm-acct-credits rm-acct-home">
+        <div><span>{account.home?.address ? `${account.home.vaultNumber !== undefined ? `VAULT ${String(account.home.vaultNumber).padStart(4, '0')} · ` : ''}${account.home.address}` : 'Home not set'}</span></div>
+        {!account.home?.address && <button type="button" className="rm-btn rm-btn-ghost" onClick={onChangeHome}>SET HOME</button>}
       </div>
       <div className="rm-acct-credits">
         <div><b className="rm-caps-big"><CapIcon />{account.credits === null ? '…' : caps(account.credits).toLocaleString('en-US')}</b> <span>CAPS</span></div>
@@ -309,12 +327,6 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
           </li>
         ))}
       </ul>
-
-      <h3>HOME</h3>
-      <div className="rm-acct-credits">
-        <div><span>{account.home?.address ? `${account.home.vaultNumber !== undefined ? `VAULT ${String(account.home.vaultNumber).padStart(4, '0')} · ` : ''}${account.home.address}` : 'Not set'}</span></div>
-        <button type="button" className="rm-btn rm-btn-ghost" onClick={onChangeHome}>{account.home?.address ? 'CHANGE' : 'SET HOME'}</button>
-      </div>
 
       {ask && (() => {
         const failed = (reason?: string) => (reason === 'bought' ? 'THAT TRADE IS SPENT UNTIL THE BOARD CHANGES.' : reason === 'full' ? 'YOU CAN HOLD AT MOST 99.' : reason === 'loot' ? 'NOT ENOUGH LOOT.' : 'THAT DID NOT GO THROUGH. NOTHING WAS SPENT.');

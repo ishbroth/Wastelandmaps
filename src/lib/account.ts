@@ -705,3 +705,31 @@ export async function atlasContributors(metro?: string | null): Promise<Contribu
   const { data, error } = await db().rpc('atlas_contributors', { p_metro: metro ?? null, p_limit: 200 });
   return error || !Array.isArray(data) ? [] : (data as { callsign: string; n: number | string }[]).map((r) => ({ callsign: r.callsign, n: Number(r.n) }));
 }
+
+// ---- editing the account: callsign, email, passcode ----
+
+const ADJECTIVES = ['Rusty', 'Glowing', 'Feral', 'Irradiated', 'Lone', 'Dusty', 'Hollow', 'Scorched', 'Ashen', 'Wandering', 'Salvaged', 'Bitter', 'Silent', 'Mutant', 'Atomic', 'Grim', 'Patched', 'Cracked', 'Vagrant', 'Hardy'];
+const NOUNS = ['Wanderer', 'Mongoose', 'Courier', 'Scavenger', 'Raider', 'Ghoul', 'Settler', 'Ranger', 'Drifter', 'Scribe', 'Hound', 'Tinker', 'Brahmin', 'Sentinel', 'Nomad', 'Prospector', 'Hauler', 'Warden'];
+
+/** A made-up callsign to try (nothing is kept until it is saved; the server still checks that it is free). */
+export function randomCallsign(): string {
+  const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+  return `${pick(ADJECTIVES)} ${pick(NOUNS)} ${10 + Math.floor(Math.random() * 90)}`;
+}
+
+/** The signed-in person's callsign, or null when they have none yet. */
+export async function myCallsign(): Promise<string | null> {
+  return (await myStanding())?.callsign ?? null;
+}
+
+/** Asks for the email to be changed: a link goes to the new address, and the same account (with everything on it) moves there once it is confirmed. Null when it was sent. */
+export async function changeEmail(email: string): Promise<string | null> {
+  const { error } = await db().auth.updateUser({ email }, { emailRedirectTo: isNative() ? NATIVE_AUTH_REDIRECT : window.location.origin + window.location.pathname });
+  return error ? error.message : null;
+}
+
+/** Changes the vault number (the sign-in passcode), swapping the number on the vault door in the picture of the house when there is one. */
+export async function swapVaultNumber(number: number): Promise<{ ok: boolean; swapped?: boolean; hadPicture?: boolean }> {
+  const { data, error } = await db().functions.invoke('swap-vault-number', { body: { number } });
+  return error || !data?.ok ? { ok: false } : { ok: true, swapped: data.swapped === true, hadPicture: data.hadPicture === true };
+}
