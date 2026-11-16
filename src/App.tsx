@@ -40,6 +40,7 @@ import { allLabels, countryBounds, deviceCountry, loadRegions, nameForZoom, NORT
 import { exploredPercent, percentText, type Scope } from './lib/explored';
 import type { MetroEntry } from './lib/metros';
 import type { AtlasFocus } from './components/AtlasProgress';
+import RatePrompt from './components/RatePrompt';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState, shareMapView } from './lib/share';
 import { beep, type BeepKind } from './lib/sound';
@@ -1621,6 +1622,7 @@ export default function App() {
           {vaultOpen !== null && <VaultHome key={vaultOpen.key ?? 'home'} title={vaultOpen.title} vaultKey={vaultOpen.key} account={account} onExit={() => setVaultOpen(null)} vacation={vaultOpen.key ? undefined : vacationOffer} />}
           {accountOpen && !account.session && <AccountModal auto={accountAuto} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
           <FaceIdOffer />
+          <RatePrompt quiet={!!nav || !!sceneId || accountOpen || homeOpen} />
           {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped) || homeOpen) && (
             <HomePrompt
               key={homeOpen ? 'change' : 'first'}

@@ -2,6 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { reverseGeocode, resolveSuggestion, suggest, type PickedPlace, type Suggestion } from '../lib/addressSearch';
 import { currentFix } from '../lib/navigation';
 import { locationState } from '../lib/geo';
+import { myStanding, setCallsign } from '../lib/account';
+
+const CALLSIGN_REASONS: Record<string, string> = {
+  bad_length: 'A CALLSIGN IS 3 TO 20 CHARACTERS',
+  bad_characters: 'LETTERS (A TO Z), NUMBERS AND SPACES ONLY',
+  personal: 'NO LINKS, EMAIL ADDRESSES OR LONG NUMBERS (NOT YOUR VAULT NUMBER)',
+  reserved: 'THAT NAME IS RESERVED',
+  not_allowed: 'THAT NAME IS NOT ALLOWED: PICK ANOTHER',
+  taken: 'THAT CALLSIGN IS ALREADY TAKEN',
+};
 
 type Step = 'ask' | 'type' | 'number';
 
@@ -26,6 +36,14 @@ export default function HomePrompt({ onChosen, onSkip, canSkip = true, startWith
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [value, setValue] = useState('');
+  // the callsign is chosen with the vault, so every first render shows who made it: asked here unless they already have one
+  const [callsign, setCallsignText] = useState('');
+  const [hasCallsign, setHasCallsign] = useState<boolean | null>(null);
+  useEffect(() => {
+    let off = false;
+    void myStanding().then((me) => { if (!off) { setHasCallsign(!!me); if (me) setCallsignText(me.callsign); } });
+    return () => { off = true; };
+  }, []);
   const [digits, setDigits] = useState(startNumber !== undefined ? String(startNumber).padStart(4, '0') : '');
   const [items, setItems] = useState<Suggestion[]>([]);
   const latest = useRef(0);
@@ -81,11 +99,17 @@ export default function HomePrompt({ onChosen, onSkip, canSkip = true, startWith
   };
 
   const number = Number(digits);
-  const valid = /^\d{4}$/.test(digits);
+  const callsignOk = hasCallsign === true || callsign.trim().length >= 3;
+  const valid = /^\d{4}$/.test(digits) && callsignOk && hasCallsign !== null;
   const build = async () => {
     if (!picked || !valid) return;
     setBusy(true);
     setNote('');
+    if (!hasCallsign) {
+      const named = await setCallsign(callsign);
+      if (!named.ok) { setNote(CALLSIGN_REASONS[named.error] ?? 'THAT CALLSIGN DID NOT GO THROUGH: TRY AGAIN'); setBusy(false); return; }
+      setHasCallsign(true);
+    }
     const problem = await onChosen(picked, number);
     if (problem) { setNote(problem); setBusy(false); }
   };
@@ -128,13 +152,19 @@ export default function HomePrompt({ onChosen, onSkip, canSkip = true, startWith
           {step === 'number' && picked && (
             <>
               <p>{picked.address}</p>
+              {hasCallsign === false && (
+                <>
+                  <p>Pick your callsign: the name other survivors see on the leaderboard and under every place you are first to discover. 3 to 20 letters, numbers and spaces.</p>
+                  <input value={callsign} maxLength={20} autoCapitalize="words" autoComplete="off" spellCheck={false} placeholder="Your callsign" aria-label="Your callsign" onChange={(e) => setCallsignText(e.target.value)} />
+                </>
+              )}
               <p>Pick a four-digit number (0000 to 9999) for your vault; it may start with a zero, and 0730 is not the same as Vault 730. It is yours alone: nobody else can have the same one.</p>
               <input
                 autoFocus value={digits} inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="1234" autoComplete="off" aria-label="Vault number"
                 onChange={(e) => setDigits(e.target.value.replace(/\D/g, '').slice(0, 4))}
                 onKeyDown={(e) => { if (e.key === 'Enter') void build(); }}
               />
-              <button type="button" className="rm-btn" disabled={busy || !valid} onClick={() => void build()}>{busy ? 'BUILDING…' : valid ? `BUILD VAULT ${digits}` : 'ENTER FOUR DIGITS'}</button>
+              <button type="button" className="rm-btn" disabled={busy || !valid} onClick={() => void build()}>{busy ? 'BUILDING…' : valid ? `BUILD VAULT ${digits}` : hasCallsign === false && !callsignOk ? 'PICK A CALLSIGN' : 'ENTER FOUR DIGITS'}</button>
               {!startWith && <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { setStep('type'); setPicked(null); }}>CHOOSE A DIFFERENT ADDRESS</button>}
             </>
           )}

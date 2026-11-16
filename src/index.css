@@ -1289,3 +1289,7 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-atlas-rows { list-style: none; margin: 0 0 4px; padding: 0; }
 .rm-atlas-rows li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
 .rm-atlas-rows li b { font-weight: 400; color: var(--ink); text-shadow: 0 0 6px var(--glow); }
+
+.rm-stars { display: flex; justify-content: center; gap: 6px; margin: 6px 0 10px; }
+.rm-star { font-size: 44px; line-height: 1; padding: 2px 4px; background: transparent; border: none; color: var(--line); cursor: pointer; text-shadow: 0 0 2px #000; }
+.rm-star.on { color: var(--ink); text-shadow: 0 0 10px var(--glow); }
