@@ -182,10 +182,10 @@ for (const l of landmarks) {
   const url = `/place/${l.slug}/`;
   const image = l.qid && l.permanent ? `${SITE}/renders/${l.qid}.png` : l.pubImage;
   const title = l.permanent
-    ? `${l.name} destroyed: ${where} after the bombs | Fallout-style render | WastelandMaps`
-    : `${l.name}, ${where}: on the Fallout-style wasteland map | WastelandMaps`;
+    ? `${l.name} destroyed: post-apocalyptic ${where} | Fallout-style render | WastelandMaps`
+    : `${l.name}, ${where}: post-apocalyptic Fallout-style wasteland map | WastelandMaps`;
   const description = l.permanent
-    ? `See ${l.name} in ${where} 200 years after the bombs: a free Fallout-style destroyed render of the real landmark, with the raiders, mutants and loot that live there now. Find it on the WastelandMaps wasteland map.`
+    ? `See ${l.name} in post-apocalyptic ${where}, 200 years after the bombs: a free Fallout-style destroyed render of the real landmark, with the raiders, mutants and loot that live there now. Find it on the WastelandMaps wasteland map.`
     : `${l.name} in ${where} is on the WastelandMaps wasteland map, a boss-guarded landmark in ${l.metro.title}. Unlock a Fallout-style destroyed snapshot of it, fight what lives there and loot it.`;
   const nearby = landmarks.filter((o) => o !== l && o.metro.id === l.metro.id).slice(0, 8);
   const vaultsHere = LORE_VAULTS.filter((v) => v.metro === l.metro.id);
@@ -310,7 +310,7 @@ for (const a of atlas.addresses) {
   addressPages.push({ slug, a, metro });
   const url = `/address/${slug}/`;
   const label = a.address || a.name;
-  const title = `${label}: destroyed in the wasteland | Fallout-style render | WastelandMaps`;
+  const title = `${label}: post-apocalyptic, destroyed in the wasteland | Fallout-style render | WastelandMaps`;
   const description = `${label} as it looks 200 years after the bombs: a Fallout-style destroyed render of this ${KIND[a.kind] ?? 'place'} in ${metro.name}, ${countryName(metro.country)}, part of the WastelandMaps atlas of destroyed addresses.`;
   const near = addressPages.filter((o) => o.a !== a && o.metro.id === metro.id).slice(0, 6);
   const body = `
@@ -373,15 +373,15 @@ for (const m of metros) {
   const here = landmarksByMetro.get(m.id) ?? [];
   const vaultsHere = LORE_VAULTS.filter((v) => v.metro === m.id);
   const towns = townSlugs.filter((t) => t.metro.id === m.id);
-  const description = `${where} as a Fallout-style wasteland: ${m.title}. ${m.places.toLocaleString('en-US')} places with wasteland names, vaults, irradiated zones, bosses and loot${here.length ? `, including ${here.slice(0, 3).map((l) => l.name).join(', ')}` : ''}. Fast travel and unlock destroyed snapshots on WastelandMaps.`;
+  const description = `Post-apocalyptic ${where}: the city after the bombs as a Fallout-style wasteland, ${m.title}. ${m.places.toLocaleString('en-US')} places with wasteland names, vaults, irradiated zones, bosses and loot${here.length ? `, including ${here.slice(0, 3).map((l) => l.name).join(', ')}` : ''}. Fast travel and unlock destroyed snapshots on WastelandMaps.`;
   const body = `
 <p>${esc(where)} is <b>${esc(m.title)}</b> on WastelandMaps, the unofficial Fallout-style map of the real world${m.pop >= 1000 ? ` (about ${(m.pop / 1_000_000).toFixed(1)} million people before the bombs)` : ''}. ${m.places.toLocaleString('en-US')} of its real places are marked with wasteland names, enemies and loot, along with the vaults, irradiated zones and flooded coasts of the new world.</p>
 ${vaultsHere.length ? `<h2>Fallout vaults in ${esc(m.name)}</h2><ul>${vaultsHere.map((v) => li(`/vault/${v.number}/`, `Vault ${v.number}`, v.game)).join('')}</ul>` : ''}
 ${towns.length ? `<h2>Fallout towns in ${esc(m.name)}</h2><ul>${towns.map((t) => li(`/lore/${t.slug}/`, t.label.replace(/\s*\(.*\)/, ''))).join('')}</ul>` : ''}
 ${here.length ? `<h2>Landmarks in ${esc(m.name)}</h2><ul>${here.map((l) => li(`/place/${l.slug}/`, l.name)).join('')}</ul>` : ''}`;
   write(url, render({
-    title: `${m.title} (${where}): the city after the bombs | Fallout-style map | WastelandMaps`, description, canonical: url, open: openQuery(where), heading: `${m.title}`, body,
-    keywords: [`${m.name} fallout`, `${m.name} fallout map`, `${m.name} wasteland`, `${m.name} after the bombs`, `${m.name} post-apocalyptic map`, m.title, `${m.name} ${country}`, `${m.name} vault`, `${m.name} nuclear`, `${country} fallout map`],
+    title: `Post-Apocalyptic ${m.name}: ${m.title} (${country}) | Fallout-style wasteland map | WastelandMaps`, description, canonical: url, open: openQuery(where), heading: `${m.title}`, body,
+    keywords: [`post-apocalyptic ${m.name}`, `post apocalyptic ${m.name} map`, `${m.name} fallout`, `${m.name} fallout map`, `${m.name} wasteland`, `${m.name} after the bombs`, `${m.name} post-apocalyptic map`, m.title, `${m.name} ${country}`, `${m.name} vault`, `${m.name} nuclear`, `${country} fallout map`],
     jsonLd: [{ '@context': 'https://schema.org', '@type': 'Place', name: where, alternateName: m.title, geo: { '@type': 'GeoCoordinates', latitude: m.lat, longitude: m.lng }, address: { '@type': 'PostalAddress', addressLocality: m.name, addressCountry: m.country }, url: `${SITE}${url}` }, breadcrumb([['WastelandMaps', '/'], ['Cities', '/cities/'], [m.title, url]])],
   }));
 }
