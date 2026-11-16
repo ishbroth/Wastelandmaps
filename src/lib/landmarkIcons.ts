@@ -73,8 +73,10 @@ const LANDMARK_ICONS: Record<string, string> = {
   // the Bank of China Tower: triangular prisms rising to a point, crossed by diagonal braces, two masts
   // Q7604504
   Q7604504: svg(f('M10.2 3.6a1.8 1.8 0 1 1 3.6 0 1.8 1.8 0 0 1-3.6 0Z') + f('M9 7h6l1.3 10.5H7.7Z') + f('M5.5 17.5h13V21h-13Z') + d('M12 8v9M10.4 17.5v3M13.6 17.5v3')),
+  // the Christ the Redeemer statue: head, arms stretched wide, the long robe, the tall pedestal
+  Q79961: svg(f('M12 2.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2Z') + f('M2.2 9.4 10.4 6.4h3.2l8.2 3v1.8l-7.4-1.6.8 6.6H8.8l.8-6.6-7.4 1.6Z') + d('M12 7.6v8.6') + f('M8.2 16.8h7.6l1.4 4.2H6.8Z') + s('M5 21h14')),
   // Q470763
-  Q470763: svg(f('M8.6 21V12.6c0-2.2 1.2-3.8 3-3.8s3 1.6 3 3.8V21Z') + f('M10 6.6a1.7 1.7 0 1 1 3.4 0 1.7 1.7 0 0 1-3.4 0Z') + d('M14.5 10.4l4.4-4.6M8.8 11.4 3.6 8.6') + f('M18.2 3.4a1.3 1.3 0 1 1 2.6 0 1.3 1.3 0 0 1-2.6 0Z') + s('M3 21h18')),
+  Q470763: svg(f('M3.4 21l2.6-3.6h12l2.6 3.6Z') + f('M9.4 17.4 10.2 9.6h3.8l.8 7.8Z') + f('M12.2 4.6a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4Z') + f('M13.6 10.2 20.4 5.4l.8 1.4-6.4 5.2Z') + f('M17.6 2.6a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z') + f('M10 17.4 6 11 2.8 6.2l2.2-1.8 4.2 4.8 1.2 8.2Z') + d('M10.8 12v4M12.8 12v4')),
   // Q947870
   Q947870: svg(f('M9.4 21V8.6h5.2V21Z') + f('M10.6 8.6V5.8h2.8v2.8Z') + s('M12 5.8V1.4') + d('M9.4 11.2h5.2M9.4 13.8h5.2M9.4 16.4h5.2M9.4 19h5.2') + s('M6.5 21h11')),
   // Q200328
@@ -123,7 +125,7 @@ const LANDMARK_ICONS: Record<string, string> = {
   Q41225: svg(f('M9 21V9l1.2-3.5L12 3l1.8 2.5L15 9v12Z') + f('M2.5 21v-5h6.5v5ZM15 21v-5h6.5v5Z') + d('M12 9.5V11l1 .7M11 21v-3h2v3') + s('M12 3V1.5')),
   // the Statue of Liberty: the raised torch, the crowned head with its rays, the robe and the tablet
   Q9202: svg(f('M5.4 1.3c.9 1 1.3 1.7 1.3 2.4a1.3 1.3 0 0 1-2.6 0c0-.7.4-1.4 1.3-2.4Z') + f('M4.1 5.2h2.6l-.4 1.8H4.5Z') + d('M5.4 7 8.4 12.2') + f('M13.2 5.4a2.3 2.3 0 1 0 0 4.6 2.3 2.3 0 0 0 0-4.6Z') + s('M13.2 2.2v1.3M10.2 3.2l1 1M16.2 3.2l-1 1M9 6l1.3.3M17.4 6l-1.3.3') + f('M8.2 14.2 13 10.6l4.8 3.6V21H8.2Z') + f('M15.4 14.6l3.4-.7.9 3.8-3.4.7Z') + d('M11.2 14v6.4M13.4 12.4v2.2')),
-  Q243: '', Q5317: '', Q45178: '', Q79961: '', Q133274: '',
+  Q243: '', Q5317: '', Q45178: '', Q133274: '',
 };
 
 /** The landmark's own miniature, or undefined when it is drawn from the common icon set. */
