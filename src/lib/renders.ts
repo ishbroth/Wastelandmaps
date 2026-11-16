@@ -42,7 +42,7 @@ export const FREE_RENDERS: Record<string, FreeRender> = {
 };
 
 /** A render that was made again keeps its file name, and browsers keep images for hours: bumping its number here makes everyone fetch the new one. */
-const REVISIONS: Record<string, number> = { Q30892864: 2, Q80290: 1, Q172822: 1 };
+const REVISIONS: Record<string, number> = { Q30892864: 2, Q80290: 1, Q172822: 1, Q6062105: 1 };
 
 /** The free render for a place on the map, by its id ("wd:Q243"), or undefined. */
 export function freeRenderFor(spotId: string): (FreeRender & { url: string; before: string }) | undefined {
