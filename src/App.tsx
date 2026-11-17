@@ -41,6 +41,7 @@ import { exploredPercent, percentText, type Scope } from './lib/explored';
 import type { MetroEntry } from './lib/metros';
 import type { AtlasFocus } from './components/AtlasProgress';
 import RatePrompt from './components/RatePrompt';
+import { blastSeen } from './components/BlowApart';
 import { LOOKS, type LookId } from './lib/looks';
 import { readShareState, shareMapView } from './lib/share';
 import { beep, type BeepKind } from './lib/sound';
@@ -140,6 +141,13 @@ export default function App() {
   const [exploreData, setExploreData] = useState<{ index: MetroEntry[]; regions: RegionsFile | null } | null>(null);
   const [homeMetro, setHomeMetro] = useState<string | null>(null);
   const [atlasFocus, setAtlasFocus] = useState<AtlasFocus | null>(null);
+  // the places whose blast has been watched since the icon was tapped (a guest sees it every time, so this is forgotten when another icon is picked)
+  const [blastsWatched, setBlastsWatched] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const on = (e: Event) => { const id = (e as CustomEvent<{ id?: string }>).detail?.id; if (id) setBlastsWatched((prev) => (prev.has(id) ? prev : new Set(prev).add(id))); };
+    window.addEventListener('rm-blast-seen', on);
+    return () => window.removeEventListener('rm-blast-seen', on);
+  }, []);
   const focusRef = useRef<AtlasFocus>({ country: null, countryName: null, state: null, stateName: null, metroId: null });
   /** The home vault, opened straight from its card on the map (the title is its name). Null when it is not open. */
   const [vaultOpen, setVaultOpen] = useState<{ title: string; key?: string } | null>(null);
@@ -351,6 +359,7 @@ export default function App() {
     }
   }, []);
   const trip = useRef<Trip | null>(null);
+  useEffect(() => { if (!account.session) setBlastsWatched((prev) => (prev.size ? new Set() : prev)); }, [selectedId, account.session]);
   const homeId = account.home?.placeId ? personalId(account.home.placeId) : null;
   useEffect(() => {
     if (!account.session) return;
@@ -1605,7 +1614,7 @@ export default function App() {
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard waiting={waitingLine(account.waiting.get(selectedSpot.id))}
               spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
-              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onClear={(() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); const canRaid = !!place && !place.lore && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || !!place.personal) && !place.personal?.home; return canRaid && !account.cleared.has(selectedSpot.id) && (account.unlocked.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)) ? () => { sound('select'); clearNow(selectedSpot.id); } : undefined; })()} onWalk={streetViewAllowed && account.session && metroInfo && account.metros.has(metroInfo.id) ? () => { sound('select'); setWalking({ lat: selectedSpot.position.lat, lng: selectedSpot.position.lng }); } : undefined} walkOn={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || selectedSpot.personal?.home === true || selectedSpot.personal?.atlas === true} onClose={() => setSelectedId(null)}
+              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onClear={(() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); const canRaid = !!place && !place.lore && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || !!place.personal) && !place.personal?.home; return canRaid && !account.cleared.has(selectedSpot.id) && (account.unlocked.has(selectedSpot.id) || (!!freeRenderFor(selectedSpot.id) && (freeRenderFor(selectedSpot.id)?.pristine === true || blastsWatched.has(selectedSpot.id) || blastSeen(account.session?.user.id, selectedSpot.id)))) ? () => { sound('select'); clearNow(selectedSpot.id); } : undefined; })()} onWalk={streetViewAllowed && account.session && metroInfo && account.metros.has(metroInfo.id) ? () => { sound('select'); setWalking({ lat: selectedSpot.position.lat, lng: selectedSpot.position.lng }); } : undefined} walkOn={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || selectedSpot.personal?.home === true || selectedSpot.personal?.atlas === true} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (

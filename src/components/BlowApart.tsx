@@ -303,7 +303,13 @@ function draw(
 /** The date of a first render as month/day/year. */
 const discoveredDate = (iso: string): string => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`; };
 
-export default function BlowApart({ sound = false, pristine = false, beforeUrl, afterUrl, name, file, seed, seenId, seenUser, discovered }: { /** Who paid for this place's first render, and when (not for the permanent landmarks). */ discovered?: { by: string | null; at: string } | null; /** Sound effects are on. */ sound?: boolean; /** Nothing is destroyed here (Vault 0): just show the picture, with no bomb and no before/after. */ pristine?: boolean; beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string; /** Who is watching: the blast is a first time for each person, not for each phone. */ seenUser?: string }) {
+/** Has this signed-in survivor already watched the blast on this place? (A guest never has: they see it every time.) */
+export function blastSeen(userId: string | undefined, id: string): boolean {
+  if (!userId) return false;
+  try { return !!localStorage.getItem(`wastelandmaps:seen:${userId}:${id}`); } catch { return false; }
+}
+
+export default function BlowApart({ sound = false, pristine = false, beforeUrl, afterUrl, name, file, seed, seenId, seenUser, discovered, onSeen }: { /** Called once the blast has been watched (or was already seen). */ onSeen?: () => void; /** Who paid for this place's first render, and when (not for the permanent landmarks). */ discovered?: { by: string | null; at: string } | null; /** Sound effects are on. */ sound?: boolean; /** Nothing is destroyed here (Vault 0): just show the picture, with no bomb and no before/after. */ pristine?: boolean; beforeUrl: string; afterUrl: string; name: string; file: string; seed: number; /** What counts as having seen it (when the picture's own address changes each visit). */ seenId?: string; /** Who is watching: the blast is a first time for each person, not for each phone. */ seenUser?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const images = useRef<{ before: HTMLImageElement; after: HTMLImageElement; plan: ReturnType<typeof plan>; sky: Sky; cloud: CanvasRenderingContext2D | null; width: number; height: number } | null>(null);
   const frame = useRef(0);
@@ -316,6 +322,8 @@ export default function BlowApart({ sound = false, pristine = false, beforeUrl, 
   const [recording, setRecording] = useState(false);
   const canRecord = typeof MediaRecorder !== 'undefined' && typeof HTMLCanvasElement !== 'undefined' && 'captureStream' in HTMLCanvasElement.prototype;
   const seenKey = `wastelandmaps:seen:${seenUser ?? 'guest'}:${seenId ?? afterUrl}`;
+  const onSeenRef = useRef(onSeen);
+  onSeenRef.current = onSeen;
 
   const finish = useCallback(() => {
     const el = canvas.current;
@@ -372,9 +380,11 @@ export default function BlowApart({ sound = false, pristine = false, beforeUrl, 
         const ox = (sky.hasSky ? sky.cloudX : 0.5) * width, oy = (sky.hasSky ? sky.horizon : 0.55) * height;
         images.current = { before, after, plan: plan(width, height, seed, ox, oy), sky, cloud: layer.getContext('2d'), width, height };
         let seen = false;
-        try { seen = !!localStorage.getItem(seenKey); } catch { /* storage unavailable: play it */ }
-        if (seen) finish();
-        else play(() => { try { localStorage.setItem(seenKey, '1'); } catch { /* fine */ } });
+        // a signed-in survivor sees it once; a guest sees it every time (nothing is kept for them)
+        if (seenUser) { try { seen = !!localStorage.getItem(seenKey); } catch { /* storage unavailable: play it */ } }
+        const watched = () => { onSeenRef.current?.(); window.dispatchEvent(new CustomEvent('rm-blast-seen', { detail: { id: seenId } })); };
+        if (seen) { finish(); watched(); }
+        else play(() => { if (seenUser) { try { localStorage.setItem(seenKey, '1'); } catch { /* fine */ } } watched(); });
       })
       .catch(() => {
         // the original photo would not load (or may not be drawn): just show the finished picture

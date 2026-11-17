@@ -15,7 +15,7 @@ import { isIrradiated } from '../lib/zones';
 import { manualBefore } from '../lib/manualSources';
 import { describeSpot, hashString, subtitle, type PlaceInhabitants, type Spot } from '../lib/wasteland';
 import type { LookId } from '../lib/looks';
-import BlowApart from './BlowApart';
+import BlowApart, { blastSeen } from './BlowApart';
 import RaidScreen from './RaidScreen';
 import ProjectorDown from './ProjectorDown';
 import { buzz } from '../lib/haptics';
@@ -48,6 +48,13 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   spot: Spot; regionName: string; look: LookId; visited: boolean; account: Account; /** Who lives there now and what can be looted. */ plan?: PlaceInhabitants; /** The full raid on it (worth, waves, loot), when it can be raided. */ raid?: RaidPlan; level: number; sound: boolean; onAccount: () => void; onClose: () => void; /** Kept for callers; the message is shown over the picture now. */ onNeedDiscover?: () => void;
 }) {
   const render = useMemo(() => freeRenderFor(spot.id), [spot.id]);
+  // a permanent landmark: its free snapshot is opened with a tap and the blast watched (every time for a guest, once for a signed-in survivor) before CLEAR and LOOT show
+  const userId = account.session?.user.id;
+  const [freeOpened, setFreeOpened] = useState<string | null>(null);
+  const [watched, setWatched] = useState<string | null>(null);
+  const gated = !!render && !render.pristine;
+  const freeSealed = gated && freeOpened !== spot.id && !blastSeen(userId, spot.id);
+  const blastDone = !gated || watched === spot.id || blastSeen(userId, spot.id);
   const [tab, setTab] = useState<Tab>(startOn === 'snapshot' ? 'snapshot' : 'scene');
   const [raiding, setRaiding] = useState(false);
   const [entering, setEntering] = useState(false);
@@ -200,7 +207,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
           {onVacation && vacation?.ready && vacation.choices.find((c) => c.placeId === spot.id) && (
             <VacationCog name={spot.name} onClick={() => onVacation(vacation.choices.find((c) => c.placeId === spot.id) as VacationChoice)} />
           )}
-          {reveal && raid && (
+          {reveal && raid && blastDone && (
             <button type="button" className={`rm-tab-loot${!home && account.cleared.has(spot.id) && waitingText ? ' waiting' : ''}${!home && account.cleared.has(spot.id) && !waitingText ? ' rm-tab-loot-done' : ''}`} disabled={account.cleared.has(spot.id) && !home && !waitingText} onClick={() => (home && account.cleared.has(spot.id) ? setEntering(true) : account.cleared.has(spot.id) ? setShowWaiting((x) => !x) : setRaiding(true))} title={home && account.cleared.has(spot.id) ? 'Go into your home vault' : account.cleared.has(spot.id) ? (waitingText ? 'Cleared: see the loot waiting for you' : 'Already cleared') : 'Clear out what lives there (the loot is yours once you have discovered the place)'}>{home && account.cleared.has(spot.id) ? 'ENTER' : account.cleared.has(spot.id) ? 'CLEARED' : 'CLEAR'}</button>
           )}
         </div>
@@ -209,8 +216,15 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
 
         {/* the scene tab is the story, the enemies and the loot: the picture belongs to the snapshot tab */}
         <div className={`rm-modal-view${tab === 'scene' ? ' rm-modal-view-hidden' : ''}`}>
-          {tab === 'snapshot' && reveal && (
-            <BlowApart sound={sound} pristine={reveal.pristine} key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={spot.id} seenUser={account.session?.user.id} discovered={reveal.pristine || personal ? null : paidReady?.discovered ?? null} />
+          {tab === 'snapshot' && reveal && freeSealed && (
+            <div className="rm-locked">
+              <b>SNAPSHOT SEALED</b>
+              <p>This landmark's snapshot is free. Unlock it and the photograph of the place is blown apart before your eyes, leaving it as it is now: collapsed, burnt and overgrown.</p>
+              <button type="button" className="rm-btn" onClick={() => setFreeOpened(spot.id)}>UNLOCK FOR FREE</button>
+            </div>
+          )}
+          {tab === 'snapshot' && reveal && !freeSealed && (
+            <BlowApart onSeen={() => setWatched(spot.id)} sound={sound} pristine={reveal.pristine} key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={spot.id} seenUser={account.session?.user.id} discovered={reveal.pristine || personal ? null : paidReady?.discovered ?? null} />
           )}
           {tab === 'snapshot' && locked && (
             <div className="rm-locked">
@@ -265,7 +279,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
       {buying && <BuyCaps onClose={() => setBuying(false)} onBought={() => void account.refresh()} />}
       {entering && home && <VaultHome title={spot.name} account={account} onExit={() => setEntering(false)} vacation={vacation} />}
       {raiding && reveal && raid && (
-        <RaidScreen metroId={metroId} plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsForSpot(spot)} account={account} sound={sound} onExit={() => setRaiding(false)} onSignIn={onAccount} />
+        <RaidScreen metroId={metroId} plan={raid} placeId={spot.id} imageUrl={reveal.after} spawns={spawnsForSpot(spot)} account={account} sound={sound} onExit={() => setRaiding(false)} onSignIn={onAccount} guestPreview={!account.session && gated} />
       )}
     </div>
   );

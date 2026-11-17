@@ -59,7 +59,9 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
  * The shooting gallery: the destroyed picture blown up to the whole screen, the place's enemies walking out of the ground in waves, a gun at the bottom
  * and a wheel to switch between the four classes of weapon. Winning pays the loot the server decided; dying sends the survivor back to try again.
  */
-export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, account, sound, onExit, onSignIn }: {
+export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, account, sound, onExit, onSignIn, guestPreview = false }: {
+  /** A permanent landmark opened by someone not signed in: the gallery loads and wave 1 starts, then a second later they are asked to sign in or register. */
+  guestPreview?: boolean;
   /** The metro on the map, kept with the raid so progress toward clearing each metro can be listed. */
   metroId?: string | null;
   plan: RaidPlan;
@@ -104,6 +106,9 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   }, []);
   const [message, setMessage] = useState('');
   const [needsSignIn, setNeedsSignIn] = useState(false);
+  const [guestGate, setGuestGate] = useState(false);
+  const gate = useRef<number | null>(null);
+  useEffect(() => () => { if (gate.current) window.clearTimeout(gate.current); }, []);
   const [hud, setHud] = useState<Hud | null>(null);
   // what each enemy was doing last frame, so a new strike or a death is heard once
   const lastState = useRef(new Map<number, string>());
@@ -156,7 +161,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         startRaid(placeId, plan.worth, scaledTotal(plan, levelInfo(account.points).level), plan.lootTypes, metroId),
       ]);
       if (cancelled) return;
-      if ('error' in started) {
+      const guestGo = 'error' in started && started.error === 'sign_in' && guestPreview;
+      if ('error' in started && !guestGo) {
         setNeedsSignIn(started.error === 'sign_in');
         setMessage(started.error === 'sign_in' ? 'YOU MUST BE SIGNED IN TO CLEAR A PLACE' : started.error === 'locked' ? 'UNLOCK THIS SNAPSHOT FIRST' : started.error === 'cleared' ? 'THIS PLACE IS ALREADY CLEARED' : started.error === 'too_many' ? 'YOU HAVE BEEN FIGHTING A LOT. REST A WHILE' : 'THE RAID COULD NOT START. TRY AGAIN IN A MOMENT');
         setPhase('error');
@@ -169,7 +175,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
       }
       bg.current = picture;
       assets.current = art;
-      run.current = started.runId;
+      run.current = 'runId' in started ? started.runId : null;
       // a place nobody marked by hand: the picture is looked at for sensible places to come from (not in the sky), and how far down the horizon is
       const looked = spawnsAreMarked(placeId) ? null : analyzeSpawns(picture, spawns);
       game.current = new Game({ plan, spawns: looked ?? spawns, arsenal, level: levelInfo(account.points).level });
@@ -234,6 +240,10 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           selected: g.selected, remaining: g.remaining,
           banner: g.bannerT > 0 ? g.banner : '', bossHp: boss ? boss.hp / boss.maxHp : null, bossName: boss?.type.name ?? '', slow: g.slowLeft,
         });
+      }
+      // a guest: a second after the first wave is announced the game stops and the sign-in popup comes up (nothing is kept, and it happens every time)
+      if (guestPreview && !run.current && !gate.current && g.bannerT > 0) {
+        gate.current = window.setTimeout(() => { if (game.current) game.current.paused = true; setGuestGate(true); }, 1000);
       }
       if (g.outcome !== 'fighting') {
         // the blow that ends the fight is allowed to finish (the claw marks, the flash) before the screen says YOU DIED
@@ -703,6 +713,13 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
         onPointerCancel={() => { pointer.current.down = false; aiming.current = false; scope.current.drag = null; }}
       />
       {phase === 'loading' && <div className="rm-raid-center">GETTING READY…</div>}
+      {guestGate && (
+        <div className="rm-raid-center rm-raid-gate" role="dialog" aria-label="Sign in to fight">
+          <p>SIGN IN OR REGISTER YOUR VAULT TO FIGHT, CLEAR THIS PLACE AND KEEP THE LOOT.</p>
+          {onSignIn && <button type="button" className="rm-btn" onClick={() => { onExit(); onSignIn(); }}>SIGN IN / REGISTER</button>}
+          <button type="button" className="rm-btn rm-btn-ghost" onClick={onExit}>BACK</button>
+        </div>
+      )}
       {phase === 'error' && (
         <div className="rm-raid-center">
           <p>{message}</p>
