@@ -66,5 +66,6 @@ export const MORE_RENDERS: Record<string, FreeRender> = {
   Q1519373: { name: "Palacio Salvo", photo: "2016 Uruguay Plaza de La Independencia palmas y Palacio Salvo en Montevido", author: "Felipe Restrepo Acosta", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:2016_Uruguay_Plaza_de_La_Independencia_palmas_y_Palacio_Salvo_en_Montevido.jpg", lat: -34.90625, lng: -56.20056 },
   Q722125: { name: "Sky Tower", photo: "Auckland, NZ - panoramio", author: "Nelson Pérez", license: "CC BY-SA 3.0", page: "https://commons.wikimedia.org/wiki/File:Auckland,_NZ_-_panoramio.jpg", lat: -36.84846, lng: 174.76213 },
   Q868874: { name: "Tashkent Tower", photo: "Tashkent 2023", author: "Basiyra", license: "CC BY 4.0", page: "https://commons.wikimedia.org/wiki/File:Tashkent_2023.jpg", lat: 41.34557, lng: 69.28460 },
+  Q20712236: { name: "Old Federal Building (Fairbanks)", photo: "Fairbanks, Alaska ENBLA05", author: "Enrico Blasutto", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Fairbanks,_Alaska_ENBLA05.jpg", lat: 64.84306, lng: -147.72139 },
   Q214855: { name: "Bank of China Tower", photo: "Bank of China Tower (Hong Kong) 20170808", author: "Suicasmo", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Bank_of_China_Tower_(Hong_Kong)_20170808.jpg", lat: 22.2792, lng: 114.1614 },
 };
