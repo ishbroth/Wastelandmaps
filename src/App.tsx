@@ -14,7 +14,7 @@ import HomePrompt from './components/HomePrompt';
 import { startPurchases } from './lib/iap';
 import { keepScreenOn } from './lib/awake';
 import { askForLocation, getFix, locationState, openLocationSettings, watchFixes, type GeoError } from './lib/geo';
-import { isNative, onAppUrl, onResume, openExternal } from './lib/native';
+import { isNative, onAppUrl, onResume, openExternal, storeUrl } from './lib/native';
 import { addressAt, resolveSuggestion, type PickedPlace, type Suggestion } from './lib/addressSearch';
 import { iconHtmlFor, landmarkIcon } from './lib/landmarkIcons';
 import type { MapPosterInput } from './lib/poster';
@@ -65,6 +65,8 @@ type Tab = 'locations' | 'data' | 'share';
 type Status = 'loading' | 'ready' | 'problem';
 
 interface Trip { spot: Spot; minutes: number; rads: number; note: string }
+
+const GIFT_TOAST = 'DOWNLOAD THE APP AND GET 500 FREE CAPS';
 
 /** The pre-plotted place a chosen home address is, if it is one: right on top of it, or close by and called the same thing. Its id, its icon for the cog and its metro. */
 async function findPreplotted(place: { name: string; address: string; position: LatLng }): Promise<{ id: string; icon: string; metro: string } | null> {
@@ -438,7 +440,7 @@ export default function App() {
     giftAsked.current = id;
     void welcomeBonus().then(async (r) => {
       if (r.granted) { await account.refresh(); setToast(`WELCOME, SURVIVOR: +${r.caps ?? 500} CAPS`); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 4200); sound('discover'); }
-      else if (r.waiting) { setToast('DOWNLOAD THE APP AND GET 500 FREE CAPS'); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 6000); }
+      else if (r.waiting) { setToast(GIFT_TOAST); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 6000); }
     });
   }, [account.session]); // eslint-disable-line react-hooks/exhaustive-deps
   // the Pip-Boy powers up when a sign-in finishes (Face ID, vault number or the emailed link, whichever it was): the chime and the buzz, played here so every way of signing in has them
@@ -1571,7 +1573,7 @@ export default function App() {
               </div>
             </div>
           )}
-          {toast && <div className={`rm-toast${flash ? ' rm-toast-flash' : ''}`} role="status">{toast}</div>}
+          {toast && <div className={`rm-toast${flash ? ' rm-toast-flash' : ''}${toast === GIFT_TOAST ? ' rm-toast-link' : ''}`} role="status">{toast === GIFT_TOAST ? <a href={storeUrl()} target="_blank" rel="noreferrer">{toast}</a> : toast}</div>}
           {flightLink && (
             <div className="rm-flights" role="status">
               <span>{flightLink.ferry ? 'NO ROAD' : 'OVERSEAS'}</span>

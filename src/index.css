@@ -1310,3 +1310,6 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-acct-home span { font-size: 11px; letter-spacing: 0.5px; }
 
 .rm-gift a { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-shadow: 0 0 8px var(--glow); }
+
+.rm-toast-link { pointer-events: auto; }
+.rm-toast-link a { color: inherit; text-decoration: underline; text-underline-offset: 4px; }
