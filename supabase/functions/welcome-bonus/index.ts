@@ -1,6 +1,6 @@
 // The welcome gift: 500 caps (5 credits), once per person, the first time they are signed in from the phone app. Signing up on the website gets nothing until they open the app.
 // The request must come from the app itself: its pages are served from capacitor://localhost (iPhone) or https://localhost (Android), and it also says so in the x-client-info header
-// (the app's native networking may not send an Origin at all). Neither is a secret, so the real limit is once per EMAIL (see the welcome_bonus_emails table): deleting an account and
+// (the app's native networking sends no Origin at all, and the sign-in library puts its own text in the same header, so it is looked for inside it). Neither is a secret, so the real limit is once per EMAIL (see the welcome_bonus_emails table): deleting an account and
 // registering again with the same email gets nothing. It is also once per DEVICE: the app sends a device id that survives deleting and reinstalling it (kept in the iPhone's keychain, or
 // Android's own id), and a device that has had the gift once gets no second one, whatever the email. A request with no device id gets no gift.
 //
@@ -12,7 +12,7 @@ import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.t
 
 const BONUS_CREDITS = 5;
 const APP_ORIGINS = ['capacitor://localhost', 'ionic://localhost', 'https://localhost'];
-const fromApp = (req: Request): boolean => APP_ORIGINS.includes(req.headers.get('origin') ?? '') || /^wastelandmaps-app-(ios|android)$/.test(req.headers.get('x-client-info') ?? '');
+const fromApp = (req: Request): boolean => APP_ORIGINS.includes(req.headers.get('origin') ?? '') || /wastelandmaps-app-(ios|android)/.test(req.headers.get('x-client-info') ?? '');
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
