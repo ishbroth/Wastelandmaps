@@ -78,7 +78,7 @@ export default function AccountModal({ onClose, auto = false }: { onClose: () =>
             ) : (
               <>
                 <p className="rm-gift">DOWNLOAD THE APP AND GET <a href={storeUrl()} target="_blank" rel="noreferrer">500 FREE CAPS</a></p>
-                <p>Register your vault. Give your email and we send you a link; opening it creates your vault, and then you choose your four-digit vault number and your home.</p>
+                <p>Register your vault, or get back into one: give your email and we send you a link. New here? Opening it creates your vault, and then you choose your four-digit vault number and your home. Forgot your vault number? Opening it lets you choose a new one.</p>
                 <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
                 <button type="submit" className="rm-btn" disabled={busy || !email.trim()}>{busy ? 'SENDING…' : 'EMAIL ME THE LINK'}</button>
               </>

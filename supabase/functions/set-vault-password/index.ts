@@ -7,6 +7,7 @@
 // Deploy: supabase functions deploy set-vault-password
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
+import { vaultPassword } from '../_shared/vaultPassword.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
@@ -16,7 +17,13 @@ Deno.serve(async (req) => {
   const db = serviceClient();
   const { data: home } = await db.from('user_home').select('vault_number').eq('user_id', user).maybeSingle();
   if (!home || home.vault_number === null || home.vault_number === undefined) return reply(req, { error: 'no_number' }, 400);
-  const { error } = await db.auth.admin.updateUserById(user, { password: `vault-${String(home.vault_number).padStart(4, '0')}` });
+  const { data: who } = await db.auth.admin.getUserById(user);
+  const email = who?.user?.email ?? null;
+  let password: string;
+  try { password = await vaultPassword(user, email, String(home.vault_number).padStart(4, '0')); } catch (e) { console.error('no password secret', e instanceof Error ? e.message : e); return reply(req, { error: 'server' }, 500); }
+  const { error } = await db.auth.admin.updateUserById(user, { password });
   if (error) { console.error('set password failed', error.message); return reply(req, { error: 'server' }, 500); }
+  // a new number from an emailed link also opens a vault that was locked by wrong tries
+  if (email) await db.rpc('vault_login_reset', { p_email: email });
   return reply(req, { ok: true });
 });

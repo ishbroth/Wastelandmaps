@@ -3,13 +3,14 @@ import LocationCard from './components/LocationCard';
 import VaultHome from './components/VaultHome';
 import MapView from './components/MapView';
 import AccountModal from './components/AccountModal';
+import ResetVaultNumber from './components/ResetVaultNumber';
 import FaceIdOffer from './components/FaceIdOffer';
 import { loadNavHistory, pushNavHistory } from './lib/navHistory';
 import { savedFaceIds } from './lib/faceid';
 import SceneModal from './components/SceneModal';
 import StreetWalk from './components/StreetWalk';
 import BinocButton from './components/BinocButton';
-import { accountsEnabled, welcomeBonus, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, saveHomeMetro, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import { accountsEnabled, welcomeBonus, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, takeLinkOpened, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, saveHomeMetro, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { startPurchases } from './lib/iap';
 import { keepScreenOn } from './lib/awake';
@@ -70,6 +71,8 @@ interface Trip { spot: Spot; minutes: number; rads: number; note: string }
 const GIFT_TOAST = 'DOWNLOAD THE APP AND GET 500 FREE CAPS';
 
 /** The pre-plotted place a chosen home address is, if it is one: right on top of it, or close by and called the same thing. Its id, its icon for the cog and its metro. */
+/** Big sites whose street address lies farther from the building than the usual 150 m (Apple Park's address is at the west side of the ring). */
+const WIDE_MATCH: Record<string, number> = { 'wd:Q22041180': 700 };
 async function findPreplotted(place: { name: string; address: string; position: LatLng }): Promise<{ id: string; icon: string; metro: string } | null> {
   const metro = metroAt(await loadIndex(), place.position, 40);
   if (!metro) return null;
@@ -80,7 +83,7 @@ async function findPreplotted(place: { name: string; address: string; position: 
     if (!l.id.startsWith('wd:') || l.personal) continue;
     const d = distanceMeters(place.position, l.position);
     const named = words(l.name).some((w) => mine.has(w)) || words(l.oldName ?? '').some((w) => mine.has(w));
-    if ((d < 12 || (named && d < 150)) && (!best || d < best.d)) best = { l, d };
+    if ((d < 12 || (named && d < (WIDE_MATCH[l.id] ?? 150))) && (!best || d < best.d)) best = { l, d };
   }
   if (!best) return null;
   const q = best.l.id.slice(3);
@@ -340,6 +343,8 @@ export default function App() {
   }, [account.session, metroInfo, atlasOwned]);
 
   const [accountOpen, setAccountOpen] = useState(false);
+  /** They forgot their vault number and opened the emailed link: choose a new one (typed twice), then sign in with it. */
+  const [resetOpen, setResetOpen] = useState(false);
   // in the app, opening signed out with an account saved behind Face ID: the sign-in opens by itself and starts the check
   const [accountAuto, setAccountAuto] = useState(false);
   const autoFaceTried = useRef(false);
@@ -452,6 +457,12 @@ export default function App() {
       else if (r.waiting) { setToast(GIFT_TOAST); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 6000); }
     });
   }, [account.session]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the emailed link opened for an account that already has a vault number: that is the way back in for someone who forgot it
+  useEffect(() => {
+    if (!account.session || !account.homeLoaded) return;
+    const opened = takeLinkOpened(); // (consumed here either way: a brand-new vault just goes on to choose its number and home)
+    if (opened && account.home?.vaultNumber !== undefined) setResetOpen(true);
+  }, [account.session, account.homeLoaded, account.home?.vaultNumber]);
   // the Pip-Boy powers up when a sign-in finishes (Face ID, vault number or the emailed link, whichever it was): the chime and the buzz, played here so every way of signing in has them
   const signInSeen = useRef<string | null | undefined>(undefined);
   const signInOpened = useRef(false);
@@ -1631,6 +1642,7 @@ export default function App() {
           {moving && <div className="rm-moving" role="status"><CogSpinner big /><span>MOVING VAULT FURNITURE…</span></div>}
           {vacationAsk && vacationOffer && <VacationAsk choice={vacationAsk} offer={vacationOffer} account={account} onClose={() => setVacationAsk(null)} onDone={() => setVacationAsk(null)} />}
           {vaultOpen !== null && <VaultHome key={vaultOpen.key ?? 'home'} title={vaultOpen.title} vaultKey={vaultOpen.key} account={account} onExit={() => setVaultOpen(null)} vacation={vaultOpen.key ? undefined : vacationOffer} />}
+          {resetOpen && account.session && <ResetVaultNumber email={account.email} onDone={() => { setResetOpen(false); setAccountOpen(true); setToast('NEW VAULT NUMBER SAVED: SIGN IN WITH IT'); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 5000); }} />}
           {accountOpen && !account.session && <AccountModal auto={accountAuto} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
           <FaceIdOffer />
           <RatePrompt quiet={!!nav || !!sceneId || accountOpen || homeOpen} />

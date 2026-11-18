@@ -138,7 +138,18 @@ Deno.serve(async (req) => {
       return reply(req, { ok: true, won: true, pending: true, waiting: run.loot });
     }
     // the pack holds 99 of each kind: what does not fit is lost
-    const { data: paid, error } = await db.rpc('grant_loot', { p_user: user, p_loot: run.loot });
+    // the first time an account clears its home vault it also gets 5 extra pieces of loot (once per account: a new address later gets no second bonus)
+    const loot: Record<string, number> = { ...(run.loot as Record<string, number>) };
+    let firstClear = false;
+    if (ownHome) {
+      const { data: first } = await db.rpc('claim_home_clear_bonus', { p_user: user });
+      if (first === true) {
+        firstClear = true;
+        const pick = new Uint32Array(5); crypto.getRandomValues(pick);
+        for (const n of pick) { const kind = LOOT[n % LOOT.length]; loot[kind] = (loot[kind] ?? 0) + 1; }
+      }
+    }
+    const { data: paid, error } = await db.rpc('grant_loot', { p_user: user, p_loot: loot });
     if (error) return reply(req, { error: 'server' }, 500);
     // beating Vault 0 is worth XP too (once: a won raid clears the place for good). The XP is a bonus row, not a discovery: the vault stays undiscovered.
     let xp = 0;
@@ -146,7 +157,7 @@ Deno.serve(async (req) => {
       const { data: bonus } = await db.rpc('record_discovery', { p_user: user, p_place: VAULT_ZERO_RAID_XP_ID, p_points: VAULT_ZERO_RAID_XP });
       xp = Number((bonus as { added?: number } | null)?.added ?? 0);
     }
-    return reply(req, { ok: true, won: true, loot: (paid as { granted: unknown }).granted, lost: (paid as { lost: unknown }).lost, ...(vault ? { xp } : {}) });
+    return reply(req, { ok: true, won: true, loot: (paid as { granted: unknown }).granted, lost: (paid as { lost: unknown }).lost, ...(vault ? { xp } : {}), ...(firstClear ? { firstClear: true } : {}) });
   }
 
   if (b.action === 'claim') {

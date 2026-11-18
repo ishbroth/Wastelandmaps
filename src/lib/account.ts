@@ -1,7 +1,8 @@
 // Accounts and render credits: signing in, the credit balance, buying a pack, and unlocking a place's game-style render.
 // All of the money logic lives on the server (supabase/functions); this only asks and shows.
 
-import { APP_SCHEME, NATIVE_AUTH_REDIRECT, goTo, isNative } from './native';
+import { deviceId } from './device';
+import { APP_SCHEME, NATIVE_AUTH_REDIRECT, goTo, isNative, platform } from './native';
 import type { PersonalPlace } from './personal';
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
@@ -237,7 +238,8 @@ export function useAccount(): Account {
 /** The welcome gift of 500 caps for being signed in from the phone app: in the app it is claimed (once per person, the server checks); on the website it only asks whether it is still waiting. */
 export async function welcomeBonus(): Promise<{ granted: boolean; waiting: boolean; caps?: number }> {
   const action = isNative() ? 'claim' : 'status';
-  const { data, error } = await db().functions.invoke('welcome-bonus', { body: { action } });
+  const device = action === 'claim' ? await deviceId() : null;
+  const { data, error } = await db().functions.invoke('welcome-bonus', { body: { action, device }, headers: isNative() ? { 'x-client-info': `wastelandmaps-app-${platform()}` } : undefined });
   if (error || !data) return { granted: false, waiting: false };
   if (action === 'claim') return { granted: data.granted === true, waiting: false, caps: data.caps as number | undefined };
   return { granted: false, waiting: data.claimed === false };
@@ -264,17 +266,44 @@ export async function checkSessionAlive(): Promise<void> {
   }
 }
 
+/** True after someone opened an emailed link (the web page was opened by it, or the app was): if their vault already has a number, they are asked to choose a new one (the "forgot my number" way back in). */
+let linkOpened = typeof window !== 'undefined' && /access_token=|[?&]code=/.test(window.location.hash + window.location.search);
+export const takeLinkOpened = (): boolean => { const was = linkOpened; linkOpened = false; return was; };
+
 /** Emails a sign-in link. */
 export async function sendSignInLink(email: string): Promise<string | null> {
   const { error } = await db().auth.signInWithOtp({ email, options: { emailRedirectTo: isNative() ? NATIVE_AUTH_REDIRECT : window.location.origin + window.location.pathname } });
   return error ? error.message : null;
 }
 
-/** Signs in with the email and the four-digit vault number (the password is "vault-" and those digits; the auth system wants six characters or more). Null when it worked. */
+/** Asks the server to check the email and the four-digit vault number (the real password behind the number is not guessable: see the vault-sign-in function) and, if they are right, signs in. */
+async function vaultServerSignIn(email: string, digits: string): Promise<{ ok: true } | { ok: false; error: 'wrong' | 'locked' | 'server'; left?: number }> {
+  const { data, error } = await db().functions.invoke('vault-sign-in', { body: { email: email.trim().toLowerCase(), digits } });
+  if (!error && data?.ok === true && data.access_token && data.refresh_token) {
+    const { error: set } = await db().auth.setSession({ access_token: String(data.access_token), refresh_token: String(data.refresh_token) });
+    return set ? { ok: false, error: 'server' } : { ok: true };
+  }
+  const response = (error as { context?: Response } | null)?.context;
+  if (response) {
+    try {
+      const body = (await response.json()) as { error?: string; left?: number };
+      if (body.error === 'locked') return { ok: false, error: 'locked' };
+      if (body.error === 'wrong') return { ok: false, error: 'wrong', left: body.left };
+    } catch { /* no body */ }
+  }
+  return { ok: false, error: 'server' };
+}
+
+const LOCKED_MESSAGE = 'Too many wrong tries: this vault is locked. Tap REGISTER YOUR VAULT below, enter your email, and choose a new vault number from the link we send.';
+
+/** Signs in with the email and the four-digit vault number. Five wrong tries lock the vault until its owner resets the number by email. Null when it worked. */
 export async function signInWithVault(email: string, digits: string): Promise<string | null> {
-  const { error } = await db().auth.signInWithPassword({ email, password: `vault-${digits}` });
-  if (!error) { offerFaceId(email, `vault-${digits}`); void claimSession(); } // in the app, asks whether to use Face ID next time
-  return error ? 'That email and vault number do not match. If this is your first time, or you forgot the number, use the email link.' : null;
+  const r = await vaultServerSignIn(email, digits);
+  if (r.ok) { offerFaceId(email, `vault-${digits}`); void claimSession(); return null; } // in the app, asks whether to use Face ID next time
+  if (r.error === 'locked') return LOCKED_MESSAGE;
+  if (r.error === 'server') return 'Signing in did not go through. Check your connection and try again.';
+  const left = r.left !== undefined && r.left > 0 ? ` ${r.left} ${r.left === 1 ? 'try' : 'tries'} left before the vault locks.` : '';
+  return `That email and vault number do not match. If this is your first time, or you forgot your vault number, tap REGISTER YOUR VAULT below and enter your email.${left}`;
 }
 
 /** Signs in with what Face ID (or Touch ID) unlocks for this email. Null when it worked, 'cancelled' when they backed out or the check did not match, else a message. */
@@ -282,8 +311,11 @@ export async function signInWithFaceId(email: string): Promise<string | null> {
   const saved = await readFaceId(email);
   if (saved === 'cancelled') return 'cancelled';
   if (!saved) return 'No sign-in is saved for that account on this phone. Sign in with your vault number.';
-  const { error } = await db().auth.signInWithPassword({ email: saved.email, password: saved.password });
-  if (error) {
+  const digits = /^vault-(d{4})$/.exec(saved.password)?.[1];
+  const r = digits ? await vaultServerSignIn(saved.email, digits) : ({ ok: false, error: 'wrong' } as const);
+  if (!r.ok) {
+    if (r.error === 'locked') return LOCKED_MESSAGE;
+    if (r.error === 'server') return 'Signing in did not go through. Check your connection and try again.';
     await forgetFaceId(email); // what was saved no longer works (the vault number changed): do not keep offering it
     return 'That saved sign-in no longer works. Sign in with your email and vault number.';
   }
@@ -297,9 +329,9 @@ export async function setVaultPassword(email?: string | null, vaultNumber?: numb
   const ok = !error && data?.ok === true;
   // changing a password can end the sessions that were open before it: sign in again with the new one so this device keeps a working session
   if (ok && email && vaultNumber !== undefined) {
-    const password = `vault-${String(vaultNumber).padStart(4, '0')}`;
-    const { error: again } = await db().auth.signInWithPassword({ email, password });
-    if (!again) { await forgetFaceId(email); offerFaceId(email, password); } // a changed vault number means a changed saved sign-in
+    const digits = String(vaultNumber).padStart(4, '0');
+    const again = await vaultServerSignIn(email, digits);
+    if (again.ok) { await forgetFaceId(email); offerFaceId(email, `vault-${digits}`); } // a changed vault number means a changed saved sign-in
   }
   return ok;
 }
@@ -578,13 +610,13 @@ export async function completeSignInFromUrl(url: string): Promise<boolean> {
   const refresh = hash.get('refresh_token');
   if (access && refresh) {
     const { error } = await db().auth.setSession({ access_token: access, refresh_token: refresh });
-    if (!error) void claimSession();
+    if (!error) { void claimSession(); linkOpened = true; }
     return !error;
   }
   const code = query.get('code');
   if (code) {
     const { error } = await db().auth.exchangeCodeForSession(code);
-    if (!error) void claimSession();
+    if (!error) { void claimSession(); linkOpened = true; }
     return !error;
   }
   return false;

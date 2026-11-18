@@ -34,6 +34,8 @@ export default function HomePrompt({ onChosen, onSkip, canSkip = true, startWith
   const [step, setStep] = useState<Step | null>(startWith ? 'number' : null);
   const [picked, setPicked] = useState<PickedPlace | null>(startWith ?? null);
   const [note, setNote] = useState('');
+  const noteRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (note) noteRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, [note]);
   const [busy, setBusy] = useState(false);
   const [value, setValue] = useState('');
   // the callsign is chosen with the vault, so every first render shows who made it: asked here unless they already have one
@@ -105,13 +107,19 @@ export default function HomePrompt({ onChosen, onSkip, canSkip = true, startWith
     if (!picked || !valid) return;
     setBusy(true);
     setNote('');
-    if (!hasCallsign) {
-      const named = await setCallsign(callsign);
-      if (!named.ok) { setNote(CALLSIGN_REASONS[named.error] ?? 'THAT CALLSIGN DID NOT GO THROUGH: TRY AGAIN'); setBusy(false); return; }
-      setHasCallsign(true);
+    try {
+      if (!hasCallsign) {
+        const named = await setCallsign(callsign);
+        if (!named.ok) { setNote(CALLSIGN_REASONS[named.error] ?? `THAT CALLSIGN DID NOT GO THROUGH (${named.error}): TRY AGAIN`); setBusy(false); return; }
+        setHasCallsign(true);
+      }
+      const problem = await onChosen(picked, number);
+      if (problem) { setNote(problem); setBusy(false); }
+    } catch (e) {
+      // whatever went wrong, say so right here (and let them try again) instead of leaving the card looking dead
+      setNote(`THE VAULT COULD NOT BE BUILT: ${e instanceof Error ? e.message : 'unknown error'}. TRY AGAIN`);
+      setBusy(false);
     }
-    const problem = await onChosen(picked, number);
-    if (problem) { setNote(problem); setBusy(false); }
   };
 
   return (
@@ -165,11 +173,12 @@ export default function HomePrompt({ onChosen, onSkip, canSkip = true, startWith
                 onChange={(e) => setDigits(e.target.value.replace(/\D/g, '').slice(0, 4))}
                 onKeyDown={(e) => { if (e.key === 'Enter') void build(); }}
               />
+              {note && <p className="rm-account-note" role="alert" ref={noteRef}>{note}</p>}
               <button type="button" className="rm-btn" disabled={busy || !valid} onClick={() => void build()}>{busy ? 'BUILDING…' : valid ? `BUILD VAULT ${digits}` : hasCallsign === false && !callsignOk ? 'PICK A CALLSIGN' : 'ENTER FOUR DIGITS'}</button>
               {!startWith && <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { setStep('type'); setPicked(null); }}>CHOOSE A DIFFERENT ADDRESS</button>}
             </>
           )}
-          {note && <p className="rm-account-note">{note}</p>}
+          {note && step !== 'number' && <p className="rm-account-note" role="alert">{note}</p>}
           {canSkip && <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={onSkip}>SKIP FOR NOW</button>}
         </div>
       </div>

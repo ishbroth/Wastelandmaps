@@ -181,6 +181,7 @@ export const FAMOUS: Famous[] = [
   { match: /hotel estelar (?:cartagena|bocagrande)|estelar cartagena de indias/i, name: 'Hotel Estelar Bocagrande', lat: 10.40988, lng: -75.55132, icon: 'estelarbocagrande', qid: 'Q28362967' },
   { match: /palace of (?:the )?nations?.*dushanbe|dushanbe.*palace of (?:the )?nations?|qasri millat|kokhi millat/i, name: 'Palace of the Nation', lat: 38.57611, lng: 68.77861, icon: 'dushanbepalace', qid: 'Q30892864', metro: 'tj-04-dushanbe' },
   { match: /1801 california/i, name: '1801 California Street', lat: 39.7478, lng: -104.9897, icon: 'california1801', qid: 'Q200328', metro: 'us-co-denver' },
+  { match: /apple park/i, name: 'Apple Park', lat: 37.33479, lng: -122.009, icon: 'applepark', qid: 'Q22041180', metro: 'us-ca-san-jose' },
 ];
 
 /** The famous place a real name belongs to, if any. */

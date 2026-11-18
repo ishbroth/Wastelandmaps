@@ -57,6 +57,7 @@ const PLAIN_COUNTRY = new Set(['UA']);
  */
 const NICKNAMES: Record<string, string> = {
   'bridgeport|ct': 'The Bridge',
+  'addis ababa|et': 'Addis Abomba',
   // United States: plays on the name
   'detroit|mi': 'The Motor City Wasteland',
   'atlanta|ga': 'Atomlanta',
