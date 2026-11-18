@@ -763,8 +763,8 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
           {downed && (
             <div className="rm-raid-center rm-raid-downed">
               <h2>YOU ARE DOWN</h2>
-              <p>Use a stimpak and get back in the fight? You have {stims}.</p>
-              <button type="button" className="rm-btn" disabled={healing} onClick={() => void reviveYes()}>USE STIMPAK</button>
+              <p>Use a stim pak and get back in the fight? You have {stims}.</p>
+              <button type="button" className="rm-btn" disabled={healing} onClick={() => void reviveYes()}>USE STIM PAK</button>
               <button type="button" className="rm-btn rm-btn-ghost" disabled={healing} onClick={reviveNo}>GIVE UP</button>
             </div>
           )}
@@ -817,7 +817,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
                 {xp > 0 && <li><b>+{xp}</b> XP</li>}
               </ul>
             )
-          ) : <p>The Wasteland is cruel and unforgiving. Buy weapons and stimpaks and try again.</p>}
+          ) : <p>The Wasteland is cruel and unforgiving. Buy weapons and stim paks and try again.</p>}
           <button type="button" className="rm-btn" onClick={onExit}>{phase === 'won' ? 'CONTINUE' : 'BACK'}</button>
         </div>
       )}

@@ -62,7 +62,7 @@ const ANTARCTIC_CIRCLE_EDGE = -60;
 
 /** Which division of the wasteland a point is in. A few countries are split: Greenland and the Canadian Arctic, and Russia either side of the Urals. */
 function superOf(iso: string, p: LatLng, continent: string): string {
-  if (p.lat <= ANTARCTIC_CIRCLE_EDGE) return 'vault'; // the whole of Antarctica is Vault-Tec's
+  if (p.lat <= ANTARCTIC_CIRCLE_EDGE) return 'vault'; // the whole of Antarctica is Vault Tech's
   if (iso === 'CA' && (p.lat >= 66 || (p.lat >= 62 && p.lng >= -90 && p.lng <= -60))) return 'unfrozen';
   if (iso === 'RU') return p.lng >= 140 ? 'alaska' : p.lng >= 60 ? 'east' : 'oldworld';
   if (iso === 'US' && p.lat >= 50 && (p.lng <= -129 || p.lng >= 170)) return 'alaska'; // Alaska, Aleutians included

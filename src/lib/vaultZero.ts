@@ -13,7 +13,7 @@ export const VAULT_ZERO: Location = {
   name: 'Vault 0',
   icon: 'vault0',
   famous: true,
-  threat: 'Super Mutants',
+  threat: 'Mutants',
   rads: 0,
   loot: 'Circuitry, concrete and gears',
 };

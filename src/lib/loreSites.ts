@@ -22,7 +22,7 @@ const real = (slug: string, name: string, icon: IconId, text: string, qid: strin
 
 export const LORE_TOWNS: LoreTown[] = [
   {
-    town: 'Shady Sands, later the capital of the NCR (Fallout, Fallout 2)',
+    town: 'Shady Sands, later the capital of the NCR (canon)',
     anchor: { lat: 33.8303, lng: -116.5453 },
     // fifteen places of the real Palm Springs and Palm Desert area stand in for the town's (the two airports are left as they are): each is a real place of the same kind, and the site is named for what it was
     sites: [
@@ -44,7 +44,7 @@ export const LORE_TOWNS: LoreTown[] = [
     ],
   },
   {
-    town: 'Redding, gold-mining town (Fallout 2)',
+    town: 'Redding, gold-mining town (canon)',
     anchor: { lat: 40.5865, lng: -122.3917 },
     sites: [
       s('rd-ascortis', "Ascorti's Ace and City Hall", 'capitol', 0, 0, "Mayor Ascorti's casino and city hall in one."),
@@ -60,7 +60,7 @@ export const LORE_TOWNS: LoreTown[] = [
     ],
   },
   {
-    town: 'Necropolis, the city of the dead (Fallout)',
+    town: 'Necropolis, the city of the dead (canon)',
     anchor: { lat: 35.3733, lng: -119.0187 },
     sites: [
       s('np-hall-of-dead', 'Hall of the Dead', 'church', 0, 0, 'A ruined church, and the base of Set, leader of the surface ghouls.'),
@@ -71,7 +71,7 @@ export const LORE_TOWNS: LoreTown[] = [
     ],
   },
   {
-    town: 'The Hub, the great trading city (Fallout)',
+    town: 'The Hub, the great trading city (canon)',
     anchor: { lat: 33.9533, lng: -117.3962 },
     sites: [
       s('hub-entrance', 'Hub Entrance', 'bridge', -620, -380, 'Where the caravans load and unload under guard, beside the farmland the Hub Police protect.'),
@@ -84,11 +84,11 @@ export const LORE_TOWNS: LoreTown[] = [
       s('hub-hospital', 'Children of the Cathedral Hospital', 'hospital', 260, -180, 'Cheap medical care, run by the Children of the Cathedral.'),
       s('hub-heights', 'The Heights', 'house', 560, 520, "The upper-class district, where Daren Hightower's mansion stands behind mercenary guards."),
       s('hub-irwins-farm', "Irwin's Farm", 'tree', -760, -140, 'A small farm beside the Hub, overrun by raiders.'),
-      s('hub-deathclaw-lair', "Deathclaw's Lair", 'arch', 900, -480, 'A cave near the Hub where a deathclaw waits.'),
+      s('hub-deathclaw-lair', "Death Claw's Lair", 'arch', 900, -480, 'A cave near the Hub where a death claw waits.'),
     ],
   },
   {
-    town: 'The Boneyard, the ruins of Los Angeles (Fallout)',
+    town: 'The Boneyard, the ruins of Los Angeles (canon)',
     anchor: { lat: 34.0522, lng: -118.2437 },
     sites: [
       s('by-adytum', 'Adytum', 'house', -4200, 1900, 'A Boneyard settlement the Regulators ruled, until someone freed it.'),
@@ -96,12 +96,12 @@ export const LORE_TOWNS: LoreTown[] = [
       s('by-fortress', 'The Fortress', 'castle', 5200, 800, "The Gun Runners' factory on the east side, ringed by a moat of radioactive sludge."),
       s('by-library', 'Boneyard Library', 'museum', -2600, 2900, 'Base of the Followers of the Apocalypse, devoted to education and preventing war.'),
       s('by-medical', "Angel's Boneyard Medical University", 'hospital', -2200, 3300, "The Followers' medical school."),
-      s('by-deathclaw-warehouse', 'Deathclaw Warehouse', 'cluster', 2500, -600, 'A wrecked warehouse that was a Ripper hideout until the deathclaws moved in.'),
+      s('by-deathclaw-warehouse', 'Death Claw Warehouse', 'cluster', 2500, -600, 'A wrecked warehouse that was a Ripper hideout until the death claws moved in.'),
       s('by-cathedral', 'The Cathedral', 'church', 1800, 4400, 'Above the vault of the Master, who spread Unity through the Children of the Cathedral.'),
     ],
   },
   {
-    town: 'New Reno, city of the crime families (Fallout 2)',
+    town: 'New Reno, city of the crime families (canon)',
     anchor: { lat: 39.5296, lng: -119.8138 },
     sites: [
       s('nr-virgin-street', 'Virgin Street', 'arch', 0, 0, 'The entrance to New Reno, under the old Reno sign.'),
@@ -123,7 +123,7 @@ export const LORE_TOWNS: LoreTown[] = [
     ],
   },
   {
-    town: 'Klamath, gecko-trapping town (Fallout 2)',
+    town: 'Klamath, gecko-trapping town (canon)',
     anchor: { lat: 42.2249, lng: -121.7817 },
     sites: [
       s('kl-downtown', 'Klamath Downtown', 'house', 0, 0, 'Farms, homes and shops, and two pubs.'),
@@ -140,13 +140,13 @@ export const LORE_TOWNS: LoreTown[] = [
     ],
   },
   {
-    town: 'Diamond City, built in Fenway Park (Fallout 4)',
+    town: 'Diamond City, built in Fenway Park (canon)',
     anchor: { lat: 42.3467, lng: -71.0972 },
     sites: [
       s('dc-market', 'Diamond City Market', 'smallbuilding', 0, 40, 'The heart of the city: food, vendors and crafting stations.'),
       s('dc-wall', 'The Wall', 'castle', -140, 0, 'The high wall that protects the city, green in left field.'),
       s('dc-choice-chops', 'Choice Chops', 'smallbuilding', 50, 80, 'Brahmin meat from the Codman family farms.'),
-      s('dc-power-noodles', 'Power Noodles', 'smallbuilding', 90, 30, "A noodle shop, opened by the Protectron Takahashi in 2272."),
+      s('dc-power-noodles', 'Power Noodles', 'smallbuilding', 90, 30, "A noodle shop, opened by the Robot Takahashi in 2272."),
       s('dc-weaponry', 'Commonwealth Weaponry', 'smallbuilding', -40, 90, "Arturo Rodriguez's shop, home of the Big Boy."),
       s('dc-surplus', 'Diamond City Surplus', 'smallbuilding', 10, 120, "Myrna's general store."),
       s('dc-dugout-inn', 'Dugout Inn', 'bed', 110, 100, 'Rents beds to visitors.'),
@@ -162,7 +162,7 @@ export const LORE_TOWNS: LoreTown[] = [
     ],
   },
   {
-    town: 'Goodneighbor, built on old Scollay Square (Fallout 4)',
+    town: 'Goodneighbor, built on old Scollay Square (canon)',
     anchor: { lat: 42.3601, lng: -71.0589 },
     sites: [
       s('gn-rexford', 'Hotel Rexford', 'bed', 0, 0, 'The hotel at the heart of Goodneighbor, with an alley out the back.'),
@@ -176,7 +176,7 @@ export const LORE_TOWNS: LoreTown[] = [
     ],
   },
   {
-    town: 'The Strip and Freeside, New Vegas (Fallout: New Vegas)',
+    town: 'The Strip and Freeside, New Vegas (canon)',
     anchor: { lat: 36.1147, lng: -115.1728 },
     sites: [
       s('lv-lucky-38', 'The Lucky 38', 'cluster', -60, 620, "Mr. House's casino, still impressive after all these years."),
@@ -192,7 +192,7 @@ export const LORE_TOWNS: LoreTown[] = [
     ],
   },
   {
-    town: 'The Pitt, the ruins of Pittsburgh (Fallout 3)',
+    town: 'The Pitt, the ruins of Pittsburgh (canon)',
     anchor: { lat: 40.4406, lng: -79.9959 },
     sites: [
       s('pt-downtown', 'The Pitt Downtown', 'cluster', 0, 0, 'The raiders\' downtown district.'),
@@ -202,7 +202,7 @@ export const LORE_TOWNS: LoreTown[] = [
     ],
   },
   {
-    town: 'Dayglow, the ghoul state (Fallout lore)',
+    town: 'Dayglow, the ghoul state (canon)',
     anchor: { lat: 32.7157, lng: -117.1611 },
     sites: [
       // the crater is out beyond the coast in the game; here it stands on a real place at Point Loma (the nearest ordinary place within 3 km, which it renames)

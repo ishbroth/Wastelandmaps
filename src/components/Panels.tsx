@@ -192,7 +192,7 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
   const [sort, setSort] = useState<'dist' | 'time'>('dist');
   /** The "spend this loot?" question that is open, if any. */
   const [ask, setAsk] = useState<{ kind: 'stimpak' | 'time'; id: string } | { kind: 'gun'; id: WeaponClass } | null>(null);
-  // the trade board: three offers each for stimpaks and Legendary Time, each bought once, the board changing every four hours
+  // the trade board: three offers each for stim paks and Legendary Time, each bought once, the board changing every four hours
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => { const id = window.setInterval(() => setClock(Date.now()), 30_000); return () => window.clearInterval(id); }, []);
   const board = tradeWindow(clock);
@@ -296,7 +296,7 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
           </ul>
         </>
       )}
-      <h3>STIMPAKS: {account.stimpaks}</h3>
+      <h3>STIM PAKS: {account.stimpaks}</h3>
       <ul className="rm-arsenal">
         {offersFor('stimpak', board).filter((t) => !bought.has(`stimpak:${t.id}`)).map((t) => (
           <li key={t.id} className="rm-trade-row">
@@ -346,7 +346,7 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
         const owned = ask.kind === 'time' ? account.legendaryTime : account.stimpaks;
         return (
           <ConfirmSpend
-            title={ask.kind === 'time' ? 'BUY LEGENDARY TIME' : 'BUY A STIMPAK'} what={ask.kind === 'time' ? 'LEGENDARY TIME' : 'STIMPAK'} cost={trade.cost as LootBag} have={account.loot}
+            title={ask.kind === 'time' ? 'BUY LEGENDARY TIME' : 'BUY A STIM PAK'} what={ask.kind === 'time' ? 'LEGENDARY TIME' : 'STIM PAK'} cost={trade.cost as LootBag} have={account.loot}
             max={1} owned={owned} verb="BUY"
             onClose={() => setAsk(null)}
             onConfirm={async (qty) => { const r = await (ask.kind === 'time' ? tradeTime : tradeStimpak)(trade.id, qty); await account.refresh(); refreshBought(); return r.ok ? null : failed(r.reason); }}

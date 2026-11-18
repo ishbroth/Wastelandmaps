@@ -1652,7 +1652,7 @@ export default function App() {
 
         <aside className="rm-side">
           <SearchBar busy={busy} disabled={status !== 'ready' || !!travel} initial={query} onSearch={search} onPick={(s) => void pickSuggestion(s)} recents={recents?.map(({ id, main, secondary, home }) => ({ id, main, secondary, home }))} onPickRecent={(id) => { const r = recents?.find((x) => x.id === id); if (r) void openPlace(r.place); }} onSignIn={accountsEnabled && !account.session ? () => setAccountOpen(true) : undefined} tracking={tracking} onToggleTracking={() => void toggleTracking()} soundOn={soundOn} onToggleSound={() => { const next = !soundOn; setSoundOn(next); buzz('tick'); if (next) beep('tick'); }} />
-          <nav className="rm-tabs" role="tablist" aria-label="Pip-Boy menu">
+          <nav className="rm-tabs" role="tablist" aria-label="Terminal menu">
             {(['locations', 'data', 'share'] as Tab[]).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); sound('tick'); }}>
                 {t.toUpperCase()}

@@ -394,7 +394,7 @@ function WallThing({ along, wall, t, kind }: { along: 'y' | 'x'; wall: number; t
           <rect x={-1.9} y={-42.7} width={3.8} height={1.5} fill={INK} />
           <path d="M-1.5 -41.2H1.5V-38.4Q4.3 -36.6 4.3 -33.4V-25.4H-4.3V-33.4Q-4.3 -36.6 -1.5 -38.4Z" fill="none" />
           <rect x={-4.3} y={-32.2} width={8.6} height={4.8} fill={INK} />
-          <text x={0} y={-28.8} fontSize={3.2} textAnchor="middle" fill={PANEL} stroke="none" fontFamily="'VT323', monospace">NUKA</text>
+          <text x={0} y={-28.8} fontSize={3.2} textAnchor="middle" fill={PANEL} stroke="none" fontFamily="'VT323', monospace">ATOMI</text>
           <circle cx={-1.6} cy={-36} r={0.5} fill="none" /><circle cx={1.4} cy={-34.6} r={0.45} fill="none" /><circle cx={-0.4} cy={-34} r={0.4} fill="none" />
         </g>
       ),

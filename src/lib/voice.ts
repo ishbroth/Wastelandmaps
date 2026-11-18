@@ -1,4 +1,4 @@
-// The navigation's voice, set low and slow so it sounds like one of the wasteland's old machines (a Protectron, a sentry bot, a butler like Codsworth). It can be
+// The navigation's voice, set low and slow so it sounds like one of the wasteland's old machines (a Robot, a sentry bot, a butler like Codsworth). It can be
 // switched off, and the choice is remembered.
 //
 // In the app it is the phone's native speech (Capacitor text-to-speech): it plays through whatever the phone is connected to (a car's Bluetooth or CarPlay audio, headphones),

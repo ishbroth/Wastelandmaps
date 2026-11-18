@@ -33,7 +33,7 @@ export const LORE_VAULTS: LoreVault[] = [
   // ---- Fallout 4: the Commonwealth (Boston)
   {
     number: 111, metro: 'us-ma-boston', game: 'Fallout 4', lat: 42.47, lng: -71.37, approximate: true,
-    lore: 'Overlooking Sanctuary Hills. Its people were told it was a shelter and were frozen instead: a Vault-Tec experiment in cryogenics. One of them walked out, two hundred years later.',
+    lore: 'Overlooking Sanctuary Hills. Its people were told it was a shelter and were frozen instead: a Vault Tech experiment in cryogenics. One of them walked out, two hundred years later.',
     story: [
       'Vault 111 stands above Sanctuary Hills. The neighbors who ran to it were told the pods were for decontamination; they were frozen to see what long sleep would do.',
       'The Overseer sat on the door past the six months promised, the guards mutinied, and the vault went into lockdown with the sleepers still under glass.',
@@ -53,7 +53,7 @@ export const LORE_VAULTS: LoreVault[] = [
     number: 88, metro: 'us-ma-boston', game: 'Fallout 4', lat: 42.286, lng: -71.047, approximate: false,
     lore: 'Under the Quincy Quarries. A testing ground for prototype devices, never finished; it sealed itself when the bombs fell and the ghouls took it.',
     story: [
-      'Vault 88 was meant to be the place where Vault-Tec tested its prototype devices before they went into other vaults, built over a rich seam of uranium.',
+      'Vault 88 was meant to be the place where Vault Tech tested its prototype devices before they went into other vaults, built over a rich seam of uranium.',
       'The construction went badly, and the vault was unfinished when the bombs fell; its entrance, under the Quincy Quarries, was buried in rubble.',
       'An automated lockdown sealed the Overseer and her staff inside, and feral ghouls have been the vault\'s only residents ever since.',
     ],
@@ -81,7 +81,7 @@ export const LORE_VAULTS: LoreVault[] = [
     lore: 'At the edge of the Glowing Sea. A rehabilitation vault for addicts, with a hidden stash to see what would happen when it was found.',
     story: [
       'Vault 95 was a rehabilitation program for chem addicts, sealed for five years of treatment.',
-      'When the five years ended, a Vault-Tec agent posing as a resident was to open a hidden stash of drugs and record how the community reacted; the revelation broke the bonds between residents, some giving in at once and others clinging to the program.',
+      'When the five years ended, a Vault Tech agent posing as a resident was to open a hidden stash of drugs and record how the community reacted; the revelation broke the bonds between residents, some giving in at once and others clinging to the program.',
       'Those who worked out it had been planned wrote furious logs about being deceived. Gunners took the vault from the people who were left.',
     ],
   },
@@ -97,10 +97,10 @@ export const LORE_VAULTS: LoreVault[] = [
   },
   {
     number: 87, metro: 'us-dc-washington', game: 'Fallout 3', lat: 38.93, lng: -77.42, approximate: true,
-    lore: 'Northwest of Little Lamplight. Built to study the Forced Evolutionary Virus on people; its residents became super mutants.',
+    lore: 'Northwest of Little Lamplight. Built to study the Forced Evolutionary Virus on people; its residents became mutants.',
     story: [
       'Vault 87 was built for the Forced Evolutionary Virus program: the Overseer and the guards knew from the beginning that the residents were test subjects.',
-      'The residents were exposed to the virus and, from 2078, turned into super mutants who broke out and overran their keepers.',
+      'The residents were exposed to the virus and, from 2078, turned into mutants who broke out and overran their keepers.',
       'For two hundred years they carried off people to change, until their supply ran low, and they have been looking for the "green stuff" ever since.',
     ],
   },

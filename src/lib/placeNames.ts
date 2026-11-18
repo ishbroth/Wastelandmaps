@@ -25,7 +25,7 @@ const ADJECTIVES = [
 ] as const;
 
 const NOUNS: Record<CategoryId, readonly string[]> = {
-  medical: ['Clinic', 'Surgery', 'Ward', 'Dispensary', 'Infirmary', 'Med Center', 'Sickbay', 'Pharmacy', 'Triage Hall', 'Stimpak Stash', 'Sanatorium'],
+  medical: ['Clinic', 'Surgery', 'Ward', 'Dispensary', 'Infirmary', 'Med Center', 'Sickbay', 'Pharmacy', 'Triage Hall', 'Stim Pak Stash', 'Sanatorium'],
   school: ['Schoolhouse', 'Classrooms', 'Lecture Hall', 'Archive', 'Stacks', 'Campus', 'Study Hall', 'Academy', 'Playground', 'Lab', 'Library'],
   market: ['Market', 'Ration Depot', 'Grocery', 'Mall', 'Bazaar', 'Trader Row', 'Supply Shop', 'Cannery', 'Pantry', 'Trading Post', 'Checkout Lanes'],
   fuel: ['Pump Station', 'Gas Stop', 'Garage', 'Scrapyard', 'Chassis Lot', 'Tire Heap', 'Fuel Depot', 'Mechanic\'s Pit', 'Oil Sump', 'Wreck Yard'],

@@ -1,4 +1,4 @@
-// Every Vault-Tec vault had a secret: the shelter was sold as a refuge, and was really an experiment on the people inside. The vaults of the games have
+// Every Vault Tech vault had a secret: the shelter was sold as a refuge, and was really an experiment on the people inside. The vaults of the games have
 // their own stories (loreVaults.ts). Every other vault on the map gets one made here, from a few hundred hand-written pieces put together by the vault's
 // number and its metro, so each is its own (Vault 042 in Boston is not Vault 042 in Tokyo) and always the same one. Fallout's way of telling it: a cheerful
 // corporate pretext, a cruel little test, the human mess that wrecked it, and what is left.
@@ -22,13 +22,13 @@ const PEOPLE = [
 
 /** What they were told. */
 const COVER = [
-  'a luxury retreat for the war-ready', 'a government-approved sanctuary', 'a prize in a radio contest', 'the first of a new kind of community', 'a showpiece of the Vault-Tec Home Program',
+  'a luxury retreat for the war-ready', 'a government-approved sanctuary', 'a prize in a radio contest', 'the first of a new kind of community', 'a showpiece of the Vault Tech Home Program',
   'a survival shelter rated for two hundred years', 'a model town beneath the earth', 'a safe place to wait for the all-clear', 'a gift from the company to the neighborhood',
   'the future of family living', 'a members-only bunker with a waiting list', 'a training facility for the next generation of leaders', 'a refuge guaranteed by the President',
   'a cooperative of the careful', 'the safest address in America',
 ];
 
-/** What Vault-Tec was really finding out. Each reads after "Vault-Tec's real purpose was to find out ..." */
+/** What Vault Tech was really finding out. Each reads after "Vault Tech's real purpose was to find out ..." */
 const TESTS = [
   'whether people kept under lighting that never changes lose their sense of time',
   'how a community behaves when its Overseer is chosen by coin toss every month',
@@ -98,7 +98,7 @@ const WRONG = [
   'Overseer {O} began improvising and made it worse. By the second winter nobody could say what the experiment had been, only that it had winners.',
   'A technician added one extra step "to be thorough", and the whole test now measures that step instead.',
   'The control computer developed favorites. Their rations were generous; everyone else\'s were an essay about gratitude.',
-  'The residents guessed the experiment on day nine and, out of politeness, began running one on Vault-Tec.',
+  'The residents guessed the experiment on day nine and, out of politeness, began running one on Vault Tech.',
   'The monitoring cameras were pointed at the wrong room for forty years, so the company\'s data describes somewhere else entirely.',
   'A maintenance error doubled the dose for two decades, and the Overseer, finding it worked, never mentioned it.',
   'The scientists\' own families were sent down with everyone else, and spoiled the blind in a week.',
@@ -108,7 +108,7 @@ const WRONG = [
   'A resident named {O2} noticed the pattern, wrote it on a wall, and was believed by everyone, which was worse than being ignored.',
   'The vault had two sets of instructions. They were each delivered, by mistake, to a different half of the population.',
   'The experiment had a stop condition. Someone lost it. It runs to this day, in a sense.',
-  'Vault-Tec forgot to program an end. The Overseers kept the schedule anyway, out of habit, long after anyone could say why.',
+  'Vault Tech forgot to program an end. The Overseers kept the schedule anyway, out of habit, long after anyone could say why.',
   'The back-up generator was fine. The back-up Overseer was not.',
   'The ration of the week was never delivered, and the community resolved the shortage with a committee, then a subcommittee, then a duel.',
   'The sealed door was a rumor; the sealed minds were not. Whatever the test measured, it was not what it set out to.',
@@ -199,7 +199,7 @@ export function vaultStory(place: string, number: number): string[] {
   const people = fill(pick(PEOPLE, rand), vars);
   const test = pick(TESTS, rand);
   return [
-    `Vault ${String(number).padStart(3, '0')} was sold to ${people} as ${pick(COVER, rand)}. Vault-Tec's real purpose was to find out ${test}.`,
+    `Vault ${String(number).padStart(3, '0')} was sold to ${people} as ${pick(COVER, rand)}. Vault Tech's real purpose was to find out ${test}.`,
     fill(pick(WRONG, rand), vars),
     fill(pick(FATE, rand), { ...vars, O: trader }),
   ];

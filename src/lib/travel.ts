@@ -65,7 +65,7 @@ export function formatDuration(minutes: number): string {
 }
 
 const ENCOUNTERS = [
-  'A radroach scuttles off the road. You let it go.',
+  'A rad roach scuttles off the road. You let it go.',
   'You pass a burned-out convoy. Nothing worth taking.',
   'A lone brahmin watches you from a ditch and loses interest.',
   'Distant gunfire. You take the long way around.',

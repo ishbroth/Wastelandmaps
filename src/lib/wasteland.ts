@@ -54,8 +54,8 @@ export interface Category {
 export const CATEGORIES: Category[] = [
   {
     id: 'medical', label: 'Medical', types: ['hospital', 'pharmacy', 'doctor', 'drugstore', 'dentist', 'medical_lab'],
-    names: ['Old World Med Center', 'Mercy Clinic Ruins', 'Stimpak Depot', 'Rad-Away Dispensary', 'Abandoned Surgery'],
-    loot: ['Stimpaks', 'Rad-Away', 'Med-X', 'Surgical tools', 'Expired antibiotics'],
+    names: ['Old World Med Center', 'Mercy Clinic Ruins', 'Stim Pak Depot', 'Rad-Away Dispensary', 'Abandoned Surgery'],
+    loot: ['Stim Paks', 'Rad-Away', 'Med-X', 'Surgical tools', 'Expired antibiotics'],
   },
   {
     id: 'school', label: 'Schools & Archives', types: ['school', 'primary_school', 'secondary_school', 'university', 'library'],
@@ -84,7 +84,7 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: 'cantina', label: 'Cantinas', types: ['restaurant', 'bar', 'cafe', 'bakery', 'night_club', 'pub', 'fast_food_restaurant'],
-    names: ['The Rusty Mug', 'Nuka-Fizz Cantina', 'Last Call Saloon', 'Cap & Gear Tavern', 'Wasteland Diner'],
+    names: ['The Rusty Mug', 'Atomi-Fizz Cantina', 'Last Call Saloon', 'Cap & Gear Tavern', 'Wasteland Diner'],
     loot: ['Cold-ish drinks', 'Rumors', 'Bounty boards', 'Hot meals', 'Card games'],
   },
   {
@@ -202,7 +202,7 @@ export interface Location {
   category: CategoryId;
   position: LatLng;
   loot: string;
-  threat: 'Quiet' | 'Raiders' | 'Feral Ghouls' | 'Super Mutants' | 'Radiation';
+  threat: 'Quiet' | 'Raiders' | 'Feral Ghouls' | 'Mutants' | 'Radiation';
   rads: number;
   /** The picture on the map: what the place actually is. */
   icon: IconId;
@@ -220,7 +220,7 @@ export interface Location {
   personal?: { address: string; kind: PersonalKind; saved: boolean; /** Rendered by another survivor, shown because the whole metro is unlocked. */ atlas?: boolean; /** Their home: a vault on the map, with the number they chose. */ home?: boolean };
 }
 
-const THREATS: Location['threat'][] = ['Raiders', 'Raiders', 'Raiders', 'Raiders', 'Raiders', 'Feral Ghouls', 'Super Mutants', 'Radiation'];
+const THREATS: Location['threat'][] = ['Raiders', 'Raiders', 'Raiders', 'Raiders', 'Raiders', 'Feral Ghouls', 'Mutants', 'Radiation'];
 
 /** Gives a real place its wasteland identity. */
 export function toLocation(place: { id: string; name: string; position: LatLng; primaryType?: string | null; types?: string[] | null }): Location {
@@ -295,7 +295,7 @@ const THREAT_LINES: Record<Location['threat'], string> = {
   Quiet: 'Nothing moves. That is either very good or very bad.',
   Raiders: 'Raiders have claimed the place. Come armed, or come quietly.',
   'Feral Ghouls': 'Feral ghouls shuffle in the dark. Do not make noise.',
-  'Super Mutants': 'Super mutants hold this ground, and they do not share.',
+  'Mutants': 'Mutants hold this ground, and they do not share.',
   Radiation: 'The Geiger counter will not stop. Bring Rad-Away.',
 };
 
@@ -322,7 +322,7 @@ export const spotFromLocation = (l: Location): Spot => ({ id: l.id, name: l.name
 /** The line under a place's name: what it used to be, or what it is. */
 export function subtitle(p: { name: string; oldName: string | null; vault?: { number: number }; lore?: { town: string } }): string {
   if (p.lore && !p.vault) return p.lore.town;
-  if (p.vault) return p.oldName ? '' : 'A Vault-Tec facility';
+  if (p.vault) return p.oldName ? '' : 'A Vault Tech facility';
   return '';
 }
 
@@ -334,7 +334,7 @@ const VAULT_LINES = [
   'The hazard stripes are still bright. Behind the door, a hum. Survivors say the lights never went out.',
   'The door has a small mail slot, and the mail slot has a small mail. It is addressed to everyone.',
   'A ring of old traffic cones marks the way in. Somebody replaces the cones every year, and nobody replaces the somebody.',
-  'The Vault-Tec cog on the door is the only thing for a mile that looks exactly like the brochure.',
+  'The Vault Tech cog on the door is the only thing for a mile that looks exactly like the brochure.',
   'A welcome mat sits in front of the door. It says WELCOME HOME, and it has seen a great many people wipe their feet on it, and one come back.',
   'The intercom by the door crackles on every hour, says one word, and clicks off. The word changes.',
   'The hatch is clean. That is the strange part: everything around it is dust, and the hatch is clean.',
@@ -378,7 +378,7 @@ export function describeSpot(spot: Spot, regionName: string, plan?: PlaceInhabit
     return [
       `Vault 0, Vault Tech Headquarters, Antarctica.`,
       'Every vault in the world was ordered from here. The door stands in the snow exactly as it was built: no bomb ever fell on this ice, and nothing has touched it since.',
-      'Whatever keeps watch over it is not the usual wasteland vermin. Only a survivor with the best guns and a pack full of stimpaks has any hope of coming back from it.',
+      'Whatever keeps watch over it is not the usual wasteland vermin. Only a survivor with the best guns and a pack full of stim paks has any hope of coming back from it.',
     ];
   }
   const openers = OPENERS[spot.kind] ?? OPENERS.other;
