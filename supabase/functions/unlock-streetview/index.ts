@@ -17,6 +17,7 @@ import { callerId, corsHeaders, reply, serviceClient, dailyRenderCap, nextRender
 import { rubblePrompt, streetPrompt } from '../_shared/streetPrompt.ts';
 import { findPhotoFor } from '../_shared/photoSources.ts';
 import { keepsBuilding } from '../_shared/verifyRender.ts';
+import { doorReads, swapOnPixels } from '../_shared/doorSwap.ts';
 
 const COST = 4;
 /** A place that cannot be shown as it was (blurred out, or no street picture): only the rubble is rendered, so only this much is kept and the rest is paid back. */
@@ -228,6 +229,27 @@ async function addVault(base: Uint8Array, number: string): Promise<Uint8Array> {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
+/** The finished home picture (with its vault door) of ANOTHER resident of the same building, when there is one: a person at the same address or at another unit of it (same street address once the
+ *  unit is left off, within about 40 metres). The picture is only ever used to put a different number on the same door, so everyone in a building gets the same picture. */
+// deno-lint-ignore no-explicit-any
+async function findDonorPicture(db: any, user: string, googleId: string, details: { address: string; lat: number; lng: number }): Promise<Uint8Array | null> {
+  try {
+    const dLat = 0.00036, dLng = 0.00036 / Math.max(0.2, Math.cos((details.lat * Math.PI) / 180));
+    const { data: homes } = await db.from('user_home').select('user_id,place_id,address,vault_number')
+      .gte('lat', details.lat - dLat).lte('lat', details.lat + dLat).gte('lng', details.lng - dLng).lte('lng', details.lng + dLng).neq('user_id', user).limit(80);
+    const key = buildingKey(details.address);
+    // deno-lint-ignore no-explicit-any
+    const same = (homes ?? []).filter((h: any) => h.vault_number !== null && h.vault_number !== undefined && (h.place_id === googleId || buildingKey(String(h.address ?? '')) === key));
+    for (const h of same.slice(0, 12)) {
+      const { data: pic } = await db.from('home_renders').select('status,storage_path,vault_number').eq('user_id', h.user_id).eq('google_id', h.place_id).maybeSingle();
+      if (pic?.status !== 'ready' || !pic.storage_path || pic.vault_number !== h.vault_number) continue;
+      const dl = await db.storage.from('renders').download(pic.storage_path as string);
+      if (!dl.error && dl.data) return new Uint8Array(await dl.data.arrayBuffer());
+    }
+  } catch (e) { console.error('donor search failed', e instanceof Error ? e.message : e); }
+  return null;
+}
+
 // Their own home, blown up with their vault door in it: kept per person (the number on the door is theirs), 4 credits, charged first and refunded on failure.
 // Only the home they saved (and its vault number) can be rendered this way: both come from their account, never from the browser.
 // deno-lint-ignore no-explicit-any
@@ -298,7 +320,16 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
       await publishBase(db, user, details, googleId, base, metro);
     }
     // 2. the owner's own picture: that same render with their vault in it
-    const png = await addVault(base, String(number).padStart(4, '0'));
+    const digits = String(number).padStart(4, '0');
+    // another resident of this building already has the picture with the door: the same picture, with this person's number put on the door on the pixels (nothing is drawn by an image model,
+    // so it costs the server next to nothing; the person still pays the same 4 credits). If there is none, or the number cannot be put on cleanly, the vault is drawn in as before.
+    let png: Uint8Array | null = null;
+    const donor = await findDonorPicture(db, user, googleId, details);
+    if (donor) {
+      const swapped = await swapOnPixels(donor, digits);
+      if (swapped && (await doorReads(swapped, digits))) png = swapped;
+    }
+    if (!png) png = await addVault(base, digits);
     const path = `home/${user}/${googleId}.png`;
     const up = await db.storage.from('renders').upload(path, png, { contentType: 'image/png', upsert: true });
     if (up.error) throw new Error('could not store the image');
