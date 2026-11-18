@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { sendSignInLink, signInWithFaceId, signInWithVault } from '../lib/account';
+import { linksLeft, sendSignInLink, signInWithFaceId, signInWithVault } from '../lib/account';
 import { faceIdName, forgetFaceId, savedFaceIds } from '../lib/faceid';
 import { storeUrl } from '../lib/native';
 
@@ -22,9 +22,24 @@ export default function AccountModal({ onClose, auto = false }: { onClose: () =>
     setBusy(true);
     setNote('');
     const problem = await sendSignInLink(email.trim());
-    if (problem) setNote(problem); else setSentTo(email.trim());
+    if (problem) setNote(problem); else { setSentTo(email.trim()); setPause(60); }
     setBusy(false);
   };
+  /** The link again, to the same address (really sent, after a pause so the mail service does not refuse it, and no more than three in 12 hours). */
+  const sendAgain = async () => {
+    setBusy(true);
+    setNote('');
+    const problem = await sendSignInLink(sentTo);
+    if (problem) setNote(problem); else { setNote(`LINK SENT AGAIN TO ${sentTo.toUpperCase()}`); setPause(60); }
+    setBusy(false);
+  };
+  // a pause of a minute between links (the sign-in service refuses a second one sooner than that)
+  const [pause, setPause] = useState(0);
+  useEffect(() => {
+    if (pause <= 0) return;
+    const t = window.setTimeout(() => setPause((p) => p - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [pause]);
 
   const signIn = async (e: FormEvent) => {
     e.preventDefault();
@@ -73,7 +88,12 @@ export default function AccountModal({ onClose, auto = false }: { onClose: () =>
                 <p className="rm-gift">DOWNLOAD THE APP AND GET <a href={storeUrl()} target="_blank" rel="noreferrer">500 FREE CAPS</a></p>
                 <p>A link is on its way to <b>{sentTo}</b>. Open it on this device to create your vault. You will then choose your four-digit vault number, the one you sign in with from then on, and your home address.</p>
                 <p className="rm-fine">Nothing in the inbox? Look in the spam folder, or send it again.</p>
-                <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setSentTo('')}>SEND IT AGAIN</button>
+                {note && <p className="rm-account-note" role="alert">{note}</p>}
+                <button type="button" className="rm-btn rm-btn-ghost" disabled={busy || pause > 0 || linksLeft(sentTo) === 0} onClick={() => void sendAgain()}>
+                  {busy ? 'SENDING…' : pause > 0 ? `SEND IT AGAIN (${pause})` : 'SEND IT AGAIN'}
+                </button>
+                <p className="rm-fine">{linksLeft(sentTo) === 0 ? 'No more links can be sent to this address for now.' : `You can ask for ${linksLeft(sentTo)} more ${linksLeft(sentTo) === 1 ? 'link' : 'links'} to this address in the next 12 hours.`}</p>
+                <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { setSentTo(''); setNote(''); }}>USE A DIFFERENT EMAIL</button>
               </>
             ) : (
               <>
@@ -111,7 +131,7 @@ export default function AccountModal({ onClose, auto = false }: { onClose: () =>
           )}
         </form>
         )}
-        {note && <p className="rm-account-note">{note}</p>}
+        {note && !(registering && sentTo) && <p className="rm-account-note">{note}</p>}
       </div>
     </div>
   );

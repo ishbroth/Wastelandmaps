@@ -10,7 +10,7 @@ import { savedFaceIds } from './lib/faceid';
 import SceneModal from './components/SceneModal';
 import StreetWalk from './components/StreetWalk';
 import BinocButton from './components/BinocButton';
-import { accountsEnabled, welcomeBonus, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, takeLinkOpened, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, saveHomeMetro, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import { accountsEnabled, welcomeBonus, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, takeLinkOpened, takeDeleteLinkOpened, deleteAccount, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, saveHomeMetro, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { startPurchases } from './lib/iap';
 import { keepScreenOn } from './lib/awake';
@@ -463,6 +463,13 @@ export default function App() {
     const opened = takeLinkOpened(); // (consumed here either way: a brand-new vault just goes on to choose its number and home)
     if (opened && account.home?.vaultNumber !== undefined) setResetOpen(true);
   }, [account.session, account.homeLoaded, account.home?.vaultNumber]);
+  // the emailed link that confirms deleting the account was opened: the account is deleted now (the server checks that the link really was opened after the request was made)
+  useEffect(() => {
+    if (!account.session || !takeDeleteLinkOpened()) return;
+    const say = (text: string, ms: number) => { setToast(text); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), ms); };
+    say('DELETING YOUR ACCOUNT…', 20000);
+    void deleteAccount().then((ok) => say(ok ? 'YOUR ACCOUNT WAS DELETED' : 'THE ACCOUNT WAS NOT DELETED: THE LINK EXPIRED OR WAS NOT REQUESTED. START AGAIN FROM THE DATA TAB.', 8000));
+  }, [account.session]); // eslint-disable-line react-hooks/exhaustive-deps
   // the Pip-Boy powers up when a sign-in finishes (Face ID, vault number or the emailed link, whichever it was): the chime and the buzz, played here so every way of signing in has them
   const signInSeen = useRef<string | null | undefined>(undefined);
   const signInOpened = useRef(false);

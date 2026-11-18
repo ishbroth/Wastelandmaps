@@ -267,12 +267,45 @@ export async function checkSessionAlive(): Promise<void> {
 }
 
 /** True after someone opened an emailed link (the web page was opened by it, or the app was): if their vault already has a number, they are asked to choose a new one (the "forgot my number" way back in). */
-let linkOpened = typeof window !== 'undefined' && /access_token=|[?&]code=/.test(window.location.hash + window.location.search);
+const openedType = typeof window !== 'undefined' ? new URLSearchParams(window.location.hash.slice(1)).get('type') : null;
+const openedByLink = typeof window !== 'undefined' && /access_token=|[?&]code=/.test(window.location.hash + window.location.search);
+let linkOpened = openedByLink && openedType !== 'recovery';
 export const takeLinkOpened = (): boolean => { const was = linkOpened; linkOpened = false; return was; };
+/** The emailed link that confirms deleting the account was opened (its email is the sign-in service's "recover" email, which says it is about deleting the account). */
+let deleteLinkOpened = openedByLink && openedType === 'recovery';
+export const takeDeleteLinkOpened = (): boolean => { const was = deleteLinkOpened; deleteLinkOpened = false; return was; };
 
-/** Emails a sign-in link. */
+/** At most this many emailed links per address in a rolling window, so a button pressed again and again does not keep sending mail. */
+export const LINK_LIMIT = 3;
+const LINK_WINDOW_MS = 12 * 3_600_000;
+const LINK_KEY = 'rm-link-sends';
+const recentLinkSends = (email: string): number[] => {
+  try {
+    const all = JSON.parse(localStorage.getItem(LINK_KEY) ?? '{}') as Record<string, number[]>;
+    return (all[email.trim().toLowerCase()] ?? []).filter((t) => Date.now() - t < LINK_WINDOW_MS);
+  } catch { return []; }
+};
+const noteLinkSend = (email: string) => {
+  try {
+    const all = JSON.parse(localStorage.getItem(LINK_KEY) ?? '{}') as Record<string, number[]>;
+    for (const k of Object.keys(all)) all[k] = all[k].filter((t) => Date.now() - t < LINK_WINDOW_MS);
+    const key = email.trim().toLowerCase();
+    all[key] = [...(all[key] ?? []), Date.now()];
+    localStorage.setItem(LINK_KEY, JSON.stringify(all));
+  } catch { /* the count is not kept: the server's own limits still apply */ }
+};
+/** How many more links this address can be sent right now. */
+export const linksLeft = (email: string): number => Math.max(0, LINK_LIMIT - recentLinkSends(email).length);
+
+/** Emails a sign-in link (the same link does the registering of a new vault and the reset of a forgotten vault number). Three per address in 12 hours; null when it was sent. */
 export async function sendSignInLink(email: string): Promise<string | null> {
+  const recent = recentLinkSends(email);
+  if (recent.length >= LINK_LIMIT) {
+    const again = new Date(Math.min(...recent) + LINK_WINDOW_MS).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return `THREE LINKS HAVE BEEN SENT TO THIS EMAIL IN THE LAST 12 HOURS. CHECK THE INBOX AND THE SPAM FOLDER, OR TRY AGAIN AT ${again}.`;
+  }
   const { error } = await db().auth.signInWithOtp({ email, options: { emailRedirectTo: isNative() ? NATIVE_AUTH_REDIRECT : window.location.origin + window.location.pathname } });
+  if (!error) noteLinkSend(email);
   return error ? error.message : null;
 }
 
@@ -610,7 +643,7 @@ export async function completeSignInFromUrl(url: string): Promise<boolean> {
   const refresh = hash.get('refresh_token');
   if (access && refresh) {
     const { error } = await db().auth.setSession({ access_token: access, refresh_token: refresh });
-    if (!error) { void claimSession(); linkOpened = true; }
+    if (!error) { void claimSession(); if (hash.get('type') === 'recovery') deleteLinkOpened = true; else linkOpened = true; }
     return !error;
   }
   const code = query.get('code');
@@ -620,6 +653,20 @@ export async function completeSignInFromUrl(url: string): Promise<boolean> {
     return !error;
   }
   return false;
+}
+
+/** The first step of deleting the account: the server records the request and emails a link to the account's address. 'sent' (the account goes only when the link is opened), 'immediate' (the App Store
+ *  reviewers' account, which has no inbox), or a message. */
+export async function requestDeleteAccount(): Promise<'sent' | 'immediate' | string> {
+  const { data, error } = await db().functions.invoke('delete-account', { body: { action: 'request', redirectTo: isNative() ? NATIVE_AUTH_REDIRECT : window.location.origin + window.location.pathname } });
+  if (!error && data?.immediate === true) return 'immediate';
+  if (!error && data?.sent === true) return 'sent';
+  let reason = 'server';
+  const response = (error as { context?: Response } | null)?.context;
+  if (response) { try { reason = ((await response.json()) as { error?: string }).error ?? 'server'; } catch { /* no body */ } }
+  if (reason === 'too_many') return 'THREE EMAILS HAVE BEEN SENT IN THE LAST 12 HOURS: CHECK THE INBOX AND THE SPAM FOLDER, OR TRY AGAIN LATER.';
+  if (reason === 'wait') return 'AN EMAIL WAS JUST SENT: WAIT A MINUTE BEFORE ASKING AGAIN.';
+  return 'THE EMAIL COULD NOT BE SENT. TRY AGAIN IN A MOMENT.';
 }
 
 /** Deletes the account and everything tied to it (places found, credits, loot, personal places). The server does it; this signs out afterwards. */

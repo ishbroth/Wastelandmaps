@@ -17,7 +17,7 @@ import { StimpakIcon, StopwatchIcon } from './ItemIcons';
 import { STIMPAK_TRADES, TIME_TRADES, offersFor, tradeWindow } from '../../supabase/functions/_shared/stimpak';
 import ConfirmSpend from './ConfirmSpend';
 import BuyCaps from './BuyCaps';
-import { METRO_COST, caps, loadTradesBought, tradeStimpak, tradeTime, atlasCount, atlasUnlock, craftWeapon, deleteAccount, signOut, myCallsign, type Account, type FoundPlace } from '../lib/account';
+import { METRO_COST, caps, loadTradesBought, tradeStimpak, tradeTime, atlasCount, atlasUnlock, craftWeapon, deleteAccount, requestDeleteAccount, signOut, myCallsign, type Account, type FoundPlace } from '../lib/account';
 import { levelInfo } from '../lib/points';
 import { LOOT_TYPES, canAfford, describeBag, type LootBag } from '../lib/raid/loot';
 import { WEAPON_CLASS_IDS, WEAPON_CLASSES, magazineOf, nextWeapon, weaponAt, type Weapon, type WeaponClass } from '../lib/raid/weapons';
@@ -423,7 +423,7 @@ export function AccountPanel({ account, found, iconOf, locationOf, metroRows, on
         </>
       )}
       <LegalLinks />
-      <DeleteLine />
+      <DeleteLine balance={account.credits ?? 0} />
     </div>
   );
 }
@@ -526,22 +526,29 @@ function AtlasBox({ account, metro, on, onToggle, placed }: { account: Account; 
 }
 
 /** The last line of the Data tab: delete the account, after a warning and a confirmation. They can sign up again with the same email afterwards. */
-function DeleteLine() {
+function DeleteLine({ balance }: { balance: number }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [sent, setSent] = useState(false);
   if (!asking) {
     return <p className="rm-delete-line"><button type="button" onClick={() => setAsking(true)}>Delete my account</button></p>;
   }
   return (
     <div className="rm-delete-confirm" role="alertdialog" aria-label="Delete my account">
-      <p><b>Delete your account?</b> You will lose all your progress: the places you have found, your level and XP, your caps, loot and guns, your home and your own places. This cannot be undone. You can sign up again with the same email, but you will start from the beginning.</p>
+      <p><b>Delete your account?</b> You will lose all your progress: the places you have found, your level and XP, your caps, loot and guns, your home and your own places. {balance > 0 ? <>You will lose your {caps(balance)} caps. </> : null}This cannot be undone. You can sign up again with the same email, but you will start from the beginning. For safety we will email you a link: the account is deleted only if you open it.</p>
       <div className="rm-row-buttons">
         <button
-          type="button" className="rm-btn rm-danger" disabled={busy}
-          onClick={async () => { setBusy(true); const ok = await deleteAccount(); if (!ok) { setNote('The account could not be deleted. Try again in a moment.'); setBusy(false); } }}
+          type="button" className="rm-btn rm-danger" disabled={busy || sent}
+          onClick={async () => {
+            setBusy(true);
+            const r = await requestDeleteAccount();
+            if (r === 'immediate') { const ok = await deleteAccount(); if (!ok) { setNote('The account could not be deleted. Try again in a moment.'); setBusy(false); } return; }
+            if (r === 'sent') { setSent(true); setNote('WE EMAILED YOU A LINK. OPEN IT TO FINISH DELETING YOUR ACCOUNT. IF YOU DO NOT OPEN IT, NOTHING CHANGES.'); } else setNote(r);
+            setBusy(false);
+          }}
         >
-          {busy ? 'DELETING…' : 'YES, DELETE EVERYTHING'}
+          {busy ? 'SENDING…' : sent ? 'EMAIL SENT' : 'CONFIRM'}
         </button>
         <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setAsking(false)}>CANCEL</button>
       </div>
