@@ -69,3 +69,9 @@ TestFlight:
 - Before TestFlight accepts a first external build, App Store Connect asks for the app's privacy answers and a test contact.
 
 The workflow has not been run yet; the first run may need small fixes (a missing capability, a signing complaint). Paste the error and it can be adjusted.
+
+## Temporary testing rules (remove before launch)
+
+- **Review/test account caps:** `welpcustomer@yahoo.com` gets **500,000 caps (5,000 credits)** automatically when it registers its vault with the passcode **1234** (a database trigger on `user_home`, migration `20261130000000_review_account_caps.sql`). Only that email and only that number; once per account (delete and re-register and it gets them again). To remove: `drop trigger review_account_caps on public.user_home; drop function public.review_account_caps();`
+- **Review/test account is never rate limited or locked:** it is exempt from the wrong-vault-number lockout (`_shared/vaultPassword.ts` REVIEW_ACCOUNT), the 3-links-per-12-hours limit (`UNLIMITED_LINKS` in `src/lib/account.ts`), and the email confirmation for deleting an account (deleted at once). It also keeps the plain `vault-NNNN` password. Supabase's own project-wide email limit still applies to it.
+- **Welcome gift (500 caps):** once per email and per device; released again if the account is deleted with the gift untouched (see `release_welcome_bonus_if_untouched`). The 500,000-cap rule above counts as touching the balance, so a test account that got it does not release the gift on deletion.

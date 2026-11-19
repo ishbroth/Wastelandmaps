@@ -123,7 +123,7 @@ export function LocationsPanel({ metro, account, region, locations: everywhere, 
 
   return (
     <div>
-      <p className="rm-foundline"><span>LOCATIONS FOUND</span> <b>{locations.length}</b></p>
+      <p className="rm-foundline"><span>LANDMARKS</span> <b>{locations.length}</b></p>
       <CategoryChips counts={counts} hidden={hidden} onToggle={onToggleCategory} />
       {account.session && metro?.id && <AtlasBox account={account} metro={{ id: metro.id, name: metro.name ?? metro.id }} on={atlasOn} onToggle={onToggleAtlas} placed={atlasCount} />}
       <ul className="rm-list" ref={listRef} style={listHeight ? { height: listHeight } : undefined}>
