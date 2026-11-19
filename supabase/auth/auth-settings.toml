@@ -15,3 +15,17 @@ content_path = "./supabase/templates/confirmation.html"
 [auth.email.template.recovery]
 subject = "Confirm deleting your WastelandMaps account"
 content_path = "./supabase/templates/recovery.html"
+
+# Email goes out through Resend (not Supabase's built-in mailer, which allows only a few emails an hour and sends as "Supabase Auth"). These are the settings entered in the dashboard
+# (Authentication > Emails > SMTP Settings). The password is the Resend API key: it lives only in Supabase, never in this repo.
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "support@wastelandmaps.com"
+sender_name = "WASTELANDMAPS"   # a From name is plain text: capitals are as close as it gets to the wordmark (the styled logo is the picture at the top of each email)
+
+[auth.rate_limit]
+email_sent = 60   # emails per hour for the whole project (only changeable once custom SMTP is on)

@@ -279,7 +279,10 @@ export const takeDeleteLinkOpened = (): boolean => { const was = deleteLinkOpene
 export const LINK_LIMIT = 3;
 const LINK_WINDOW_MS = 12 * 3_600_000;
 const LINK_KEY = 'rm-link-sends';
+/** The App Store reviewers' test account is never held to the limit (it is deleted and registered again over and over while testing). */
+const UNLIMITED_LINKS = 'welpcustomer@yahoo.com';
 const recentLinkSends = (email: string): number[] => {
+  if (email.trim().toLowerCase() === UNLIMITED_LINKS) return [];
   try {
     const all = JSON.parse(localStorage.getItem(LINK_KEY) ?? '{}') as Record<string, number[]>;
     return (all[email.trim().toLowerCase()] ?? []).filter((t) => Date.now() - t < LINK_WINDOW_MS);

@@ -39,9 +39,12 @@ Deno.serve(async (req) => {
   const reviewer = (email ?? '').toLowerCase() === REVIEW_ACCOUNT;
 
   const remove = async () => {
+    // the welcome gift (500 caps) goes back with the account if it was never touched (nothing spent, bought or earned): its email and device are released so a new account can have it again.
+    // A gift that was spent from or added to stays used up.
+    const { data: released } = await db.rpc('release_welcome_bonus_if_untouched', { p_user: user, p_amount: 5 });
     const { error } = await db.auth.admin.deleteUser(user);
     if (error) { console.error('delete account failed', error.message); return reply(req, { error: 'server' }, 500); }
-    return reply(req, { ok: true });
+    return reply(req, { ok: true, giftReleased: released === true });
   };
 
   if (body.action === 'request') {
