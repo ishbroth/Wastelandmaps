@@ -441,7 +441,6 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
       // the always-there ones first, then the nearest to the middle of the screen
       inView = inView.sort((a, b) => (minZoomFor(a, selectedId) === 0 ? 0 : 1) - (minZoomFor(b, selectedId) === 0 ? 0 : 1) || dist(a) - dist(b)).slice(0, MAX_PINS);
     }
-    const wanted = new Set(inView.map((l) => l.id));
     const byId = new Map(inView.map((l) => [l.id, l] as const));
     pins.current.forEach((p, id) => {
       const now = byId.get(id);
