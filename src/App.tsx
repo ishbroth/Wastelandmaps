@@ -383,7 +383,8 @@ export default function App() {
   const shownVisited = useMemo(() => {
     const foundIds = new Set(found.map((f) => f.id));
     const all = new Set([...visited].filter((id) => !id.startsWith('me:') || foundIds.has(id)));
-    if (homeId) all.add(homeId);
+    // a home is solid on the map once they have been there (an address typed in shows hollow, inside its cog, until the visit)
+    if (homeId && foundIds.has(homeId)) all.add(homeId);
     return all;
   }, [visited, homeId, found]);
   const visitedRef = useRef(visited);
@@ -539,8 +540,8 @@ export default function App() {
     for (const mine of all.filter((p) => p.personal)) {
       const who = accountRef.current?.session;
       const kept = accountRef.current?.personal.some((q) => personalId(q.placeId) === mine.id);
-      // the home is theirs from the start; any other saved place (one whose snapshot was unlocked) still has to be reached once
-      if (mine.personal?.home || (kept && foundRef.current.some((f) => f.id === mine.id)) || discovering.current.has(mine.id)) continue;
+      // the home too has to be reached once (unless they were standing there when they chose it); a saved place whose snapshot was unlocked is the same
+      if ((kept && foundRef.current.some((f) => f.id === mine.id)) || discovering.current.has(mine.id)) continue;
       if (!who) {
         setToast('SIGN IN TO KEEP THIS PLACE ON YOUR PERSONAL MAP');
       } else {
@@ -918,6 +919,21 @@ export default function App() {
     })();
   }, [status, account, show]);
 
+  // signed out (or the account was deleted): whatever was open on the map is closed, and the map goes back to where it opens for someone signed out: where the device is, when location is on,
+  // otherwise the wide view of the country
+  const hadSession = useRef(false);
+  useEffect(() => {
+    const has = !!account.session;
+    if (hadSession.current && !has) {
+      setHomeOpen(false); setResetOpen(false); setVacationAsk(null); setVaultOpen(null); setHomeSkipped(false);
+      setSelectedId(null); setSceneId(null); setTarget(null); setTravel(null); setTab('locations');
+      navRef.current = null; setNav(null);
+      setRegion(null); setWasteland(null); setLocations([]); setQuery(''); setMessage('AWAITING COORDINATES');
+      started.current = false; // the opening-view code above runs again
+    }
+    hadSession.current = has;
+  }, [account.session]);
+
   const shareMap = useCallback(async () => {
     const view = viewNow.current ?? undefined;
     const result = await shareMapView({ query: view && view.zoom >= 9 ? '' : query, look, view });
@@ -994,9 +1010,16 @@ export default function App() {
     if (!(await setVaultPassword(who.user.email, vaultNumber))) localStorage.removeItem(`rm-pw-${who.user.id}`);
     await accountRef.current?.refresh();
     setHomeOpen(false);
+    // standing at the new home: it is discovered now. Anywhere else it stays hollow on the map (and its loot and ENTER wait) until they have been there.
+    try {
+      const fix = (await locationState()) === 'granted' ? await currentFix(6000) : null;
+      if (fix && distanceMeters(fix, place.position) <= 245) {
+        markFound([personalLocation({ placeId: place.placeId, name: 'Home', address: place.address, lat: place.position.lat, lng: place.position.lng, kind: 'house' }, true, vaultNumber, icon)], fix);
+      }
+    } catch { /* no position: it is discovered when they get there */ }
     await show(() => geocodeQuery(place.address).catch(() => geocodeLatLng(place.position)), `VAULT ${String(vaultNumber).padStart(4, '0')}`);
     return null;
-  }, [show]);
+  }, [show, markFound]);
   // people who chose their number before passwords existed get theirs set once
   useEffect(() => {
     const who = account.session?.user.id;
@@ -1632,7 +1655,7 @@ export default function App() {
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard waiting={waitingLine(account.waiting.get(selectedSpot.id))}
               spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
-              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onClear={(() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); const canRaid = !!place && !place.lore && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || !!place.personal) && !place.personal?.home; return canRaid && !account.cleared.has(selectedSpot.id) && (account.unlocked.has(selectedSpot.id) || (!!freeRenderFor(selectedSpot.id) && (freeRenderFor(selectedSpot.id)?.pristine === true || blastsWatched.has(selectedSpot.id) || blastSeen(account.session?.user.id, selectedSpot.id)))) ? () => { sound('select'); clearNow(selectedSpot.id); } : undefined; })()} onWalk={streetViewAllowed && account.session && metroInfo && account.metros.has(metroInfo.id) ? () => { sound('select'); setWalking({ lat: selectedSpot.position.lat, lng: selectedSpot.position.lng }); } : undefined} walkOn={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || selectedSpot.personal?.home === true || selectedSpot.personal?.atlas === true} onClose={() => setSelectedId(null)}
+              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) && shownVisited.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onClear={(() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); const canRaid = !!place && !place.lore && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || !!place.personal) && !place.personal?.home; return canRaid && !account.cleared.has(selectedSpot.id) && (account.unlocked.has(selectedSpot.id) || (!!freeRenderFor(selectedSpot.id) && (freeRenderFor(selectedSpot.id)?.pristine === true || blastsWatched.has(selectedSpot.id) || blastSeen(account.session?.user.id, selectedSpot.id)))) ? () => { sound('select'); clearNow(selectedSpot.id); } : undefined; })()} onWalk={streetViewAllowed && account.session && metroInfo && account.metros.has(metroInfo.id) ? () => { sound('select'); setWalking({ lat: selectedSpot.position.lat, lng: selectedSpot.position.lng }); } : undefined} walkOn={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || selectedSpot.personal?.home === true || selectedSpot.personal?.atlas === true} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
@@ -1653,7 +1676,7 @@ export default function App() {
           {accountOpen && !account.session && <AccountModal auto={accountAuto} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}
           <FaceIdOffer />
           <RatePrompt quiet={!!nav || !!sceneId || accountOpen || homeOpen} />
-          {((account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped) || homeOpen) && (
+          {account.session && ((account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped) || homeOpen) && (
             <HomePrompt
               key={homeOpen ? 'change' : 'first'}
               onChosen={chooseHome} onSkip={() => void skipHome()} canSkip={account.home?.vaultNumber !== undefined} number={account.home?.vaultNumber}
@@ -1687,7 +1710,11 @@ export default function App() {
                 onSelect={(id) => { if (navRef.current) return; setSelectedId(id); sound('select'); }}
               />
             )}
-            {tab === 'data' && <AccountPanel locationOf={locationOf} vacation={vacationOffer} onVacation={setVacationAsk} account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
+            {tab === 'data' && <AccountPanel locationOf={locationOf} vacation={vacationOffer} onVacation={setVacationAsk} account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => {
+                setHomeOpen(true);
+                // held upright, the popup is on the map above this tab: bring the map into view (sideways, the map is already beside the Terminal)
+                if (window.matchMedia('(orientation: portrait)').matches) document.querySelector('.rm-screen')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
             {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} account={account} mapPoster={mapPoster} atlasFocus={atlasFocus} />}
           </section>
         </aside>

@@ -160,20 +160,21 @@ export default function HomePrompt({ onChosen, onSkip, canSkip = true, startWith
           {step === 'number' && picked && (
             <>
               <p>{picked.address}</p>
-              {hasCallsign === false && (
-                <>
-                  <p>Pick your callsign: the name other survivors see on the leaderboard and under every place you are first to discover. 3 to 20 letters, numbers and spaces.</p>
-                  <input value={callsign} maxLength={20} autoCapitalize="words" autoComplete="off" spellCheck={false} placeholder="Your callsign" aria-label="Your callsign" onChange={(e) => setCallsignText(e.target.value)} />
-                  <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setCallsignText(randomCallsign())}>RANDOM CALLSIGN</button>
-                </>
-              )}
               <p>Pick a four-digit number (0000 to 9999) for your vault; it may start with a zero, and 0730 is not the same as Vault 730. It is yours alone: nobody else can have the same one.</p>
               <input
                 autoFocus value={digits} inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="1234" autoComplete="off" aria-label="Vault number"
                 onChange={(e) => setDigits(e.target.value.replace(/\D/g, '').slice(0, 4))}
                 onKeyDown={(e) => { if (e.key === 'Enter') void build(); }}
               />
-              {note && <p className="rm-account-note" role="alert" ref={noteRef}>{note}</p>}
+              {hasCallsign === false && (
+                <>
+                  <p>Then pick your callsign: the name other survivors see on the leaderboard and under every place you are first to discover. 3 to 20 letters, numbers and spaces.</p>
+                  <input value={callsign} maxLength={20} autoCapitalize="words" autoComplete="off" spellCheck={false} placeholder="Your callsign" aria-label="Your callsign" onChange={(e) => setCallsignText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void build(); }} />
+                  <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => setCallsignText(randomCallsign())}>RANDOM CALLSIGN</button>
+                </>
+              )}
+              {note &&<p className="rm-account-note" role="alert" ref={noteRef}>{note}</p>}
               <button type="button" className="rm-btn" disabled={busy || !valid} onClick={() => void build()}>{busy ? 'BUILDING…' : valid ? `BUILD VAULT ${digits}` : hasCallsign === false && !callsignOk ? 'PICK A CALLSIGN' : 'ENTER FOUR DIGITS'}</button>
               {!startWith && <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { setStep('type'); setPicked(null); }}>CHOOSE A DIFFERENT ADDRESS</button>}
             </>

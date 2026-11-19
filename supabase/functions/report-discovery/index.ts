@@ -58,8 +58,11 @@ Deno.serve(async (req) => {
   // an address from the atlas of a city they bought: somebody else's address, worth 1 point, at the position the server has for it
   if (atlas) {
     const db = serviceClient();
+    // their own home is theirs to discover, whoever made the shared picture of that address
+    const { data: myHome } = await db.from('user_home').select('place_id').eq('user_id', user).maybeSingle();
+    const ownHome = !!myHome && myHome.place_id === b.placeId!.slice(3);
     const { data: render } = await db.from('address_renders').select('metro_id,lat,lng,created_by').eq('place_id', b.placeId!.slice(3)).eq('status', 'ready').maybeSingle();
-    if (render && render.created_by !== user) {
+    if (render && render.created_by !== user && !ownHome) {
       // somebody else's address, from a metro atlas they own: 1 point
       const { data: has } = await db.from('metro_unlocks').select('metro_id').eq('user_id', user).eq('metro_id', render.metro_id).maybeSingle();
       if (!has) return reply(req, { error: 'not_atlas' }, 403);

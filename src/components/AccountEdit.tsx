@@ -12,7 +12,8 @@ const REASONS: Record<string, string> = {
 
 /**
  * The pencil beside SIGN OUT: change the callsign (typed, or a random one), the email (a new link is sent to the new address and the account, with everything on it,
- * moves to it once it is confirmed), the four-digit passcode (the number on the vault door in the picture of the house is swapped, not redrawn) and the home address.
+ * moves to it once it is confirmed), the four-digit passcode (the number on the vault door in the picture of the house is swapped, not redrawn) and the home address
+ * (CHANGE ADDRESS opens the home prompt on the map, which offers where they are standing or a typed address with the address suggestions).
  */
 export default function AccountEdit({ account, callsign, onDone, onChangeHome }: {
   account: Account; callsign: string | null; onDone: (changed: boolean) => void; onChangeHome: () => void;
@@ -73,7 +74,7 @@ export default function AccountEdit({ account, callsign, onDone, onChangeHome }:
       )}
       <label>HOME ADDRESS</label>
       <div className="rm-edit-row">
-        <span className="rm-fine">{account.home?.address ?? 'Not set'}</span>
+        <span className="rm-edit-address-text">{account.home?.address ?? 'Not set'}</span>
         <button type="button" className="rm-btn rm-btn-ghost" disabled={busy} onClick={() => { onDone(false); onChangeHome(); }}>{account.home?.address ? 'CHANGE ADDRESS' : 'SET HOME'}</button>
       </div>
       {note && <p className="rm-account-note">{note}</p>}

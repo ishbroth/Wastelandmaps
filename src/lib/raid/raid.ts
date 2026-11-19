@@ -94,9 +94,9 @@ export function planFor(id: string, worth: number): RaidPlan {
   return { worth, enemies, boss, waves, total: waves.reduce((a, b) => a + b, 0), lootTypes: loot, lootRange: lootRangeFor(worth) };
 }
 
-/** The first fight every survivor has: their own home vault, with four radroaches, the weakest enemy there is. */
+/** The first fight every survivor has: their own home vault, in three waves of one, two and four radroaches (the weakest enemy there is). */
 export function homePlan(): RaidPlan {
-  return { worth: 10, enemies: ['radroach'], boss: null, waves: wavesFor(4, false), total: 4, lootTypes: ['steel', 'wood'], lootRange: lootRangeFor(10) };
+  return { worth: 10, enemies: ['radroach'], boss: null, waves: [1, 2, 4], total: 7, lootTypes: ['steel', 'wood'], lootRange: lootRangeFor(10) };
 }
 
 /**
@@ -107,7 +107,7 @@ export function vaultZeroPlan(): RaidPlan {
   return { worth: 75, enemies: [...BOSS_IDS], boss: null, waves: VAULT_ZERO_WAVES, total: VAULT_ZERO_BOSSES, lootTypes: VAULT_ZERO_LOOT as LootId[], lootRange: [VAULT_ZERO_PIECES, VAULT_ZERO_PIECES], bossOnly: true };
 }
 
-/** The plan for a place on the map (a person's own home vault is always the first fight: four radroaches). */
+/** The plan for a place on the map (a person's own home vault is always the first fight: radroaches in waves of 1, 2 and 4). */
 export const raidFor = (loc: Location): RaidPlan => (loc.id === VAULT_ZERO_ID ? vaultZeroPlan() : loc.personal?.home ? homePlan() : planFor(loc.id, pointsFor(loc)));
 
 /** What a win there really pays, as a line: "Steel, Gears: 7 to 10 pieces". */

@@ -1301,6 +1301,8 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-acct-edit label { font-size: 13px; letter-spacing: 2px; color: var(--ink-dim); margin-top: 4px; }
 .rm-edit-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
 .rm-edit-row input { flex: 1; min-width: 0; }
+.rm-edit-address-text { font-size: 20px; line-height: 1.25; overflow-wrap: anywhere; color: var(--ink); }
+.rm-acct-edit input { font: inherit; font-size: 22px; padding: 10px 12px; background: transparent; color: var(--ink); border: 1px solid var(--line); }
 
 /* the title bubble and, just below it and outside it, the percent explored */
 .rm-poster-stack { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 8; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 5px; max-width: calc(100% - 20px); }

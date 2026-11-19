@@ -132,7 +132,8 @@ Deno.serve(async (req) => {
       const { data: home } = await db.from('user_home').select('place_id').eq('user_id', user).maybeSingle();
       ownHome = !!home && home.place_id === place.slice(3);
     }
-    const owner = vault || ownHome || (await discovered(db, user, place));
+    // their own home pays like any other place: once they have been there (the loot waits until then, and is paid by 'claim' at the discovery)
+    const owner = vault || (await discovered(db, user, place));
     if (!owner) {
       await db.from('raid_runs').update({ paid: false }).eq('id', run.id);
       return reply(req, { ok: true, won: true, pending: true, waiting: run.loot });
@@ -167,6 +168,14 @@ Deno.serve(async (req) => {
     if (!waiting || waiting.length === 0) return reply(req, { ok: true, loot: {}, claimed: 0 });
     const total: Record<string, number> = {};
     for (const r of waiting) for (const [k, n] of Object.entries(r.loot as Record<string, number>)) total[k] = (total[k] ?? 0) + n;
+    // clearing their home for the first time also pays 5 extra pieces (once per account), paid here when the home was cleared before it was discovered
+    if (placeId.startsWith('me:')) {
+      const { data: home } = await db.from('user_home').select('place_id').eq('user_id', user).maybeSingle();
+      if (home && home.place_id === placeId.slice(3)) {
+        const { data: first } = await db.rpc('claim_home_clear_bonus', { p_user: user });
+        if (first === true) { const pick = new Uint32Array(5); crypto.getRandomValues(pick); for (const n of pick) { const kind = LOOT[n % LOOT.length]; total[kind] = (total[kind] ?? 0) + 1; } }
+      }
+    }
     const { data: paid, error } = await db.rpc('grant_loot', { p_user: user, p_loot: total });
     if (error) return reply(req, { error: 'server' }, 500);
     await db.from('raid_runs').update({ paid: true }).in('id', waiting.map((r: { id: string }) => r.id));
