@@ -89,12 +89,30 @@ export function onAppUrl(callback: (url: string) => void): () => void {
   return () => { void handle.then((h) => h.remove()); };
 }
 
+/**
+ * The app is never zoomed. A pinch, a double tap, or tapping a text box (iOS zooms into any box with small text) used to zoom the web view in and leave the page shifted off center, with the
+ * top of the app up under the phone's status bar. In the app (not on the website, where people may want to zoom) zooming is switched off, and if the page is ever found shifted sideways it is
+ * put back.
+ */
+function keepUnzoomed(): void {
+  try {
+    document.querySelector('meta[name="viewport"]')?.setAttribute('content', 'width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+    document.documentElement.style.touchAction = 'manipulation'; // no double-tap zoom
+    const settle = () => { if (window.scrollX !== 0) window.scrollTo(0, window.scrollY); };
+    window.visualViewport?.addEventListener('resize', settle);
+    window.visualViewport?.addEventListener('scroll', settle);
+    // the on-screen keyboard closing is when the page used to be left out of place
+    document.addEventListener('focusout', () => { window.setTimeout(settle, 250); });
+  } catch { /* an older web view: nothing to change */ }
+}
+
 /** How long the stand-by splash screen stays up at the least. */
 const SPLASH_MS = 2000;
 
 /** The app's first moments: a dark status bar that matches the map, and the splash screen goes away once the page is up. */
 export async function startNative(): Promise<void> {
   if (!isNative()) return;
+  keepUnzoomed();
   try {
     await StatusBar.setStyle({ style: Style.Dark });
     if (platform() === 'android') await StatusBar.setBackgroundColor({ color: '#000a04' });
