@@ -119,6 +119,9 @@ const TAG_ZOOM = 12;
  * (zoom 6); then, as you come in, the places that are worth more first (city level), and the smallest ones, your own places and the atlas only at
  * neighborhood level (the vault entrances too: they are the first to go on the way out, below zoom 11). Zooming back out takes them away again.
  */
+/** What a pin looks like, so a pin made too early (the home, before the account's home had loaded: a plain house instead of the vault cog) is made again when its place changes. */
+const pinSig = (l: Location): string => `${l.icon}|${l.name}|${l.personal?.home ? 'home' : ''}|${l.vault ? 'vault' : ''}|${l.famous ? 'famous' : ''}`;
+
 function minZoomFor(loc: Location, selectedId: string | null): number {
   // vault entrances are everywhere in a big city (a couple of dozen on screen at zoom 9 and 10), so they drop off the map early on the way out: zoom 10 and
   // below, long before the places around them (those go at 8 to 11), unless one is the place picked or your home. (Vault 0 is not one of these: see below.)
@@ -231,7 +234,7 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
   /** The main roads running into the flooded patches: drawn fading and thinning toward the middle of the water. */
   const roadShapes = useRef(new Map<string, google.maps.Polyline[]>());
   const mapRef = useRef<google.maps.Map | null>(null);
-  const pins = useRef(new Map<string, { handle: HtmlMarkerHandle; el: HTMLElement; position: google.maps.LatLngLiteral }>());
+  const pins = useRef(new Map<string, { handle: HtmlMarkerHandle; el: HTMLElement; position: google.maps.LatLngLiteral; sig: string }>());
   const extras = useRef<{ handle?: HtmlMarkerHandle; circle?: google.maps.Circle; clouds?: google.maps.Polygon[] }[]>([]);
   const vault = useRef<{ el: HTMLElement; position: LatLng } | null>(null);
   const farRoads = useRef(true);
@@ -439,10 +442,12 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
       inView = inView.sort((a, b) => (minZoomFor(a, selectedId) === 0 ? 0 : 1) - (minZoomFor(b, selectedId) === 0 ? 0 : 1) || dist(a) - dist(b)).slice(0, MAX_PINS);
     }
     const wanted = new Set(inView.map((l) => l.id));
+    const byId = new Map(inView.map((l) => [l.id, l] as const));
     pins.current.forEach((p, id) => {
-      if (wanted.has(id)) return;
+      const now = byId.get(id);
+      if (now && p.sig === pinSig(now)) return; // still wanted, and looks the same
       p.handle.setMap(null);
-      pins.current.delete(id);
+      pins.current.delete(id); // (a changed one is made again below)
     });
     const firstBatch = pins.current.size === 0;
     let morphed = 0;
@@ -466,7 +471,8 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
       onPress(el, () => onSelectRef.current(loc.id));
       const handle = createHtmlMarker({ position: loc.position, element: el, zIndex: 20 });
       handle.setMap(map);
-      pins.current.set(loc.id, { handle, el, position: loc.position });
+      pins.current.set(loc.id, { handle, el, position: loc.position, sig: pinSig(loc) });
+      el.classList.toggle('rm-pin-selected', loc.id === selectedId);
     }
   }, [locations, hiddenCategories, view, zoomNow, selectedId]);
 

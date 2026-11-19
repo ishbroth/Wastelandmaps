@@ -3,9 +3,12 @@
 
 import { decode, encode } from 'npm:fast-png@6.2.0';
 import opentype from 'npm:opentype.js@1.3.4';
+import jpeg from 'npm:jpeg-js@0.4.4';
 import { swapDigits, type Box } from './doorNumber.ts';
 import { digitMaker } from './doorFont.ts';
 
+/** A JPEG starts with FF D8 (older home pictures are JPEGs saved under a .png name). */
+const isJpeg = (b: Uint8Array): boolean => b.length > 3 && b[0] === 0xff && b[1] === 0xd8;
 export const toBase64 = (bytes: Uint8Array): string => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(t); };
 
 /** Does the vault door in the picture read exactly these four digits? (A failed check counts as no: the number must be right.) */
@@ -49,7 +52,7 @@ async function locateDigits(png: Uint8Array, width: number, height: number): Pro
       body: JSON.stringify({
         contents: [{ parts: [
           { text: 'This picture has a round vault door with a four-digit number painted on it. Find that number. Reply with JSON only: {"box_2d":[ymin,xmin,ymax,xmax]}, coordinates normalized to 0-1000, as tight as you can around the four digits (not the whole door).' },
-          { inline_data: { mime_type: 'image/png', data: toBase64(png) } },
+          { inline_data: { mime_type: isJpeg(png) ? 'image/jpeg' : 'image/png', data: toBase64(png) } },
         ] }],
         generationConfig: { temperature: 0, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } },
       }),
@@ -68,14 +71,22 @@ async function locateDigits(png: Uint8Array, width: number, height: number): Pro
  *  drawn in the same place, size, tilt and colour. Null when the digits cannot be found cleanly; the caller then falls back to asking the image model. */
 export async function swapOnPixels(png: Uint8Array, to: string): Promise<Uint8Array | null> {
   try {
-    const img = decode(png);
-    if (img.depth !== 8 || (img.channels !== 3 && img.channels !== 4)) return null;
+    let img: { width: number; height: number };
     let data: Uint8Array;
-    if (img.channels === 4) data = img.data as Uint8Array;
-    else {
-      data = new Uint8Array(img.width * img.height * 4);
-      const src = img.data as Uint8Array;
-      for (let i = 0, j = 0; i < src.length; i += 3, j += 4) { data[j] = src[i]; data[j + 1] = src[i + 1]; data[j + 2] = src[i + 2]; data[j + 3] = 255; }
+    if (isJpeg(png)) {
+      const j = jpeg.decode(png, { useTArray: true, formatAsRGBA: true });
+      img = { width: j.width, height: j.height };
+      data = j.data as Uint8Array;
+    } else {
+      const p = decode(png);
+      if (p.depth !== 8 || (p.channels !== 3 && p.channels !== 4)) return null;
+      img = { width: p.width, height: p.height };
+      if (p.channels === 4) data = p.data as Uint8Array;
+      else {
+        data = new Uint8Array(p.width * p.height * 4);
+        const src = p.data as Uint8Array;
+        for (let i = 0, k = 0; i < src.length; i += 3, k += 4) { data[k] = src[i]; data[k + 1] = src[i + 1]; data[k + 2] = src[i + 2]; data[k + 3] = 255; }
+      }
     }
     const rough = await locateDigits(png, img.width, img.height);
     if (!rough) return null;
