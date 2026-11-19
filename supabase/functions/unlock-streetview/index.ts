@@ -271,7 +271,8 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
     // the picture is theirs already: make sure the unlock is on record too (clearing the home and the app both look for it), without charging anything
     await db.from('unlocks').upsert({ user_id: user, place_id: unlockKey }, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
     const url = await signed(mine.storage_path as string);
-    return url ? reply(req, { status: 'ready', url, charged: false }) : reply(req, { error: 'server' }, 500);
+    // (with the real photo the picture was made from, when one is kept for this address: the 'before' of the reveal, instead of Street View)
+    return url ? reply(req, { status: 'ready', url, charged: false, ...(await sourceOf(db, googleId)) }) : reply(req, { error: 'server' }, 500);
   }
   if (mine?.status === 'generating' && Date.now() - new Date(mine.started_at as string).getTime() < STALE_AFTER_MS) return reply(req, { status: 'working' });
 
@@ -336,7 +337,7 @@ async function homeFlow(req: Request, db: any, user: string, googleId: string, c
     await db.from('home_renders').update({ status: 'ready', storage_path: path, created_at: new Date().toISOString() }).eq('user_id', user).eq('google_id', googleId);
     const url = await signed(path);
     if (!url) throw new Error('no link');
-    return reply(req, { status: 'ready', url, charged: spent === 'spent' });
+    return reply(req, { status: 'ready', url, charged: spent === 'spent', ...(await sourceOf(db, googleId)) });
   } catch (e) {
     await db.from('home_renders').update({ status: 'failed' }).eq('user_id', user).eq('google_id', googleId);
     await giveBack();
@@ -435,7 +436,7 @@ Deno.serve(async (req) => {
         const sharedUrl = await signed(twin.storage_path as string);
         if (sharedUrl) {
           if (twin.rubble === true && spent === 'spent') await db.rpc('part_refund_personal', { p_user: user, p_place: placeId, p_refund: COST - RUBBLE_COST });
-          return reply(req, { status: 'ready', url: sharedUrl, charged: spent === 'spent', ...(twin.rubble === true ? { rubble: true, refunded: COST - RUBBLE_COST } : {}) });
+          return reply(req, { status: 'ready', url: sharedUrl, charged: spent === 'spent', ...(await sourceOf(db, String(twin.place_id))), ...(twin.rubble === true ? { rubble: true, refunded: COST - RUBBLE_COST } : {}) });
         }
       }
     }

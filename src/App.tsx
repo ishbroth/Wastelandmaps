@@ -934,6 +934,17 @@ export default function App() {
     hadSession.current = has;
   }, [account.session]);
 
+  // A popup opens on the map (a place's card or its scene, the home prompt, the sign-in or vault-number windows, a vacation vault question): whatever tab it was started from, held upright
+  // the map is above the tabs, so if it has been scrolled out of view, the screen goes back up to it. Sideways the map is beside the Terminal and nothing moves.
+  const popupKey = `${selectedId ?? ''}|${sceneId ?? ''}|${homeOpen ? 'home' : ''}|${resetOpen ? 'reset' : ''}|${vacationAsk ? 'vacation' : ''}|${accountOpen && !account.session ? 'account' : ''}`;
+  useEffect(() => {
+    if (popupKey === '|||||' || !window.matchMedia('(orientation: portrait)').matches) return;
+    const screen = document.querySelector('.rm-screen');
+    if (!screen) return;
+    const r = screen.getBoundingClientRect();
+    if (r.top < -20 || r.bottom < window.innerHeight * 0.5) screen.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [popupKey]);
+
   const shareMap = useCallback(async () => {
     const view = viewNow.current ?? undefined;
     const result = await shareMapView({ query: view && view.zoom >= 9 ? '' : query, look, view });
@@ -1710,11 +1721,7 @@ export default function App() {
                 onSelect={(id) => { if (navRef.current) return; setSelectedId(id); sound('select'); }}
               />
             )}
-            {tab === 'data' && <AccountPanel locationOf={locationOf} vacation={vacationOffer} onVacation={setVacationAsk} account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => {
-                setHomeOpen(true);
-                // held upright, the popup is on the map above this tab: bring the map into view (sideways, the map is already beside the Terminal)
-                if (window.matchMedia('(orientation: portrait)').matches) document.querySelector('.rm-screen')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
+            {tab === 'data' && <AccountPanel locationOf={locationOf} vacation={vacationOffer} onVacation={setVacationAsk} account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
             {tab === 'share' && <SharePanel query={region?.address ?? ''} look={look} account={account} mapPoster={mapPoster} atlasFocus={atlasFocus} />}
           </section>
         </aside>
