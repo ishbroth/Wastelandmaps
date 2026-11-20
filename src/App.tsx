@@ -10,7 +10,7 @@ import { savedFaceIds } from './lib/faceid';
 import SceneModal from './components/SceneModal';
 import StreetWalk from './components/StreetWalk';
 import BinocButton from './components/BinocButton';
-import { accountsEnabled, welcomeBonus, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, takeLinkOpened, takeDeleteLinkOpened, deleteAccount, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, saveHomeMetro, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
+import { accountsEnabled, flushPendingDiscoveries, welcomeBonus, atlasList, vacationUnlock, claimLoot, claimMetroClear, loadClearable, completeSignInFromUrl, takeLinkOpened, takeDeleteLinkOpened, deleteAccount, loadAutoDiscover, loadFoundPlaces, loadMapPosition, renamePersonalPlace, reportDiscovery, saveAutoDiscover, saveFoundPlaces, saveHome, saveHomeMetro, savePersonalPlace, setVaultPassword, saveMapPosition, useAccount, type AtlasPlace, type FoundPlace } from './lib/account';
 import HomePrompt from './components/HomePrompt';
 import { startPurchases } from './lib/iap';
 import { keepScreenOn } from './lib/awake';
@@ -557,7 +557,7 @@ export default function App() {
             setVisited(seen);
             // an address from a city atlas they bought is worth exactly 1 XP (the server checks they own that atlas); one they typed in and unlocked, 10: both only now that they have been there
             if (onFoot) {
-              const result = await reportDiscovery(mine.id, mine.position, onFoot, mine.personal?.atlas ? 1 : 10);
+              const result = await reportDiscovery(mine.id, mine.position, onFoot, mine.personal?.atlas ? 1 : 10, who.user.id);
               if (result && (result.added ?? 0) > 0) {
                 setXpFlash({ text: `+${result.added ?? 1} XP`, id: Date.now() });
                 buzz('xp');
@@ -628,7 +628,7 @@ export default function App() {
         let vaultFound: { added: number; loot: Partial<Record<string, number>> } | null = null;
         for (const p of fresh) {
           if (!/^(wd:Q\d+|vault:\d+|famous:[a-z0-9-]+|lore:[a-z0-9-]+)$/.test(p.id)) continue;
-          const result = await reportDiscovery(p.id, p.position, onFoot, pointsFor(p));
+          const result = await reportDiscovery(p.id, p.position, onFoot, pointsFor(p), who.user.id);
           added += result?.added ?? 0;
           if (p.id === VAULT_ZERO_ID && (result?.added ?? 0) > 0) vaultFound = { added: result?.added ?? 0, loot: result?.loot ?? {} };
           if (result?.bonus) { credits += result.given; level = result.level ?? level; }
@@ -879,6 +879,39 @@ export default function App() {
       if (auto) setTracking(true);
     })();
     return () => { cancelled = true; };
+  }, [userId]);
+  // an address just unlocked or saved while standing at it is discovered at once: the location watch only reports when the phone moves, so a phone sitting still would never notice.
+  // Each saved address is checked once per visit to the app (after that, walking up to it is found by the watch as usual).
+  const arrivalChecked = useRef(new Set<string>());
+  useEffect(() => {
+    if (!userId) return;
+    const todo = account.personal.filter((q) => !arrivalChecked.current.has(q.placeId) && !foundRef.current.some((f) => f.id === personalId(q.placeId)));
+    if (todo.length === 0) return;
+    todo.forEach((q) => arrivalChecked.current.add(q.placeId));
+    void (async () => {
+      try {
+        const fix = (await locationState()) === 'granted' ? await currentFix(6000) : null;
+        if (!fix) { todo.forEach((q) => arrivalChecked.current.delete(q.placeId)); return; }
+        const here = todo.filter((q) => distanceMeters(fix, { lat: q.lat, lng: q.lng }) <= 245);
+        if (here.length > 0) markFound(here.map((q) => personalLocation(q, true, account.home?.vaultNumber !== undefined && account.home.placeId === q.placeId ? account.home.vaultNumber : undefined, account.home?.placeId === q.placeId ? account.home.icon : undefined)), fix);
+      } catch { /* no position: found when they get there */ }
+    })();
+  }, [account.personal, account.home, userId, markFound]);
+  // places found with no signal (airplane mode) are sent now: when signed in, when the connection comes back, and when the app is opened again
+  useEffect(() => {
+    if (!userId) return;
+    const send = () => { void flushPendingDiscoveries(userId).then((added) => {
+      if (added <= 0) return;
+      setXpFlash({ text: `+${added} XP`, id: Date.now() });
+      buzz('xp');
+      window.clearTimeout(xpTimer.current);
+      xpTimer.current = window.setTimeout(() => setXpFlash(null), 2600);
+      void accountRef.current?.refresh();
+    }); };
+    send();
+    window.addEventListener('online', send);
+    const off = onResume(send);
+    return () => { window.removeEventListener('online', send); off?.(); };
   }, [userId]);
   useEffect(() => {
     if (!userId) { foundRef.current = []; setFound([]); }
@@ -1454,6 +1487,7 @@ export default function App() {
   const [resting, setResting] = useState(false);
   const restRef = useRef(false);
   const stillAnchor = useRef<LatLng | null>(null);
+  const metroCheck = useRef<LatLng | null>(null);
   const stillSince = useRef(Date.now());
   useEffect(() => { restRef.current = resting; }, [resting]);
   useEffect(() => {
@@ -1492,10 +1526,29 @@ export default function App() {
         }
         void onNavFixRef.current(here);
         const reach = Math.max(245, Math.min(pos.accuracy, 400)); // about 800 ft, or the phone's own accuracy when that is worse
-        const near = locationsRef.current.filter((l) => (l.personal ? !foundRef.current.some((f) => f.id === l.id) : !visitedRef.current.has(l.id)) && distanceMeters(here, l.position) <= reach);
+        const near = locationsRef.current.filter((l) => (l.personal ? !foundRef.current.some((f) => f.id === l.id) : !visitedRef.current.has(l.id)) && distanceMeters(here, l.position) <= (/airport|airfield|aerodrome/i.test(l.oldName || l.name) ? Math.max(reach, 900) : reach));
         // Vault Tech Headquarters is found by being anywhere in Antarctica (the server checks the position the same way)
         if (inAntarctica(here.lat, here.lng) && !visitedRef.current.has(VAULT_ZERO_ID) && !foundRef.current.some((f) => f.id === VAULT_ZERO_ID)) near.push(VAULT_ZERO);
         markFound(near, here);
+        // the places of the metro the device is in (an airport on a trip, say) are not loaded unless the map was looking there: bring them in, and check them at once
+        const checked = metroCheck.current;
+        if (!checked || distanceMeters(checked, here) > 1500) {
+          metroCheck.current = here;
+          void loadIndex().then(async (metros) => {
+            if (metros.length === 0) { metroCheck.current = null; return; }
+            const under = metroAt(metros, here, 0);
+            if (!under || metroSeen.current.loaded.has(under.id)) return;
+            const found = await loadMetro(under);
+            if (cancelled || found.length === 0) { if (found.length === 0) metroCheck.current = null; return; }
+            metroSeen.current.loaded.add(under.id);
+            const known = new Set(locationsRef.current.map((l) => l.id));
+            const fresh = found.filter((l) => !known.has(l.id));
+            if (fresh.length > 0) setLocations((prev) => { const ids = new Set(prev.map((l) => l.id)); return dedupePlaces([...prev, ...fresh.filter((l) => !ids.has(l.id))]); });
+            const here2 = fixRef.current ?? here;
+            const reach2 = Math.max(245, Math.min(pos.accuracy, 400));
+            markFound(fresh.filter((l) => !visitedRef.current.has(l.id) && distanceMeters(here2, l.position) <= (/airport|airfield|aerodrome/i.test(l.oldName || l.name) ? Math.max(reach2, 900) : reach2)), here2);
+          });
+        }
       },
       // only a refusal turns it off: a moment without a signal (a tunnel, a bad fix) must not end the navigation
       (code) => { if (code === 1) { setTracking(false); setMessage('ERROR: LOCATION PERMISSION DENIED'); } },

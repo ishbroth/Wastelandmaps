@@ -475,9 +475,54 @@ export async function saveMapPosition(userId: string, lat: number, lng: number, 
 
 export interface DiscoveryResult { /** Loot a discovery paid (Vault 0 pays 20 pieces). */ loot?: Partial<Record<string, number>>; total: number; bonus: boolean; given: number; /** Points added by this place (0 if it was already on the record). */ added?: number; points?: number; level?: number }
 
-/** Tells the server a place was reached on foot, worth `points`. Each new level reached gives a free snapshot credit. Null if it could not be recorded. */
-export async function reportDiscovery(placeId: string, place: { lat: number; lng: number }, here: { lat: number; lng: number }, points = 10): Promise<DiscoveryResult | null> {
+// ---- discoveries made with no signal (airplane mode, a terminal with no data) wait on the phone and are sent when it is back online ----
+
+interface PendingFound { rows: FoundPlace[]; reports: { placeId: string; place: { lat: number; lng: number }; here: { lat: number; lng: number }; points: number }[] }
+const pendingKey = (userId: string) => `wastelandmaps:pending-found:${userId}`;
+const readPending = (userId: string): PendingFound => {
+  try { const p = JSON.parse(localStorage.getItem(pendingKey(userId)) ?? 'null') as PendingFound | null; if (p && Array.isArray(p.rows) && Array.isArray(p.reports)) return p; } catch { /* nothing waiting */ }
+  return { rows: [], reports: [] };
+};
+const writePending = (userId: string, p: PendingFound) => {
+  try { if (p.rows.length === 0 && p.reports.length === 0) localStorage.removeItem(pendingKey(userId)); else localStorage.setItem(pendingKey(userId), JSON.stringify(p)); } catch { /* storage unavailable */ }
+};
+/** An answer that never came because there was no connection (as opposed to the server saying no). */
+const offlineError = (e: { message?: string; name?: string } | null | undefined): boolean =>
+  !!e && ((typeof navigator !== 'undefined' && navigator.onLine === false) || e.name === 'FunctionsFetchError' || /failed to fetch|network|load failed/i.test(e.message ?? ''));
+let flushing = false;
+
+/** Sends what was found while offline. Returns the XP those discoveries added (0 if nothing was waiting or the server still cannot be reached). */
+export async function flushPendingDiscoveries(userId: string): Promise<number> {
+  if (flushing) return 0;
+  const waiting = readPending(userId);
+  if (waiting.rows.length === 0 && waiting.reports.length === 0) return 0;
+  flushing = true;
+  let added = 0;
+  try {
+    const left: PendingFound = { rows: [], reports: [] };
+    if (waiting.rows.length > 0) {
+      const rows = waiting.rows.map((p) => ({ user_id: userId, place_id: p.id, name: p.name, old_name: p.oldName, metro_id: p.metroId, city: p.city, state: p.state, country: p.country, lat: p.lat, lng: p.lng }));
+      let { error } = await db().from('found_places').upsert(rows.map((r, i) => ({ ...r, worth: waiting.rows[i].worth ?? null })), { onConflict: 'user_id,place_id', ignoreDuplicates: true });
+      if (error && !offlineError(error)) ({ error } = await db().from('found_places').upsert(rows, { onConflict: 'user_id,place_id', ignoreDuplicates: true }));
+      if (error && offlineError(error)) left.rows = waiting.rows;
+    }
+    for (const r of waiting.reports) {
+      const { data, error } = await db().functions.invoke('report-discovery', { body: { placeId: r.placeId, lat: r.place.lat, lng: r.place.lng, userLat: r.here.lat, userLng: r.here.lng, points: r.points } });
+      if (error && offlineError(error)) left.reports.push(r);
+      else if (!error && data) added += (data as DiscoveryResult).added ?? 0;
+    }
+    writePending(userId, left);
+  } finally { flushing = false; }
+  return added;
+}
+
+/** Tells the server a place was reached on foot, worth `points`. Each new level reached gives a free snapshot credit. Null if it could not be recorded (with no connection it is kept and sent later). */
+export async function reportDiscovery(placeId: string, place: { lat: number; lng: number }, here: { lat: number; lng: number }, points = 10, userId?: string): Promise<DiscoveryResult | null> {
   const { data, error } = await db().functions.invoke('report-discovery', { body: { placeId, lat: place.lat, lng: place.lng, userLat: here.lat, userLng: here.lng, points } });
+  if (error && userId && offlineError(error)) {
+    const p = readPending(userId);
+    if (!p.reports.some((r) => r.placeId === placeId)) { p.reports.push({ placeId, place, here, points }); writePending(userId, p); }
+  }
   return error || !data ? null : (data as DiscoveryResult);
 }
 
@@ -514,8 +559,17 @@ export async function saveFoundPlaces(userId: string, places: FoundPlace[]): Pro
   if (places.length === 0) return;
   const rows = places.map((p) => ({ user_id: userId, place_id: p.id, name: p.name, old_name: p.oldName, metro_id: p.metroId, city: p.city, state: p.state, country: p.country, lat: p.lat, lng: p.lng }));
   const { error } = await db().from('found_places').upsert(rows.map((r, i) => ({ ...r, worth: places[i].worth ?? null })), { onConflict: 'user_id,place_id', ignoreDuplicates: true });
+  if (!error) return;
+  // no connection: kept on the phone and sent later
+  if (offlineError(error)) {
+    const p = readPending(userId);
+    const have = new Set(p.rows.map((r) => r.id));
+    p.rows.push(...places.filter((r) => !have.has(r.id)));
+    writePending(userId, p);
+    return;
+  }
   // the worth column may not be there yet
-  if (error) await db().from('found_places').upsert(rows, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
+  await db().from('found_places').upsert(rows, { onConflict: 'user_id,place_id', ignoreDuplicates: true });
 }
 
 /** Whether AUTO-DISCOVER was left on. */
