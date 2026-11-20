@@ -72,14 +72,14 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
   useEffect(() => {
     if (!spot.personal) return;
     let cancelled = false;
-    void streetViewAvailable(spot.position).then((ok) => { if (!cancelled) setStreet({ id: spot.id, ok }); });
+    void streetViewAvailable(spot.position).then((ok) => { if (!cancelled) setStreet({ id: spot.id, ok }); }, () => { if (!cancelled) setStreet({ id: spot.id, ok: false }); });
     return () => { cancelled = true; };
   }, [spot]);
   const [beforeStreet, setBeforeStreet] = useState<{ id: string; url: string | null } | null>(null);
   useEffect(() => {
     if (!spot.personal) return;
     let cancelled = false;
-    void streetViewPictureUrl(spot.position).then((url) => { if (!cancelled) setBeforeStreet({ id: spot.id, url }); });
+    void streetViewPictureUrl(spot.position).then((url) => { if (!cancelled) setBeforeStreet({ id: spot.id, url }); }, () => { if (!cancelled) setBeforeStreet({ id: spot.id, url: null }); });
     return () => { cancelled = true; };
   }, [spot]);
   // has anyone rendered this address already (then only the unlock is paid for), and is it theirs to see?
@@ -224,7 +224,7 @@ export default function SceneModal({ vacation, onVacation, zones = [], startOn =
             </div>
           )}
           {tab === 'snapshot' && reveal && !freeSealed && (
-            <BlowApart onSeen={() => setWatched(spot.id)} sound={sound} pristine={reveal.pristine} key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={spot.id} seenUser={account.session?.user.id} discovered={reveal.pristine || personal ? null : paidReady?.discovered ?? null} />
+            <BlowApart onSeen={() => setWatched(spot.id)} sound={sound} pristine={reveal.pristine} key={reveal.after} beforeUrl={reveal.before} afterUrl={reveal.after} name={reveal.name} file={reveal.file} seed={seed} seenId={spot.id} seenUser={account.session?.user.id} discovered={reveal.pristine || home ? null : paidReady?.discovered ?? null} />
           )}
           {tab === 'snapshot' && locked && (
             <div className="rm-locked">

@@ -253,22 +253,25 @@ export default function App() {
     const have = new Set(account.vacations.map((v) => v.placeId));
     const choices: VacationOffer['choices'] = [];
     const seen = new Set<string>();
-    const add = (placeId: string, name: string, lat: number, lng: number, icon: string) => {
+    const add = (placeId: string, name: string, lat: number, lng: number, icon: string, at: string) => {
       if (have.has(placeId) || seen.has(placeId) || !account.cleared.has(placeId)) return;
       const km = distanceMeters(home, { lat, lng }) / 1000;
       if (km < 80) return;
       seen.add(placeId);
-      choices.push({ placeId, name, icon, km });
+      choices.push({ placeId, name, icon, km, at });
     };
-    for (const f of found) add(f.id, f.name, f.lat, f.lng, mapLocations.find((l) => l.id === f.id)?.icon ?? 'monument');
+    for (const f of found) add(f.id, f.name, f.lat, f.lng, mapLocations.find((l) => l.id === f.id)?.icon ?? 'monument', f.foundAt);
     // an address typed in whose snapshot has been unlocked
-    for (const p of account.personal) if (account.unlocked.has(`me:${p.placeId}`)) add(`me:${p.placeId}`, p.name, p.lat, p.lng, mapLocations.find((l) => l.id === `me:${p.placeId}`)?.icon ?? 'house');
-    choices.sort((a, b) => a.km - b.km);
+    // (only once the address has really been reached: unlocking its snapshot, or clearing it from afar, is not discovering it)
+    for (const p of account.personal) if (account.unlocked.has(`me:${p.placeId}`) && found.some((f) => f.id === `me:${p.placeId}`)) add(`me:${p.placeId}`, p.name, p.lat, p.lng, mapLocations.find((l) => l.id === `me:${p.placeId}`)?.icon ?? 'house', found.find((f) => f.id === `me:${p.placeId}`)?.foundAt ?? '');
+    // the most recently discovered first
+    choices.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
     return {
       choices,
       count: account.vacations.length,
       ready: account.homeRooms >= ROOMS_FOR_VACATION,
       mine: account.vacations.map((v) => ({ placeId: v.placeId, name: v.name })),
+      onBuilt: (placeId, name) => { setVacationAsk(null); setVaultOpen({ title: name, key: placeId }); },
       unlock: async (placeId, icon, replace) => {
         const r = await vacationUnlock(placeId, icon, replace);
         if (r.ok) { await account.refresh(); return null; }
@@ -1719,7 +1722,7 @@ export default function App() {
           {selectedSpot && wasteland && !sceneSpot && !nav && (
             <LocationCard waiting={waitingLine(account.waiting.get(selectedSpot.id))}
               spot={selectedSpot} from={tracking ? fix : null} wasteland={wasteland} here={selectedSpot.id === hereId} visited={shownVisited.has(selectedSpot.id)} cleared={account.cleared.has(selectedSpot.id)} unlocked={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || !!freeRenderFor(selectedSpot.id)} enemies={selectedSpot.kind === 'vault' ? undefined : (() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); return place ? enemiesLine(place) : undefined; })()} onRename={selectedSpot.personal?.saved && !selectedSpot.personal.atlas && !selectedSpot.personal.home ? (name) => void renameSpot(selectedSpot, name) : undefined}
-              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) && shownVisited.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onClear={(() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); const canRaid = !!place && !place.lore && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || !!place.personal) && !place.personal?.home; return canRaid && !account.cleared.has(selectedSpot.id) && (account.unlocked.has(selectedSpot.id) || (!!freeRenderFor(selectedSpot.id) && (freeRenderFor(selectedSpot.id)?.pristine === true || blastsWatched.has(selectedSpot.id) || blastSeen(account.session?.user.id, selectedSpot.id)))) ? () => { sound('select'); clearNow(selectedSpot.id); } : undefined; })()} onWalk={streetViewAllowed && account.session && metroInfo && account.metros.has(metroInfo.id) ? () => { sound('select'); setWalking({ lat: selectedSpot.position.lat, lng: selectedSpot.position.lng }); } : undefined} walkOn={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || selectedSpot.personal?.home === true || selectedSpot.personal?.atlas === true} onClose={() => setSelectedId(null)}
+              traveling={!!travel || !!nav} onTravel={() => void startNavigation(selectedSpot)} onScene={() => { sound('tick'); setSceneStart('scene'); setSceneId(selectedSpot.id); }} onEnter={selectedSpot.personal?.home && account.cleared.has(selectedSpot.id) && shownVisited.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name }); } : vacationIds.has(selectedSpot.id) ? () => { sound('select'); setVaultOpen({ title: selectedSpot.name, key: selectedSpot.id }); } : undefined} onClear={(() => { const place = mapLocations.find((l) => l.id === selectedSpot.id); const canRaid = !!place && !place.lore && (place.id.startsWith('wd:') || place.id.startsWith('famous:') || !!place.personal) && !place.personal?.home; return canRaid && !account.cleared.has(selectedSpot.id) && (account.unlocked.has(selectedSpot.id) || (!!freeRenderFor(selectedSpot.id) && (freeRenderFor(selectedSpot.id)?.pristine === true || blastsWatched.has(selectedSpot.id) || blastSeen(account.session?.user.id, selectedSpot.id)))) ? () => { sound('select'); clearNow(selectedSpot.id); } : undefined; })()} onWalk={streetViewAllowed && account.session && metroInfo && account.metros.has(metroInfo.id) ? () => { sound('select'); setWalking({ lat: selectedSpot.position.lat, lng: selectedSpot.position.lng }); } : undefined} walkOn={account.unlocked.has(selectedSpot.id) || account.cleared.has(selectedSpot.id) || selectedSpot.personal?.home === true} onClose={() => setSelectedId(null)}
             />
           )}
           {sceneSpot && wasteland && (
@@ -1734,7 +1737,7 @@ export default function App() {
           )}
           {walking && <StreetWalk center={walking} radiated={!!wasteland && isIrradiated(walking, wasteland.zones)} places={locations.filter((l) => l.id.startsWith('wd:') && (account.unlocked.has(l.id) || !!freeRenderFor(l.id))).map((l) => ({ id: l.id, lat: l.position.lat, lng: l.position.lng, name: l.name }))} onClose={() => setWalking(null)} />}
           {moving && <div className="rm-moving" role="status"><CogSpinner big /><span>MOVING VAULT FURNITURE…</span></div>}
-          {vacationAsk && vacationOffer && <VacationAsk choice={vacationAsk} offer={vacationOffer} account={account} onClose={() => setVacationAsk(null)} onDone={() => setVacationAsk(null)} />}
+          {vacationAsk && vacationOffer && <VacationAsk choice={vacationAsk} offer={vacationOffer} account={account} onClose={() => setVacationAsk(null)} onDone={() => { const made = vacationAsk; setVacationAsk(null); if (made) setVaultOpen({ title: made.name, key: made.placeId }); }} />}
           {vaultOpen !== null && <VaultHome key={vaultOpen.key ?? 'home'} title={vaultOpen.title} vaultKey={vaultOpen.key} account={account} onExit={() => setVaultOpen(null)} vacation={vaultOpen.key ? undefined : vacationOffer} />}
           {resetOpen && account.session && <ResetVaultNumber email={account.email} onDone={() => { setResetOpen(false); setAccountOpen(true); setToast('NEW VAULT NUMBER SAVED: SIGN IN WITH IT'); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 5000); }} />}
           {accountOpen && !account.session && <AccountModal auto={accountAuto} onClose={() => { setAccountOpen(false); setAccountAuto(false); }} />}

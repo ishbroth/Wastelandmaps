@@ -1081,6 +1081,7 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-app.rm-navigating .rm-crt { opacity: 0.3; }
 .rm-map.rm-nav-rot { position: absolute; inset: auto; width: var(--nav-d); height: var(--nav-d); left: calc(50% - var(--nav-d) / 2); top: calc(50% - var(--nav-d) / 2); transform: translateY(var(--nav-shift, 0)) rotate(var(--nav-rot, 0deg)); transition: transform 0.7s linear; will-change: transform; }
 .rm-map.rm-nav-rot.rm-nav-overview { transform: none; }
+.rm-map.rm-nav-rot.rm-nav-overview .rm-pin-icon, .rm-map.rm-nav-rot.rm-nav-overview .rm-player { rotate: 0deg; }
 .rm-map.rm-nav-rot .rm-pin-icon { rotate: var(--nav-unrot, 0deg); }
 .rm-map.rm-nav-rot .rm-pin-label, .rm-map.rm-nav-rot .rm-region { display: none !important; }
 .rm-map.rm-nav-rot .rm-player { rotate: var(--nav-unrot, 0deg); }
@@ -1315,3 +1316,11 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 
 .rm-toast-link { pointer-events: auto; }
 .rm-toast-link a { color: inherit; text-decoration: underline; text-underline-offset: 4px; }
+
+/* vacation vaults: five rows show at a time, the rest scroll inside the window; a made vault's row has a pencil beside its name */
+.rm-vh-places { max-height: 252px; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
+.rm-vh-sheet.dock .rm-vh-places { max-height: 216px; }
+.rm-vh-vac-row { display: flex; align-items: stretch; gap: 6px; }
+.rm-vh-vac-row > span { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid #13a550; color: #9dffc4; font-size: 20px; letter-spacing: 2px; overflow-wrap: anywhere; }
+.rm-vh-types .rm-vh-vac-row > button.rm-vh-vac-edit { width: 44px; flex: 0 0 44px; justify-content: center; align-items: center; padding: 0; }
+.rm-vh-vac-edit svg { width: 22px; height: 22px; }

@@ -9,6 +9,7 @@
 // Deploy: supabase functions deploy gallery
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
+import { FREE_LANDMARK_SINCE } from '../_shared/freeLandmarks.ts';
 
 const UA = { 'User-Agent': 'WastelandMaps/1.0 (https://wastelandmaps.com; fan project)' };
 
@@ -96,6 +97,9 @@ Deno.serve(async (req) => {
   for (const u of unlocks) {
     if (u.place_id.startsWith('wd:')) {
       if (!ready.has(u.place_id)) continue;
+      // a permanent landmark's picture is free for everyone: unlocked after it became permanent, it is kept here only once the place is discovered; one paid for while it was still an ordinary place stays
+      const since = FREE_LANDMARK_SINCE[u.place_id.slice(3)];
+      if (since && Date.parse(u.created_at) >= Date.parse(since) && !foundBy.has(u.place_id)) continue;
       const f = foundBy.get(u.place_id);
       const pos = f ? { lat: f.lat, lng: f.lng } : positions.get(u.place_id.slice(3));
       items.push({ id: u.place_id, name: f?.name ?? ready.get(u.place_id) ?? 'Unknown place', city: f?.city ?? null, lat: pos?.lat ?? null, lng: pos?.lng ?? null, at: u.created_at, kind: 'place' });

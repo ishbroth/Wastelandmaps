@@ -13,17 +13,11 @@
 // Deploy: supabase functions deploy raid
 
 import { callerId, corsHeaders, reply, serviceClient } from '../_shared/common.ts';
+import { FREE_LANDMARKS as FREE } from '../_shared/freeLandmarks.ts';
 import { VAULT_ZERO_BOSSES, VAULT_ZERO_ID, VAULT_ZERO_LOOT, VAULT_ZERO_RAID_XP, VAULT_ZERO_RAID_XP_ID, rollVaultZeroLoot } from '../_shared/vaultZero.ts';
 
 const LOOT = ['steel', 'wood', 'springs', 'adhesive', 'screws', 'concrete', 'glass', 'circuitry', 'oil', 'gears', 'plastic'];
 const WORTHS = [10, 15, 20, 30, 50, 75];
-/** The landmarks with a permanent snapshot: free for everyone, so no unlock is needed to raid them. */
-const FREE = new Set([
-  'Q243', 'Q9202', 'Q5317', 'Q41225', 'Q45178', 'Q79961', 'Q133274', 'Q2636724', 'Q12495', 'Q134883', 'Q1107297', 'Q4176', 'Q1542408', 'Q9188', 'Q1052042',
-  'Q5853834', 'Q2027162', 'Q44440', 'Q1563940', 'Q180376', 'Q390028', 'Q6506496', 'Q831389', 'Q3177225', 'Q223207', 'Q83063', 'Q39054', 'Q179191', 'Q756452',
-  'Q9141', 'Q183536', 'Q178114', 'Q29294',
-  'Q83101', 'Q189476', 'Q102281065', 'Q494895', 'Q548679', 'Q12506', 'Q214855', 'Q7604504', 'Q470763', 'Q947870', 'Q5715648', 'Q7766239', 'Q20712236', 'Q868874', 'Q722125', 'Q1519373', 'Q685484', 'Q80290', 'Q804210', 'Q27857526', 'Q6062105', 'Q25452628', 'Q206435', 'Q1640197', 'Q310023', 'Q2722966', 'Q169420', 'Q630212', 'Q893204', 'Q271466', 'Q1122206', 'Q48435', 'Q172822', 'Q798416', 'Q2226897', 'Q285467', 'Q2746222', 'Q429371', 'Q4255374',
-]);
 const MAX_RAIDS_PER_HOUR = 30;
 
 /** The least and most pieces a win pays, by the place's worth (the same table as lootRangeFor in src/lib/raid/raid.ts). */

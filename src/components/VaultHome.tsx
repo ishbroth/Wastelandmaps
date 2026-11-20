@@ -26,7 +26,7 @@ const REASONS: Record<string, string> = {
 const SETTLER_SCALE = 0.95;
 
 /** A discovered place far from home that could be turned into a vacation vault. */
-export interface VacationChoice { placeId: string; name: string; icon: string; km: number }
+export interface VacationChoice { placeId: string; name: string; icon: string; km: number; /** When it was discovered (ISO time). */ at: string }
 /** What the home vault needs to offer vacation vaults: the places that qualify, how many are already made, and the way to make one (answers with a message if it did not work). */
 export interface VacationOffer {
   choices: VacationChoice[];
@@ -36,9 +36,11 @@ export interface VacationOffer {
   /** The vacation vaults they have now (one of them can be replaced by a new place when all four are used). */
   mine: { placeId: string; name: string }[];
   unlock: (placeId: string, icon: string, replace?: string) => Promise<string | null>;
+  /** A vacation vault was just made: open it at its entryway. */
+  onBuilt: (placeId: string, name: string) => void;
 }
 
-type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType; /** A stairwell's shape, once chosen. */ shape?: 'straight' | 'u'; /** A stairwell's direction, once chosen. */ dir?: 'up' | 'down'; /** Which side of its cell a stairwell opens onto (which room it joins), once chosen. */ side?: Side } | { kind: 'room'; idx: number; item?: string; pick?: boolean; /** Choosing which instrument to buy (before anything is placed). */ buy?: boolean } | { kind: 'vacation'; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
+type Panel = { kind: 'build'; level: number; col: number; row: number; type?: RoomType; /** A stairwell's shape, once chosen. */ shape?: 'straight' | 'u'; /** A stairwell's direction, once chosen. */ dir?: 'up' | 'down'; /** Which side of its cell a stairwell opens onto (which room it joins), once chosen. */ side?: Side } | { kind: 'room'; idx: number; item?: string; pick?: boolean; /** Choosing which instrument to buy (before anything is placed). */ buy?: boolean } | { kind: 'vacation'; /** Past the list of their vacation vaults, choosing a place. */ choosing?: boolean; /** The vacation vault being given to a different place. */ replace?: string; pick?: VacationChoice } | { kind: 'settler'; id: number; name: string } | { kind: 'demolish'; idx: number } | null;
 
 // ---- the settlers' wandering ----
 
@@ -857,37 +859,58 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                 </div>
               </div>
             )}
-            {panel.kind === 'vacation' && vacation && !panel.pick && (
+            {panel.kind === 'vacation' && vacation && !panel.pick && !panel.choosing && vacation.mine.length > 0 && (
               <div className="rm-vh-sheet-body">
-                <h3>VACATION VAULT</h3>
-                <p>{vacation.count >= MAX_VACATIONS
-                  ? `YOU HAVE ALL ${MAX_VACATIONS} OF YOUR VACATION VAULTS.`
-                  : `PICK A PLACE YOU HAVE DISCOVERED OUTSIDE YOUR HOME METRO AREA. IT BECOMES A VAULT OF ITS OWN, WITH ITS OWN ENTRYWAY. (${vacation.count} OF ${MAX_VACATIONS} MADE)`}</p>
-                {vacation.count < MAX_VACATIONS && (vacation.choices.length === 0
-                  ? <p className="rm-vh-warn">NOTHING YET: DISCOVER PLACES OUTSIDE YOUR HOME METRO AREA, OR UNLOCK AN ADDRESS THERE, THEN COME BACK.</p>
+                <h3>VACATION VAULTS</h3>
+                <p>{vacation.count} OF {MAX_VACATIONS} MADE. THE PENCIL GIVES A VAULT TO A DIFFERENT PLACE: ITS ROOMS AND FURNITURE MOVE WITH IT.</p>
+                <ul className="rm-vh-types rm-vh-places">
+                  {vacation.mine.map((m) => (
+                    <li key={m.placeId} className="rm-vh-vac-row">
+                      <span>{m.name.toUpperCase()}</span>
+                      <button type="button" className="rm-vh-vac-edit" aria-label={`Give ${m.name} to a different place`} title="Give this vault to a different place" onClick={() => setPanel({ kind: 'vacation', choosing: true, replace: m.placeId })}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" /></svg>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="rm-vh-row">
+                  <button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel(null)}>CLOSE</button>
+                  <button type="button" className="rm-btn" disabled={vacation.count >= MAX_VACATIONS} title={vacation.count >= MAX_VACATIONS ? 'You have all four: use the pencil to give one to a new place' : undefined} onClick={() => setPanel({ kind: 'vacation', choosing: true })}>NEW VACATION VAULT</button>
+                </div>
+              </div>
+            )}
+            {panel.kind === 'vacation' && vacation && !panel.pick && (panel.choosing || vacation.mine.length === 0) && (
+              <div className="rm-vh-sheet-body">
+                <h3>{panel.replace ? 'GIVE IT TO WHICH PLACE?' : 'NEW VACATION VAULT'}</h3>
+                <p>{panel.replace
+                  ? `PICK THE PLACE THAT TAKES OVER ${(vacation.mine.find((m) => m.placeId === panel.replace)?.name ?? 'THIS VAULT').toUpperCase()}: ITS ROOMS AND FURNITURE MOVE WITH IT.`
+                  : `PICK A PLACE YOU HAVE DISCOVERED AND CLEARED OUTSIDE YOUR HOME METRO AREA, NEWEST FIRST. IT BECOMES A VAULT OF ITS OWN, WITH ITS OWN ENTRYWAY. (${vacation.count} OF ${MAX_VACATIONS} MADE)`}</p>
+                {vacation.choices.length === 0
+                  ? <p className="rm-vh-warn">NOTHING YET: DISCOVER AND CLEAR PLACES OUTSIDE YOUR HOME METRO AREA, OR UNLOCK AN ADDRESS THERE, THEN COME BACK.</p>
                   : (
                     <ul className="rm-vh-types rm-vh-places">
                       {vacation.choices.map((c) => (
-                        <li key={c.placeId}><button type="button" onClick={() => setPanel({ kind: 'vacation', pick: c })}><span>{c.name.toUpperCase()}</span><i>{Math.round(c.km).toLocaleString()} KM AWAY</i></button></li>
+                        <li key={c.placeId}><button type="button" onClick={() => setPanel({ kind: 'vacation', choosing: true, replace: panel.replace, pick: c })}><span>{c.name.toUpperCase()}</span><i>{Math.round(c.km).toLocaleString()} KM AWAY</i></button></li>
                       ))}
                     </ul>
-                  ))}
-                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel(null)}>CLOSE</button></div>
+                  )}
+                <div className="rm-vh-row"><button type="button" className="rm-btn rm-btn-ghost" onClick={() => setPanel(vacation.mine.length > 0 ? { kind: 'vacation' } : null)}>{vacation.mine.length > 0 ? 'BACK' : 'CLOSE'}</button></div>
               </div>
             )}
             {panel.kind === 'vacation' && vacation && panel.pick && (
               <RecipeCard
                 verb="UNLOCK" what={panel.pick.name.toUpperCase()} title={`TURN ${panel.pick.name.toUpperCase()} INTO A VAULT`} recipe={vacationRecipe(vault, panel.pick.placeId)} have={ownLoot} busy={busy}
-                onBack={() => setPanel({ kind: 'vacation' })}
+                onBack={() => setPanel({ kind: 'vacation', choosing: true, replace: panel.replace })}
                 onPay={async () => {
                   const pick = panel.pick as VacationChoice;
                   setBusy(true);
-                  const problem = await vacation.unlock(pick.placeId, pick.icon);
+                  const problem = await vacation.unlock(pick.placeId, pick.icon, panel.replace);
                   setBusy(false);
                   void account.refresh();
                   if (problem) { setError(problem); return; }
+                  // every popup goes away and the new, blank vault opens at its entryway
                   setPanel(null);
-                  say(`${pick.name} IS NOW YOUR VACATION VAULT: FIND IT ON THE MAP`);
+                  vacation.onBuilt(pick.placeId, pick.name);
                 }}
               />
             )}
