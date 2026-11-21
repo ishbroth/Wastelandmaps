@@ -180,7 +180,11 @@ export function useAccount(): Account {
       setClearedByMetro(byMetro);
     });
     void db().from('personal_places').select('place_id,name,address,lat,lng,kind').eq('user_id', s.user.id).order('created_at').then((r) => setPersonal(((r.data ?? []) as { place_id: string; name: string; address: string; lat: number; lng: number; kind: PersonalPlace['kind'] }[]).map((x) => ({ placeId: x.place_id, name: x.name, address: x.address, lat: x.lat, lng: x.lng, kind: x.kind }))));
-    void db().from('user_home').select('place_id,name,address,lat,lng,skipped,vault_number,preplotted_id,home_metro,home_icon').eq('user_id', s.user.id).maybeSingle().then((r) => {
+    const readHome = () => db().from('user_home').select('place_id,name,address,lat,lng,skipped,vault_number,preplotted_id,home_metro,home_icon').eq('user_id', s.user.id).maybeSingle();
+    void readHome().then(async (first) => {
+      // no home row the first moment after signing in is looked for once more before the person is asked for their address (a brand new sign-in can be answered before it is ready)
+      let r = first;
+      if (!r.error && !r.data) { await new Promise((res) => setTimeout(res, 1800)); r = await readHome(); }
       // if the table is not there yet, do not nag about it
       if (r.error) setHome({ skipped: true });
       else setHome(r.data ? { placeId: r.data.place_id ?? undefined, name: r.data.name ?? undefined, address: r.data.address ?? undefined, lat: r.data.lat ?? undefined, lng: r.data.lng ?? undefined, skipped: !!r.data.skipped, vaultNumber: r.data.vault_number ?? undefined, preplottedId: r.data.preplotted_id ?? undefined, metro: r.data.home_metro ?? undefined, icon: r.data.home_icon ?? undefined } : null);

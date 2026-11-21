@@ -127,7 +127,8 @@ function minZoomFor(loc: Location, selectedId: string | null): number {
   // below, long before the places around them (those go at 8 to 11), unless one is the place picked or your home. (Vault 0 is not one of these: see below.)
   if (loc.vault && !loc.personal?.home && loc.id !== selectedId) return 11;
   if (loc.id === VAULT_ZERO_ID) return 3; // always there at the bottom of the world, from the first zoom steps
-  if (loc.personal?.home || freeRenderFor(loc.id) || loc.id === selectedId || (loc.personal && !loc.personal.saved)) return 0;
+  // (a vacation vault is shown just as the home vault is: from the first zoom steps, in the same large size)
+  if (loc.personal?.home || String(loc.icon).startsWith('vacation:') || freeRenderFor(loc.id) || loc.id === selectedId || (loc.personal && !loc.personal.saved)) return 0;
   if (loc.personal) return 12; // the small personal address icons: nine zoom levels back from the closest
   if (loc.famous) return 6;
   const pts = pointsFor(loc);
@@ -453,7 +454,7 @@ export default function MapView({ onLongPress, onLocate, locateDisabled, look, r
     for (const loc of inView) {
       if (pins.current.has(loc.id)) continue;
       const free = freeRenderFor(loc.id); // the always-free landmarks: drawn as themselves, and a little larger
-      const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free || String(loc.icon).startsWith('vacation:') ? 'rm-pin-landmark' : loc.famous ? 'rm-pin-famous' : '', loc.personal?.home ? 'rm-pin-landmark' : loc.personal ? 'rm-pin-personal' : '', loc.personal && !loc.personal.saved ? 'rm-pin-target' : ''].filter(Boolean).join(' '));
+      const el = pinElement(loc.category, (free && landmarkIcon(loc.id.slice(3))) || placeIcon(loc.icon), loc.name, subtitle(loc), [loc.vault ? 'rm-pin-vaultentrance' : '', free || String(loc.icon).startsWith('vacation:') ? 'rm-pin-landmark' : loc.famous ? 'rm-pin-famous' : '', loc.personal?.home || String(loc.icon).startsWith('vacation:') ? 'rm-pin-landmark' : loc.personal ? 'rm-pin-personal' : '', loc.personal && !loc.personal.saved ? 'rm-pin-target' : ''].filter(Boolean).join(' '));
       el.classList.toggle('rm-pin-visited', visitedRef.current.has(loc.id));
       markCleared(el, clearedRef.current.has(loc.id), waitingLine(waitingRef.current?.get(loc.id)).toLowerCase());
       const brandNew = !everShown.current.has(loc.id);

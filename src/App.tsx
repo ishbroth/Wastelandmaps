@@ -258,7 +258,7 @@ export default function App() {
       const km = distanceMeters(home, { lat, lng }) / 1000;
       if (km < 80) return;
       seen.add(placeId);
-      choices.push({ placeId, name, icon, km, at });
+      choices.push({ placeId, name, icon, km, at, metro: found.find((f) => f.id === placeId)?.metroId ?? undefined });
     };
     for (const f of found) add(f.id, f.name, f.lat, f.lng, mapLocations.find((l) => l.id === f.id)?.icon ?? 'monument', f.foundAt);
     // an address typed in whose snapshot has been unlocked
@@ -266,8 +266,12 @@ export default function App() {
     for (const p of account.personal) if (account.unlocked.has(`me:${p.placeId}`) && found.some((f) => f.id === `me:${p.placeId}`)) add(`me:${p.placeId}`, p.name, p.lat, p.lng, mapLocations.find((l) => l.id === `me:${p.placeId}`)?.icon ?? 'house', found.find((f) => f.id === `me:${p.placeId}`)?.foundAt ?? '');
     // the most recently discovered first
     choices.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+    // no home vault or vacation vault shares a metro with another: a place in the home's metro, or in the metro of a vacation vault they already have (other than the one being given a new place), is not offered
+    const metroOfVault = (placeId: string) => found.find((f) => f.id === placeId)?.metroId ?? null;
+    const choicesFor = (replace?: string) => choices.filter((c) => !c.metro || (c.metro !== h.metro && !account.vacations.some((v) => v.placeId !== replace && metroOfVault(v.placeId) === c.metro)));
     return {
-      choices,
+      choices: choicesFor(),
+      choicesFor,
       count: account.vacations.length,
       ready: account.homeRooms >= ROOMS_FOR_VACATION,
       mine: account.vacations.map((v) => ({ placeId: v.placeId, name: v.name })),
@@ -276,7 +280,7 @@ export default function App() {
         const r = await vacationUnlock(placeId, icon, replace);
         if (r.ok) { await account.refresh(); return null; }
         const says: Record<string, string> = {
-          loot: 'NOT ENOUGH LOOT', not_cleared: 'CLEAR THAT PLACE FIRST', not_yours: 'THAT VACATION VAULT IS NOT YOURS TO REPLACE', full: 'YOU ALREADY HAVE ALL FOUR VACATION VAULTS', too_close: 'THAT PLACE IS INSIDE YOUR HOME METRO AREA', too_few_rooms: 'BUILD TWELVE ROOMS FIRST',
+          loot: 'NOT ENOUGH LOOT', not_cleared: 'CLEAR THAT PLACE FIRST', not_yours: 'THAT VACATION VAULT IS NOT YOURS TO REPLACE', full: 'YOU ALREADY HAVE ALL FOUR VACATION VAULTS', too_close: 'THAT PLACE IS INSIDE YOUR HOME METRO AREA', metro_taken: 'YOU ALREADY HAVE A VAULT IN THAT METRO AREA', too_few_rooms: 'BUILD TWELVE ROOMS FIRST',
           no_picture: 'NO PICTURE OF THAT PLACE COULD BE FOUND: PICK ANOTHER. NOTHING WAS TAKEN', failed: 'THE PICTURE COULD NOT BE MADE. NOTHING WAS TAKEN: TRY AGAIN',
           working: 'IT IS BEING MADE: TRY AGAIN IN A MINUTE', busy: 'THE VAULT PROJECTOR IS DOWN FOR NOW. NOTHING WAS TAKEN',
         };
@@ -972,13 +976,14 @@ export default function App() {
 
   // A popup opens on the map (a place's card or its scene, the home prompt, the sign-in or vault-number windows, a vacation vault question): whatever tab it was started from, held upright
   // the map is above the tabs, so if it has been scrolled out of view, the screen goes back up to it. Sideways the map is beside the Terminal and nothing moves.
-  const popupKey = `${selectedId ?? ''}|${sceneId ?? ''}|${homeOpen ? 'home' : ''}|${resetOpen ? 'reset' : ''}|${vacationAsk ? 'vacation' : ''}|${accountOpen && !account.session ? 'account' : ''}`;
+  const popupKey = `${selectedId ?? ''}|${sceneId ?? ''}|${homeOpen ? 'home' : ''}|${resetOpen ? 'reset' : ''}|${vacationAsk ? 'vacation' : ''}|${accountOpen && !account.session ? 'account' : ''}|${vaultOpen !== null ? `vault${vaultOpen.key ?? ''}` : ''}|${account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped ? 'homefirst' : ''}`;
   useEffect(() => {
-    if (popupKey === '|||||' || !window.matchMedia('(orientation: portrait)').matches) return;
+    if (!popupKey.replace(/\|/g, '') || !window.matchMedia('(orientation: portrait)').matches) return;
     const screen = document.querySelector('.rm-screen');
     if (!screen) return;
     const r = screen.getBoundingClientRect();
-    if (r.top < -20 || r.bottom < window.innerHeight * 0.5) screen.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // wherever the page was scrolled to (the map half out of sight above, or below it), the map comes back to the top of the screen, so the popup is in view
+    if (Math.abs(r.top) > 12) screen.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [popupKey]);
 
   const shareMap = useCallback(async () => {

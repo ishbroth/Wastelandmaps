@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
 
   // the home vault: twelve rooms or more, and where home is
   const [{ data: home }, { data: hv }] = await Promise.all([
-    db.from('user_home').select('place_id,vault_number,lat,lng').eq('user_id', user).maybeSingle(),
+    db.from('user_home').select('place_id,vault_number,lat,lng,home_metro').eq('user_id', user).maybeSingle(),
     db.from('home_vault').select('state').eq('user_id', user).eq('vault_key', 'home').maybeSingle(),
   ]);
   if (!home || home.vault_number === null || home.vault_number === undefined || !hv?.state) return reply(req, { error: 'no_home' }, 400);
@@ -160,6 +160,18 @@ Deno.serve(async (req) => {
   if (replace) {
     const { data: old } = await db.from('vacation_vault').select('place_id').eq('user_id', user).eq('place_id', replace).eq('status', 'ready').maybeSingle();
     if (!old) return reply(req, { error: 'not_yours' }, 403);
+  }
+  // no home vault or vacation vault shares a metro with another (the one being replaced gives its metro up)
+  const { data: here } = await db.from('found_places').select('metro_id').eq('user_id', user).eq('place_id', placeId).maybeSingle();
+  const metro = (here?.metro_id as string | null | undefined) ?? null;
+  if (metro) {
+    if (home.home_metro === metro) return reply(req, { error: 'metro_taken' }, 403);
+    const { data: mine } = await db.from('vacation_vault').select('place_id').eq('user_id', user).in('status', ['ready', 'generating']);
+    const others = (mine ?? []).map((v) => v.place_id as string).filter((p) => p !== placeId && p !== replace);
+    if (others.length > 0) {
+      const { data: taken } = await db.from('found_places').select('place_id').eq('user_id', user).eq('metro_id', metro).in('place_id', others).limit(1);
+      if (taken && taken.length > 0) return reply(req, { error: 'metro_taken' }, 403);
+    }
   }
   const recipe = vacationRecipe(homeVault, placeId);
   // the loot is checked now (and taken at the end, once the picture exists)

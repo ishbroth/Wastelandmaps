@@ -1324,3 +1324,16 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-vh-vac-row > span { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid #13a550; color: #9dffc4; font-size: 20px; letter-spacing: 2px; overflow-wrap: anywhere; }
 .rm-vh-types .rm-vh-vac-row > button.rm-vh-vac-edit { width: 44px; flex: 0 0 44px; justify-content: center; align-items: center; padding: 0; }
 .rm-vh-vac-edit svg { width: 22px; height: 22px; }
+
+/* the edit-account box: everything stays inside it, in smaller type */
+.rm-acct-edit { box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden; padding: 8px; gap: 5px; }
+.rm-acct-edit > *, .rm-acct-edit .rm-edit-row > * { min-width: 0; }
+.rm-acct-edit label { font-size: 11px; letter-spacing: 1.5px; margin-top: 2px; }
+.rm-acct-edit input { box-sizing: border-box; width: 100%; max-width: 100%; font-size: 16px; padding: 7px 9px; letter-spacing: 0.5px; }
+.rm-acct-edit .rm-edit-row { flex-wrap: wrap; gap: 6px; }
+.rm-acct-edit .rm-edit-row input { flex: 1 1 140px; width: auto; }
+.rm-acct-edit .rm-btn { font-size: 14px; padding: 6px 10px; letter-spacing: 1px; }
+.rm-acct-edit .rm-edit-address-text { font-size: 15px; line-height: 1.25; flex: 1 1 140px; overflow-wrap: anywhere; }
+.rm-acct-edit .rm-fine { font-size: 10px; line-height: 1.4; margin: 0; overflow-wrap: anywhere; }
+.rm-acct-edit .rm-account-note { font-size: 12px; overflow-wrap: anywhere; }
+.rm-acct-edit .rm-row-buttons { margin-bottom: 0; }

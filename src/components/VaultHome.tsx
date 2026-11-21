@@ -26,10 +26,12 @@ const REASONS: Record<string, string> = {
 const SETTLER_SCALE = 0.95;
 
 /** A discovered place far from home that could be turned into a vacation vault. */
-export interface VacationChoice { placeId: string; name: string; icon: string; km: number; /** When it was discovered (ISO time). */ at: string }
+export interface VacationChoice { placeId: string; name: string; icon: string; km: number; /** The metro it is in, when known. */ metro?: string; /** When it was discovered (ISO time). */ at: string }
 /** What the home vault needs to offer vacation vaults: the places that qualify, how many are already made, and the way to make one (answers with a message if it did not work). */
 export interface VacationOffer {
   choices: VacationChoice[];
+  /** The places that can take over the vacation vault `replace` (or make a new one): none shares a metro with the home or another vacation vault. */
+  choicesFor: (replace?: string) => VacationChoice[];
   count: number;
   /** Twelve rooms are built, so vacation vaults can be made. */
   ready: boolean;
@@ -885,11 +887,11 @@ export default function VaultHome({ title, account, onExit, vaultKey, vacation }
                 <p>{panel.replace
                   ? `PICK THE PLACE THAT TAKES OVER ${(vacation.mine.find((m) => m.placeId === panel.replace)?.name ?? 'THIS VAULT').toUpperCase()}: ITS ROOMS AND FURNITURE MOVE WITH IT.`
                   : `PICK A PLACE YOU HAVE DISCOVERED AND CLEARED OUTSIDE YOUR HOME METRO AREA, NEWEST FIRST. IT BECOMES A VAULT OF ITS OWN, WITH ITS OWN ENTRYWAY. (${vacation.count} OF ${MAX_VACATIONS} MADE)`}</p>
-                {vacation.choices.length === 0
+                {vacation.choicesFor(panel.replace).length === 0
                   ? <p className="rm-vh-warn">NOTHING YET: DISCOVER AND CLEAR PLACES OUTSIDE YOUR HOME METRO AREA, OR UNLOCK AN ADDRESS THERE, THEN COME BACK.</p>
                   : (
                     <ul className="rm-vh-types rm-vh-places">
-                      {vacation.choices.map((c) => (
+                      {vacation.choicesFor(panel.replace).map((c) => (
                         <li key={c.placeId}><button type="button" onClick={() => setPanel({ kind: 'vacation', choosing: true, replace: panel.replace, pick: c })}><span>{c.name.toUpperCase()}</span><i>{Math.round(c.km).toLocaleString()} KM AWAY</i></button></li>
                       ))}
                     </ul>
