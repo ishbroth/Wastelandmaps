@@ -68,8 +68,17 @@ export function sceneScale(spot: { id: string; icon: string; personal?: { kind?:
   return 1.2;
 }
 
+/** About how tall the building in a place's picture is in real life (metres), for working out how big a person at its foot looks. */
+const TALL_ICONS: Record<string, number> = { skyscraper: 150, tower: 90, radiotower: 90, castle: 30, capitol: 45, stadium: 45, bridge: 30, cathedral: 45, mosque: 35, temple: 25, museum: 20, clocktower: 50, lighthouse: 35, observatory: 20, monument: 40, column: 40, statue: 30, arch: 30, opera: 40, cluster: 80 };
+export function buildingHeightM(spot: { id: string; icon: string; personal?: { kind?: string; home?: boolean } }): number {
+  if (spot.personal) return spot.personal.home || spot.personal.kind === 'house' ? 8 : spot.personal.kind === 'park' ? 15 : 22;
+  if (spot.icon in TALL_ICONS) return TALL_ICONS[spot.icon];
+  if (NEAR_ICONS.has(spot.icon)) return 8;
+  return 20;
+}
+
 /** Where the enemies come from in a place's picture, and how big they start. */
-export const spawnsForSpot = (spot: { id: string; icon: string; personal?: { kind?: string; home?: boolean } }, fromRender?: Spawns | null): Spawns => ({ ...spawnsFor(spot.id, fromRender), scale: sceneScale(spot) });
+export const spawnsForSpot = (spot: { id: string; icon: string; personal?: { kind?: string; home?: boolean } }, fromRender?: Spawns | null): Spawns => ({ ...spawnsFor(spot.id, fromRender), scale: sceneScale(spot), buildingM: buildingHeightM(spot) });
 
 /** Were the spots for this place made by hand (the permanent landmarks, Vault 0)? Those are kept as they are; every other place has its picture looked at. */
 export const spawnsAreMarked = (placeId: string): boolean => placeId === VAULT_ZERO_ID || (placeId.startsWith('wd:') && !!LANDMARK_SPAWNS[placeId.slice(3)]);

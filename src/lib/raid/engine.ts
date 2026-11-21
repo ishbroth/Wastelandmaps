@@ -14,6 +14,10 @@ export interface Spawns {
   points: { u: number; v: number }[];
   /** How big enemies look when they start, against the usual (1): a picture taken from far away (a big landmark) makes them small, a close one (a house) bigger. */
   scale?: number;
+  /** About how tall the place's building is in real life (metres): with how tall it looks in the picture, it says how big a person at its foot looks. */
+  buildingM?: number;
+  /** How big a person looks in this picture: with their feet at row v they are h tall (picture heights); nearer the camera is bigger, and nothing at the horizon. */
+  person?: { v: number; h: number };
   /** Spots high on a building or a ruin (an enemy starting here climbs down), and spots at the edges of the picture on the ground (it walks in from the side). Only pictures that were looked at have them. */
   high?: { u: number; v: number }[];
   edges?: { u: number; v: number }[];
@@ -327,8 +331,9 @@ export class Game {
       airborne = true;
     }
     if (!type.flying && !boss) {
-      if (roll < 0.2 && this.spawns.high?.length) { entry = 'climb'; point = this.spawns.high[Math.floor(this.random() * this.spawns.high.length)]; }
-      else if (roll < 0.4 && this.spawns.edges?.length) { entry = 'side'; point = this.spawns.edges[Math.floor(this.random() * this.spawns.edges.length)]; }
+      // (most come up out of the ground level; a picture whose perspective was worked out keeps climbers rare, as they would stand in the air)
+      if (roll < (this.spawns.person ? 0.04 : 0.2) && this.spawns.high?.length) { entry = 'climb'; point = this.spawns.high[Math.floor(this.random() * this.spawns.high.length)]; }
+      else if (roll < (this.spawns.person ? 0.2 : 0.4) && this.spawns.edges?.length) { entry = 'side'; point = this.spawns.edges[Math.floor(this.random() * this.spawns.edges.length)]; }
     }
     const v0 = entry === 'climb' || airborne ? point.v : Math.max(this.spawns.horizon + 0.02, point.v);
     // the farther away it starts (the smaller it looks), the more steps it takes to arrive: eight at the farthest, six at the nearest (a climb or a walk in from the side takes a few more)
@@ -392,7 +397,10 @@ export class Game {
   heightOf(e: Enemy): number {
     // The size at the start follows the picture (scale) and is not so very different between a small creature and a big one: they are all far away. Only the strike is big.
     const scale = this.spawns.scale ?? 1;
-    const start = Math.max(0.035 * Math.max(1, scale * 0.7), PERSON_HEIGHT * this.depthAt(e.v0) * scale * Math.pow(e.type.size, 0.55));
+    const pr = this.spawns.person;
+    // a picture whose perspective was worked out: a person standing with their feet at row v is h * (v - horizon) / (vRef - horizon) tall, the same for everything on the ground
+    const seen = pr ? Math.max(0.016, pr.h * Math.max(0, (e.entry === 'climb' || e.type.flying ? Math.max(e.v0, this.spawns.horizon + 0.15) : e.v0) - this.spawns.horizon) / Math.max(0.05, pr.v - this.spawns.horizon)) * Math.pow(e.type.size, 0.55) : 0;
+    const start = pr ? seen : Math.max(0.035 * Math.max(1, scale * 0.7), PERSON_HEIGHT * this.depthAt(e.v0) * scale * Math.pow(e.type.size, 0.55));
     const end = Math.max(start, strikeHeight(e.type.size));
     return start * Math.pow(end / start, Math.min(1.08, Math.max(0, e.p))) * this.attackScale(e);
   }

@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { faceIdName, onFaceIdOffer, saveFaceId, savedFaceIds } from '../lib/faceid';
 
 /** After a sign-in with a password, in the app: "Use Face ID next time?" (only if the phone has it and this account is not saved already). */
 export default function FaceIdOffer() {
   const [offer, setOffer] = useState<{ email: string; password: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // asked once per account per visit to the app: a second sign-in event right behind the first (or a "not now") must not bring the question back at once
+  const asked = useRef(new Set<string>());
   useEffect(() => onFaceIdOffer((o) => {
-    if (savedFaceIds().includes(o.email.trim().toLowerCase())) return;
+    const who = o.email.trim().toLowerCase();
+    if (savedFaceIds().includes(who) || asked.current.has(who)) return;
+    asked.current.add(who);
     void faceIdName().then((name) => { if (name) setOffer({ ...o, name }); });
   }), []);
   if (!offer) return null;
