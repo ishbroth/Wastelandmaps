@@ -8,6 +8,19 @@ export const hasMapsKey = (): boolean => !!KEY && KEY.trim().length > 10;
 
 let loading: Promise<void> | null = null;
 
+/** A soft daily limit on map loads for this device (each load is billed by Google). Clearing the browser's storage gets round it: it is a courtesy limit, not a lock. */
+const DAILY_LOADS = 50;
+function overDailyLimit(): boolean {
+  try {
+    const day = new Date().toLocaleDateString('en-CA');
+    const [d, n] = (localStorage.getItem('wm-map-loads') ?? '').split(':');
+    const count = d === day ? Number(n) || 0 : 0;
+    if (count >= DAILY_LOADS) return true;
+    localStorage.setItem('wm-map-loads', day + ':' + (count + 1));
+  } catch { /* storage blocked: no limit */ }
+  return false;
+}
+
 /** Loads the Maps script and the libraries we use. Rejects with a readable message if the key is missing or Google refuses it. */
 export function loadGoogle(): Promise<void> {
   if (loading) return loading;
@@ -16,6 +29,7 @@ export function loadGoogle(): Promise<void> {
       reject(new Error('NO KEY'));
       return;
     }
+    if (overDailyLimit()) { reject(new Error('MAP OVERLOAD: DAILY LIMIT REACHED!')); return; }
     const w = window as unknown as Record<string, unknown>;
     // Google calls this when the key is rejected (wrong key, API not enabled, address not allowed)
     w.gm_authFailure = () => reject(new Error('KEY REJECTED'));

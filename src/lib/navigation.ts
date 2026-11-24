@@ -109,8 +109,21 @@ async function viaOsrm(from: LatLng, to: LatLng, walking = false): Promise<NavRo
 }
 
 /** A driving route from here to there: Google's routing if it is switched on, otherwise the open one. 'no_route': not reachable by road; 'unavailable': neither could be asked. */
+/** A soft daily limit on Google route requests for this device (each is billed): past it the free open router is used instead. Clearing the browser's storage gets round it. */
+const DAILY_ROUTES = 50;
+function overDailyRoutes(): boolean {
+  try {
+    const day = new Date().toLocaleDateString('en-CA');
+    const [d, c] = (localStorage.getItem('wm-route-asks') ?? '').split(':');
+    const count = d === day ? Number(c) || 0 : 0;
+    if (count >= DAILY_ROUTES) return true;
+    localStorage.setItem('wm-route-asks', day + ':' + (count + 1));
+  } catch { /* storage blocked: no limit */ }
+  return false;
+}
+
 export async function requestRoute(from: LatLng, to: LatLng, walking = false): Promise<RouteAnswer> {
-  const first = await viaGoogle(from, to, walking);
+  const first = overDailyRoutes() ? null : await viaGoogle(from, to, walking);
   if (first === 'none') return { kind: 'no_route' };
   if (first) return { kind: 'route', route: first };
   const second = await viaOsrm(from, to, walking);

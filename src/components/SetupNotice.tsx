@@ -1,6 +1,7 @@
 /** Shown instead of the map until Google answers: no key yet, or Google refused it. */
 export default function SetupNotice({ problem }: { problem: string }) {
   const noKey = problem === 'NO KEY';
+  if (problem.startsWith('MAP OVERLOAD')) return <div className="rm-setup"><h2>{problem}</h2><p>This device has opened the map a lot today. Come back tomorrow.</p></div>;
   return (
     <div className="rm-setup">
       <h2>{noKey ? 'TERMINAL OFFLINE: NO MAP KEY' : `TERMINAL ERROR: ${problem}`}</h2>
