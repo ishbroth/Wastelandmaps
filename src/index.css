@@ -517,7 +517,7 @@ html[data-look='parchment'] .rm-locked b { text-shadow: none; color: var(--ink);
 .rm-tab-loot { background: transparent; color: var(--ink); border: 1px solid var(--ink); padding: 7px 10px; font-family: var(--font-display); font-size: 26px; letter-spacing: 2px; cursor: pointer; animation: rm-loot-pulse 1.6s ease-in-out infinite; }
 .rm-tab-loot:hover { background: var(--ink); color: var(--on-ink); }
 @keyframes rm-loot-pulse { 0%, 100% { box-shadow: 0 0 0 var(--glow); } 50% { box-shadow: 0 0 12px var(--glow); } }
-.rm-raid { position: fixed; inset: 0; height: 100vh; height: 100dvh; z-index: 200; background: #000; color: #e8e0c8; user-select: none; -webkit-user-select: none; font-family: var(--font-display); letter-spacing: 2px; }
+.rm-raid { position: fixed; inset: env(safe-area-inset-top) 0 0 0; height: calc(100vh - env(safe-area-inset-top)); height: calc(100dvh - env(safe-area-inset-top)); z-index: 200; background: #000; color: #e8e0c8; user-select: none; -webkit-user-select: none; font-family: var(--font-display); letter-spacing: 2px; }
 .rm-raid-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; display: block; }
 .rm-raid-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; padding: 18px 26px; background: rgba(0, 0, 0, 0.82); border: 2px solid #c9b87a; max-width: calc(100% - 30px); }
 .rm-raid-center h2 { margin: 0 0 8px; font-weight: 400; font-size: 44px; letter-spacing: 6px; color: #e8d58a; }
@@ -625,7 +625,7 @@ html[data-look='parchment'] .rm-locked b { text-shadow: none; color: var(--ink);
 .rm-app.rm-navigating { padding: 0; max-width: none; }
 .rm-app.rm-navigating .rm-head, .rm-app.rm-navigating .rm-foot, .rm-app.rm-navigating .rm-side { display: none; }
 .rm-app.rm-navigating .rm-device { grid-template-columns: minmax(0, 1fr); padding: 0; border: none; border-radius: 0; box-shadow: none; gap: 0; }
-.rm-app.rm-navigating .rm-screen { position: fixed; inset: 0; z-index: 30; height: 100vh; height: 100dvh; min-height: 0; border: none; border-radius: 0; }
+.rm-app.rm-navigating .rm-screen { position: fixed; inset: env(safe-area-inset-top) 0 0 0; z-index: 30; height: calc(100vh - env(safe-area-inset-top)); height: calc(100dvh - env(safe-area-inset-top)); min-height: 0; border: none; border-radius: 0; }
 .rm-app.rm-navigating .rm-pin, .rm-app.rm-navigating .rm-region, .rm-app.rm-navigating .rm-poster-share, .rm-app.rm-navigating .rm-me { pointer-events: none; }
 .rm-app.rm-navigating .rm-poster-title { display: none; }
 
@@ -720,7 +720,7 @@ html[data-look='parchment'] .rm-locked b { text-shadow: none; color: var(--ink);
 
 /* tap the finished picture: it fills the screen, fitted to whichever way the phone is held */
 .rm-tap-big { cursor: zoom-in; }
-.rm-lightbox { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: #000; cursor: zoom-out; }
+.rm-lightbox { position: fixed; inset: env(safe-area-inset-top) 0 0 0; z-index: 60; display: grid; place-items: center; background: #000; cursor: zoom-out; }
 .rm-lightbox img { max-width: 100vw; max-height: 100vh; max-height: 100dvh; width: auto; height: auto; object-fit: contain; }
 .rm-lightbox-x { position: absolute; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); width: 44px; height: 44px; font-size: 30px; line-height: 1; color: var(--ink); background: var(--panel); border: 2px solid var(--ink); border-radius: 50%; cursor: pointer; }
 /* turning the phone must not leave the page enlarged (iOS grows the text of a page turned sideways) */
@@ -750,7 +750,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 @media (max-width: 400px) { .rm-modal-tabs { gap: 4px; } .rm-modal-tabs button { padding: 7px 4px; font-size: 22px; letter-spacing: 1px; } }
 
 /* ---- the home vault you can enter (VaultHome.tsx): green-screen, whatever look the rest of the map has ---- */
-.rm-vh { position: fixed; inset: 0; height: 100vh; height: 100dvh; z-index: 220; display: flex; flex-direction: column; background: #021a0c; color: #3dff8a; font-family: var(--font-display); letter-spacing: 2px; user-select: none; -webkit-user-select: none; }
+.rm-vh { position: fixed; inset: env(safe-area-inset-top) 0 0 0; height: calc(100vh - env(safe-area-inset-top)); height: calc(100dvh - env(safe-area-inset-top)); z-index: 220; display: flex; flex-direction: column; background: #021a0c; color: #3dff8a; font-family: var(--font-display); letter-spacing: 2px; user-select: none; -webkit-user-select: none; }
 .rm-vh-scan { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0) 2px, rgba(0, 0, 0, 0.22) 3px); box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.7); }
 .rm-vh-top { display: flex; align-items: center; gap: 14px; padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left)); border-bottom: 1px solid #13a550; }
 .rm-vh-top b { font-weight: 400; font-size: 28px; text-shadow: 0 0 10px rgba(61, 255, 138, 0.6); }
@@ -1128,7 +1128,7 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-flashnote { animation: rm-vh-blink 0.7s steps(2) 6; }
 
 /* our own street view */
-.rm-sw { position: fixed; inset: 0; z-index: 210; background: #000; color: #e8d58a; font-family: var(--font-display); letter-spacing: 2px; user-select: none; touch-action: none; }
+.rm-sw { position: fixed; inset: env(safe-area-inset-top) 0 0 0; z-index: 210; background: #000; color: #e8d58a; font-family: var(--font-display); letter-spacing: 2px; user-select: none; touch-action: none; }
 .rm-sw-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .rm-sw-top { position: absolute; left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); top: max(10px, env(safe-area-inset-top)); display: flex; align-items: center; justify-content: space-between; }
 .rm-sw-top b { font-weight: 400; font-size: 22px; text-shadow: 0 1px 4px #000; }
@@ -1337,3 +1337,6 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 .rm-acct-edit .rm-fine { font-size: 10px; line-height: 1.4; margin: 0; overflow-wrap: anywhere; }
 .rm-acct-edit .rm-account-note { font-size: 12px; overflow-wrap: anywhere; }
 .rm-acct-edit .rm-row-buttons { margin-bottom: 0; }
+
+/* the app never goes up into the phone's status bar */
+.rm-confirm, .rm-moving { padding-top: max(14px, env(safe-area-inset-top)); }
