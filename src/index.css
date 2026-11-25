@@ -1340,3 +1340,6 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 
 /* the app never goes up into the phone's status bar */
 .rm-confirm, .rm-moving { padding-top: max(14px, env(safe-area-inset-top)); }
+
+/* the page scrolls under the phone's status bar: a solid strip of the app's own colour keeps it clear, so nothing ever shows up there */
+body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: #000a04; z-index: 9999; pointer-events: none; }
