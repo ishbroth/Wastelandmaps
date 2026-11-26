@@ -173,6 +173,14 @@ Deno.serve(async (req) => {
       if (taken && taken.length > 0) return reply(req, { error: 'metro_taken' }, 403);
     }
   }
+  // and wherever a metro was not recorded, two of their vaults within 60 km of each other are in the same city
+  {
+    const { data: near } = await db.from('vacation_vault').select('place_id,lat,lng').eq('user_id', user).in('status', ['ready', 'generating']);
+    for (const v of (near ?? []) as { place_id: string; lat: number | null; lng: number | null }[]) {
+      if (v.place_id === placeId || v.place_id === replace || v.lat === null || v.lng === null) continue;
+      if (km({ lat: v.lat, lng: v.lng }, { lat: found.lat, lng: found.lng }) < 60) return reply(req, { error: 'metro_taken' }, 403);
+    }
+  }
   const recipe = vacationRecipe(homeVault, placeId);
   // the loot is checked now (and taken at the end, once the picture exists)
   const { data: loot } = await db.from('player_loot').select('loot,qty').eq('user_id', user);

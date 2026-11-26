@@ -26,7 +26,7 @@ const REASONS: Record<string, string> = {
 const SETTLER_SCALE = 0.95;
 
 /** A discovered place far from home that could be turned into a vacation vault. */
-export interface VacationChoice { placeId: string; name: string; icon: string; km: number; /** The metro it is in, when known. */ metro?: string; /** When it was discovered (ISO time). */ at: string }
+export interface VacationChoice { placeId: string; name: string; icon: string; km: number; /** Where it is. */ lat?: number; lng?: number; /** The metro it is in, when known. */ metro?: string; /** When it was discovered (ISO time). */ at: string }
 /** What the home vault needs to offer vacation vaults: the places that qualify, how many are already made, and the way to make one (answers with a message if it did not work). */
 export interface VacationOffer {
   choices: VacationChoice[];

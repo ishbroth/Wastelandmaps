@@ -258,7 +258,7 @@ export default function App() {
       const km = distanceMeters(home, { lat, lng }) / 1000;
       if (km < 80) return;
       seen.add(placeId);
-      choices.push({ placeId, name, icon, km, at, metro: found.find((f) => f.id === placeId)?.metroId ?? undefined });
+      choices.push({ placeId, name, icon, km, at, lat, lng, metro: found.find((f) => f.id === placeId)?.metroId ?? undefined });
     };
     for (const f of found) add(f.id, f.name, f.lat, f.lng, mapLocations.find((l) => l.id === f.id)?.icon ?? 'monument', f.foundAt);
     // an address typed in whose snapshot has been unlocked
@@ -268,7 +268,8 @@ export default function App() {
     choices.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
     // no home vault or vacation vault shares a metro with another: a place in the home's metro, or in the metro of a vacation vault they already have (other than the one being given a new place), is not offered
     const metroOfVault = (placeId: string) => found.find((f) => f.id === placeId)?.metroId ?? null;
-    const choicesFor = (replace?: string) => choices.filter((c) => !c.metro || (c.metro !== h.metro && !account.vacations.some((v) => v.placeId !== replace && metroOfVault(v.placeId) === c.metro)));
+    // (where a place's metro is not known, two places within 60 km of each other count as the same city)
+    const choicesFor = (replace?: string) => choices.filter((c) => (!c.metro || (c.metro !== h.metro && !account.vacations.some((v) => v.placeId !== replace && metroOfVault(v.placeId) === c.metro))) && !account.vacations.some((v) => v.placeId !== replace && c.lat !== undefined && c.lng !== undefined && distanceMeters({ lat: v.lat, lng: v.lng }, { lat: c.lat, lng: c.lng }) / 1000 < 60));
     return {
       choices: choicesFor(),
       choicesFor,
