@@ -684,7 +684,7 @@ export default function RaidScreen({ metroId, plan, placeId, imageUrl, spawns, a
   };
 
   return createPortal(
-    <div className="rm-raid" style={{ width: screenBox.w, height: screenBox.h }} role="dialog" aria-label="Looting" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+    <div className="rm-raid" style={{ width: screenBox.w, height: `calc(${screenBox.h}px - env(safe-area-inset-top))` }} role="dialog" aria-label="Looting" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
       <canvas
         ref={canvas}
         className="rm-raid-canvas"
