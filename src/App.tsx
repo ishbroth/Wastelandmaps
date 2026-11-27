@@ -977,6 +977,12 @@ export default function App() {
 
   // A popup opens on the map (a place's card or its scene, the home prompt, the sign-in or vault-number windows, a vacation vault question): whatever tab it was started from, held upright
   // the map is above the tabs, so if it has been scrolled out of view, the screen goes back up to it. Sideways the map is beside the Terminal and nothing moves.
+  /** Back up to the map (upright phone): used when an icon on the part of the map still in view is tapped, even if its card was already the open one. */
+  const showMapNow = useCallback(() => {
+    if (!window.matchMedia('(orientation: portrait)').matches) return;
+    const screen = document.querySelector('.rm-screen'); if (!screen) return;
+    if (Math.abs(screen.getBoundingClientRect().top) > 12) screen.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
   const popupKey = `${selectedId ?? ''}|${sceneId ?? ''}|${homeOpen ? 'home' : ''}|${resetOpen ? 'reset' : ''}|${vacationAsk ? 'vacation' : ''}|${accountOpen && !account.session ? 'account' : ''}|${vaultOpen !== null ? `vault${vaultOpen.key ?? ''}` : ''}|${account.session && account.homeLoaded && (!account.home || (!!account.home.address && account.home.vaultNumber === undefined)) && !homeSkipped ? 'homefirst' : ''}`;
   useEffect(() => {
     if (!popupKey.replace(/\|/g, '') || !window.matchMedia('(orientation: portrait)').matches) return;
@@ -1664,7 +1670,7 @@ export default function App() {
             <MapView
               onLocate={locateMe} locateDisabled={status !== 'ready' || !!travel}
               look={LOOKS[look]} region={region} wasteland={wasteland} locations={mapLocations} hiddenCategories={hidden}
-              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} waiting={account.waiting} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { if (navRef.current) return; setSelectedId(id); if (id) sound('tick'); }} onViewport={onViewport} onLongPress={onMapHold} regionLabels={regionLabels} flood={flood} startView={startView}
+              selectedId={selectedId} visited={shownVisited} cleared={account.cleared} waiting={account.waiting} player={player} travel={travel} onArrive={arrive} nav={navView} onSelect={(id) => { if (navRef.current) return; setSelectedId(id); if (id) { sound('tick'); showMapNow(); } }} onViewport={onViewport} onLongPress={onMapHold} regionLabels={regionLabels} flood={flood} startView={startView}
             />
           ) : status === 'problem' ? (
             <SetupNotice problem={problem} />
@@ -1782,7 +1788,7 @@ export default function App() {
                 vacation={vacationOffer} onVacation={setVacationAsk}
                 metro={metroInfo} account={account}
                 region={region} locations={[...locations, ...personalLocs.filter((p) => !p.personal?.home)]} hidden={hidden} onToggleCategory={toggleCategory} atlasOn={atlasOn} atlasCount={atlas.length} onToggleAtlas={() => { if (!metroInfo) return; sound('tick'); setAtlasOffIn((prev) => { const n = new Set(prev); if (n.has(metroInfo.id)) n.delete(metroInfo.id); else n.add(metroInfo.id); try { localStorage.setItem('wastelandmaps:atlasoff', JSON.stringify([...n])); } catch { /* storage unavailable */ } return n; }); }} selectedId={selectedId} visited={shownVisited} cleared={account.cleared}
-                onSelect={(id) => { if (navRef.current) return; setSelectedId(id); sound('select'); }}
+                onSelect={(id) => { if (navRef.current) return; setSelectedId(id); sound('select'); showMapNow(); }}
               />
             )}
             {tab === 'data' && <AccountPanel locationOf={locationOf} vacation={vacationOffer} onVacation={setVacationAsk} account={account} found={found} iconOf={iconOfFound} metroRows={metroRows} onChangeHome={() => setHomeOpen(true)} onAccount={() => setAccountOpen(true)} onGoTo={(p) => void openFound(p, false)} onSnapshot={(p) => void openFound(p, true)} />}
