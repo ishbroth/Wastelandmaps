@@ -591,6 +591,8 @@ html[data-look='parchment'] .rm-locked b { text-shadow: none; color: var(--ink);
 .rm-raid-lost { color: #ff9a3d; }
 .rm-atlas { margin-top: 10px; }
 .rm-suggest-inline { position: static; box-shadow: none; margin-top: 6px; }
+/* on a phone the list opens in the flow of the panel (under the field), not floating below it where the screen or the scrolling panel cuts it off */
+@media (max-width: 960px) { .rm-suggest { position: static; margin: 6px 0 0; box-shadow: none; max-height: 52vh; overflow-y: auto; } }
 .rm-home .rm-account-body { display: grid; gap: 10px; }
 
 .rm-danger { border-color: #ff6a3d; color: #ff6a3d; }

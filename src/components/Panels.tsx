@@ -574,7 +574,7 @@ function Packs({ onBought }: { onBought: () => void }) {
   }
   return (
     <div>
-      <button type="button" className="rm-btn rm-btn-ghost rm-trade-money" onClick={(e) => { const wide = window.matchMedia('(min-width: 961px) and (pointer: fine)').matches && !isNative(); setAnchor(wide ? 'map' : { x: e.clientX, y: e.clientY }); setOpen(true); }}>TRADE PRE-WAR MONEY</button>
+      <button type="button" className="rm-btn rm-btn-ghost rm-trade-money" onClick={(e) => { const wide = window.matchMedia('(min-width: 961px) and (pointer: fine)').matches && !isNative(); const upright = window.matchMedia('(orientation: portrait)').matches; if (upright) document.querySelector('.rm-screen')?.scrollIntoView({ block: 'start' }); setAnchor(wide || upright ? 'map' : { x: e.clientX, y: e.clientY }); setOpen(true); }}>TRADE PRE-WAR MONEY</button>
       {open && <BuyCaps title="TRADE PRE-WAR MONEY" anchor={anchor} onClose={() => setOpen(false)} onBought={onBought} />}
     </div>
   );

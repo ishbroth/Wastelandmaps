@@ -1025,9 +1025,11 @@ export default function App() {
     const home = account.home;
     const list: { id: string; main: string; secondary: string; home?: boolean; place: PickedPlace }[] = [];
     if (home?.address && home.lat !== undefined && home.lng !== undefined) list.push({ id: 'home', main: `VAULT ${home.vaultNumber !== undefined ? String(home.vaultNumber).padStart(4, '0') : ''}`.trim(), secondary: home.address, home: true, place: { placeId: home.placeId ?? 'home', name: 'Home', address: home.address, position: { lat: home.lat, lng: home.lng }, kind: 'house' } });
-    for (const p of navHist) if (p.placeId !== home?.placeId) list.push({ id: p.placeId, main: p.name || p.address.split(',')[0], secondary: p.address, place: { placeId: p.placeId, name: p.name, address: p.address, position: { lat: p.lat, lng: p.lng }, kind: p.kind } });
+    // the vacation vaults come next, then the addresses searched for before
+    for (const v of account.vacations) if (v.placeId !== home?.placeId) list.push({ id: `vac:${v.placeId}`, main: 'VACATION VAULT', secondary: v.name, place: { placeId: v.placeId, name: v.name, address: v.name, position: { lat: v.lat, lng: v.lng }, kind: 'house' } });
+    for (const p of navHist) if (p.placeId !== home?.placeId && !account.vacations.some((v) => v.placeId === p.placeId)) list.push({ id: p.placeId, main: p.name || p.address.split(',')[0], secondary: p.address, place: { placeId: p.placeId, name: p.name, address: p.address, position: { lat: p.lat, lng: p.lng }, kind: p.kind } });
     return list;
-  }, [account.session, account.home, navHist]);
+  }, [account.session, account.home, account.vacations, navHist]);
   /** A tap and hold on a building's outline, close in: its address, as a destination with the card (FAST TRAVEL and VIEW) ready, as if it had been typed in. */
   const onMapHold = useCallback(async (position: { lat: number; lng: number }) => {
     if (navRef.current) return;
