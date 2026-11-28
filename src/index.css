@@ -1345,3 +1345,32 @@ html[data-look='pipboy'] .rm-arsenal-buy:not(:disabled) { color: #7dffb0; }
 
 /* the page scrolls under the phone's status bar: a solid strip of the app's own colour keeps it clear, so nothing ever shows up there */
 body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: #000a04; z-index: 9999; pointer-events: none; }
+
+/* ---- the Pip-Boy's plastic shell: a hard, dark green-grey casing round the very edge of the screen (the status bar included), over everything and never moving anything.
+   It is switched on by the 'rm-shell' class on <html> (see main.tsx: PIP_SHELL); take the class off and the page is exactly as it was. ---- */
+html.rm-shell[data-look='pipboy'] {
+  --shell: #2b322b;
+  --shell-edge: 9px;
+  --shell-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.62 0 0 0 0 0.55 0 0 0 0.17 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --shell-plastic: var(--shell-noise), linear-gradient(135deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0) 28%, rgba(0, 0, 0, 0) 66%, rgba(0, 0, 0, 0.32)), linear-gradient(var(--shell), #232923);
+}
+/* the page behind the device (the footer and what is round the screens) is the same plastic */
+html.rm-shell[data-look='pipboy'] body { background-color: var(--shell); background-image: var(--shell-plastic); background-size: 180px 180px, 100% 100%, 100% 100%; background-attachment: scroll, fixed, fixed; }
+html.rm-shell[data-look='pipboy'] .rm-foot { color: #b4c0b0; }
+html.rm-shell[data-look='pipboy'] .rm-foot a { color: #d6e2d2; }
+/* the strip over the status bar is plastic too */
+html.rm-shell[data-look='pipboy'] body::before { background: var(--shell-plastic); background-size: 180px 180px, 100% 100%, 100% 100%; box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.7); }
+/* the ring of casing on all four sides, the same in every orientation, above every screen and game, letting every touch through */
+html.rm-shell[data-look='pipboy'] body::after {
+  content: ''; position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+  padding: max(env(safe-area-inset-top), var(--shell-edge)) max(env(safe-area-inset-right), var(--shell-edge)) max(env(safe-area-inset-bottom), var(--shell-edge)) max(env(safe-area-inset-left), var(--shell-edge));
+  background: var(--shell-plastic); background-size: 180px 180px, 100% 100%, 100% 100%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask-composite: exclude;
+}
+/* the rim where the screen sits down into the casing: a dark bevel, a thin highlight, rounded corners filled with casing */
+html.rm-shell[data-look='pipboy'] #root::after {
+  content: ''; position: fixed; z-index: 9998; pointer-events: none; border-radius: 16px;
+  top: max(env(safe-area-inset-top), var(--shell-edge)); right: max(env(safe-area-inset-right), var(--shell-edge)); bottom: max(env(safe-area-inset-bottom), var(--shell-edge)); left: max(env(safe-area-inset-left), var(--shell-edge));
+  box-shadow: 0 0 0 18px var(--shell), 0 0 0 19px rgba(255, 255, 255, 0.0), inset 0 0 0 2px rgba(0, 0, 0, 0.85), inset 0 0 16px 3px rgba(0, 0, 0, 0.75), 0 1px 0 rgba(255, 255, 255, 0.12);
+}
